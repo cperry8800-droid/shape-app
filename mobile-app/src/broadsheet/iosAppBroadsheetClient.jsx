@@ -6304,18 +6304,233 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   );
 }
 
+// ── Coach "Signal" public profile (Living Identity direction) ────────────────
+// Coaches get a circular "instrument": concentric discipline rings + a cardiac
+// week trace + a portrait core, then living signals, discipline legend, track
+// record, recent win, field notes, and the marketplace blocks (certifications,
+// services & prices, reviews). Tier (coach ladder) is the atmosphere color.
+// Name/tier/city/bio/points/privacy are live; the rest is illustrative for now.
+function BSSignalSigil({ week, disciplines, c, teal, ink, size = 240 }) {
+  const cx = size / 2, R = size / 2;
+  const n = week.length;
+  const pts = week.map((v, i) => {
+    const a = (-90 + (i / n) * 360) * Math.PI / 180;
+    const rr = R * (0.83 - 0.08 + (v / 100) * 0.14);
+    return [cx + rr * Math.cos(a), cx + rr * Math.sin(a)];
+  });
+  const tracePath = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ') + ' Z';
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden style={{ display: 'block' }}>
+      <defs>
+        <radialGradient id="sgcore" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor={teal} /><stop offset="55%" stopColor={c} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></radialGradient>
+        <filter id="sgglow"><feGaussianBlur stdDeviation="3.2" /></filter>
+      </defs>
+      {Array.from({ length: 60 }).map((_, i) => {
+        const a = (i / 60) * Math.PI * 2, r0 = R * 0.97, r1 = R * (i % 5 === 0 ? 0.9 : 0.94);
+        return <line key={i} x1={cx + r0 * Math.cos(a)} y1={cx + r0 * Math.sin(a)} x2={cx + r1 * Math.cos(a)} y2={cx + r1 * Math.sin(a)} stroke={bsTHexA(ink, i % 5 === 0 ? 0.32 : 0.14)} strokeWidth={i % 5 === 0 ? 1.4 : 0.8} />;
+      })}
+      {disciplines.map(([label, val], i) => {
+        const rr = R * (0.74 - i * 0.135), sweep = val * 320, a0 = -90 * Math.PI / 180, a1 = (-90 + sweep) * Math.PI / 180, large = sweep > 180 ? 1 : 0;
+        const col = i === 0 ? c : i === disciplines.length - 1 ? teal : bsTHexA(c, 0.7);
+        return (<g key={label}><circle cx={cx} cy={cx} r={rr} fill="none" stroke={bsTHexA(ink, 0.07)} strokeWidth={5} /><path d={`M ${cx + rr * Math.cos(a0)} ${cx + rr * Math.sin(a0)} A ${rr} ${rr} 0 ${large} 1 ${cx + rr * Math.cos(a1)} ${cx + rr * Math.sin(a1)}`} fill="none" stroke={col} strokeWidth={5} strokeLinecap="round" /></g>);
+      })}
+      <path d={tracePath} fill="none" stroke={teal} strokeWidth={1.6} opacity={0.85} filter="url(#sgglow)" />
+      <path d={tracePath} fill="none" stroke={teal} strokeWidth={1} opacity={0.9} />
+      <circle cx={cx} cy={cx} r={R * 0.2} fill="url(#sgcore)" />
+    </svg>
+  );
+}
+
+function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
+  const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const [live, setLive] = useStateBSC(null);
+  React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  const isPrivate = !!(live && live.is_public === false);
+  const isNutri = person.kind === 'NUTRI';
+  const points = live && Number.isFinite(live.points) ? live.points : null;
+  const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
+  const tierName = bsCoachTier(baseTier);
+  const c = bsTierColor(String(tierName).toLowerCase());
+  const name = person.who || (isNutri ? 'Nutritionist' : 'Coach');
+  const first = name.split(' ')[0];
+  const city = person.city || 'Shape community';
+  const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const pronouns = (!isPrivate && live && live.pronouns) || '';
+  const score = points != null ? points : 4970;
+  const roleLabel = isNutri ? 'Nutritionist · RD' : 'Trainer · CPT';
+  const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.');
+  const disLabel = isNutri ? 'Practice focus' : 'Coaching focus';
+  const disciplines = isNutri ? [['Performance', 0.9], ['Gut health', 0.82], ['Iron & ferritin', 0.86], ['Recovery', 0.8]] : [['Strength', 0.95], ['Hypertrophy', 0.88], ['Powerlifting', 0.8], ['Form audit', 0.92]];
+  const lifts = isNutri ? [['Clients', '200+'], ['Rating', '4.95'], ['Years', '7']] : [['Clients', '90+'], ['Rating', '4.97'], ['Years', '9']];
+  const week = [88, 60, 92, 70, 95, 50, 80];
+  const certs = isNutri
+    ? [['RD', 'Registered Dietitian', '2018'], ['CSSD', 'Sports Dietetics Specialist', '2020'], ['FODMAP', 'Monash FODMAP-trained', '2022']]
+    : [['NASM-CPT', 'Certified Personal Trainer', '2016'], ['USAW-L1', 'USA Weightlifting', '2020'], ['FMS-L2', 'Functional Movement Screen', '2021']];
+  const offerings = isNutri
+    ? [['Meal plan', 'Custom meal plan', '2 weeks, built to your macros', '$60'], ['Program', '6-week nutrition program', 'Plan + weekly adjustments', '$220'], ['Coaching', 'Monthly coaching', 'Plans, labs review, accountability', '$160/mo'], ['Consult', 'Intro call', '15 min — see if we’re a fit', 'Free']]
+    : [['Workout', 'Single 1:1 session', '60 min, in-person or remote', '$32'], ['Program', '6-week strength block', 'Custom programming + check-ins', '$240'], ['Coaching', 'Monthly coaching', 'Full programming + daily chat', '$180/mo'], ['Consult', 'Intro call', '15 min — see if we’re a fit', 'Free']];
+  const rating = isNutri ? '4.95' : '4.97', reviewCount = isNutri ? 198 : 284;
+  const reviews = isNutri
+    ? [['Sofia M.', 'SM', 300, 'She found my low ferritin before any doctor did. I train 50% more volume now.'], ['Diego R.', 'DR', 200, 'Learned what fueling a lifting block actually looks like. Clearest plans I’ve seen.']]
+    : [['Priya S.', 'PS', 168, '+60 lb on my deadlift in 14 weeks without a single bad-back day.'], ['Marcus L.', 'ML', 220, 'World-class programming. She books up fast — plan ahead, it’s worth it.']];
+  const relation = isNutri ? ['Recent win', 'Sofia M.', 'SM', 300, 'Found her low ferritin before any doctor did — training volume up 50%.'] : ['Recent win', 'Jonah W.', 'JW', 200, 'Pulled 2× bodyweight after 8 months — never touched a barbell before me.'];
+  const feed = isNutri
+    ? [['Tip', 'Always tired? Check ferritin before macros', 'Half the “low energy” DMs I get are iron, not calories.', '3d'], ['Win', 'Sofia’s training volume up 50%', 'Fix the input, the output follows.', '5d']]
+    : [['Tip', 'The 3 cues that fix most squats', 'Brace, spread the floor, own the bottom. Save this for leg day.', '2d'], ['Win', 'Jonah pulled 2× bodyweight today', 'Showed up every week. That’s the whole secret.', '4d']];
+  const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
+  const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
+  const initials = bsInitials(name) || (person.init || '?');
+  return (
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, padding: '46px 22px 28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <Kick col={c}>{tierName} · coach</Kick>
+        </div>
+
+        {/* the instrument — discipline rings around a portrait core */}
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
+          <BSSignalSigil week={week} disciplines={disciplines} c={c} teal={TEAL} ink={INK} size={240} />
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 84, height: 84, borderRadius: 999, background: c, color: '#06110e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 30, fontWeight: 600, boxShadow: `0 0 0 4px ${BG}` }}>{initials}</div>
+        </div>
+
+        {/* name block */}
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.98 }}>{name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.55), flexWrap: 'wrap' }}>
+            <span>{handle}</span>{pronouns ? <><span style={{ opacity: 0.4 }}>·</span><span>{pronouns}</span></> : null}<span style={{ opacity: 0.4 }}>·</span><span>{city}</span>
+          </div>
+          <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
+        </div>
+
+        {/* hero stat */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
+          <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score</div></div>
+          <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating} · {reviewCount} reviews</div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
+        </div>
+
+        {isPrivate ? (
+          <div style={{ ...card, padding: '18px', marginTop: 18, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{first} keeps their profile private — only name and tier are shown.</div></div>
+        ) : (
+        <>
+          {/* philosophy */}
+          <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
+            <Kick>{isNutri ? 'Practice philosophy' : 'Coaching philosophy'}</Kick>
+            <div style={{ fontFamily: SERIF, fontSize: 23, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.18, color: bsTHexA(INK, 0.92), marginTop: 8 }}>“{philosophy}”</div>
+          </div>
+
+          {/* discipline legend */}
+          <div style={{ marginTop: 28 }}>
+            <Kick>{disLabel}</Kick>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 12 }}>
+              {disciplines.map(([label, val], i) => { const col = i === 0 ? c : i === disciplines.length - 1 ? TEAL : bsTHexA(c, 0.8); return (
+                <div key={label} style={{ ...card, padding: '12px 13px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: col }} /><span style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.82) }}>{label}</span></div><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', marginTop: 6 }}>{Math.round(val * 100)}<span style={{ fontSize: 12, color: bsTHexA(INK, 0.4) }}>/100</span></div><div style={{ height: 3, borderRadius: 2, background: bsTHexA(INK, 0.1), marginTop: 8, overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: col, borderRadius: 2 }} /></div></div>
+              ); })}
+            </div>
+          </div>
+
+          {/* track record */}
+          <div style={{ marginTop: 24 }}>
+            <Kick>Track record</Kick>
+            <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
+              {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
+            </div>
+          </div>
+
+          {/* certifications */}
+          <div style={{ marginTop: 28 }}>
+            <Kick>Certifications</Kick>
+            <div style={{ ...card, padding: 4, marginTop: 12 }}>
+              {certs.map(([abbr, body, year], i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.07)}` : 'none' }}>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: c, minWidth: 78 }}>{abbr}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{body}</div><div style={{ fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.45), marginTop: 2 }}>{year}</div></div>
+                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: TEAL }}>✓ Verified</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* services & prices */}
+          <div style={{ marginTop: 28 }}>
+            <Kick>{isNutri ? 'Work with ' + first : 'Train with ' + first}</Kick>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              {offerings.map(([kind, nm, sub, price], i) => (
+                <div key={i} style={{ ...card, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.01em' }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
+                  <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* reviews */}
+          <div style={{ marginTop: 28 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>★ {reviewCount}</span></div></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              {reviews.map(([nm, ini, hue, body], i) => (
+                <div key={i} style={{ ...card, padding: '13px 15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12 }}>{ini}</div><span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500 }}>{nm}</span><span style={{ fontFamily: MONO, fontSize: 11, color: c }}>★★★★★</span></div>
+                  <p style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 1.45, color: bsTHexA(INK, 0.82), margin: '10px 0 0' }}>“{body}”</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* recent win */}
+          <div style={{ marginTop: 24, ...card, borderRadius: 16, padding: 16 }}>
+            <Kick>{relation[0]}</Kick>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}><div style={{ width: 42, height: 42, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${relation[3]} 40% 34%), hsl(${relation[3]} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 16 }}>{relation[2]}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 500 }}>{relation[1]}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), lineHeight: 1.4, marginTop: 3 }}>{relation[4]}</div></div></div>
+          </div>
+
+          {/* field notes */}
+          <div style={{ marginTop: 28 }}>
+            <Kick>Field notes</Kick>
+            <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
+              <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
+              {feed.map(([k, t2, b, time], i) => (
+                <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
+                  <div style={{ position: 'absolute', left: -22, top: 16, width: 9, height: 9, borderRadius: 999, background: c, boxShadow: `0 0 0 3px ${BG}, 0 0 10px ${bsTHexA(c, 0.6)}` }} />
+                  <div style={{ ...card, padding: '13px 15px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{time}</span></div>
+                    <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{t2}</div>
+                    <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0' }}>{b}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+        )}
+      </div>
+
+      {/* dock */}
+      <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)`, display: 'flex', gap: 10 }}>
+        {isSelf ? (
+          <button onClick={onEdit} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
+        ) : (
+          <>
+            <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
+            <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching →</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Tier-colored ring + avatar; shows role, tier, and a Message CTA. (Read-only;
 // respects privacy — only reachable when the post isn't marked private.)
-// Public profile — same anatomy as the coach detail page (gradient hero card +
-// tier chip + 3-up stats + about cards), populated with member info. Live tier/
-// bio/details come from get_public_profile when we have a user id; otherwise a
-// derived tier + generic blurb (demo/community people).
+// Member (client) profiles use the Terrain design; coaches use the Signal
+// design; both are immersive living-identity pages (above).
 function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
-  // Members (clients) get the immersive "Terrain" living-identity profile;
-  // coaches keep the card layout below (their own design lands separately).
-  if (person.kind !== 'TRAINER' && person.kind !== 'NUTRI') {
-    return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
+  if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
+    return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
   }
+  return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
+  // eslint-disable-next-line no-unreachable
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [live, setLive] = useStateBSC(null);
