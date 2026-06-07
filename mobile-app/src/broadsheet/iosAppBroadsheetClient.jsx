@@ -6120,11 +6120,12 @@ function bsTRng(seed) { let s = (seed || 1) % 2147483647; if (s <= 0) s += 21474
 // (or an edit ✎ badge on your own). Used across the living-identity profiles.
 function bsTierRank(tier) { const m = { raw: 'I', base: 'I', tempo: 'II', form: 'III', peak: 'IV', legend: 'V', certified: 'I', pro: 'II', elite: 'III', master: 'IV', icon: 'V' }; return m[String(tier || '').toLowerCase()] || 'I'; }
 function bsShade(hex, f) { const h = String(hex || '#888888').replace('#', ''); const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', editable = false, onEdit, showRank = true, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', editable = false, onEdit, showRank = true, live = false, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
     <div onClick={onClick} style={{ width: size, height: size, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
+      {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
       {/* gem frame */}
       <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)', pointerEvents: 'none' }} />
@@ -6137,6 +6138,8 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
       </div>
       {editable ? (
         <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BG}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
+      ) : live ? (
+        <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BG, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BG}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: FTEAL }} /></span>
       ) : showRank ? (
         <div style={{ position: 'absolute', bottom: -Math.round(size * 0.02), left: '50%', width: Math.max(16, Math.round(size * 0.3)), height: Math.max(16, Math.round(size * 0.3)), transform: 'translate(-50%,40%) rotate(45deg)', borderRadius: '30%', background: BG, display: 'grid', placeItems: 'center', boxShadow: `0 0 0 2px ${BG}` }}>
           <span style={{ transform: 'rotate(-45deg)', fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.13)), fontWeight: 600, color: c }}>{rank}</span>
@@ -7254,13 +7257,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // is demo data wired through the real tier-color helpers; swap `TRAINING_NOW`
   // for a live presence feed when the backend exposes who's-doing-what.
   const TRAINING_NOW = [
-    { name: 'Priya Shah',   doing: 'Pull · set 14',   tier: 'peak' },
-    { name: 'Drew Oyelaran', doing: 'Tempo run',      tier: 'legend' },
-    { name: 'Casey Morgan', doing: 'Back squat 5×5',  tier: 'form' },
-    { name: 'Devon Wells',  doing: 'Zone 2',          tier: 'tempo' },
-    { name: 'Maya Okafor',  doing: 'Coaching floor',  tier: 'legend', role: 'trainer' },
-    { name: 'Sofia Park',   doing: 'Mobility',        tier: 'base' },
+    { name: 'Priya Shah',   tier: 'peak',   live: true,  photo: '1544005313-94ddf0286df2' },
+    { name: 'Drew Oyelaran', tier: 'legend',             photo: '1499996860823-5214fcc65f8f' },
+    { name: 'Casey Morgan', tier: 'form',                photo: '1507003211169-0a1dd7228f2d' },
+    { name: 'Devon Wells',  tier: 'tempo',               photo: '1500648767791-00dcc994a43e' },
+    { name: 'Maya Okafor',  tier: 'legend', role: 'trainer', photo: '1438761681033-6461ffad8d80' },
+    { name: 'Sofia Park',   tier: 'base',                photo: '1487412720507-e7ab37603c6f' },
   ];
+  const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
   const liftingNow = online > 0 ? online : 2104;
 
   return (
@@ -7290,16 +7294,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {TRAINING_NOW.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
-              const pip = p.role === 'trainer' ? '#c0533b' : p.role === 'nutritionist' ? '#a07a2e' : null;
               return (
-                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
-                  <span style={{ position: 'relative', display: 'inline-flex' }}>
-                    <BSFacetAvatar size={46} c={tc} initial={bsInitials(p.name)} showRank={false} />
-                    <span style={{ position: 'absolute', right: -2, top: -2, width: 11, height: 11, borderRadius: 999, background: TEAL, border: `2px solid ${t.PAPER}` }} />
-                    {pip && <span style={{ position: 'absolute', right: -3, bottom: -3, width: 13, height: 13, borderRadius: 4, background: pip, border: `2px solid ${t.PAPER}` }} />}
-                  </span>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
-                  <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.doing}</span>
+                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true })} style={{ flex: '0 0 auto', width: 60, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <BSFacetAvatar size={50} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} rank={bsTierRank(p.tier)} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
+                  </div>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11.5, marginTop: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}
