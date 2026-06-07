@@ -400,6 +400,8 @@ function ChatWidget(props) {
   // message carries a real user id (i.e. an actual signed-in account).
   const [profileFor, setProfileFor] = React.useState(null);
   const [profLive, setProfLive] = React.useState(null);
+  // My own display name (for my avatar next to my own messages).
+  const [myName, setMyName] = React.useState("You");
   const openProfile = (m) => {
     // Prefer the fullest name we have so initials are 2 letters: in a 1:1 the
     // thread name is the counterpart's full name (the message sender is usually
@@ -432,6 +434,12 @@ function ChatWidget(props) {
       .then(async (d) => {
         const u = d && d.user;
         if (!cancelled) myUserIdRef.current = u ? u.id : null;
+        if (u) {
+          try {
+            const pr = window.shapeDb && window.shapeDb.getProfile ? await window.shapeDb.getProfile(u.id) : null;
+            if (pr && pr.full_name && !cancelled) setMyName(pr.full_name);
+          } catch (e) {}
+        }
         if (!u) { if (!cancelled) setMember(false); return; }
         const roles = Array.isArray(u.roles) ? u.roles : [];
         const isCoach = u.role === "trainer" || u.role === "nutritionist" || roles.includes("trainer") || roles.includes("nutritionist");
@@ -909,6 +917,11 @@ function ChatWidget(props) {
                     {!m.me && (
                       <div style={{ alignSelf: "flex-end" }}>
                         <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
+                      </div>
+                    )}
+                    {m.me && (
+                      <div style={{ alignSelf: "flex-end" }}>
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName))} initial={cwInitials(myName)} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
                       </div>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>

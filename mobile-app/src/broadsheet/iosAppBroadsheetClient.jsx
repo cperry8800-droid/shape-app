@@ -7543,10 +7543,21 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
                   {supportMsgs.map((m, i) => (
-                    <div key={i} style={{ alignSelf: m.me ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
-                      {!m.me && <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>}
-                      <div style={{ padding: '9px 12px', borderRadius: 14, background: m.me ? TEAL : card, color: m.me ? '#031f1c' : cardInk, border: m.me ? 0 : `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                    </div>
+                    m.me ? (
+                      <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
+                        <div style={{ padding: '9px 12px', borderRadius: 14, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                      </div>
+                    ) : (
+                      <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                        <div style={{ flexShrink: 0 }}>
+                          <BSFacetAvatar size={32} c={'#2e6fa0'} initial={(m.who || 'N').trim().charAt(0).toUpperCase()} showRank={false} BG={t.PAPER} INK={'#fff'} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>
+                          <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                        </div>
+                      </div>
+                    )
                   ))}
                   {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Nora is typing…</div>}
                 </div>

@@ -580,6 +580,28 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Sweep now-dead marketplace constants + ListingRow; confirm $rate/mo pricing semantics', status: 'pending' },
       ],
     },
+    {
+      section: 'Public profiles, presence & avatars',
+      items: [
+        { label: 'Living-identity public profiles: clients → Terrain (ridgeline ascent hero), coaches → Signal (pulsing sigil instrument)', status: 'done' },
+        { label: 'Facet (gem) avatar system app-wide: headers, chat, feed, presence rail, settings (+ add/change photo)', status: 'done' },
+        { label: "Me + Settings 'View public profile' link on every role; edit from your own profile; coach Signal self-view", status: 'done' },
+        { label: 'Profile privacy selector Public / Friends / Private — enforced server-side (get_public_profile can_view; friends = shared DM)', status: 'done' },
+        { label: 'Real per-user online presence (Supabase Realtime online-users) on mobile + website; pulsing live ring when online', status: 'done' },
+        { label: "'Show when I'm online' opt-out toggle on mobile Settings + website Me — shared client_settings.onlineVisible", status: 'done' },
+        { label: 'Website chat popup uses the facet avatar incl. your own avatar next to your messages; support tab (Nora) shows an avatar', status: 'done' },
+        { label: 'Migrations applied in Supabase: public-profile friends-visibility + public-profile avatar', status: 'manual' },
+        { label: 'Wire rich profile sub-data (climb, disciplines, lifts, certs, reviews, field-notes) to real workout/PR/marketplace data', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Shape Score ladders (client + coach)',
+      items: [
+        { label: 'Coach tier ladder (Certified · Pro · Elite · Master · Icon) separate from clients — mobile + website', status: 'done' },
+        { label: 'Website Shape Score page: Members / Coaches tab swaps the ladder; logged-in coaches see the coach ladder', status: 'done' },
+        { label: 'Score tier nodes: progress connector bar layered behind the opaque tier discs (no line cutting across circles)', status: 'done' },
+      ],
+    },
   ];
 }
 
