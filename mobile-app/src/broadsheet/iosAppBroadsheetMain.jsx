@@ -472,11 +472,22 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
           // (generic 'activity'/'update' titles, missing titles, or stale
           // timestamps). Otherwise keep the curated editorial blurbs.
           const firstName = (n) => String(n || 'Member').trim().split(/\s+/)[0];
+          // Throwaway chatter that shouldn't be promoted to a Daily headline.
+          const GREETINGS = new Set(['hi', 'hii', 'hiii', 'hey', 'heyy', 'yo', 'sup', 'test', 'testing', 'lol', 'ok', 'okay', 'hello', 'hru', 'asdf', 'wassup', 'whatsup']);
+          const ACTIVITY = ['pr', 'run', 'race', 'workout', 'strength', 'meal', 'nutrition', 'ride', 'cycle', 'swim'];
           const good = d.posts.filter(p => {
-            const tt = String(p.title || p.note || '').trim().toLowerCase();
-            if (!tt || tt === 'activity' || tt === 'update' || tt.length < 3) return false;
+            const raw = String(p.title || p.note || '').trim();
+            const tt = raw.toLowerCase();
+            if (!tt || tt === 'activity' || tt === 'update') return false;
             const ms = Date.now() - new Date(p.created_at).getTime();
-            return ms >= 0 && ms < 30 * 86_400_000;
+            if (!(ms >= 0 && ms < 30 * 86_400_000)) return false;
+            // Real, structured activity posts (a PR, a run, a logged meal…) are
+            // always headline-worthy. Free-text community chatter has to look
+            // like an actual update — multi-word, substantial, not a greeting —
+            // so a stray "hii" never becomes a featured story.
+            if (ACTIVITY.includes(String(p.activity_type || '').toLowerCase())) return raw.length >= 3;
+            if (GREETINGS.has(tt)) return false;
+            return raw.length >= 14 && /\s/.test(raw);
           }).slice(0, 5);
           if (!good.length) return;
           const hydrated = good.map((p, i) => ({
