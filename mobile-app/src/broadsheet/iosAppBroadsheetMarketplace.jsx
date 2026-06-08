@@ -467,7 +467,20 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
     <BSPage>
       {/* Hero */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+          {window.BSFacetAvatar ? (
+            <window.BSFacetAvatar
+              size={34}
+              c={(window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'}
+              initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
+              photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined}
+              live={!!(window.bsAmLive && window.bsAmLive())}
+              showRank={false}
+              onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }}
+            />
+          ) : null}
+        </div>
         <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
           Find your<br /><span style={{ fontStyle: 'italic', color: teal }}>coach.</span>
         </h1>
@@ -496,12 +509,12 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
           color: on ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' });
         const sel = { flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, outline: 'none' };
         return (
-        <div style={{ padding: `0 ${t.padX}px 16px`, display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ padding: `0 ${t.padX}px 16px`, display: 'flex', flexDirection: 'column', gap: 9, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {catList.map((ct) => <button key={ct} onClick={() => setCat(ct)} style={catPill(cat === ct)}>{ct === 'All Categories' ? 'All' : ct}</button>)}
           </div>
           {pill === 'Trainers' && (
-            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
               <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginRight: 2 }}>Format</span>
               {BSM_MARKETPLACE_FORMATS.map((f) => <button key={f} onClick={() => setFormat(f)} style={catPill(format === f)}>{f === 'All formats' ? 'All' : f}</button>)}
             </div>
@@ -537,21 +550,21 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
           {/* Coach of the week */}
           {cotw && cotwProfile ? (
             <div style={{ padding: `0 ${t.padX}px` }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Coach of the week</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{cotw.name}</div>
-              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 12, borderRadius: 18, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${mktRoleColor(cotw)}26, ${t.PAPER2} 62%)`, padding: 14 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 16, lineHeight: 1.3, letterSpacing: '-0.01em', color: t.INK }}>“{cotw.bio}”</div>
-                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 11 }}>
-                  <MktAvatar c={cotw} size={38} />
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Coach of the week</div>
+              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{cotw.name}</div>
+              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 9, borderRadius: 16, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${mktRoleColor(cotw)}26, ${t.PAPER2} 62%)`, padding: 11 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.3, letterSpacing: '-0.01em', color: t.INK }}>“{cotw.bio}”</div>
+                <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <MktAvatar c={cotw} size={32} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{cotw.name}</div>
-                    <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{(cotw.spec && cotw.spec[0]) || cotwProfile.role} · {mktShortLoc(cotw.loc)}</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cotw.name}</div>
+                    <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(cotw.spec && cotw.spec[0]) || cotwProfile.role} · {mktShortLoc(cotw.loc)}</div>
                   </div>
-                  <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: mktRoleColor(cotw), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700 }}>→</span>
+                  <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: mktRoleColor(cotw), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>→</span>
                 </div>
-                <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
-                <div style={{ marginTop: 2 }}>
-                  {cotwProfile.packages.map((p, i) => (
+                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
+                <div style={{ marginTop: 1 }}>
+                  {cotwProfile.packages.slice(0, 3).map((p, i) => (
                     <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? 'Monthly' : 'One-time'} · ${p.perks.length} included`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
                   ))}
                 </div>
