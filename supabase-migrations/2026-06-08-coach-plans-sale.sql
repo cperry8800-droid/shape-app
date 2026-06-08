@@ -14,6 +14,9 @@ alter table public.one_time_purchases
 -- A marketplace coach's PUBLISHED plans (for their profile catalogue). Priced
 -- plans are buyable; others are just listed. `category` (from the AI-draft
 -- buildType, else the kind) drives the per-role tabs on the profile.
+-- DROP first: an earlier version returned fewer columns, and Postgres won't let
+-- `create or replace` change a function's return type.
+drop function if exists public.get_coach_sale_plans(text, bigint);
 create or replace function public.get_coach_sale_plans(p_provider_role text, p_provider_id bigint)
 returns table (id uuid, kind text, name text, meta text, price text, category text)
 language sql stable security definer set search_path = public as $$
