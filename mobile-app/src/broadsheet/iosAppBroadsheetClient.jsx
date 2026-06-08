@@ -6137,31 +6137,34 @@ const BS_SAMPLE_CHANNELS = [
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', onOpenProfile }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
+  // On your OWN profile `person.userId` is often absent — resolve it from the
+  // signed-in session so the followers/following block still shows for you.
+  const uid = userId || (isSelf ? ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || null) : null);
   const [stats, setStats] = useStateBSC({ followers: 0, following: 0, isFollowing: false });
   const [busy, setBusy] = useStateBSC(false);
   const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following'
   const [list, setList] = useStateBSC(null);
   React.useEffect(() => {
-    if (!userId || !window.ShapeFollows?.stats) return;
+    if (!uid || !window.ShapeFollows?.stats) return;
     let alive = true;
-    window.ShapeFollows.stats(userId).then((s) => { if (alive) setStats(s); }).catch(() => {});
+    window.ShapeFollows.stats(uid).then((s) => { if (alive) setStats(s); }).catch(() => {});
     return () => { alive = false; };
-  }, [userId]);
+  }, [uid]);
   const onToggle = async () => {
-    if (!userId || busy || !window.ShapeFollows?.toggle) return;
+    if (!uid || busy || !window.ShapeFollows?.toggle) return;
     setBusy(true);
     const prev = stats;
     setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) }));
-    try { const s = await window.ShapeFollows.toggle(userId); setStats(s); }
+    try { const s = await window.ShapeFollows.toggle(uid); setStats(s); }
     catch (e) { setStats(prev); window.__bsToast?.(e?.message || 'Could not update follow.', 'err'); }
     finally { setBusy(false); }
   };
   const openList = (kind) => {
-    if (!userId) return;
+    if (!uid) return;
     setSheet(kind); setList(null);
-    window.ShapeFollows?.list?.(userId, kind).then((r) => setList(r || [])).catch(() => setList([]));
+    window.ShapeFollows?.list?.(uid, kind).then((r) => setList(r || [])).catch(() => setList([]));
   };
-  if (!userId) return null;
+  if (!uid) return null;
   const statBtn = (n, label, kind) => (
     <button onClick={() => openList(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: INK, letterSpacing: '-0.02em' }}>{n}</span>
