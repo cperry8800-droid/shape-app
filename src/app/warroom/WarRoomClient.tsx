@@ -247,6 +247,11 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             </div>
           </Panel>
 
+          {/* Flow diagram — boxes + arrows view of the same map */}
+          <Panel title="Flow diagram" hint="boxes + arrows" wide>
+            <ArchDiagram arch={snap.architecture} />
+          </Panel>
+
           {/* Config & secrets */}
           <Panel title="Config & secrets" hint="wired? (values never shown)" wide>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
@@ -407,6 +412,58 @@ function Stat({ label, value, sub, color }: { label: string; value: string; sub:
       <div style={{ fontSize: 11, color: C.dim, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
       <div style={{ fontSize: 26, fontWeight: 800, color, margin: '2px 0' }}>{value}</div>
       <div style={{ fontSize: 11.5, color: C.dim }}>{sub}</div>
+    </div>
+  );
+}
+
+// Map a flow step's persona to a colour so the diagram reads at a glance.
+function personaColor(p: string): string {
+  const s = p.toLowerCase();
+  if (s.includes('prospect')) return C.dim;
+  if (s.includes('trainer') || s.includes('nutrition') || s.includes('coach')) return C.warn;
+  if (s.includes('+') || s.includes('all')) return C.ok;
+  if (s.includes('member')) return C.accent;
+  return C.accent;
+}
+
+// Boxes + arrows view: a horizontal journey ribbon + the layer stack (top→bottom).
+function ArchDiagram({ arch }: { arch: WarRoomSnapshot['architecture'] }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 4 }}>Member journey</div>
+      <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>colour = who it serves · scroll →</div>
+      <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', paddingBottom: 12, marginBottom: 24 }}>
+        {arch.flow.map((s, i) => {
+          const col = personaColor(s.persona);
+          return (
+            <div key={s.n} style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ width: 152, minHeight: 78, flexShrink: 0, background: C.panel2, border: `1px solid ${C.border}`, borderLeft: `4px solid ${col}`, borderRadius: 10, padding: '9px 11px' }}>
+                <div style={{ fontFamily: 'monospace', fontSize: 10, color: col, fontWeight: 800 }}>{String(s.n).padStart(2, '0')}</div>
+                <b style={{ fontSize: 12.5, display: 'block', marginTop: 3, lineHeight: 1.2 }}>{s.stage}</b>
+                <div style={{ fontSize: 9, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{s.persona}</div>
+              </div>
+              {i < arch.flow.length - 1 && <span style={{ color: C.dim, padding: '0 7px', fontSize: 17 }}>→</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 4 }}>The stack</div>
+      <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>surfaces people touch ↓ down to the data that powers it</div>
+      <div>
+        {arch.layers.map((l, i) => (
+          <div key={l.layer}>
+            <div style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+              <b style={{ fontSize: 13, minWidth: 132 }}>{l.layer}</b>
+              <span style={{ fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{l.serves}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, flex: 1 }}>
+                {l.pieces.map((pc) => <span key={pc} style={{ fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 999, padding: '2px 7px' }}>{pc}</span>)}
+              </div>
+            </div>
+            {i < arch.layers.length - 1 && <div style={{ textAlign: 'center', color: C.dim, fontSize: 15, lineHeight: '20px' }}>↓</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
