@@ -14,13 +14,13 @@ const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BS
 // Data
 // ═══════════════════════════════════════════════════════════
 const BSM_MARKETPLACE_CATEGORIES = {
-  Trainer: ['All Categories', 'Strength & Resistance', 'Cardio & Endurance', 'Marathon', 'Ultra', 'Pure Running', 'Hyrox', 'Mobility, Recovery & Rehab', 'Functional & Hybrid', 'Bodybuilding', 'HIIT', 'Fat Burn', 'At Home', 'Just for Women'],
+  Trainer: ['All Categories', 'Strength & Resistance', 'Cardio & Endurance', 'Pure Running', 'Hyrox', 'Mobility, Recovery & Rehab', 'Functional & Hybrid', 'Bodybuilding', 'HIIT', 'Fat Burn', 'At Home', 'Just for Women'],
   Nutritionist: ['All Categories', 'Sports Performance & Hydration', 'Performance Nutrition', 'Medical & Condition-Specific', 'Muscle Gain / Bulking', 'Gut Health & Functional Nutrition', 'Longevity & Healthspan', 'Weight Mgmt', 'Plant-Based', 'Prenatal', 'Meal Prep'],
 };
 
 const BSM_MARKETPLACE_LOCATIONS = {
-  Trainer: ['Anywhere', 'Remote-friendly', 'Brooklyn, NY', 'Los Angeles', 'Austin, TX', 'Miami', 'Chicago', 'Denver', 'San Francisco', 'Atlanta', 'Boulder, CO'],
-  Nutritionist: ['Anywhere', 'Remote only', 'London', 'Toronto', 'Stockholm', 'Copenhagen', 'Madrid', 'Milan', 'Sydney'],
+  Trainer: ['Anywhere', 'Remote-friendly', 'Brooklyn, NY', 'Los Angeles', 'Austin, TX', 'Miami', 'Chicago', 'Denver', 'San Francisco', 'Las Vegas', 'Atlanta', 'Portland, OR', 'Boulder, CO', 'Eugene, OR', 'Toronto', 'London', 'Berlin', 'Lisbon', 'Madrid', 'Stockholm', 'Tokyo', 'Mumbai', 'Dubai', 'Girona', 'Chamonix'],
+  Nutritionist: ['Anywhere', 'Remote only', 'London', 'Toronto', 'Stockholm', 'Copenhagen', 'Madrid', 'Milan', 'Sydney', 'Osaka', 'Lagos'],
 };
 
 const BSM_MARKETPLACE_FORMATS = ['All formats', 'In-person', 'Remote', 'Hybrid'];
@@ -324,6 +324,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [pill, setPill] = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionists' : 'All');
+  const [cat, setCat] = useStateBSM2('All Categories');
+  const [format, setFormat] = useStateBSM2('All formats');
+  const [loc, setLoc] = useStateBSM2('Anywhere');
+  const [sort, setSort] = useStateBSM2('Most Popular');
   const [query, setQuery] = useStateBSM2('');
   const [forceList, setForceList] = useStateBSM2(false);
   const [open, setOpen] = useStateBSM2(null);
@@ -357,6 +361,20 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
     let out = everyone;
     if (pill === 'Trainers') out = trainers;
     else if (pill === 'Nutritionists') out = nutritionists;
+    if (cat && cat !== 'All Categories') {
+      out = out.filter((c) => {
+        const hay = [c.category, ...(c.spec || []), c.role].filter(Boolean).map((v) => String(v).toLowerCase());
+        const needle = String(cat).toLowerCase();
+        return hay.some((v) => v === needle || v.includes(needle) || needle.includes(v));
+      });
+    }
+    if (format && format !== 'All formats') {
+      out = out.filter((c) => String(c.format || '').toLowerCase() === format.toLowerCase());
+    }
+    if (loc && loc !== 'Anywhere') {
+      if (/remote/i.test(loc)) out = out.filter((c) => /remote|hybrid/i.test(String(c.format || '')) || /remote/i.test(String(c.loc || '')));
+      else out = out.filter((c) => String(c.loc || '').toLowerCase().includes(loc.toLowerCase()));
+    }
     const q = query.trim().toLowerCase();
     if (q) {
       out = out.filter((c) =>
@@ -365,8 +383,14 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
           .some((v) => String(v).toLowerCase().includes(q)),
       );
     }
-    return [...out].sort((a, b) => (b.rating || 0) - (a.rating || 0));
-  }, [pill, query, everyone, trainers, nutritionists]);
+    const num = (v) => Number(String(v).replace(/[^0-9.]/g, '')) || 0;
+    const sorted = [...out];
+    if (sort === 'Highest Rated') sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    else if (sort === 'Lowest Price') sorted.sort((a, b) => num(a.rate) - num(b.rate));
+    else if (sort === 'Most Experience') sorted.sort((a, b) => (b.years || 0) - (a.years || 0));
+    else sorted.sort((a, b) => ((b.match || 0) + (b.rating || 0) * 5) - ((a.match || 0) + (a.rating || 0) * 5)); // Most Popular
+    return sorted;
+  }, [pill, cat, format, loc, sort, query, everyone, trainers, nutritionists]);
 
   const browsing = forceList || pill !== 'All' || query.trim().length > 0;
 
@@ -383,7 +407,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
     return { coach: c, name: `${(c.spec && c.spec[0]) || c.category || prof.role} block`, meta: `${prof.role} · ${c.first || c.name.split(' ')[0]}`, price: prog ? prog.price : `$${c.rate}` };
   }), [featuredWeek]);
 
-  const pickPill = (p) => { setPill(p); setForceList(false); };
+  const pickPill = (p) => { setPill(p); setForceList(false); setCat('All Categories'); setFormat('All formats'); setLoc('Anywhere'); };
+  const roleKey = pill === 'Trainers' ? 'Trainer' : pill === 'Nutritionists' ? 'Nutritionist' : null;
+  const catList = roleKey ? BSM_MARKETPLACE_CATEGORIES[roleKey] : null;
+  const locList = roleKey ? BSM_MARKETPLACE_LOCATIONS[roleKey] : null;
 
   if (applyRole && window.BSProviderApplicationScreen) {
     return <window.BSProviderApplicationScreen initialRole={applyRole} onBack={() => setApplyRole(null)} />;
@@ -409,12 +436,41 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
         </div>
       </div>
 
-      {/* Filter pills — wrap so all are visible (no horizontal scroll) */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: `16px ${t.padX}px 18px` }}>
+      {/* Role pills — wrap so all are visible (no horizontal scroll) */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: `16px ${t.padX}px ${catList ? 10 : 18}px` }}>
         {pills.map((p) => (
           <MktPill key={p} label={p} on={pill === p && !(p === 'All' && forceList)} onClick={() => pickPill(p)} teal={teal} />
         ))}
       </div>
+
+      {/* Category sub-filters — role-specific, matching the website marketplace */}
+      {catList && (() => {
+        const catPill = (on) => ({ flex: 'none', padding: '7px 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+          border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+          color: on ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' });
+        const sel = { flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, outline: 'none' };
+        return (
+        <div style={{ padding: `0 ${t.padX}px 16px`, display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            {catList.map((ct) => <button key={ct} onClick={() => setCat(ct)} style={catPill(cat === ct)}>{ct === 'All Categories' ? 'All' : ct}</button>)}
+          </div>
+          {pill === 'Trainers' && (
+            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', WebkitOverflowScrolling: 'touch', alignItems: 'center' }}>
+              <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginRight: 2 }}>Format</span>
+              {BSM_MARKETPLACE_FORMATS.map((f) => <button key={f} onClick={() => setFormat(f)} style={catPill(format === f)}>{f === 'All formats' ? 'All' : f}</button>)}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={loc} onChange={(e) => setLoc(e.target.value)} style={sel}>
+              {(locList || ['Anywhere']).map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value)} style={sel}>
+              {BSM_MARKETPLACE_SORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        );
+      })()}
 
       {(providersLoading || providersError) ? (
         <div style={{ padding: `0 ${t.padX}px 10px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: providersError ? t.RUST : t.INK50, fontWeight: 700 }}>
@@ -424,7 +480,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
 
       {browsing ? (
         <>
-          <MktSectionHead kicker={pill === 'All' ? 'Everyone' : pill} title={`${list.length} ${list.length === 1 ? 'coach' : 'coaches'}`} teal={teal} />
+          <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? 'Everyone' : pill)} title={`${list.length} ${list.length === 1 ? 'coach' : 'coaches'}`} teal={teal} />
           <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {list.map((c) => <MktRow key={c.id} c={c} onOpen={() => setOpen(c)} />)}
             {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No coaches match that — try a different filter.</div> : null}
