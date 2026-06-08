@@ -101,20 +101,31 @@ function SignalVisual({ d, reduced }) {
     </div>
   );
 }
-// Ascent-profile card — the "you-are-here" climb toward the summit (matches the
-// mobile Terrain hero): a ridgeline, a teal progress trace, the member's avatar
-// climbing it, and a summit flag.
+// Where a member stands toward the next level (tier) — drives the ascent hero.
+function memberLevel(d) {
+  const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
+  const pts = Number(d.score) || 0;
+  let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
+  const top = i >= TH.length - 1;
+  const f = TH[i], nx = top ? f : TH[i + 1];
+  const pct = top ? 1 : Math.max(0.05, Math.min(0.97, (pts - f) / Math.max(1, nx - f)));
+  return { pct, cur: NM[i], next: top ? null : NM[i + 1], top };
+}
+// Ascent-profile card — the "you-are-here" climb toward the next level (tier):
+// a ridgeline, a teal progress trace, the member's avatar climbing it, and a
+// flag at the summit labelled with the next level.
 function TerrainVisual({ d }) {
   const c = tierOf(d).color;
   const W = 520, H = 460;
-  const pct = Math.max(0.05, Math.min(d.goalPct != null ? d.goalPct : 0.84, 0.98));
+  const lvl = memberLevel(d);
+  const pct = Math.max(0.05, Math.min(lvl.pct, 0.98));
   const base = [44, H - 56], peak = [W - 64, 64];
   const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 96}, ${W * 0.6} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
   const hp = Math.max(0.05, Math.min(pct, 0.7));
   const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
   const pctLabel = Math.round(pct * 100);
-  const summit = d.goalShort || d.goal || "Summit";
-  const startLabel = (d.arc && d.arc[0] && d.arc[0][0]) || "Start";
+  const summit = lvl.next || lvl.cur;
+  const startLabel = lvl.cur;
   // ridge length ≈ perimeter; dash to reveal pct of the trace.
   const dash = Math.round(pct * 1100);
   return (
@@ -135,9 +146,9 @@ function TerrainVisual({ d }) {
         <LvPortrait d={d} size={88} />
         <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, background: dHexA(LV_BG, 0.85), padding: "3px 9px", borderRadius: 5, whiteSpace: "nowrap" }}>You · {pctLabel}%</div>
       </div>
-      {/* base + summit labels */}
-      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{startLabel} · start</div>
-      <div style={{ position: "absolute", left: 16, top: 16, fontFamily: dMono, fontSize: 10, lineHeight: 1.4, letterSpacing: "0.1em", textTransform: "uppercase", color: "#e0644b", background: dHexA(LV_BG, 0.7), padding: "4px 9px", borderRadius: 5 }}>Summit<br />{summit}</div>
+      {/* current level (base) + next level (by the flag, top-right) */}
+      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{startLabel} · now</div>
+      <div style={{ position: "absolute", right: 16, top: 16, fontFamily: dMono, fontSize: 10, lineHeight: 1.4, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, textAlign: "right", background: dHexA(LV_BG, 0.7), padding: "4px 9px", borderRadius: 5 }}>{lvl.next ? <React.Fragment>Next level<br />{lvl.next}</React.Fragment> : <React.Fragment>Max level<br />{lvl.cur}</React.Fragment>}</div>
     </div>
   );
 }

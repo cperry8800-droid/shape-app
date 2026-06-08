@@ -7180,6 +7180,19 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const pct = climbCfg.pct;
   const pctLabel = Math.round(pct * 100);
   const summitEff = climbCfg.summit;
+  // Hero ascent = standing toward the next LEVEL (tier). Independent of the Climb
+  // tab's selected aspect, so the avatar never jumps when you switch tabs.
+  const _HLNM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
+  const _HLTH = [0, 750, 2000, 5000, 15000];
+  const _hlIdx = Math.max(0, _HLNM.findIndex((nm) => nm.toLowerCase() === String(tierName).toLowerCase()));
+  const _hlTop = _hlIdx >= _HLNM.length - 1;
+  const _hlPts = points != null ? points : null;
+  let heroPct, nextLevel;
+  if (_hlTop) { heroPct = 1; nextLevel = null; }
+  else if (_hlPts != null) { const f = _HLTH[_hlIdx], nx = _HLTH[_hlIdx + 1]; heroPct = Math.max(0.04, Math.min(0.97, (_hlPts - f) / Math.max(1, nx - f))); nextLevel = _HLNM[_hlIdx + 1]; }
+  else { heroPct = Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)); nextLevel = _HLNM[Math.min(_hlIdx + 1, _HLNM.length - 1)]; }
+  const heroPctLabel = Math.round(heroPct * 100);
+  const curLevel = _HLNM[_hlIdx] || tierName;
   // Coached-by band — real program phase + linked coach on your own profile.
   const blockEff = (isSelf && prog && prog.trainingPhase) ? 'Current phase' : block;
   const programEff = (isSelf && prog && (prog.trainingPhase || prog.nutritionPhase)) ? [prog.trainingPhase, prog.nutritionPhase].filter(Boolean).join(' · ') : program;
@@ -7209,7 +7222,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 40}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
           // Clamp the you-are-here marker so it tracks progress but never climbs
           // into the summit-flag corner (where it overlapped + clipped the card).
-          const hp = Math.max(0.05, Math.min(pct, 0.66));
+          const hp = Math.max(0.06, Math.min(heroPct, 0.66));
           const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
           return (
           <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
@@ -7224,20 +7237,21 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
               <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill={`url(#asc${seed})`} />
               <path d={ridge} fill="none" stroke={bsTHexA(INK, 0.4)} strokeWidth="1.5" />
-              <path d={ridge} fill="none" stroke={TEAL} strokeWidth="2.5" strokeDasharray={`${pct * 360} 999`} strokeLinecap="round" />
+              <path d={ridge} fill="none" stroke={TEAL} strokeWidth="2.5" strokeDasharray={`${heroPct * 360} 999`} strokeLinecap="round" />
               <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 22} stroke={bsTHexA(INK, 0.6)} strokeWidth="1.5" />
               <path d={`M ${peak[0]} ${peak[1] - 22} l 16 5 l -16 5 z`} fill={'#e0644b'} />
               <circle cx={peak[0]} cy={peak[1]} r="3.5" fill={'#e0644b'} />
               <circle cx={base[0]} cy={base[1]} r="3.5" fill={bsTHexA(INK, 0.5)} />
             </svg>
-            {/* you-are-here FACET badge */}
-            <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `calc(${(here.y / H) * 100}% - 64px)` }}>
+            {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
+                never slides onto the identity strip below */}
+            <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `${here.y - 64}px` }}>
               <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
-              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {pctLabel}%</div>
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
             </div>
-            {/* base + summit labels (chip-backed so they read cleanly over the terrain) */}
-            <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{arc[0][0]} · start</div>
-            <div style={{ position: 'absolute', left: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'left', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>Summit<br />{summitEff}</div>
+            {/* current level (base) + next level (by the summit flag, top-right) */}
+            <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
+            <div style={{ position: 'absolute', right: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, textAlign: 'right', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>{nextLevel ? <>Next level<br />{nextLevel}</> : <>Max level<br />{curLevel}</>}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
