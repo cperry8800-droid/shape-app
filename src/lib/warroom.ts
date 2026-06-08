@@ -558,6 +558,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Meal-search recents add to the meal + filter as you type', status: 'done' },
         { label: 'meal-notes storage bucket migration applied (audio + image mime types, 15 MB)', status: 'manual' },
         { label: 'community-photos storage bucket + community_posts.photo_url migration applied (public read, owner-folder write) — photo posts on feed + profiles, mobile + website', status: 'manual' },
+        { label: 'user_follows table + get_follow_stats/toggle_follow/get_follow_list RPCs migration applied — follower/following on public profiles, mobile + website', status: 'manual' },
         { label: 'Food-database free-text search in the logger (Search tab uses local recents today)', status: 'pending' },
         { label: 'Native mic + camera plugins for the iOS App Store build (WebView file/Media fallback today)', status: 'pending' },
       ],

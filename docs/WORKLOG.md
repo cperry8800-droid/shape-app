@@ -55,6 +55,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Follower / following system (mobile + website public profiles)
+- **Migration `2026-06-08-user-follows.sql`** (**run on Supabase**): `user_follows`
+  directed graph (RLS: public read, self insert/delete) + SECURITY DEFINER RPCs
+  `get_follow_stats(uid)` (followers/following counts + the caller's `is_following`),
+  `toggle_follow(uid)` (follow/unfollow → fresh counts+state), `get_follow_list(uid,
+  kind)` (names list for the followers/following sheet). Idempotent.
+- **Mobile** (`shapeBackend.js`): `ShapeFollows = { stats, toggle, list }`. New shared
+  **`BSFollowBlock`** (counts → tappable names sheet + Follow/Following toggle) on
+  **both** profile types — Terrain (member, under the hero) and Signal (coach, under the
+  back row). Counts are public; the button only shows when viewing someone else.
+- **Website** (`memberProfile.jsx`): new **`MPFollow`** — Followers/Following counts +
+  a Follow/Following toggle (hidden on your own profile), wired to the same RPCs via
+  `window.shapeDb.client.rpc`.
+
 ### 2026-06-08 — Photo posts on community feed + profile feeds (mobile + website)
 - **Migration `2026-06-08-community-photos.sql`** (**run on Supabase**): public
   **`community-photos`** storage bucket (15 MB, image mimes; public read, owner can

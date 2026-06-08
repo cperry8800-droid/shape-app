@@ -28,8 +28,50 @@ function MPRow(p) {
   );
 }
 
+// Follower / following — counts + a Follow/Following toggle (when not yourself).
+function MPFollow({ uid, isSelf }) {
+  const [s, setS] = React.useState({ followers: 0, following: 0, isFollowing: false });
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    let on = true;
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!cl || !cl.rpc || !uid) return;
+    cl.rpc("get_follow_stats", { p_user_id: uid }).then((r) => {
+      if (!on || !r || r.error) return;
+      const d = Array.isArray(r.data) ? r.data[0] : r.data;
+      if (d) setS({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following });
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [uid]);
+  const toggle = async () => {
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!cl || busy || !uid) return;
+    setBusy(true);
+    const prev = s;
+    setS((x) => ({ ...x, isFollowing: !x.isFollowing, followers: Math.max(0, x.followers + (x.isFollowing ? -1 : 1)) }));
+    try {
+      const r = await cl.rpc("toggle_follow", { p_user_id: uid });
+      if (r && r.error) throw r.error;
+      const d = Array.isArray(r.data) ? r.data[0] : r.data;
+      if (d) setS({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following });
+    } catch (e) { setS(prev); alert((e && e.message) || "Sign in to follow."); }
+    finally { setBusy(false); }
+  };
+  const stat = (n, label) => (
+    <div><span style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: INK, letterSpacing: "-0.02em" }}>{n}</span><span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginLeft: 7 }}>{label}</span></div>
+  );
+  return (
+    <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderRadius: 16, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "14px 20px" }}>
+      <div style={{ display: "flex", gap: 26 }}>{stat(s.followers, "Followers")}{stat(s.following, "Following")}</div>
+      {!isSelf && (
+        <button onClick={toggle} disabled={busy} style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", borderRadius: 999, padding: "10px 22px", cursor: busy ? "default" : "pointer", background: s.isFollowing ? "transparent" : TEAL, color: s.isFollowing ? INK : "#04201d", border: s.isFollowing ? "1px solid rgba(242,237,228,0.3)" : 0 }}>{s.isFollowing ? "Following ✓" : "Follow"}</button>
+      )}
+    </div>
+  );
+}
+
 function MemberProfilePage() {
-  const [st, setSt] = React.useState({ loading: true, status: "", row: null, isSelf: false });
+  const [st, setSt] = React.useState({ loading: true, status: "", row: null, isSelf: false, uid: null });
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -43,7 +85,7 @@ function MemberProfilePage() {
         if (!uid) { if (!cancelled) setSt({ loading: false, status: "signin", row: null, isSelf: false }); return; }
         const res = await cl.rpc("get_public_profile", { p_user_id: uid });
         const row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data);
-        if (!cancelled) setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf: !!(me && me.id === uid) });
+        if (!cancelled) setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf: !!(me && me.id === uid), uid });
       } catch (e) {
         if (!cancelled) setSt({ loading: false, status: "error", row: null, isSelf: false });
       }
@@ -119,6 +161,9 @@ function MemberProfilePage() {
           <MPStat label="Role" value={roleLabel} />
         </div>
       </div>
+
+      {/* Followers / following */}
+      <MPFollow uid={st.uid} isSelf={st.isSelf} />
 
       {/* CTA */}
       <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>

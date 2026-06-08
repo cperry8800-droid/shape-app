@@ -6133,6 +6133,86 @@ const BS_SAMPLE_CHANNELS = [
 ];
 
 // Public profile opened from a chat avatar — works for any member or coach.
+// Follower / following block for public profiles — counts (tappable → a names
+// sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
+// Terrain (member) and Signal (coach) profiles. Counts are public.
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', onOpenProfile }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
+  const [stats, setStats] = useStateBSC({ followers: 0, following: 0, isFollowing: false });
+  const [busy, setBusy] = useStateBSC(false);
+  const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following'
+  const [list, setList] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!userId || !window.ShapeFollows?.stats) return;
+    let alive = true;
+    window.ShapeFollows.stats(userId).then((s) => { if (alive) setStats(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [userId]);
+  const onToggle = async () => {
+    if (!userId || busy || !window.ShapeFollows?.toggle) return;
+    setBusy(true);
+    const prev = stats;
+    setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) }));
+    try { const s = await window.ShapeFollows.toggle(userId); setStats(s); }
+    catch (e) { setStats(prev); window.__bsToast?.(e?.message || 'Could not update follow.', 'err'); }
+    finally { setBusy(false); }
+  };
+  const openList = (kind) => {
+    if (!userId) return;
+    setSheet(kind); setList(null);
+    window.ShapeFollows?.list?.(userId, kind).then((r) => setList(r || [])).catch(() => setList([]));
+  };
+  if (!userId) return null;
+  const statBtn = (n, label, kind) => (
+    <button onClick={() => openList(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+      <span style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: INK, letterSpacing: '-0.02em' }}>{n}</span>
+      <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginLeft: 6 }}>{label}</span>
+    </button>
+  );
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 22, paddingBottom: 18, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        {statBtn(stats.followers, 'Followers', 'followers')}
+        {statBtn(stats.following, 'Following', 'following')}
+      </div>
+      {!isSelf && (
+        <button onClick={onToggle} disabled={busy} style={{
+          flex: 'none', borderRadius: 999, padding: '8px 18px', cursor: busy ? 'default' : 'pointer',
+          fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+          background: stats.isFollowing ? 'transparent' : c, color: stats.isFollowing ? INK : '#06110e',
+          border: `1px solid ${stats.isFollowing ? bsTHexA(INK, 0.3) : c}`,
+        }}>{stats.isFollowing ? 'Following ✓' : 'Follow'}</button>
+      )}
+      {sheet && createPortal(
+        <div onClick={() => setSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: BG, color: INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '70%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.6)', border: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{sheet === 'following' ? 'Following' : 'Followers'}</span>
+              <button onClick={() => setSheet(null)} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            {list == null ? (
+              <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), padding: '8px 2px' }}>Loading…</div>
+            ) : list.length === 0 ? (
+              <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{sheet === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
+            ) : list.map((u, i) => {
+              const tier = bsPostTier({ who: u.name });
+              const roleLabel = u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member';
+              return (
+                <div key={u.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
+                  <BSFacetAvatar size={36} c={bsTierColor(tier)} initial={bsInitials(u.name) || '?'} showRank={false} BG={BG} INK={INK} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: SERIF, fontSize: 15.5, fontWeight: 600, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{roleLabel}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>, document.getElementById('bs-phone-surface') || document.body)}
+    </div>
+  );
+}
+
 // ── Client "Terrain" public profile (Living Identity direction) ──────────────
 // Members get an immersive, dark, topographic identity page: a generative
 // contour hero with the name overlaid, a ridgeline "climb" (start → now → goal),
@@ -6653,6 +6733,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       </div>
 
       <div style={{ flex: 1, padding: '24px 22px 28px' }}>
+        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
         {isPrivate ? (
           <div style={{ ...card, padding: '18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span aria-hidden style={{ fontSize: 16 }}>🔒</span>
@@ -6878,6 +6959,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               : <BSMeCorner size={30} />}
           </div>
         </div>
+
+        <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} /></div>
 
         {/* the instrument — discipline rings around a portrait core */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>

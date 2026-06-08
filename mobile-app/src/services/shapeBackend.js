@@ -3245,6 +3245,30 @@ async function getUserAvatars(ids) {
 }
 window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars };
 
+// Follower / following graph (public profiles). stats → counts + my state;
+// toggle → follow/unfollow; list → the followers/following names.
+async function getFollowStats(userId) {
+  if (!supabase || !userId) return { followers: 0, following: 0, isFollowing: false };
+  const { data, error } = await supabase.rpc('get_follow_stats', { p_user_id: userId });
+  if (error) return { followers: 0, following: 0, isFollowing: false };
+  const r = Array.isArray(data) ? data[0] : data;
+  return { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+}
+async function toggleFollow(userId) {
+  if (!supabase || !userId) throw new Error('Sign in to follow.');
+  const { data, error } = await supabase.rpc('toggle_follow', { p_user_id: userId });
+  if (error) throw new Error(error.message || 'Could not update follow.');
+  const r = Array.isArray(data) ? data[0] : data;
+  return { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+}
+async function listFollows(userId, kind) {
+  if (!supabase || !userId) return [];
+  const { data, error } = await supabase.rpc('get_follow_list', { p_user_id: userId, p_kind: kind === 'following' ? 'following' : 'followers' });
+  if (error) return [];
+  return (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member', role: r.role || 'client' }));
+}
+window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows };
+
 // ── Member-created community channels ("run club" style) ─────────────────────
 function channelDisplayName() {
   return (state.profile && (state.profile.full_name || state.profile.fullName))
