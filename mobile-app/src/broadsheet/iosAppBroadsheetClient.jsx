@@ -2969,7 +2969,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
       <div role="button" tabIndex={0} aria-label={`Preview ${title}`}
         onClick={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } }}
-        style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+        style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', border: 0, background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
         <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(22, '#fff')}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
