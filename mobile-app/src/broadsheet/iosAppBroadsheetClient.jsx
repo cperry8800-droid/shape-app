@@ -7666,32 +7666,28 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
-          const chRow = (ch) => {
+          const chRow = (ch, i) => {
             const isSample = String(ch.id || '').startsWith('sample');
-            const blurb = ch.description || ch.last || '';
             return (
-              <div key={ch.id} style={{ position: 'relative', borderRadius: 16, border: `1px solid ${hair}`, background: card, padding: '13px 14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                  {(() => { const cc = bsChannelColor(ch.name); return (
-                  <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 12, background: `${cc}1f`, border: `1px solid ${cc}66`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BSChannelIcon name={ch.name} size={20} /></div>
-                  ); })()}
-                  <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15.5, letterSpacing: '-0.01em' }}>#{ch.name}</span>
-                      {ch.live && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', color: '#e0518a', border: '1px solid #e0518a', padding: '1px 4px', borderRadius: 3 }}>LIVE</span>}
-                      {ch.private && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: muted }}>🔒 PRIVATE</span>}
-                      {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: TEALB }}>HOST</span>}
-                    </div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: muted, marginTop: 4 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.online ? ` · ${ch.online} online` : ''}</div>
-                  </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    {unreadBadge('ch:' + ch.id)}
-                    <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.4 }}><PinIcon filled={ch.pinned} size={18} /></button>
-                    {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} style={{ padding: '6px 10px', borderRadius: 999, background: 'transparent', color: cardInk, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Add</button>}
-                    <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ padding: '7px 13px', borderRadius: 999, background: ch.joined ? t.INK : TEAL, color: ch.joined ? t.PAPER : '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{ch.joined ? 'Open' : 'Join'}</button>
+              <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 2px', borderTop: i ? `1px solid ${hair}66` : 0 }}>
+                {(() => { const cc = bsChannelColor(ch.name); return (
+                <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: `${cc}1f`, border: `1px solid ${cc}55`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BSChannelIcon name={ch.name} size={16} /></div>
+                ); })()}
+                <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>#{ch.name}</span>
+                    {ch.live && <span style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.12em', color: '#e0518a', border: '1px solid #e0518a', padding: '1px 3px', borderRadius: 3 }}>LIVE</span>}
+                    {ch.private && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.1em', color: muted }}>🔒</span>}
+                    {ch.isHost && <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.1em', color: TEALB }}>HOST</span>}
                   </div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.05em', color: muted, marginTop: 2 }}>{ch.memberCount} member{ch.memberCount === 1 ? '' : 's'}{ch.online ? ` · ${ch.online} online` : ''}</div>
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {unreadBadge('ch:' + ch.id)}
+                  <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.35 }}><PinIcon filled={ch.pinned} size={16} /></button>
+                  {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label="Add member" title="Add member" style={{ width: 24, height: 24, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>+</button>}
+                  <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ padding: '5px 12px', borderRadius: 999, background: ch.joined ? 'transparent' : TEAL, color: ch.joined ? cardInk : '#031f1c', border: ch.joined ? `1px solid ${hair}` : 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{ch.joined ? 'Open' : 'Join'}</button>
                 </div>
-                {blurb && <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: muted, lineHeight: 1.35, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{blurb}</div>}
               </div>
             );
           };
@@ -7704,14 +7700,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Your channels</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{chUnread > 0 ? `${chUnread} unread · ` : ''}{chDisplay.length} channel{chDisplay.length === 1 ? '' : 's'}</span>
                 </div>
-                {newChannel === null ? (
-                  <button onClick={() => setNewChannel('')} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px dashed ${TEALB}`, background: 'transparent', color: TEALB, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Create new channel</button>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center' }}>
-                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} aria-label="Cancel" title="Cancel" style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>
-                      <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
-                      <button onClick={createChannelNow} style={{ height: 38, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
+                {/* Search + a compact "+" box that opens the create form */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    <span style={{ position: 'absolute', left: 13, fontSize: 13, color: muted, pointerEvents: 'none' }}>⌕</span>
+                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ width: '100%', height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 34px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK, outline: 'none' }} />
+                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 10, width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>}
+                  </div>
+                  <button onClick={() => setNewChannel(newChannel === null ? '' : null)} aria-label={newChannel === null ? 'Create channel' : 'Cancel'} title={newChannel === null ? 'Create new channel' : 'Cancel'} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 11, background: newChannel === null ? `${TEALB}1f` : 'transparent', color: newChannel === null ? TEALB : muted, border: `1px solid ${newChannel === null ? `${TEALB}66` : hair}`, fontSize: 20, fontWeight: 400, lineHeight: 1, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform .15s', transform: newChannel === null ? 'none' : 'rotate(45deg)' }}>+</button>
+                </div>
+                {newChannel !== null && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderRadius: 12, border: `1px solid ${hair}`, background: card, padding: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+                      <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
+                      <button onClick={createChannelNow} style={{ height: 36, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                       {[['public', 'Public · anyone can join'], ['private', 'Private · invite only']].map(([k, l]) => {
@@ -7721,14 +7723,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   </div>
                 )}
-                {chList.length > 0 && (
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <span style={{ position: 'absolute', left: 13, fontSize: 13, color: muted, pointerEvents: 'none' }}>⌕</span>
-                    <input value={channelQuery} onChange={(e) => setChannelQuery(e.target.value)} placeholder="Search channels…" style={{ width: '100%', height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 34px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK, outline: 'none' }} />
-                    {channelQuery && <button onClick={() => setChannelQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 10, width: 22, height: 22, borderRadius: 999, border: 0, background: 'transparent', color: muted, cursor: 'pointer', fontSize: 14, padding: 0 }}>×</button>}
-                  </div>
-                )}
-                {chDisplay.map(chRow)}
+                <div style={{ marginTop: 2 }}>{chDisplay.map(chRow)}</div>
                 {_chQ && chDisplay.length === 0 && (
                   <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '4px 2px' }}>No channels match “{channelQuery.trim()}”.</div>
                 )}
