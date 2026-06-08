@@ -229,7 +229,7 @@ function Header({ active }) {
             : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
           )}
         </nav>
-        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0 }}>
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
@@ -257,7 +257,7 @@ function Header({ active }) {
                 </div>
               ) : null}
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
-              <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "11px 22px", borderRadius: 999, fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Sign out</a>
+              <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "8px 15px", borderRadius: 999, fontSize: 11.5, fontWeight: 400, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Sign out</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
                 <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 158, height: "auto", maxWidth: "none", display: "block", filter: "drop-shadow(0.5px 0 #fff) drop-shadow(-0.5px 0 #fff) drop-shadow(0 0.5px #fff) drop-shadow(0 -0.5px #fff)" }} />
               </a>
@@ -265,7 +265,7 @@ function Header({ active }) {
           ) : (
             <>
               <a href="/newdesign/Login.html" style={{ fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", color: "rgba(245,239,225,0.55)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
-              <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "11px 22px", borderRadius: 999, fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Get started</a>
+              <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "8px 15px", borderRadius: 999, fontSize: 11.5, fontWeight: 400, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Get started</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
                 <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 158, height: "auto", maxWidth: "none", display: "block", filter: "drop-shadow(0.5px 0 #fff) drop-shadow(-0.5px 0 #fff) drop-shadow(0 0.5px #fff) drop-shadow(0 -0.5px #fff)" }} />
               </a>
@@ -334,10 +334,10 @@ function ShapeMobileStyles() {
       .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
       .shape-nav-link:hover { color: ${INK} !important; }
       .shape-header { transition: background .25s ease; }
-      /* Nudge the centered nav toward true page-center on wider screens (the
-         right cluster is heavier than the logo, so it sits left-of-center).
-         Zero at laptop widths so it never crowds the auth cluster. */
-      .shape-nav-tabs { transform: translateX(clamp(0px, (100vw - 1366px) * 0.55, 64px)); }
+      /* Nudge the centered nav toward true page-center (the right cluster is
+         heavier than the logo, so it sits left-of-center). Condensed auth pills +
+         smaller radio logo free the room; zero below 1300 so it never crowds. */
+      .shape-nav-tabs { transform: translateX(clamp(0px, (100vw - 1300px) * 0.5, 72px)); }
       .shape-brand-logo {
         height: var(--shape-logo-h) !important;
         width: auto !important;
