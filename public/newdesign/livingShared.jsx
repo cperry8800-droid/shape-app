@@ -243,9 +243,14 @@ const lvPortraitURL = (id, s = 360) => !id ? "" : (/^https?:|^data:/.test(String
 function LvPortrait({ d, size = 96, duotone = false, editable = false, hide = false }) {
   const c = tierOf(d).color;
   if (hide || !d.portrait) {
+    // No photo → show the member's initials (a clear avatar), like the mobile
+    // facet avatar. A private/locked profile keeps the anonymised crest.
+    const showInitials = !hide && d.initials;
     return (
-      <div style={{ width: size, height: size, borderRadius: 999, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: `radial-gradient(circle at 50% 38%, ${hexA(c, 0.22)}, ${hexA(LV_BG, 0.9)})`, border: `1px solid ${hexA(c, 0.35)}`, position: "relative" }}>
-        <LvCrest d={d} size={size * 0.62} />
+      <div style={{ width: size, height: size, borderRadius: 999, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: `radial-gradient(circle at 50% 38%, ${hexA(c, 0.32)}, ${hexA(LV_BG, 0.92)})`, border: `1px solid ${hexA(c, 0.45)}`, position: "relative" }}>
+        {showInitials
+          ? <span style={{ fontFamily: lvSerif, fontSize: size * 0.4, fontWeight: 500, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{d.initials}</span>
+          : <LvCrest d={d} size={size * 0.62} />}
         {editable && <LvAddBadge c={c} size={size} />}
       </div>
     );

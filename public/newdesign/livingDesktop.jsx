@@ -30,28 +30,29 @@ function dCard(extra) {
 // ── Top navigation ─────────────────────────────────────────────
 function DesktopNav({ d, direction }) {
   const c = tierOf(d).color;
-  const links = ["Feed", "Coaches", "Community", "Goals"];
+  // Match the site's marketing nav — same logo + links, so the profile page
+  // doesn't feel like a different site.
+  const links = [["about", "/newdesign/About.html"], ["marketplace", "/newdesign/Marketplace.html"], ["community", "/newdesign/Community.html"], ["pricing", "/newdesign/Pricing.html"]];
+  const link = { fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.6), textDecoration: "none", fontWeight: 400, textTransform: "lowercase", letterSpacing: "0.04em", whiteSpace: "nowrap" };
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 40, backdropFilter: "blur(18px)", background: dHexA(LV_BG, 0.72), borderBottom: `1px solid ${dHexA(LV_INK, 0.08)}` }}>
-      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 40px", height: 72, display: "flex", alignItems: "center", gap: 32 }}>
-        {/* wordmark */}
-        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="6" transform="rotate(45 13 13)" fill="none" stroke={c} strokeWidth="2" /><circle cx="13" cy="13" r="3.2" fill={LV_TEAL} /></svg>
-          <span style={{ fontFamily: dSerif, fontSize: 22, letterSpacing: "-0.02em" }}>Shape</span>
-        </div>
+      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 40px", height: 72, display: "flex", alignItems: "center", gap: 28 }}>
+        {/* wordmark — site logo */}
+        <a href="/newdesign/index.html" style={{ display: "flex", alignItems: "center", lineHeight: 0, flex: "none" }}>
+          <img src="/SHAPE-logo-teal-white.png?v=1" alt="Shape" style={{ height: 38, width: "auto", display: "block" }} />
+        </a>
         {/* nav links */}
-        <nav style={{ display: "flex", gap: 26, marginLeft: 18 }}>
-          {links.map((l, i) => (
-            <a key={l} href="#" style={{ fontFamily: dSans, fontSize: 14.5, color: i === 1 ? LV_INK : dHexA(LV_INK, 0.55), textDecoration: "none", fontWeight: i === 1 ? 600 : 400 }}>{l}</a>
-          ))}
+        <nav style={{ display: "flex", gap: 22, marginLeft: 6 }}>
+          {links.map(([l, href]) => <a key={l} href={href} style={link}>{l}</a>)}
         </nav>
         {/* search pill */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 16px", borderRadius: 999, background: dHexA(LV_INK, 0.05), border: `1px solid ${dHexA(LV_INK, 0.09)}`, color: dHexA(LV_INK, 0.45), fontFamily: dSans, fontSize: 13.5, whiteSpace: "nowrap" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" /><path d="M21 21l-4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           Search coaches
         </div>
-        <button style={{ height: 38, padding: "0 18px", borderRadius: 999, border: 0, background: LV_TEAL, color: "#06110e", fontFamily: dSans, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flex: "none" }}>Get started</button>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 38, borderRadius: 999, background: dHexA(c, 0.12), border: `1px solid ${dHexA(c, 0.3)}` }}><LvCrest d={d} size={24} /></div>
+        <a href="/newdesign/Login.html" style={link}>log in</a>
+        <a href="/newdesign/Landing.html" style={{ height: 38, padding: "0 18px", display: "inline-flex", alignItems: "center", borderRadius: 999, border: 0, background: LV_TEAL, color: "#06110e", fontFamily: dSans, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flex: "none", textDecoration: "none", textTransform: "lowercase" }}>get started</a>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 38, borderRadius: 999, background: dHexA(c, 0.12), border: `1px solid ${dHexA(c, 0.3)}`, flex: "none" }}><LvCrest d={d} size={24} /></div>
       </div>
     </header>
   );
@@ -391,6 +392,27 @@ function DesktopFooter() {
 // ── Page assembly ──────────────────────────────────────────────
 // direction "terrain" | "signal" ; persona client|trainer|nutritionist ;
 // variant public|own|locked
+// Segmented tabs under the hero — Personal activities ("Activity") leads, so the
+// profile opens on what someone's doing (mirrors the mobile profile).
+function DesktopTabs({ direction, tab, setTab, c }) {
+  const coach = direction !== "terrain";
+  const tabs = coach
+    ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"]]
+    : [["activity", "Activity"], ["signals", "Signals"], ["climb", "Climb"]];
+  return (
+    <div style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 40px 0" }}>
+      <div style={{ display: "inline-flex", gap: 6, background: dHexA(LV_INK, 0.05), border: `1px solid ${dHexA(LV_INK, 0.1)}`, borderRadius: 999, padding: 5 }}>
+        {tabs.map(([k, label]) => {
+          const on = tab === k;
+          return (
+            <button key={k} onClick={() => setTab(k)} style={{ padding: "9px 22px", borderRadius: 999, border: 0, cursor: "pointer", background: on ? dHexA(c, 0.16) : "transparent", color: on ? c : dHexA(LV_INK, 0.55), fontFamily: dMono, fontSize: 11, fontWeight: on ? 700 : 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref }) {
   const d = person || LV_PEOPLE[persona];
   const c = tierOf(d).color;
@@ -398,6 +420,8 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   const owner = variant === "own";
   const locked = variant === "locked";
   const coach = d.role !== "client";
+  // Personal activities lead — the profile opens on Activity (mirrors mobile).
+  const [tab, setTab] = React.useState("activity");
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: LV_BG, color: LV_INK, fontFamily: dSans, overflow: "hidden" }}>
@@ -410,22 +434,48 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
         ) : (
           <React.Fragment>
             <DesktopHero d={d} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={follow} coachingHref={coachingHref} />
-            <SignalsBand d={d} />
-            {/* content grid */}
-            <section style={{ maxWidth: 1240, margin: "0 auto", padding: "44px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
-              {/* main column */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                {direction === "terrain" && <ClimbBlock d={d} />}
-                <DisciplinesBlock d={d} direction={direction} />
-                {coach && <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} /></div>}
+            <DesktopTabs direction={direction} tab={tab} setTab={setTab} c={c} />
+
+            {/* Activity — personal activities lead */}
+            {tab === "activity" && (
+              <section style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
                 <FeedBlock d={d} direction={direction} owner={owner} />
-              </div>
-              {/* rail */}
-              <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail">
-                <RecordsBlock d={d} />
-                <RelationBlock d={d} />
-              </aside>
-            </section>
+              </section>
+            )}
+
+            {/* Signals (member) / About (coach) — living signals + disciplines + records */}
+            {tab === (coach ? "about" : "signals") && (
+              <React.Fragment>
+                <SignalsBand d={d} />
+                <section style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
+                  <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    <DisciplinesBlock d={d} direction={direction} />
+                  </div>
+                  <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail">
+                    <RecordsBlock d={d} />
+                    {!coach && <RelationBlock d={d} />}
+                  </aside>
+                </section>
+              </React.Fragment>
+            )}
+
+            {/* Climb (member only) */}
+            {!coach && tab === "climb" && (
+              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}><ClimbBlock d={d} /></div>
+                <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail"><RecordsBlock d={d} /></aside>
+              </section>
+            )}
+
+            {/* Coaching (coach only) — services / certs / reviews + recent win */}
+            {coach && tab === "coaching" && (
+              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} /></div>
+                </div>
+                <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail"><RelationBlock d={d} /></aside>
+              </section>
+            )}
           </React.Fragment>
         )}
         <DesktopFooter />
