@@ -132,10 +132,31 @@ export async function POST(request: Request) {
     : priceCentsFrom(body.item?.price) || Math.round(Number(fallbackOneTimePrice || 0) * 100);
   if (!priceCents) return NextResponse.json({ error: 'Price is not configured.' }, { status: 400 });
 
+  // Store-credit wallet auto-applies to one-time coach purchases: a redeemed
+  // session credit covers a trainer booking, a nutrition credit covers a meal
+  // plan. We read the balance now to discount the charge, and commit the spend
+  // in the webhook on a completed payment (so abandoned checkouts don't burn
+  // credit). At least $0.50 always remains payable so the charge is valid.
+  let chargeCents = priceCents;
+  let storeCreditApplied = 0;
+  const storeCreditKind = isSubscription ? null : providerRole === 'trainer' ? 'session' : 'nutrition';
+  if (storeCreditKind && priceCents > 50) {
+    try {
+      const { data: wallet } = await admin.rpc('get_store_credit_for', { p_user_id: user.id });
+      const available = Number((wallet as Record<string, unknown> | null)?.[storeCreditKind] ?? 0);
+      if (Number.isFinite(available) && available > 0) {
+        storeCreditApplied = Math.max(0, Math.min(Math.floor(available), priceCents - 50));
+        chargeCents = priceCents - storeCreditApplied;
+      }
+    } catch {
+      // Wallet read failed — proceed at full price (credit stays in the wallet).
+    }
+  }
+
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   const successPath = body.successPath || '/purchase/success';
   const cancelPath = body.cancelPath || '/newdesign/GetApp.html?checkout=cancelled';
-  const applicationFeeCents = Math.round(priceCents * 0.15);
+  const applicationFeeCents = Math.round(chargeCents * 0.15);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -144,9 +165,9 @@ export async function POST(request: Request) {
         {
           price_data: {
             currency: 'usd',
-            unit_amount: priceCents,
+            unit_amount: chargeCents,
             product_data: {
-              name: `${provider.name} - ${itemName}`,
+              name: storeCreditApplied > 0 ? `${provider.name} - ${itemName} (−$${(storeCreditApplied / 100).toFixed(2)} Shape credit)` : `${provider.name} - ${itemName}`,
               metadata: {
                 provider_id: String(providerId),
                 provider_role: providerRole,
@@ -163,9 +184,11 @@ export async function POST(request: Request) {
         client_id: user.id,
         provider_id: String(providerId),
         provider_role: providerRole,
-        price_cents: String(priceCents),
+        price_cents: String(chargeCents),
+        gross_price_cents: String(priceCents),
         kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
         item_name: String(itemName),
+        ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
         ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
       },
       ...(isSubscription
@@ -199,7 +222,7 @@ export async function POST(request: Request) {
     if (!session.url) {
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url, creditAppliedCents: storeCreditApplied });
   } catch (err) {
     console.error('[shape-app] mobile checkout-session error', err);
     return NextResponse.json(

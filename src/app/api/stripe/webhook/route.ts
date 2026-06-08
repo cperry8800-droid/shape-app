@@ -155,6 +155,19 @@ export async function POST(request: Request) {
             },
             { onConflict: 'stripe_checkout_session_id' }
           );
+          // Commit any Shape-credit applied at checkout (debits the wallet once,
+          // idempotent by session id). Reserved at session-create, spent here.
+          const creditCents = Number(session.metadata?.store_credit_cents ?? 0);
+          const creditKind = session.metadata?.store_credit_kind;
+          if (creditCents > 0 && (creditKind === 'session' || creditKind === 'nutrition')) {
+            const { error: creditErr } = await admin.rpc('consume_store_credit', {
+              p_user_id: clientId,
+              p_kind: creditKind,
+              p_session_id: session.id,
+              p_amount_cents: creditCents,
+            });
+            if (creditErr) console.warn('[shape-app] store credit consume failed:', creditErr.message);
+          }
           // 85% of the gross lands with the coach after the 15% platform fee.
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,

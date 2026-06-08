@@ -106,7 +106,8 @@ const UNLOCKED = [
   { code: "NUTRI-PLAN-04F1", name: "Grocery list buildout", expires: "May 20", cost: 420, redeemed: "Apr 04" },
 ];
 
-function StoreHero({ balance = BALANCE }) {
+function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } }) {
+  const hasCredit = (credit.session > 0 || credit.nutrition > 0);
   return (
     <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
@@ -129,6 +130,16 @@ function StoreHero({ balance = BALANCE }) {
               <span style={{ fontSize: 18, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 10 }}>pts</span>
             </div>
             <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: TEAL, marginTop: 8 }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)} value</div>
+            {hasCredit && (
+              <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, border: `1px solid ${TEAL}55`, background: "rgba(10,197,168,0.08)" }}>
+                <div style={{ fontFamily: sans, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Coach credit wallet</div>
+                <div style={{ display: "flex", gap: 20, marginTop: 6 }}>
+                  {credit.session > 0 && <div><div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>${(credit.session / 100).toFixed(0)}</div><div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>Session</div></div>}
+                  {credit.nutrition > 0 && <div><div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>${(credit.nutrition / 100).toFixed(0)}</div><div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>Nutrition</div></div>}
+                </div>
+                <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>Applies automatically at your next coach checkout.</div>
+              </div>
+            )}
             <a href="Score.html" style={{ fontFamily: sans, fontSize: 12, color: TEAL, marginTop: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
               View Rewards page →
             </a>
@@ -223,8 +234,40 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   const [affordable, setAffordable] = useSStore(false);
   const [notice, setNotice] = useSStore("");
   const [busy, setBusy] = useSStore("");
+  const [shipFor, setShipFor] = useSStore(null); // merch item awaiting an address
   const roleHint = useMStore(() => getRoleHint(), []);
   const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
+  const isMerch = (p) => p.cat === "Shape Merch";
+
+  async function doRedeem(product, shipping) {
+    if (busy) return;
+    setBusy(product.itemId || product.name);
+    setNotice("");
+    try {
+      const res = await fetch("/api/store/redeem", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(shipping ? { itemId: product.itemId, shipping } : { itemId: product.itemId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (d.error === "insufficient_points") setNotice("Not enough points for that yet — keep earning!");
+        else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
+        else if (d.error === "needs_shipping") { setShipFor(product); return; }
+        else setNotice((d && d.error) || "Redemption failed. Please try again.");
+        return;
+      }
+      const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : shipping ? " We'll ship it out — check your email." : "";
+      setNotice(`${product.name} redeemed! Code ${d.code}.${extra}`);
+      setShipFor(null);
+      if (onRedeemed) onRedeemed();
+    } catch (err) {
+      setNotice((err && err.message) || "Redemption failed. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function handleRedeem(product) {
     if (locked) { window.location.href = "Pricing.html"; return; }
@@ -238,31 +281,9 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
       }
       return;
     }
-    // Real point redemption — deducts from the live balance + issues a code.
     if (busy) return;
-    setBusy(product.itemId || product.name);
-    setNotice("");
-    try {
-      const res = await fetch("/api/store/redeem", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: product.itemId }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (d.error === "insufficient_points") setNotice("Not enough points for that yet — keep earning!");
-        else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
-        else setNotice((d && d.error) || "Redemption failed. Please try again.");
-        return;
-      }
-      setNotice(`${product.name} redeemed! Code ${d.code} is in your locker below.`);
-      if (onRedeemed) onRedeemed();
-    } catch (err) {
-      setNotice((err && err.message) || "Redemption failed. Please try again.");
-    } finally {
-      setBusy("");
-    }
+    if (isMerch(product)) { setShipFor(product); return; } // collect address first
+    doRedeem(product);
   }
 
   const list = useMStore(() => {
@@ -318,7 +339,42 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           )}
         </div>
       </section>
+      {shipFor && <ShipModal item={shipFor} busy={busy === (shipFor.itemId || shipFor.name)} onClose={() => { if (!busy) setShipFor(null); }} onSubmit={(addr) => doRedeem(shipFor, addr)} />}
     </>
+  );
+}
+
+// Shipping-address modal for redeeming physical merch on the website.
+function ShipModal({ item, busy, onClose, onSubmit }) {
+  const [f, setF] = useSStore({ name: "", line1: "", line2: "", city: "", region: "", postal: "", country: "US" });
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const valid = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();
+  const field = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 9, border: "1px solid rgba(242,237,228,0.18)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(10,8,6,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto", background: "#1a1612", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 26 }}>
+        <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Ship to</div>
+        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: INK, margin: "6px 0 2px" }}>{item.name}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginBottom: 18 }}>{item.cost.toLocaleString()} pts · free shipping</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <input value={f.name} onChange={set("name")} placeholder="Full name" style={field} />
+          <input value={f.line1} onChange={set("line1")} placeholder="Address" style={field} />
+          <input value={f.line2} onChange={set("line2")} placeholder="Apt, suite (optional)" style={field} />
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
+            <input value={f.city} onChange={set("city")} placeholder="City" style={field} />
+            <input value={f.region} onChange={set("region")} placeholder="State" style={field} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <input value={f.postal} onChange={set("postal")} placeholder="ZIP" style={field} />
+            <input value={f.country} onChange={set("country")} placeholder="Country" style={field} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+          <button onClick={onClose} disabled={busy} style={{ padding: "12px 20px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button onClick={() => valid && !busy && onSubmit(f)} disabled={!valid || busy} style={{ flex: 1, padding: "12px 20px", borderRadius: 999, border: 0, background: valid ? TEAL : "rgba(242,237,228,0.1)", color: valid ? "#04201d" : "rgba(242,237,228,0.45)", fontFamily: sans, fontSize: 13, fontWeight: 700, cursor: valid && !busy ? "pointer" : "not-allowed" }}>{busy ? "Redeeming…" : `Redeem · ${item.cost.toLocaleString()} pts`}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -419,7 +475,7 @@ function StorePage() {
   const [gate, setGate] = useSStore({ loading: true, allowed: false, signedIn: false });
   // Live points balance + redemption locker (members only; falls back to the
   // seed values for signed-out / preview).
-  const [store, setStore] = useSStore({ balance: null, redemptions: null });
+  const [store, setStore] = useSStore({ balance: null, redemptions: null, credit: null });
   const reloadStore = useMStore(() => async () => {
     try {
       const res = await fetch("/api/store/redeem", { credentials: "include", cache: "no-store" });
@@ -428,11 +484,13 @@ function StorePage() {
       setStore({
         balance: typeof d.balance === "number" ? d.balance : null,
         redemptions: Array.isArray(d.redemptions) ? d.redemptions : [],
+        credit: (d.credit && typeof d.credit === "object") ? d.credit : { session: 0, nutrition: 0 },
       });
     } catch (_) {}
   }, []);
   useEStore(() => { if (gate.allowed) reloadStore(); }, [gate.allowed]);
   const liveBalance = store.balance == null ? BALANCE : store.balance;
+  const liveCredit = store.credit || { session: 0, nutrition: 0 };
   useEStore(() => {
     let cancelled = false;
     (async () => {
@@ -468,7 +526,7 @@ function StorePage() {
           <section style={{ padding: "120px 24px", textAlign: "center", fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Loading…</section>
         ) : (
           <React.Fragment>
-            <StoreHero balance={liveBalance} />
+            <StoreHero balance={liveBalance} credit={liveCredit} />
             <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} balance={liveBalance} onRedeemed={reloadStore} />
             <UnlockedCoupons redemptions={store.redemptions} />
             <StoreFAQ />

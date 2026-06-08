@@ -59,3 +59,20 @@ export function storeItemCost(item: StoreItem): number {
 export function findStoreItem(id: string): StoreItem | undefined {
   return STORE_CATALOGUE.find((p) => p.id === id);
 }
+
+/**
+ * Coach-credit wallet a credit item funds when redeemed: a Training credit
+ * becomes 'session' credit (applies to a trainer booking), a Nutrition credit
+ * becomes 'nutrition' credit (applies to a meal plan). Non-credit items → null.
+ */
+export function storeCreditKind(item: StoreItem): 'session' | 'nutrition' | null {
+  if (item.kind !== 'credit') return null;
+  if (item.cat === 'Training') return 'session';
+  if (item.cat === 'Nutrition') return 'nutrition';
+  return null;
+}
+
+/** Dollar value (in cents) a credit item adds to the wallet. */
+export function storeCreditCents(item: StoreItem): number {
+  return storeCreditKind(item) ? Math.round(item.retail * 100) : 0;
+}

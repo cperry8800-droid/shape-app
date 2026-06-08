@@ -2859,15 +2859,15 @@ window.ShapePlan = { get: getPlan };
 // GET returns the live points balance + redemption locker; POST redeems an
 // item by id (server validates cost + deducts atomically, issues a code).
 async function getStore() {
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/store/redeem`, { balance: null, redemptions: [] },
-    (data) => ({ balance: typeof data.balance === 'number' ? data.balance : null, redemptions: Array.isArray(data.redemptions) ? data.redemptions : [] }));
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/store/redeem`, { balance: null, redemptions: [], credit: { session: 0, nutrition: 0 } },
+    (data) => ({ balance: typeof data.balance === 'number' ? data.balance : null, redemptions: Array.isArray(data.redemptions) ? data.redemptions : [], credit: (data.credit && typeof data.credit === 'object') ? data.credit : { session: 0, nutrition: 0 } }));
 }
-async function redeemStoreItem(itemId) {
+async function redeemStoreItem(itemId, shipping) {
   const res = await fetch(`${apiBaseUrl || ''}/api/store/redeem`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ itemId }),
+    body: JSON.stringify(shipping ? { itemId, shipping } : { itemId }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Redemption failed.');

@@ -11758,14 +11758,16 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const [affordable, setAffordable] = useStateBSC(false);
   // Live points balance + redemption locker (members only). Falls back to the
   // demo profile values until the real fetch resolves / for signed-out preview.
-  const [store, setStore] = useStateBSC({ balance: null, redemptions: null });
+  const [store, setStore] = useStateBSC({ balance: null, redemptions: null, credit: null });
   const [notice, setNotice] = useStateBSC('');
   const [busyId, setBusyId] = useStateBSC('');
+  const [shipFor, setShipFor] = useStateBSC(null); // merch item awaiting a shipping address
   const balance = store.balance == null ? profile.available : store.balance;
+  const credit = store.credit || { session: 0, nutrition: 0 };
   const reloadStore = React.useCallback(async () => {
     try {
       const d = window.ShapeStore ? await window.ShapeStore.get() : null;
-      if (d) setStore({ balance: typeof d.balance === 'number' ? d.balance : null, redemptions: Array.isArray(d.redemptions) ? d.redemptions : [] });
+      if (d) setStore({ balance: typeof d.balance === 'number' ? d.balance : null, redemptions: Array.isArray(d.redemptions) ? d.redemptions : [], credit: (d.credit && typeof d.credit === 'object') ? d.credit : { session: 0, nutrition: 0 } });
     } catch (e) {}
   }, []);
   // Membership gate — the Shape Store (redeeming points for gear/rewards) is a
@@ -11817,24 +11819,36 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
   React.useEffect(() => { if (memberGate.allowed) reloadStore(); }, [memberGate.allowed, reloadStore]);
 
-  async function handleRedeem(p) {
-    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
-    if (p.locked || busyId) return;
-    if (p.cost > balance) { setNotice('Not enough points for that yet — keep earning!'); return; }
+  // Merch items in the catalogue carry cat 'Shape Merch'; those need a shipping
+  // address before they can be redeemed (opens the shipping sheet first).
+  const isMerch = (p) => p.cat === 'Shape Merch';
+
+  async function doRedeem(p, shipping) {
     setBusyId(p.id);
     setNotice('');
     try {
-      const d = await window.ShapeStore.redeem(p.id);
-      setNotice(`${p.name} redeemed! Code ${d.code} is in your locker below.`);
+      const d = await window.ShapeStore.redeem(p.id, shipping);
+      const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : shipping ? ' We’ll ship it out — check your email.' : '';
+      setNotice(`${p.name} redeemed! Code ${d.code}.${extra}`);
+      setShipFor(null);
       await reloadStore();
     } catch (e) {
       const m = String((e && e.message) || '');
       if (m.includes('insufficient_points')) setNotice('Not enough points for that yet — keep earning!');
       else if (m.includes('membership_required')) setNotice('Become a Shape member to redeem your points.');
+      else if (m.includes('needs_shipping')) { setShipFor(p); return; }
       else setNotice('Redemption failed. Please try again.');
     } finally {
       setBusyId('');
     }
+  }
+
+  function handleRedeem(p) {
+    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    if (p.locked || busyId) return;
+    if (p.cost > balance) { setNotice('Not enough points for that yet — keep earning!'); return; }
+    if (isMerch(p)) { setShipFor(p); return; } // collect address first
+    doRedeem(p);
   }
 
   return (
@@ -11869,6 +11883,19 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
           ))}
         </div>
       </div>
+
+      {(credit.session > 0 || credit.nutrition > 0) && (
+        <div style={{ margin: `0 ${t.padX}px 4px`, padding: '11px 14px', borderRadius: 14, border: `1px solid ${bsTHexA(t.ACCENT, 0.4)}`, background: bsTHexA(t.ACCENT, 0.08) }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BSEyebrow color={t.ACCENT}>Coach credit wallet</BSEyebrow>
+          </div>
+          <div style={{ marginTop: 6, display: 'flex', gap: 18 }}>
+            {credit.session > 0 && (<div><div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>${(credit.session / 100).toFixed(0)}</div><div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Session</div></div>)}
+            {credit.nutrition > 0 && (<div><div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>${(credit.nutrition / 100).toFixed(0)}</div><div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Nutrition</div></div>)}
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 11, lineHeight: 1.3, color: t.INK50 }}>Applies automatically the next time you book a coach or buy a meal plan.</div>
+        </div>
+      )}
 
       {purchasesLocked && (
         <div style={{ padding: `12px ${t.padX}px 0` }}>
@@ -11979,8 +12006,46 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSFooter right="Store" />
+      {shipFor && <BSShipSheet t={t} item={shipFor} busy={busyId === shipFor.id} onClose={() => !busyId && setShipFor(null)} onSubmit={(addr) => doRedeem(shipFor, addr)} />}
     </BSPage>
   );
+}
+
+// Shipping-address sheet for redeeming physical merch (portals into the phone
+// surface). Collects name + address, then redeems with it so ops can ship.
+function BSShipSheet({ t, item, busy, onClose, onSubmit }) {
+  const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const valid = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();
+  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Ship to</BSEyebrow>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '4px 0 2px' }}>{item.name}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>{item.cost.toLocaleString()} pts · free shipping</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          <input value={f.name} onChange={set('name')} placeholder="Full name" style={field} />
+          <input value={f.line1} onChange={set('line1')} placeholder="Address" style={field} />
+          <input value={f.line2} onChange={set('line2')} placeholder="Apt, suite (optional)" style={field} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 9 }}>
+            <input value={f.city} onChange={set('city')} placeholder="City" style={field} />
+            <input value={f.region} onChange={set('region')} placeholder="State" style={field} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+            <input value={f.postal} onChange={set('postal')} placeholder="ZIP" style={field} />
+            <input value={f.country} onChange={set('country')} placeholder="Country" style={field} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button onClick={onClose} disabled={busy} style={{ flex: '0 0 auto', padding: '13px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => valid && !busy && onSubmit(f)} disabled={!valid || busy} style={{ flex: 1, minHeight: 46, borderRadius: 999, border: 0, background: valid ? t.ACCENT : t.RULE, color: valid ? t.PAPER : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: valid && !busy ? 'pointer' : 'default' }}>{busy ? 'Redeeming…' : `Redeem · ${item.cost.toLocaleString()} pts`}</button>
+        </div>
+      </div>
+    </div>
+  );
+  const surface = (typeof document !== 'undefined') && document.getElementById('bs-phone-surface');
+  return surface ? createPortal(sheet, surface) : sheet;
 }
 
 Object.assign(window, {

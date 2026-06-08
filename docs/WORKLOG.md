@@ -55,6 +55,37 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Store fulfillment: redeemed rewards actually DO something
+- **Migration `2026-06-08-store-fulfillment.sql`** (**run on Supabase**): adds fulfillment
+  columns to `store_redemptions` (`kind`, `ship_to` jsonb, `fulfilled_at`, `fulfillment_note`),
+  a **`store_credits`** dollar-wallet ledger (RLS owner-read; `kind` session|nutrition, signed
+  `cents`), and RPCs: `get_my_store_credit` / `get_store_credit_for(uid)`, an extended
+  **`redeem_store_item(... p_kind, p_credit_cents, p_credit_kind, p_ship_to)`** (also writes the
+  ship-to + funds the wallet for credit items, atomically), **`consume_store_credit(uid,kind,
+  session_id,cents)`** (service-role, advisory-locked, idempotent per checkout), and admin
+  `admin_list_store_fulfillment` / `admin_mark_store_fulfilled`.
+- **Three fulfillment paths**, by item kind (server-authoritative catalogue
+  `src/lib/store-catalogue.ts`):
+  - **Merch → ships.** Redeeming merch now requires a **shipping address** (422 `needs_shipping`
+    → a shipping sheet on mobile, a modal on the website). The address rides on the redemption;
+    **ops is emailed** to ship it (Resend, `STORE_OPS_EMAIL` or first admin) + the member gets a
+    confirmation.
+  - **Credit → auto-applies at coach checkout.** A `$25/$50 session credit` funds a **session**
+    wallet; a `$25 nutrition credit` funds a **nutrition** wallet. `/api/stripe/checkout-session`
+    reads the wallet and **discounts the charge** (trainer booking ← session, meal plan ←
+    nutrition), leaving ≥ $0.50 payable; the webhook **debits the wallet** on a completed payment
+    (idempotent — abandoned checkouts don't burn credit). The applied credit shows in the Stripe
+    line-item name.
+  - **Service → recorded + emailed** (coach follows up).
+- **Emails** via the existing Resend wrapper (`src/lib/email.ts`): member reward confirmation
+  (code + next steps) on every redeem; ops ship notice for merch. No-ops cleanly without
+  `RESEND_API_KEY`.
+- **Frontend**: both stores show a **Coach credit wallet** card (session/nutrition $) when funded;
+  merch redeem opens a shipping form. `ShapeStore.get` now returns `credit`; `redeem(itemId,
+  shipping)`.
+- War Room: registered the flows + the two migrations + RESEND/STORE_OPS env in the checklist;
+  flipped the "live redemption API" P2 gap to **done**.
+
 ### 2026-06-08 — Store redemption is real: points become spendable (mobile + website)
 - **Migration `2026-06-08-store-redemptions.sql`** (**run on Supabase**): `store_redemptions`
   table (owner-read RLS) + 3 SECURITY DEFINER RPCs — `get_my_points_balance()` (live balance =

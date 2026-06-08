@@ -164,7 +164,6 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Garmin Health API approval (access-request form down)', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Data & infra', serves: 'System', purpose: 'Source of truth + enforcement.', pieces: ['Supabase (Auth, Postgres, RLS, SECURITY DEFINER RPCs, Storage)', 'Next.js API routes', 'Edge proxy membership gate', 'War Room'], gaps: [
-      { task: 'Live Shape Store redemption API (UI is illustrative)', status: 'not-started', priority: 'P2' },
       { task: 'Per-person live presence/activity (count only today)', status: 'not-started', priority: 'P3' },
       { task: 'is_member() RPC to collapse membership checks', status: 'not-started', priority: 'P3' },
     ] },
@@ -513,6 +512,10 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Platform price ID set', status: auto(present(process.env.STRIPE_PLATFORM_PRICE_ID)) },
         { label: 'Connect activated for coach payouts', status: 'manual' },
         { label: 'Shape Store gated to members (mobile + website): upgrade prompt unless active subscription (coaches allowed); Me-row 🔒 hint; checked via /api/stripe/subscription', status: 'done' },
+        { label: 'Store redemption is real: points spend via /api/store/redeem (atomic balance check + negative score_ledger row + one-time code); 20 pts = $1; live balance + locker on both surfaces', status: 'done' },
+        { label: 'Store fulfillment wired: merch collects a shipping address (member + ops emailed via Resend), credits fund a coach-credit wallet that auto-applies at /api/stripe/checkout-session and is debited in the webhook on a completed payment', status: 'done' },
+        { label: 'Migration 2026-06-08-store-redemptions.sql + 2026-06-08-store-fulfillment.sql applied on Supabase (store_redemptions, store_credits, RPCs)', status: 'manual' },
+        { label: 'RESEND_API_KEY set (store reward + ops shipping emails); optional STORE_OPS_EMAIL for the ship-to inbox (falls back to first admin email)', status: auto(present(process.env.RESEND_API_KEY)) },
         { label: 'App-wide member gate (mobile BSAppShell + website /dashboard layout): paywall unless active $5/mo sub OR approved coach; mobile offers "Preview the app" + persistent Join banner; fail-closed but caches last-known membership so members are not locked out', status: 'done' },
         { label: 'Server-side member enforcement: Next proxy gates paid API prefixes (/api/client,/nutrition,/ai,/insights,/calendar,/conversations,/messages) → 402 unless active sub / coach / admin; Bearer + cookie; fails open on error (src/lib/supabase/middleware.ts + membership-core.ts)', status: 'done' },
         { label: 'Chat gated to members both surfaces: mobile composer + website chat bubble lock for non-members (preview-only, can read not send); community page is a labeled preview; preview banner has an ✕ dismiss', status: 'done' },
