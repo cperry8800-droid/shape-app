@@ -963,6 +963,21 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proMessageClient', onMsg);
     return () => window.removeEventListener('shape:proMessageClient', onMsg);
   }, []);
+  // Care team — open (or reuse) the private coach↔coach thread about a shared
+  // client, then jump to Chat on that thread.
+  React.useEffect(() => {
+    const onCoach = async (e) => {
+      const d = e?.detail || {};
+      let cid = null;
+      if (d.clientId && d.counterpartUserId && window.ShapeCareTeam?.openThread) {
+        try { cid = await window.ShapeCareTeam.openThread(d.clientId, d.counterpartUserId); } catch (err) {}
+      }
+      setChatRequest({ coach: d.name || 'Coach', role: d.role || 'Care team', conversationId: cid, nonce: Date.now() });
+      setTab('chat');
+    };
+    window.addEventListener('shape:proMessageCoach', onCoach);
+    return () => window.removeEventListener('shape:proMessageCoach', onCoach);
+  }, []);
   React.useEffect(() => {
     const onSettingsEvt = () => setShowSettings(true);
     window.addEventListener('shape:openProSettings', onSettingsEvt);
@@ -1995,6 +2010,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     window.ShapeClientStats.get(clientUid).then(d => setCStats(d || null)).catch(() => {});
     if (window.ShapeClientStats?.getLifts) window.ShapeClientStats.getLifts(clientUid).then(d => setCLifts(d || null)).catch(() => {});
   }, [clientUid]);
+  // Care team — the OTHER coach(es) on this shared client (trainer ↔ nutritionist).
+  const [careTeam, setCareTeam] = useStateBSP(null);
+  const [careLoaded, setCareLoaded] = useStateBSP(false);
+  useEffectBSP(() => {
+    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return; }
+    window.ShapeCareTeam.overview(clientUid)
+      .then(d => { const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setCareLoaded(true); })
+      .catch(() => setCareLoaded(true));
+  }, [clientUid]);
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
@@ -2364,6 +2388,30 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <Section eyebrow="CLIENT GOALS" title="Shared goals" />
         {goalsContent}
       </div>
+      {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
+        <div>
+          <Section eyebrow="CARE TEAM" title="Co-coaches" />
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {careTeam.map((c, i) => {
+              const cName = (c.name || 'Coach').trim();
+              const cInit = cName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+              const cColor = c.role === 'nutritionist' ? '#a07a2e' : t.RUST;
+              const cRoleLabel = c.role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
+              return (
+                <div key={c.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 6px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                  <BSFacetAvatar size={38} c={cColor} initial={cInit} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cName}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: cColor }}>{cRoleLabel} · same client</div>
+                  </div>
+                  <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proMessageCoach', { detail: { clientId: clientUid, counterpartUserId: c.userId, name: cName, role: cRoleLabel } })); } catch (e) {} }} style={{ borderRadius: 999, border: `1px solid ${cColor}`, background: `${cColor}1f`, color: t.INK, padding: '8px 14px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>MESSAGE</button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Coordinate {first}'s plan with the rest of the care team</div>
+        </div>
+      )}
       <div>
         <Section eyebrow="PRIVATE" title="Coach notes" />
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>
@@ -3110,6 +3158,21 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     };
     window.addEventListener('shape:proMessageClient', onMsg);
     return () => window.removeEventListener('shape:proMessageClient', onMsg);
+  }, []);
+  // Care team — open (or reuse) the private coach↔coach thread about a shared
+  // client, then jump to Chat on that thread.
+  React.useEffect(() => {
+    const onCoach = async (e) => {
+      const d = e?.detail || {};
+      let cid = null;
+      if (d.clientId && d.counterpartUserId && window.ShapeCareTeam?.openThread) {
+        try { cid = await window.ShapeCareTeam.openThread(d.clientId, d.counterpartUserId); } catch (err) {}
+      }
+      setChatRequest({ coach: d.name || 'Coach', role: d.role || 'Care team', conversationId: cid, nonce: Date.now() });
+      setTab('chat');
+    };
+    window.addEventListener('shape:proMessageCoach', onCoach);
+    return () => window.removeEventListener('shape:proMessageCoach', onCoach);
   }, []);
   React.useEffect(() => {
     const onSettingsEvt = () => setShowSettings(true);

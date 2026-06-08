@@ -6,6 +6,15 @@ changelog whenever something ships.
 
 ## How we work
 
+- ⛔️ **NEVER edit on a stale base — verify FIRST, every session/turn.** The web
+  container periodically re-clones/resets the working tree to an *older* commit
+  while `origin/main` holds the real latest. Editing on that stale base creates
+  duplicate commits, rebase conflicts, and lost work — it has cost real tokens
+  multiple times. **Before making ANY edit:** run
+  `git fetch origin main && git rev-parse --short HEAD origin/main` — if HEAD ≠
+  origin/main, run `git reset --hard origin/main` first. `main` and the dev branch
+  `claude/sleepy-feynman-RtyIr` are always kept identical (push both to the same
+  commit); treat `origin/main` as the single source of truth.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
@@ -45,6 +54,20 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-08 — Care Team on mobile (coach ↔ co-coach messaging)
+- **Mobile coach client profile** (`BSProClientFullProfilePage`, Manage tab) now shows
+  a **Care Team** section listing the *other* coach(es) on the same client (trainer ↔
+  nutritionist). Each row: facet avatar + name + role eyebrow + **MESSAGE** button.
+- **MESSAGE** dispatches `shape:proMessageCoach` `{clientId, counterpartUserId, name,
+  role}`; both coach shells listen → `window.ShapeCareTeam.openThread(clientId,
+  counterpartUserId)` (POST `/api/me/shared-clients/[id]/thread` →
+  `get_or_create_coach_coach_conversation` → conversationId) → jump to **Chat** on that
+  exact 1:1 (same `openRequest`/`chatRequest` path as MESSAGE-client).
+- `shapeBackend.js`: `window.ShapeCareTeam = { overview, openThread }` —
+  `overview(clientId)` reads `/api/clients/[id]/shared-overview` (`careTeam`, filtered to
+  `!isMe` members with a `userId`). No migration (RPC + routes already existed; web
+  surfaced this — mobile was the gap).
 
 ### 2026-06-07 — Web online-visibility toggle + score tier-bar overlap fix
 - **Website Me** (`public/newdesign/ClientMe.html`): added a **"Show when I'm

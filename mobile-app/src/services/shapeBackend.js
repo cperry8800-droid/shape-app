@@ -3064,6 +3064,30 @@ async function listClientGrocery() {
 }
 window.ShapeClientGrocery = { list: listClientGrocery };
 
+// Care team — the OTHER coach(es) on a shared client + a private coach↔coach
+// thread about that client. Mirrors the website coachClientDetail flow.
+async function getCareTeamOverview(clientId) {
+  if (!clientId) return null;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/clients/${encodeURIComponent(clientId)}/shared-overview`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    if (!res.ok) return null;
+    return await res.json().catch(() => null);
+  } catch (e) { return null; }
+}
+async function openCoachCoachThread(clientId, counterpartUserId) {
+  if (!clientId || !counterpartUserId) return null;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/me/shared-clients/${encodeURIComponent(clientId)}/thread`, {
+      method: 'POST', credentials: 'same-origin',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ counterpartUserId }),
+    });
+    const d = await res.json().catch(() => ({}));
+    return res.ok ? (d.conversationId || null) : null;
+  } catch (e) { return null; }
+}
+window.ShapeCareTeam = { overview: getCareTeamOverview, openThread: openCoachCoachThread };
+
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.
 async function listCoachPlans(kind) {
