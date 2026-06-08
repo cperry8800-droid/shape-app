@@ -6134,6 +6134,28 @@ const BS_SAMPLE_CHANNELS = [
 // Public profile opened from a chat avatar — works for any member or coach.
 // Name pool for the preview followers/following list (accountless/demo profiles).
 const BS_FOLLOW_DEMO_NAMES = ['Priya Shah', 'Drew Oyelaran', 'Casey Morgan', 'Devon Wells', 'Maya Okafor', 'Sofia Park', 'Jordan Chen', 'Sam Holloway', 'Riley Kim', 'Noah Bennett', 'Eva Lindqvist', 'Marcus Webb', 'Tara Nguyen', 'Owen Brooks', 'Lena Petrova', 'Theo Adeyemi', 'Mia Castellanos', 'Hassan Ali', 'Grace Donnelly', 'Kai Nakamura', 'Ana Sørensen', 'Julian Reyes', 'Nora Whitfield', 'Diego Marín'];
+// Compact followers/following counts for the Me identity card — tap → opens the
+// full public profile (where the lists live). Reads your own follow stats.
+function BSFollowMini({ onOpen }) {
+  const t = useBS();
+  const [s, setS] = useStateBSC(null);
+  React.useEffect(() => {
+    const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.() || {}).user?.id;
+    if (!uid || !window.ShapeFollows?.stats) return;
+    let on = true;
+    window.ShapeFollows.stats(uid).then((r) => { if (on) setS(r); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const f = s || { followers: 0, following: 0 };
+  const stat = (n, l) => (
+    <button onClick={onOpen} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.01em' }}>{n}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginLeft: 6 }}>{l}</span>
+    </button>
+  );
+  return <div style={{ display: 'flex', gap: 18, marginTop: 12 }}>{stat(f.followers, 'Followers')}{stat(f.following, 'Following')}</div>;
+}
+
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
@@ -13533,6 +13555,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   {identity.pronouns ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{identity.pronouns}</span> : null}
                 </div>
                 {identity.handle ? <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{identity.handle}{identity.goal ? ` · ${identity.goal}` : ''}</div> : null}
+                <BSFollowMini onOpen={() => setShowPublicProfile(true)} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 16, flexWrap: 'nowrap' }}>
