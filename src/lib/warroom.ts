@@ -157,7 +157,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
-      { task: 'Activate system push (FCM keys + Database Webhook + native build)', status: 'in-progress', priority: 'P1' },
+      { task: 'Activate system push — code + native plugins done; remaining: (1) set FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET env, (2) Supabase DB Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret), (3) Firebase config + APNs key + native build', status: 'in-progress', priority: 'P1' },
       { task: 'Apple Pay / Google Pay on checkout — native opens Stripe Checkout in SFSafariViewController for the Apple Pay sheet; needs @capacitor/browser + Apple Pay enabled in Stripe', status: 'in-progress', priority: 'P2' },
       { task: 'Full in-app Stripe PaymentSheet (native Apple Pay / Google Pay sheet, NO browser hop) — wants @capacitor-community/stripe (or Stripe RN/iOS SDK), a PaymentIntent/SetupIntent + customer ephemeral-key endpoint for the $5/mo sub + coach/plan buys, and the native build', status: 'not-started', priority: 'P3' },
       { task: 'Per-endpoint paid-feature enforcement beyond the proxy gate', status: 'not-started', priority: 'P2' },

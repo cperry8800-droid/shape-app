@@ -55,6 +55,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Up-next #4: native push/browser plugin prep (code side complete)
+- Declared **`@capacitor/push-notifications`** + **`@capacitor/browser`** in
+  `mobile-app/package.json` and added a `PushNotifications.presentationOptions`
+  (`badge/sound/alert`) block to `capacitor.config.ts` so a `npm i && npx cap sync`
+  native build picks them up (registerPush + the system-browser Apple Pay opener already
+  feature-detect them). The push pipeline (token register → notifications DB Webhook →
+  `/api/push/dispatch` → FCM sender in `@/lib/push`) is otherwise complete.
+- **Remaining to activate (external):** (1) set `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` /
+  `FCM_PRIVATE_KEY` + `PUSH_WEBHOOK_SECRET` env; (2) Supabase → Database → Webhooks:
+  table `notifications`, INSERT → POST `https://theshapecommunity.com/api/push/dispatch`,
+  header `x-push-secret: <PUSH_WEBHOOK_SECRET>`; (3) Firebase config (google-services.json /
+  GoogleService-Info.plist) + APNs key uploaded to Firebase + the native build with Push
+  capability.
+
 ### 2026-06-08 — Up-next #3 done: profile sub-data wired to real rollups
 - The member **Terrain** profile's living-identity sub-data now reads from the real self
   rollups (demo fallback per field): **climb** (weigh-ins), **personal activities** (logged
