@@ -348,7 +348,7 @@ function AboutPage() {
         <AboutHero />
         <AboutLetter />
         <AboutVision />
-        <Footer />
+        <Footer logoHeight={58} />
       </div>
     </div>
   );
