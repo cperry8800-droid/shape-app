@@ -11732,6 +11732,10 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     { cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
     { cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
   ];
+  // Uniform store value: 1 Shape point = $0.05 (20 points = $1). Every item is
+  // priced straight off its retail $, so the rate is consistent across the catalogue.
+  const SHAPE_PTS_PER_USD = 20;
+  products.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * SHAPE_PTS_PER_USD); });
   const unlocked = [
     ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
     ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
@@ -11768,9 +11772,10 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: storeHeroFaint }}>pts</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', color: t.ACCENT, marginLeft: 4 }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</div>
         </div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 11.5, lineHeight: 1.28, color: storeHeroMuted, letterSpacing: '-0.01em' }}>
-          Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
+          <b>20 points = $1.</b> Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
         </div>
         <div style={{ marginTop: 9, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: `1px solid ${storeHeroRule}` }}>
           {[[lifetime.toLocaleString(), 'Lifetime earned'], [redeemedCount, 'Items redeemed'], [profile.tier, 'Current tier']].map(([value, label], i) => (

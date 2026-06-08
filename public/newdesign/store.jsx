@@ -37,6 +37,12 @@ const COACH_LEAD_BOOST_PRODUCTS = [
   { id: 103, cat: "Coach Tools", name: "Lead Boost · 30 days", brand: "Marketplace featured placement", cost: 3000, retail: 249, img: "boost · 30d", stock: "Activate now", kind: "lead_boost", days: 30 },
 ];
 
+// Uniform store value: 1 Shape point = $0.05 (20 points = $1) — clients + coaches.
+const SHAPE_PTS_PER_USD = 20;
+[...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS].forEach((p) => {
+  if (p.retail) p.cost = Math.round(p.retail * SHAPE_PTS_PER_USD);
+});
+
 function getRoleHint() {
   try {
     const qs = new URLSearchParams(window.location.search);
@@ -89,6 +95,7 @@ function StoreHero() {
           </h1>
           <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
             Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
+            <span style={{ display: "block", marginTop: 14, fontSize: 13, color: TEAL, fontWeight: 600 }}>20 points = $1 · every point is worth 5¢.</span>
           </p>
         </div>
 
@@ -99,7 +106,8 @@ function StoreHero() {
               {BALANCE.toLocaleString()}
               <span style={{ fontSize: 18, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 10 }}>pts</span>
             </div>
-            <a href="Score.html" style={{ fontFamily: sans, fontSize: 12, color: TEAL, marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: TEAL, marginTop: 8 }}>≈ ${(BALANCE / SHAPE_PTS_PER_USD).toFixed(2)} value</div>
+            <a href="Score.html" style={{ fontFamily: sans, fontSize: 12, color: TEAL, marginTop: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
               View Rewards page →
             </a>
           </div>
