@@ -428,7 +428,10 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
       {/* atmosphere */}
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(90% 50% at 78% -4%, ${dHexA(c, 0.28)}, transparent 60%), radial-gradient(80% 50% at 0% 12%, ${dHexA(c, 0.12)}, transparent 55%)` }} />
       <div style={{ position: "relative" }}>
-        <DesktopNav d={d} direction={direction} />
+        {/* Use the real site header (same Shape look; shows the logged-in tabs
+            when signed into an account). Falls back to the local nav if the
+            shared shell isn't loaded. */}
+        {typeof Header !== "undefined" ? <Header /> : <DesktopNav d={d} direction={direction} />}
         {locked ? (
           <DesktopLocked d={d} follow={follow} onMessage={onMessage} onFollow={onFollow} coachingHref={coachingHref} />
         ) : (
