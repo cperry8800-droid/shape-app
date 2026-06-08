@@ -7245,7 +7245,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.55), marginTop: 7 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
               </div>
               <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.14), border: `1px solid ${bsTHexA(c, 0.5)}`, borderRadius: 999, padding: '7px 14px', whiteSpace: 'nowrap' }}>{tierName}</span>
+                <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '5px 11px', whiteSpace: 'nowrap' }}><span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
               </div>
             </div>
@@ -7602,7 +7602,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ textAlign: 'center', marginTop: 14 }}>
           <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.98 }}>{name}</h1>
           <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.14), border: `1px solid ${bsTHexA(c, 0.5)}`, borderRadius: 999, padding: '7px 16px' }}>{tierName}</span>
+            <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: c }}>{tierName}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.55), flexWrap: 'wrap' }}>
             <span>{handle}</span>{pronouns ? <><span style={{ opacity: 0.4 }}>·</span><span>{pronouns}</span></> : null}<span style={{ opacity: 0.4 }}>·</span><span>{city}</span>
@@ -8305,12 +8305,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // "Today on Shape" community page): real workouts logged by members, with
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
-    { kind: 'pr', who: 'Priya Shah', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6 },
-    { kind: 'run', who: 'Drew Oyelaran', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4 },
-    { kind: 'workout', who: 'Casey Morgan', city: 'Shape · Brooklyn', tier: 'FORM', ago: '1h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
-    { kind: 'pr', who: 'Devon Wells', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
-    { kind: 'run', who: 'Sofia Park', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3 },
-    { kind: 'workout', who: 'Maya Okafor', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9 },
+    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6 },
+    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4 },
+    { kind: 'workout', who: 'Casey Morgan', role: 'Client', city: 'Shape · Brooklyn', tier: 'FORM', ago: '1h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
+    { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
+    { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3 },
+    { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9 },
   ];
   const ActivityCard = ({ a }) => {
     const tc = bsTierColor(a.tier);
@@ -8325,7 +8325,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
     const showRoute = a.kind === 'run';
-    const openCardProfile = () => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city, public: true, photo: bsDemoFace(a.who) });
+    const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
+    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: a.tier, init: bsInitials(a.who), city: a.city, public: true, photo: bsDemoFace(a.who) });
     return (
       <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 2, background: tc }} />
@@ -8337,6 +8338,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
                 <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{String(a.tier)}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
               </div>
               <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
             </div>
@@ -8456,16 +8458,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
           </div>
-          <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '20px 12px 8px' }}>
+          <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '13px 12px 8px' }}>
             {TRAINING_NOW.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
               return (
                 <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, photo: bsUnsplash(p.photo) || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} tierLabel={p.tier ? String(p.tier).charAt(0).toUpperCase() + String(p.tier).slice(1) : ''} tierPos="top" live={!!p.live} BG={t.PAPER} INK={'#fff'} />
+                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} showRank={false} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
                   </div>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}
