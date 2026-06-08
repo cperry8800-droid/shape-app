@@ -375,15 +375,51 @@ const LV_PRIV_ORDER = ["public", "circle", "private"];
 // Categorized services — distinctive filing-card tabs that physically
 // connect into the panel below (a card-index, not a generic tab bar).
 const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
-function LvServices({ d, light, ink, c }) {
+function LvServices({ d, light, ink, c, owner }) {
+  // Real published catalogue (coach_plans) keyed by the coach's user id; falls
+  // back to the demo offerings when the coach hasn't published any.
+  const [real, setReal] = React.useState(null);
+  React.useEffect(() => {
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (!d.uid || !cl || !cl.rpc) { setReal([]); return; }
+    let on = true;
+    const kindOf = (cat, kind) => {
+      const cc = String(cat || "").toLowerCase();
+      if (kind === "meal_plan" || /meal/.test(cc)) return "Meal plan";
+      if (/workout|single|session|form/.test(cc)) return "Workout";
+      if (/program|block|strength|hypertrophy|diet|cut|recomp|nutrition/.test(cc)) return "Program";
+      return "Coaching";
+    };
+    cl.rpc("get_coach_sale_plans_by_user", { p_user_id: d.uid }).then((r) => {
+      if (!on) return;
+      const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : [];
+      setReal(rows.map((pl) => ({
+        kind: kindOf(pl.category, pl.kind), name: pl.name, sub: pl.meta || "",
+        price: pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : "Listed",
+        unit: "", free: /free/i.test(String(pl.price || "")),
+        planId: pl.id, providerId: pl.provider_id, providerRole: pl.provider_role,
+      })));
+    }).catch(() => { if (on) setReal([]); });
+    return () => { on = false; };
+  }, [d.uid]);
+  const offerings = (real && real.length) ? real : d.offerings;
+  // Buy a real plan via the same Stripe Connect checkout as the marketplace.
+  const buyPlan = async (o) => {
+    if (!o || !o.planId || !o.providerId) return;
+    try {
+      const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "plan", name: o.name, price: o.price, planId: o.planId }, coach: { provider_id: o.providerId, provider_role: o.providerRole }, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+      const j = await res.json().catch(() => ({}));
+      if (j.url) window.location.href = j.url; else alert(j.error === "membership_required" ? "Become a Shape member to buy plans." : (j.error || "Could not start checkout."));
+    } catch (e) { alert("Could not start checkout."); }
+  };
   // categories present, in stable order
   const order = ["Workout", "Meal plan", "Program", "Coaching", "Consult"];
-  const kinds = order.filter(k => d.offerings.some(o => o.kind === k));
+  const kinds = order.filter(k => offerings.some(o => o.kind === k));
   const cats = ["All", ...kinds];
   const [cat, setCat] = React.useState("All");
-  const list = cat === "All" ? d.offerings : d.offerings.filter(o => o.kind === cat);
+  const list = cat === "All" ? offerings : offerings.filter(o => o.kind === cat);
   const label = (k) => k === "All" ? "All" : (LV_CAT[k] || k);
-  const count = (k) => k === "All" ? d.offerings.length : d.offerings.filter(o => o.kind === k).length;
+  const count = (k) => k === "All" ? offerings.length : offerings.filter(o => o.kind === k).length;
   const panelBg = hexA(ink, 0.045);
   return (
     <div style={{ marginTop: 30 }}>
@@ -409,8 +445,10 @@ function LvServices({ d, light, ink, c }) {
       {/* panel */}
       <div style={{ background: panelBg, border: `1px solid ${hexA(ink, 0.09)}`, borderRadius: "0 12px 12px 12px", padding: 8, position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {list.map((o, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 13px", borderRadius: 10, border: `1px solid ${o.free ? hexA(c, 0.3) : hexA(ink, 0.08)}`, background: o.free ? hexA(c, 0.08) : hexA(ink, 0.03) }}>
+          {list.map((o, i) => {
+            const buyable = !owner && o.planId && o.providerId && !o.free && o.price !== "Listed";
+            return (
+            <div key={i} onClick={buyable ? () => buyPlan(o) : undefined} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 13px", borderRadius: 10, border: `1px solid ${o.free ? hexA(c, 0.3) : hexA(ink, 0.08)}`, background: o.free ? hexA(c, 0.08) : hexA(ink, 0.03), cursor: buyable ? "pointer" : "default" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: c, background: hexA(c, 0.12), padding: "3px 6px", borderRadius: 5 }}>{o.kind}</span>
@@ -420,10 +458,11 @@ function LvServices({ d, light, ink, c }) {
               </div>
               <div style={{ textAlign: "right", flex: "none" }}>
                 <div style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: o.free ? c : ink }}>{o.price}<span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.45) }}>{o.unit || ""}</span></div>
-                <div style={{ fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: c, marginTop: 3 }}>Book →</div>
+                <div style={{ fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: c, marginTop: 3 }}>{buyable ? "Buy →" : "Book →"}</div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div style={{ fontFamily: lvSans, fontSize: 11.5, color: hexA(ink, 0.45), marginTop: 10, textAlign: "center" }}>Usually replies {d.responds}</div>
@@ -512,7 +551,7 @@ function LvCoachBlocks({ d, light, owner }) {
       </div>
 
       {/* Services & prices — categorized via filing-card tabs */}
-      <LvServices d={d} light={light} ink={ink} c={c} card={card} />
+      <LvServices d={d} light={light} ink={ink} c={c} card={card} owner={owner} />
 
       {/* Reviews — marketplace */}
       <div style={{ marginTop: 30 }}>

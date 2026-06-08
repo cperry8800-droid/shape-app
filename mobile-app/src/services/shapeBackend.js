@@ -3182,7 +3182,7 @@ async function listSalePlansByUser(userId) {
   if (!supabase || !userId) return [];
   const { data, error } = await supabase.rpc('get_coach_sale_plans_by_user', { p_user_id: userId });
   if (error) return [];
-  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program') }));
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program'), providerId: r.provider_id || null, providerRole: r.provider_role || (r.kind === 'meal_plan' ? 'nutritionist' : 'trainer') }));
 }
 async function listPurchasedPlans() {
   if (!supabase || !state.user?.id) return [];

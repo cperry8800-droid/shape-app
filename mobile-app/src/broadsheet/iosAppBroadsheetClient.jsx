@@ -7208,7 +7208,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     pl.name,
     pl.meta || '',
     pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : 'Listed',
+    pl, // the plan object → enables Buy (Stripe Connect checkout)
   ]);
+  // Buy a real published plan via the same Stripe Connect checkout as the
+  // marketplace (the by-user catalogue carries the provider id + role).
+  const buyPlan = async (pl) => {
+    if (!pl || !pl.id || !pl.providerId || !window.ShapeCoachPlans?.buy) return;
+    try {
+      const url = await window.ShapeCoachPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
+      if (url) bsOpenCheckout(url);
+    } catch (e) { window.__bsToast?.((e && e.message) || 'Could not start checkout.', 'err'); }
+  };
   const offerings = realOfferings.length ? realOfferings : demoOfferings;
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
   const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
@@ -7327,12 +7337,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               ); })}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              {visibleOfferings.map(([cat, kind, nm, sub, price], i) => (
+              {visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
+                const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
+                return (
                 <div key={i} style={{ ...card, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.01em' }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
-                  <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>
+                  {buyable
+                    ? <button onClick={() => buyPlan(pl)} style={{ flex: 'none', borderRadius: 999, border: 0, background: c, color: '#0c0a08', padding: '9px 14px', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {price}</button>
+                    : <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
