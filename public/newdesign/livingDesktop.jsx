@@ -59,13 +59,45 @@ function DesktopNav({ d, direction }) {
 }
 
 // ── Signature visual (branches by direction) ───────────────────
+// Coach sigil ring model — three contributions (Habits · Client workouts · Own
+// activity) whose fill tracks how close the coach is to the next tier; the outer
+// heptagon frame fills as the overall progress bar.
+function coachSigilModel(d) {
+  const TH = [0, 750, 2000, 5000, 15000], NM = ["Certified", "Pro", "Elite", "Master", "Icon"];
+  const pts = Number(d.score) || 0;
+  let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
+  const top = i >= TH.length - 1;
+  const floor = TH[i], next = top ? floor : TH[i + 1];
+  const progress = top ? 1 : Math.max(0.05, Math.min(0.97, (pts - floor) / Math.max(1, next - floor)));
+  const clamp = (v) => Math.max(0.1, Math.min(0.98, v));
+  const rings = [["Habits", clamp(progress + 0.14)], ["Client workouts", clamp(progress - 0.1)], ["Own activity", clamp(progress + 0.02)]];
+  return { progress, rings, nextTier: top ? NM[i] : NM[i + 1], top };
+}
 function SignalVisual({ d, reduced }) {
+  const coach = d.role !== "client";
+  const m = coach ? coachSigilModel(d) : null;
   return (
-    <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center", minHeight: 420 }}>
-      <SignalSigil d={d} size={400} reduced={reduced} goalPct={d.role === "client" ? d.goalPct : null} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}>
-        <LvPortrait d={d} size={132} />
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: 420 }}>
+      <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <SignalSigil d={d} size={400} reduced={reduced} goalPct={coach ? null : d.goalPct} rings={m ? m.rings : null} progress={m ? m.progress : null} />
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)" }}>
+          <LvPortrait d={d} size={132} />
+        </div>
       </div>
+      {m && (
+        <div style={{ marginTop: 6, textAlign: "center" }}>
+          <div style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55) }}>{m.top ? "Top of the ladder" : <React.Fragment>{Math.round(m.progress * 100)}% to <span style={{ color: LV_TEAL, fontWeight: 700 }}>{m.nextTier}</span></React.Fragment>}</div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 10, flexWrap: "wrap" }}>
+            {m.rings.map(([label, val], i) => { const col = i === 0 ? tierOf(d).color : i === m.rings.length - 1 ? LV_TEAL : dHexA(tierOf(d).color, 0.7); return (
+              <div key={label} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 999, background: col }} />
+                <span style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>{label}</span>
+                <span style={{ fontFamily: dMono, fontSize: 9.5, color: dHexA(LV_INK, 0.4) }}>{Math.round(val * 100)}</span>
+              </div>
+            ); })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

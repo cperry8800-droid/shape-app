@@ -7430,7 +7430,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 // record, recent win, field notes, and the marketplace blocks (certifications,
 // services & prices, reviews). Tier (coach ladder) is the atmosphere color.
 // Name/tier/city/bio/points/privacy are live; the rest is illustrative for now.
-function BSSignalSigil({ week, disciplines, c, teal, ink, size = 240 }) {
+function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink, size = 240 }) {
+  const arcs = (Array.isArray(rings) && rings.length) ? rings : disciplines;
   const cx = size / 2, R = size / 2;
   const reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const n = week.length;
@@ -7440,6 +7441,14 @@ function BSSignalSigil({ week, disciplines, c, teal, ink, size = 240 }) {
     return [cx + rr * Math.cos(a), cx + rr * Math.sin(a)];
   });
   const tracePath = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ') + ' Z';
+  // Outer heptagon frame doubles as the overall progress bar toward the next tier.
+  const showProgress = progress != null;
+  const PN = 7, pr = R * 0.9;
+  const polyPath = Array.from({ length: PN }).map((_, i) => {
+    const a = (-90 + (i / PN) * 360) * Math.PI / 180;
+    return [(cx + pr * Math.cos(a)).toFixed(1), (cx + pr * Math.sin(a)).toFixed(1)];
+  }).map((p, i) => (i ? 'L' : 'M') + p[0] + ' ' + p[1]).join(' ') + ' Z';
+  const progPct = Math.max(0, Math.min(100, (progress || 0) * 100));
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden style={{ display: 'block' }}>
       <defs>
@@ -7450,13 +7459,24 @@ function BSSignalSigil({ week, disciplines, c, teal, ink, size = 240 }) {
         const a = (i / 60) * Math.PI * 2, r0 = R * 0.97, r1 = R * (i % 5 === 0 ? 0.9 : 0.94);
         return <line key={i} x1={cx + r0 * Math.cos(a)} y1={cx + r0 * Math.sin(a)} x2={cx + r1 * Math.cos(a)} y2={cx + r1 * Math.sin(a)} stroke={bsTHexA(ink, i % 5 === 0 ? 0.32 : 0.14)} strokeWidth={i % 5 === 0 ? 1.4 : 0.8} />;
       })}
-      {disciplines.map(([label, val], i) => {
-        const rr = R * (0.74 - i * 0.135), sweep = val * 320, a0 = -90 * Math.PI / 180, a1 = (-90 + sweep) * Math.PI / 180, large = sweep > 180 ? 1 : 0;
-        const col = i === 0 ? c : i === disciplines.length - 1 ? teal : bsTHexA(c, 0.7);
+      {arcs.map(([label, val], i) => {
+        const rr = R * (0.74 - i * 0.135), sweep = Math.max(0.02, Math.min(1, val)) * 320, a0 = -90 * Math.PI / 180, a1 = (-90 + sweep) * Math.PI / 180, large = sweep > 180 ? 1 : 0;
+        const col = i === 0 ? c : i === arcs.length - 1 ? teal : bsTHexA(c, 0.7);
         return (<g key={label}><circle cx={cx} cy={cx} r={rr} fill="none" stroke={bsTHexA(ink, 0.07)} strokeWidth={5} /><path d={`M ${cx + rr * Math.cos(a0)} ${cx + rr * Math.sin(a0)} A ${rr} ${rr} 0 ${large} 1 ${cx + rr * Math.cos(a1)} ${cx + rr * Math.sin(a1)}`} fill="none" stroke={col} strokeWidth={5} strokeLinecap="round" /></g>);
       })}
-      <path d={tracePath} fill="none" stroke={teal} strokeWidth={1.6} opacity={0.85} filter="url(#sgglow)" />
-      <path d={tracePath} fill="none" stroke={teal} strokeWidth={1} opacity={0.9} />
+      {showProgress ? (
+        <>
+          {/* outer heptagon = overall progress toward the next tier (fills like a status bar) */}
+          <path d={polyPath} fill="none" stroke={bsTHexA(ink, 0.13)} strokeWidth={3} strokeLinejoin="round" />
+          <path d={polyPath} fill="none" stroke={teal} strokeWidth={3.2} strokeLinejoin="round" strokeLinecap="round" pathLength={100} strokeDasharray={`${progPct.toFixed(1)} 100`} filter="url(#sgglow)" opacity={0.9} />
+          <path d={polyPath} fill="none" stroke={teal} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={100} strokeDasharray={`${progPct.toFixed(1)} 100`} />
+        </>
+      ) : (
+        <>
+          <path d={tracePath} fill="none" stroke={teal} strokeWidth={1.6} opacity={0.85} filter="url(#sgglow)" />
+          <path d={tracePath} fill="none" stroke={teal} strokeWidth={1} opacity={0.9} />
+        </>
+      )}
       <circle cx={cx} cy={cx} r={R * 0.2} fill="url(#sgcore)" />
       {/* orbiting live blip — circles the portrait core continuously */}
       <g>
@@ -7500,6 +7520,23 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const pronouns = (!isPrivate && live && live.pronouns) || '';
   const score = points != null ? points : 4970;
+  // Sigil rings — three coaching contributions (Habits · Client workouts · Own
+  // activity) whose fill tracks how close the coach is to the next tier. Anchored
+  // to real points-based progress so the rings genuinely "fill up" toward the next
+  // rung; the fixed offsets keep the three staggered (illustrative contribution shape).
+  const _SIG_TH = [0, 750, 2000, 5000, 15000];
+  const _sigPts = points != null ? points : score;
+  let _sigIdx = 0; for (let j = 0; j < _SIG_TH.length; j++) if (_sigPts >= _SIG_TH[j]) _sigIdx = j;
+  const _sigTop = _sigIdx >= _SIG_TH.length - 1;
+  const _sigFloor = _SIG_TH[_sigIdx], _sigNext = _sigTop ? _sigFloor : _SIG_TH[_sigIdx + 1];
+  const sigilToNext = _sigTop ? 1 : Math.max(0.05, Math.min(0.97, (_sigPts - _sigFloor) / Math.max(1, _sigNext - _sigFloor)));
+  const sigilNextTier = _sigTop ? bsCoachTier(baseTier) : bsCoachTier(['base', 'tempo', 'form', 'peak', 'legend'][_sigIdx + 1]);
+  const _sigClamp = (v) => Math.max(0.1, Math.min(0.98, v));
+  const sigilRings = [
+    ['Habits', _sigClamp(sigilToNext + 0.14)],
+    ['Client workouts', _sigClamp(sigilToNext - 0.1)],
+    ['Own activity', _sigClamp(sigilToNext + 0.02)],
+  ];
   const roleLabel = isNutri ? 'Nutritionist · RD' : 'Trainer · CPT';
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.');
   const disLabel = isNutri ? 'Practice focus' : 'Coaching focus';
@@ -7590,11 +7627,24 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
         <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} /></div>
 
-        {/* the instrument — discipline rings around a portrait core */}
+        {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
-          <BSSignalSigil week={week} disciplines={disciplines} c={c} teal={TEAL} ink={INK} size={240} />
+          <BSSignalSigil week={week} rings={sigilRings} progress={sigilToNext} c={c} teal={TEAL} ink={INK} size={240} />
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
             <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+          </div>
+        </div>
+        {/* progress readout + the three contribution rings, legend */}
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{_sigTop ? 'Top of the ladder' : <>{Math.round(sigilToNext * 100)}% to <span style={{ color: TEAL, fontWeight: 800 }}>{sigilNextTier}</span></>}</div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 9, flexWrap: 'wrap' }}>
+            {sigilRings.map(([label, val], i) => { const col = i === 0 ? c : i === sigilRings.length - 1 ? TEAL : bsTHexA(c, 0.7); return (
+              <div key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: col, flex: 'none' }} />
+                <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6) }}>{label}</span>
+                <span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.4) }}>{Math.round(val * 100)}</span>
+              </div>
+            ); })}
           </div>
         </div>
 
@@ -8313,7 +8363,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9 },
   ];
   const ActivityCard = ({ a }) => {
-    const tc = bsTierColor(a.tier);
+    // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
+    // tier name + color to it; members keep the client ramp.
+    const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
+    const tierDisplay = isCoachAuthor ? bsCoachTier(a.tier) : String(a.tier);
+    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(a.tier);
     const key = `${a.who}|${a.ago}`;
     const liked = !!actLikes[key];
     const comments = actComments[key] || [];
@@ -8337,7 +8391,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{String(a.tier)}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
               </div>
               <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>

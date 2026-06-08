@@ -23,10 +23,11 @@ if (typeof document !== "undefined" && !document.getElementById("lv-signal-anim"
 }
 
 // Breathing generative sigil: discipline arcs + cardiac sweep + core.
-function SignalSigil({ d, size = 250, reduced, goalPct }) {
+function SignalSigil({ d, size = 250, reduced, goalPct, rings, progress = null }) {
   const c = tierOf(d).color;
   const cx = size / 2, R = size / 2;
   const ringR = [0.92, 0.74, 0.57, 0.4];
+  const arcs = (Array.isArray(rings) && rings.length) ? rings : d.disciplines;
   // cardiac trace from week data, mapped around a circle
   const wk = d.week, n = wk.length;
   const traceR = 0.83;
@@ -36,6 +37,14 @@ function SignalSigil({ d, size = 250, reduced, goalPct }) {
     return [cx + rr * Math.cos(a), cx + rr * Math.sin(a)];
   });
   const tracePath = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ") + " Z";
+  // outer heptagon = overall progress toward the next tier (fills like a status bar)
+  const showProgress = progress != null;
+  const PN = 7, pr = R * 0.9;
+  const polyPath = Array.from({ length: PN }).map((_, i) => {
+    const a = (-90 + (i / PN) * 360) * Math.PI / 180;
+    return [(cx + pr * Math.cos(a)).toFixed(1), (cx + pr * Math.sin(a)).toFixed(1)];
+  }).map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join(" ") + " Z";
+  const progPct = Math.max(0, Math.min(100, (progress || 0) * 100));
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" style={{ display: "block" }}>
@@ -65,15 +74,14 @@ function SignalSigil({ d, size = 250, reduced, goalPct }) {
         );
       })()}
 
-      {/* discipline arcs — each ring = one discipline, sweep = mastery */}
-      {d.disciplines.map(([label, val], i) => {
-        const rad = R * ringR[i + 1] || R * 0.4;
+      {/* contribution arcs — each ring = one contribution, sweep = level */}
+      {arcs.map(([label, val], i) => {
         const rr = R * (0.74 - i * 0.135);
-        const sweep = val * 320;
+        const sweep = Math.max(0.02, Math.min(1, val)) * 320;
         const a0 = -90 * Math.PI / 180;
         const a1 = (-90 + sweep) * Math.PI / 180;
         const large = sweep > 180 ? 1 : 0;
-        const col = i === 0 ? c : i === d.disciplines.length - 1 ? LV_TEAL : hexA(c, 0.7);
+        const col = i === 0 ? c : i === arcs.length - 1 ? LV_TEAL : hexA(c, 0.7);
         return (
           <g key={label} className={reduced ? "" : "sg-ring"} style={{ transformOrigin: `${cx}px ${cx}px`, animationDelay: `${i * 0.5}s` }}>
             <circle cx={cx} cy={cx} r={rr} fill="none" stroke={hexA(LV_INK, 0.07)} strokeWidth={5} />
@@ -83,9 +91,19 @@ function SignalSigil({ d, size = 250, reduced, goalPct }) {
         );
       })}
 
-      {/* cardiac trace — the week, as a closed waveform */}
-      <path d={tracePath} fill="none" stroke={LV_TEAL} strokeWidth={1.6} opacity={0.85} filter="url(#sgGlow)" />
-      <path d={tracePath} fill="none" stroke={LV_TEALB} strokeWidth={1} opacity={0.9} />
+      {showProgress ? (
+        <React.Fragment>
+          <path d={polyPath} fill="none" stroke={hexA(LV_INK, 0.13)} strokeWidth={3.5} strokeLinejoin="round" />
+          <path d={polyPath} fill="none" stroke={LV_TEAL} strokeWidth={3.6} strokeLinejoin="round" strokeLinecap="round" pathLength={100} strokeDasharray={`${progPct.toFixed(1)} 100`} filter="url(#sgGlow)" opacity={0.9} />
+          <path d={polyPath} fill="none" stroke={LV_TEALB} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" pathLength={100} strokeDasharray={`${progPct.toFixed(1)} 100`} />
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          {/* cardiac trace — the week, as a closed waveform */}
+          <path d={tracePath} fill="none" stroke={LV_TEAL} strokeWidth={1.6} opacity={0.85} filter="url(#sgGlow)" />
+          <path d={tracePath} fill="none" stroke={LV_TEALB} strokeWidth={1} opacity={0.9} />
+        </React.Fragment>
+      )}
 
       {/* core */}
       <circle cx={cx} cy={cx} r={R * 0.2} fill="url(#sgCore)" className={reduced ? "" : "sg-core"} style={{ transformOrigin: `${cx}px ${cx}px` }} />
