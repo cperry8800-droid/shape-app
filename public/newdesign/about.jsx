@@ -350,6 +350,8 @@ function AboutPage() {
         <AboutHero />
         <AboutLetter />
         <AboutVision />
+        <AboutPillars />
+        <AboutCTA />
         <AboutSignoff />
         <Footer />
       </div>
