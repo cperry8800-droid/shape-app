@@ -9309,6 +9309,8 @@ const BS_GOAL_TEMPLATES = [
 ];
 const BS_GOALS_DEFAULT = {
   share: true,
+  primaryGoal: 'Lose fat', // synced with the edit-profile "Primary goal" chip
+
   // The headline body-comp goal that drives the Overall tab. Editable fields
   // persist; the trend/milestones/week-targets/consistency are illustrative.
   overall: {
@@ -10006,12 +10008,16 @@ function BSClientGoals({ onBack }) {
   React.useEffect(() => {
     let alive = true;
     (async () => {
-      let doc = null, weigh = null;
+      let doc = null, weigh = null, ident = null;
       try { doc = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_goals') : null; } catch (e) {}
+      try { ident = window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('client_identity') : null; } catch (e) {}
       if (loggedIn) { try { weigh = window.ShapeWeighIns?.list ? await window.ShapeWeighIns.list() : null; } catch (e) {} }
       if (!alive) return;
       setData(prev => {
         const m = { ...prev };
+        // Primary goal — synced with the edit-profile chip (client_goals.primaryGoal
+        // is canonical; fall back to the profile's client_identity.goal).
+        m.primaryGoal = (doc && doc.primaryGoal) || (ident && ident.goal) || prev.primaryGoal || '';
         if (doc && typeof doc === 'object') {
           m.share = doc.share !== false;
           m.overall = (doc.overall && typeof doc.overall === 'object') ? { ...prev.overall, ...doc.overall } : prev.overall;
@@ -10068,6 +10074,20 @@ function BSClientGoals({ onBack }) {
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: 3 }}>
           {[['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']].map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ padding: '10px 4px', borderRadius: 9, border: 0, cursor: 'pointer', background: on ? ACCENT[k] : 'transparent', color: on ? INKON[k] : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>; })}
+        </div>
+      </div>
+
+      {/* Primary goal — synced with the edit-profile "Primary goal" chip */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${teal}33`, background: `linear-gradient(150deg, ${teal}12, ${t.PAPER2} 70%)`, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Primary goal</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{data.primaryGoal || 'Set a goal'}</div>
+            </div>
+            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Edit</button>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Set in profile · syncs everywhere</div>
         </div>
       </div>
 
@@ -12784,6 +12804,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const p = window.shapeDb?.getUserGoals?.('client_identity');
       if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
     } catch (e) {}
+    // Sync the primary goal to the Goal page's store so the two always match.
+    try {
+      const g = window.shapeDb?.getUserGoals?.('client_goals');
+      const applyG = (cur) => { try { window.shapeDb?.saveUserGoals?.('client_goals', { ...(cur || {}), primaryGoal: draft.goal || '' }); } catch (e) {} };
+      if (g && g.then) g.then(applyG).catch(() => applyG(null)); else applyG(null);
+      window.dispatchEvent(new Event('shape:goals'));
+    } catch (e) {}
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
     // Cache the custom initials globally so every avatar (header + feed) updates,
@@ -13188,7 +13215,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             const acc = bsMyTierColor(); // avatar + form accent follow my Shape Score tier (not a chosen color)
             const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
             const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none' };
-            const goals = ['Lose fat', 'Build muscle', 'Maintain', 'Endurance', 'Mobility'];
+            const goals = ['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'];
             const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
             return (
             <div>
@@ -13241,15 +13268,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 </div>
               </div>
 
-              {/* Primary goal — chips */}
+              {/* Primary goal — chips + a write-your-own field (syncs to the Goal page) */}
               <div style={{ marginBottom: 13 }}>
                 <span style={lbl}>Primary goal</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {goals.map(g => {
-                    const on = draft.goal === g;
+                    const on = (draft.goal || '') === g;
                     return <button key={g} onClick={() => setDraft({ ...draft, goal: g })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>;
                   })}
                 </div>
+                <input
+                  value={goals.includes(draft.goal) ? '' : (draft.goal || '')}
+                  placeholder="Or write your own goal…"
+                  onChange={(e) => setDraft({ ...draft, goal: e.target.value })}
+                  onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
+                  style={{ ...field, marginTop: 8, fontSize: 14.5 }} />
+                <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Syncs with your Goal page</div>
               </div>
 
               {/* Bio + counter */}
