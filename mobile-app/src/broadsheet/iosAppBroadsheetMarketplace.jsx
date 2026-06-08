@@ -329,19 +329,33 @@ function MktTrackRow({ n, title, meta, right, onClick, first }) {
   );
 }
 
+// Coach's tier on the COACH ladder (Certified·Pro·Elite·Master·Icon) + its color,
+// matching the living Signal profile, so marketplace cards preview the real profile.
+function mktCoachTier(c) {
+  const prof = buildPublicProfile(c);
+  const clientTier = String(prof.tier || 'base').toLowerCase();
+  const name = (window.bsCoachTier ? window.bsCoachTier(clientTier) : prof.tier) || 'Certified';
+  const color = (window.bsTierColor ? window.bsTierColor(String(name).toLowerCase()) : mktRoleColor(c)) || mktRoleColor(c);
+  return { name, color, prof };
+}
 function MktCoachCard({ c, onOpen }) {
   const t = useBS();
-  const hue = mktHue(c.category || c.name);
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
+  const { name: tierName, color: tierColor, prof } = mktCoachTier(c);
+  const Facet = window.BSFacetAvatar;
   return (
-    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
-      <div style={{ position: 'relative', height: 90, borderRadius: 14, overflow: 'hidden', border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${hue}5e, ${hue}1f 58%, ${t.PAPER2})` }}>
-        <div style={{ position: 'absolute', top: 9, left: 10, right: 10, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: hue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.category || (isNutri ? 'Nutrition' : 'Training')}</div>
-        <div style={{ position: 'absolute', right: 9, bottom: 9 }}><MktAvatar c={c} size={34} /></div>
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderRadius: 15, overflow: 'hidden', background: `linear-gradient(165deg, ${tierColor}24, ${t.PAPER2} 58%)`, padding: 13, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {Facet ? <Facet size={38} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={38} />}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+          <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tierName} · {isNutri ? 'Nutritionist' : 'Trainer'}</div>
+        </div>
       </div>
-      <div style={{ marginTop: 6 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-        <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.05em', color: t.INK50, fontWeight: 600 }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</div>
+      <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12, lineHeight: 1.35, color: t.INK70, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 32 }}>{c.bio || prof.headline}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em' }}>
+        <span style={{ color: tierColor }}>★ {formatCoachRating10(c)}</span>
+        <span style={{ color: t.INK50 }}>${c.rate}/mo</span>
       </div>
     </button>
   );
@@ -349,18 +363,23 @@ function MktCoachCard({ c, onOpen }) {
 
 function MktRow({ c, onOpen }) {
   const t = useBS();
+  const { name: tierName, color: tierColor } = mktCoachTier(c);
+  const Facet = window.BSFacetAvatar;
   return (
-    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '48px 1fr auto', gap: 13, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-      <MktAvatar c={c} size={48} />
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 13, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${tierColor}14, ${t.PAPER2} 58%)` }}>
+      {Facet ? <Facet size={46} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={46} />}
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierColor, border: `1px solid ${tierColor}66`, borderRadius: 3, padding: '1px 5px', lineHeight: 1 }}>{tierName}</span>
+        </div>
         <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getPrimaryCredential(c)} · {mktShortLoc(c.loc)}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{c.bio}</div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, color: t.INK70, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{c.bio}</div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1 }}>${c.rate}</div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>/mo</div>
-        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70 }}>★ {formatCoachRating10(c)}</div>
+        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: tierColor }}>★ {formatCoachRating10(c)}</div>
       </div>
     </button>
   );
