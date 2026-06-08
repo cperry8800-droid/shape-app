@@ -381,6 +381,24 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   const [remoteCoaches, setRemoteCoaches] = useStateBSM2(null);
   const [providersLoading, setProvidersLoading] = useStateBSM2(false);
   const [providersError, setProvidersError] = useStateBSM2('');
+  // Live marketplace plans (published, priced coach_plans across all coaches).
+  const [marketPlans, setMarketPlans] = useStateBSM2(null);
+  const [planTab, setPlanTab] = useStateBSM2('program');
+  const [buyingId, setBuyingId] = useStateBSM2(null);
+  useEffectBSM2(() => {
+    let on = true;
+    if (window.ShapeMarketPlans?.list) window.ShapeMarketPlans.list().then((r) => { if (on) setMarketPlans(Array.isArray(r) ? r : []); }).catch(() => { if (on) setMarketPlans([]); });
+    return () => { on = false; };
+  }, []);
+  const buyPlan = async (pl) => {
+    if (buyingId) return;
+    setBuyingId(pl.id);
+    try {
+      const url = await window.ShapeMarketPlans.buy({ plan: { id: pl.id, name: pl.name, price: pl.price }, providerRole: pl.providerRole, providerId: pl.providerId });
+      if (url) { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { window.location.href = url; } }
+    } catch (e) { window.__bsToast?.(e?.message || 'Sign in to buy this plan.', 'err'); }
+    finally { setBuyingId(null); }
+  };
 
   useEffectBSM2(() => {
     let active = true;
@@ -447,12 +465,6 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   const cotw = ranked.find((c) => c.tag) || ranked[0];
   const cotwProfile = cotw ? buildPublicProfile(cotw) : null;
   const featuredWeek = ranked.filter((c) => !cotw || c.id !== cotw.id).slice(0, 4);
-  const programs = useMemoBSM2(() => featuredWeek.map((c) => {
-    const prof = buildPublicProfile(c);
-    const prog = prof.packages.find((p) => p.type === 'One-time' && /program|fueling/i.test(p.name)) || prof.packages[1];
-    return { coach: c, name: `${(c.spec && c.spec[0]) || c.category || prof.role} block`, meta: `${prof.role} · ${c.first || c.name.split(' ')[0]}`, price: prog ? prog.price : `$${c.rate}` };
-  }), [featuredWeek]);
-
   const pickPill = (p) => { setPill(p); setForceList(false); setCat('All Categories'); setFormat('All formats'); setLoc('Anywhere'); };
   const roleKey = pill === 'Trainers' ? 'Trainer' : pill === 'Nutritionists' ? 'Nutritionist' : null;
   const catList = roleKey ? BSM_MARKETPLACE_CATEGORIES[roleKey] : null;
@@ -578,23 +590,40 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
             </div>
           </div>
 
-          {/* Programs */}
-          <div style={{ marginTop: 28 }}>
-            <MktSectionHead kicker="Programs" title="Start a thing" action="All" onAction={() => setForceList(true)} teal={teal} />
-            <div style={{ padding: `0 ${t.padX}px` }}>
-              {programs.map((pr, i) => (
-                <MktTrackRow key={pr.coach.id} n={i + 1} title={pr.name} meta={pr.meta} right={pr.price} first={i === 0} onClick={() => setOpen(pr.coach)} />
-              ))}
+          {/* What's hot — real published plans across coaches, tabbed by kind */}
+          {(() => {
+            const PLAN_TABS = [['program', 'Programs'], ['workout', 'Workouts'], ['meal', 'Meal plans']];
+            const all = Array.isArray(marketPlans) ? marketPlans : [];
+            const tabPlans = all.filter((p) => p.tab === planTab).slice(0, 8);
+            const tabPill = (on) => ({ flex: 'none', padding: '6px 13px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
+              border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
+              color: on ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' });
+            return (
+            <div style={{ marginTop: 28 }}>
+              <MktSectionHead kicker="From coaches" title="What's hot" teal={teal} />
+              <div style={{ display: 'flex', gap: 7, padding: `0 ${t.padX}px 12px` }}>
+                {PLAN_TABS.map(([k, label]) => <button key={k} onClick={() => setPlanTab(k)} style={tabPill(planTab === k)}>{label}</button>)}
+              </div>
+              <div style={{ padding: `0 ${t.padX}px` }}>
+                {marketPlans == null ? (
+                  <div style={{ padding: '14px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Loading…</div>
+                ) : tabPlans.length === 0 ? (
+                  <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No {PLAN_TABS.find(([k]) => k === planTab)[1].toLowerCase()} listed yet — check back soon.</div>
+                ) : tabPlans.map((pl, i) => (
+                  <MktTrackRow key={pl.id} n={i + 1} title={pl.name} meta={`${pl.providerRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · ${pl.coachName}`} right={buyingId === pl.id ? '…' : (pl.price || 'Buy')} first={i === 0} onClick={() => buyPlan(pl)} />
+                ))}
+              </div>
             </div>
-          </div>
+            );
+          })()}
 
           {/* Coach apply CTAs — both roles, side by side (discovery view only) */}
-          <div style={{ margin: `30px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ margin: `26px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
             {[{ role: 'trainer', label: 'trainer' }, { role: 'nutritionist', label: 'nutritionist' }].map((b) => (
-              <button key={b.role} onClick={() => setApplyRole(b.role)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `2px solid ${t.AMBER}`, background: t.PAPER2, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
-                <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Apply to be a <span style={{ fontStyle: 'italic', color: t.AMBER }}>{b.label}.</span></div>
-                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>Apply →</div>
+              <button key={b.role} onClick={() => setApplyRole(b.role)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1.5px solid ${t.AMBER}`, background: t.PAPER2, padding: '11px 12px' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.12 }}>Apply to be a <span style={{ fontStyle: 'italic', color: t.AMBER }}>{b.label}.</span></div>
+                <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>Apply →</div>
               </button>
             ))}
           </div>

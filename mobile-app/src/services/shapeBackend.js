@@ -3208,6 +3208,21 @@ async function buyCoachPlan({ plan, providerRole, providerId } = {}) {
 }
 window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, salePlansByUser: listSalePlansByUser, purchased: listPurchasedPlans, buy: buyCoachPlan };
 
+// Marketplace plan feed — published, priced coach_plans across ALL coaches,
+// tabbed program | workout | meal. Public read (anon ok). Returns [] on no-data.
+async function listMarketPlans() {
+  if (!supabase) return [];
+  const { data, error } = await supabase.rpc('get_market_plans');
+  if (error) return [];
+  return (data || []).map((r) => ({
+    id: r.id, kind: r.kind, tab: r.tab || (r.kind === 'meal_plan' ? 'meal' : 'program'),
+    name: r.name, meta: r.meta || '', price: r.price || '',
+    coachName: r.coach_name || 'Shape coach', ownerId: r.owner_id || null,
+    providerId: r.provider_id || null, providerRole: r.provider_role || (r.kind === 'meal_plan' ? 'nutritionist' : 'trainer'),
+  }));
+}
+window.ShapeMarketPlans = { list: listMarketPlans, buy: buyCoachPlan };
+
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
 async function listWeighIns() {
