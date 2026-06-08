@@ -335,13 +335,13 @@ function MktCoachCard({ c, onOpen }) {
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
   return (
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
-      <div style={{ position: 'relative', height: 122, borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${hue}5e, ${hue}1f 58%, ${t.PAPER2})` }}>
-        <div style={{ position: 'absolute', top: 11, left: 12, right: 12, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: hue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.category || (isNutri ? 'Nutrition' : 'Training')}</div>
-        <div style={{ position: 'absolute', right: 11, bottom: 11 }}><MktAvatar c={c} size={42} /></div>
+      <div style={{ position: 'relative', height: 90, borderRadius: 14, overflow: 'hidden', border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${hue}5e, ${hue}1f 58%, ${t.PAPER2})` }}>
+        <div style={{ position: 'absolute', top: 9, left: 10, right: 10, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: hue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.category || (isNutri ? 'Nutrition' : 'Training')}</div>
+        <div style={{ position: 'absolute', right: 9, bottom: 9 }}><MktAvatar c={c} size={34} /></div>
       </div>
-      <div style={{ marginTop: 8 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</div>
+      <div style={{ marginTop: 6 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+        <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.05em', color: t.INK50, fontWeight: 600 }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</div>
       </div>
     </button>
   );
@@ -366,6 +366,19 @@ function MktRow({ c, onOpen }) {
   );
 }
 
+// Sample plans for preview / before any coach has published priced plans, so the
+// "What's hot" rail always demonstrates the feature (tagged demo → not buyable).
+const BSM_DEMO_PLANS = [
+  { id: 'demo-p1', tab: 'program', name: '8-Week Hypertrophy Block', coachName: 'Maya Okafor', providerRole: 'trainer', price: '$160', demo: true },
+  { id: 'demo-p2', tab: 'program', name: 'Powerbuilding Foundations', coachName: 'Marcus Johnson', providerRole: 'trainer', price: '$180', demo: true },
+  { id: 'demo-p3', tab: 'program', name: 'Marathon Base Builder', coachName: 'Cal Redmond', providerRole: 'trainer', price: '$140', demo: true },
+  { id: 'demo-w1', tab: 'workout', name: 'Heavy Pull Day', coachName: 'Leah Kim', providerRole: 'trainer', price: '$32', demo: true },
+  { id: 'demo-w2', tab: 'workout', name: 'Full-Body HIIT', coachName: 'Zoë Carter', providerRole: 'trainer', price: '$28', demo: true },
+  { id: 'demo-w3', tab: 'workout', name: 'Mobility Reset', coachName: 'Priya Natarajan', providerRole: 'trainer', price: '$24', demo: true },
+  { id: 'demo-m1', tab: 'meal', name: 'High-Protein Cut · 2 Weeks', coachName: 'Tanya Brooks', providerRole: 'nutritionist', price: '$120', demo: true },
+  { id: 'demo-m2', tab: 'meal', name: 'Plant-Based Performance', coachName: 'Omar Hassan', providerRole: 'nutritionist', price: '$95', demo: true },
+  { id: 'demo-m3', tab: 'meal', name: 'Gut-Health Reset Plan', coachName: 'Dr. Sarah Mitchell', providerRole: 'nutritionist', price: '$130', demo: true },
+];
 function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -609,7 +622,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
           {/* What's hot — real published plans across coaches, tabbed by kind */}
           {(() => {
             const PLAN_TABS = [['program', 'Programs'], ['workout', 'Workouts'], ['meal', 'Meal plans']];
-            const all = Array.isArray(marketPlans) ? marketPlans : [];
+            // Live published plans when present; else sample plans so the rail is
+            // populated in preview / before any coach has published.
+            const live = Array.isArray(marketPlans) ? marketPlans : [];
+            const all = live.length ? live : BSM_DEMO_PLANS;
             const tabPlans = all.filter((p) => p.tab === planTab).slice(0, 8);
             const tabPill = (on) => ({ flex: 'none', padding: '6px 13px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
               border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
@@ -621,12 +637,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
                 {PLAN_TABS.map(([k, label]) => <button key={k} onClick={() => setPlanTab(k)} style={tabPill(planTab === k)}>{label}</button>)}
               </div>
               <div style={{ padding: `0 ${t.padX}px` }}>
-                {marketPlans == null ? (
-                  <div style={{ padding: '14px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Loading…</div>
-                ) : tabPlans.length === 0 ? (
+                {tabPlans.length === 0 ? (
                   <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No {PLAN_TABS.find(([k]) => k === planTab)[1].toLowerCase()} listed yet — check back soon.</div>
                 ) : tabPlans.map((pl, i) => (
-                  <MktTrackRow key={pl.id} n={i + 1} title={pl.name} meta={`${pl.providerRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · ${pl.coachName}`} right={buyingId === pl.id ? '…' : (pl.price || 'Buy')} first={i === 0} onClick={() => buyPlan(pl)} />
+                  <MktTrackRow key={pl.id} n={i + 1} title={pl.name} meta={`${pl.providerRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · ${pl.coachName}`} right={buyingId === pl.id ? '…' : (pl.price || 'Buy')} first={i === 0} onClick={() => pl.demo ? window.__bsToast?.('Sample plan — real plans are buyable once coaches publish.', 'info') : buyPlan(pl)} />
                 ))}
               </div>
             </div>
