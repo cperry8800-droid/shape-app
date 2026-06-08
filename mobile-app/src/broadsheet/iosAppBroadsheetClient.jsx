@@ -6554,9 +6554,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      {/* back */}
-      <div style={{ padding: '48px 18px 0' }}>
+      {/* back + your-avatar/settings corner (top-right, matches the rest of the app) */}
+      <div style={{ padding: '48px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+        <BSMeCorner size={30} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '14px 18px 0' }}>
@@ -6824,7 +6825,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       <div style={{ flex: 1, padding: '46px 22px 28px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
-          <Kick col={c}>{tierName} · coach</Kick>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <Kick col={c}>{tierName} · coach</Kick>
+            <BSMeCorner size={30} />
+          </div>
         </div>
 
         {/* the instrument — discipline rings around a portrait core */}
