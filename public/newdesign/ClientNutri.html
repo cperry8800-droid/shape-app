@@ -135,7 +135,22 @@ function ClientNutriPage() {
   const today = data.today;
   const targets = data.targets || {};
   const week = data.week || [];
-  const todayMeals = (data.todayMeals || []).map((m) => { const ov = mealOverrides[m.name]; return ov ? { ...m, ...ov, _baseName: m.name } : { ...m, _baseName: m.name }; });
+  // Recipes added from a recipe page via "Add to today's plan" (shared store).
+  const planExtras = (() => {
+    try {
+      const raw = window.localStorage.getItem("shape.todaysPlan.v1");
+      const store = raw ? JSON.parse(raw) : null;
+      if (!store || typeof store !== "object") return [];
+      const d = new Date();
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const arr = Array.isArray(store[key]) ? store[key] : [];
+      return arr.map((m) => ({ name: m.name, time: m.time || "—", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, planned: true, source: m.source || "Shape Kitchen", _baseName: m.name }));
+    } catch (e) { return []; }
+  })();
+  const todayMeals = [
+    ...(data.todayMeals || []).map((m) => { const ov = mealOverrides[m.name]; return ov ? { ...m, ...ov, _baseName: m.name } : { ...m, _baseName: m.name }; }),
+    ...planExtras,
+  ];
   const upcomingMeals = data.upcomingMeals || [];
   const topFoods = data.topFoods || [];
   const grocery = data.grocery || [];

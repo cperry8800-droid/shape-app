@@ -55,6 +55,28 @@ function rdAddRecipeToGrocery(recipe) {
   return items.length;
 }
 
+// Add a recipe to "today's plan" — written to the shared store that
+// ClientNutri.html reads, so it shows up under Today's meals.
+const RD_PLAN_KEY = "shape.todaysPlan.v1";
+function rdTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function rdAddRecipeToPlan(recipe) {
+  let store = {};
+  try { const raw = window.localStorage.getItem(RD_PLAN_KEY); const p = raw ? JSON.parse(raw) : null; if (p && typeof p === "object") store = p; } catch (e) {}
+  const dayKey = rdTodayKey();
+  const day = Array.isArray(store[dayKey]) ? store[dayKey] : [];
+  const id = "recipe-" + recipeSlug(recipe);
+  const m = recipe.macros || {};
+  const entry = { id, name: recipe.title, time: "", kcal: recipe.kcal || 0, protein: m.p || 0, carbs: m.c || 0, fat: m.f || 0, planned: true, source: "Shape Kitchen", addedAt: Date.now() };
+  const i = day.findIndex((x) => x.id === id);
+  if (i >= 0) day[i] = entry; else day.push(entry);
+  store[dayKey] = day;
+  try { window.localStorage.setItem(RD_PLAN_KEY, JSON.stringify(store)); } catch (e) {}
+  return day.length;
+}
+
 function RDRelatedCard({ recipe }) {
   const dc = RD_DIET_COLOR[recipe.diet] || TEAL;
   return (
@@ -96,6 +118,8 @@ function RecipeDetailPage() {
 
   const [added, setAdded] = React.useState(0); // count of items added (0 = not yet)
   const addToGrocery = () => { setAdded(rdAddRecipeToGrocery(recipe)); };
+  const [planAdded, setPlanAdded] = React.useState(false);
+  const addToPlan = () => { rdAddRecipeToPlan(recipe); setPlanAdded(true); };
 
   // Save-to-library (gated behind an account).
   const rslug = recipeSlug(recipe);
@@ -257,7 +281,11 @@ function RecipeDetailPage() {
             border: `1px solid ${saved ? "rgba(46,224,196,0.5)" : "rgba(242,237,228,0.25)"}`,
             padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, cursor: "pointer",
           }}>{saved ? "✓ Saved to library" : "♥ Save to library"}</button>
-          <a href="ClientNutri.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, textDecoration: "none" }}>Add to today's plan</a>
+          {planAdded ? (
+            <a href="ClientNutri.html" style={{ background: "rgba(46,224,196,0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(46,224,196,0.5)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>✓ Added · Open plan →</a>
+          ) : (
+            <button onClick={addToPlan} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 14, cursor: "pointer" }}>Add to today's plan</button>
+          )}
         </div>
         {authNudge && !me && (
           <div style={{ maxWidth: 980, margin: "12px auto 0", padding: "0 24px" }}>
