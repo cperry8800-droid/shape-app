@@ -45,7 +45,7 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
-      <a onClick={() => setOpen(o => !o)} style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.55)", fontFamily: sans, fontWeight: 300, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
+      <a onClick={() => setOpen(o => !o)} style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.6)", fontFamily: sans, fontWeight: 400, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
         {label}<span style={{ fontSize: 9, opacity: 0.5, lineHeight: 1 }}>▾</span>
       </a>
       {/* Invisible hover bridge — fills the gap between trigger and panel so the
@@ -211,7 +211,7 @@ function Header({ active }) {
   // uses, so they share vertical-centering and any future container styles.
   const link = (name, href) => (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
-      <a href={href} className="shape-nav-link" style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.55)", fontFamily: sans, fontWeight: 300, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+      <a href={href} className="shape-nav-link" style={{ fontSize: 12, letterSpacing: "0.04em", textTransform: "lowercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.6)", fontFamily: sans, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
     </div>
   );
   return (
@@ -259,7 +259,7 @@ function Header({ active }) {
               <a href={dashboardHref(authUser.role)} style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
               <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "11px 22px", borderRadius: 999, fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Sign out</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 185, height: "auto", maxWidth: "none", display: "block" }} />
+                <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 158, height: "auto", maxWidth: "none", display: "block", filter: "drop-shadow(0.5px 0 #fff) drop-shadow(-0.5px 0 #fff) drop-shadow(0 0.5px #fff) drop-shadow(0 -0.5px #fff)" }} />
               </a>
             </>
           ) : (
@@ -267,7 +267,7 @@ function Header({ active }) {
               <a href="/newdesign/Login.html" style={{ fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", color: "rgba(245,239,225,0.55)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
               <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "11px 22px", borderRadius: 999, fontSize: 12, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Get started</a>
               <a href="/newdesign/Radio.html" aria-label="Shape Radio" style={{ display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 185, height: "auto", maxWidth: "none", display: "block" }} />
+                <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" style={{ width: 158, height: "auto", maxWidth: "none", display: "block", filter: "drop-shadow(0.5px 0 #fff) drop-shadow(-0.5px 0 #fff) drop-shadow(0 0.5px #fff) drop-shadow(0 -0.5px #fff)" }} />
               </a>
             </>
           )}
@@ -334,6 +334,10 @@ function ShapeMobileStyles() {
       .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
       .shape-nav-link:hover { color: ${INK} !important; }
       .shape-header { transition: background .25s ease; }
+      /* Nudge the centered nav toward true page-center on wider screens (the
+         right cluster is heavier than the logo, so it sits left-of-center).
+         Zero at laptop widths so it never crowds the auth cluster. */
+      .shape-nav-tabs { transform: translateX(clamp(0px, (100vw - 1366px) * 0.55, 64px)); }
       .shape-brand-logo {
         height: var(--shape-logo-h) !important;
         width: auto !important;

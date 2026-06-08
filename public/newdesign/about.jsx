@@ -104,17 +104,22 @@ function AboutLetter() {
           The community isn't a forum. It's the people in your loop.
         </aside>
 
-        <p style={{ ...para, marginBottom: 48 }}>
+        <p style={{ ...para, marginBottom: 0 }}>
           Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.
         </p>
-
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-          <span style={{ width: 24, height: 2, background: "rgba(242,237,228,0.25)" }} />
-        </div>
-        <div style={{ textAlign: "center", fontFamily: serif, fontStyle: "italic", fontSize: 16, color: "rgba(242,237,228,0.6)" }}>
-          — The Shape team
-        </div>
       </div>
+    </section>
+  );
+}
+
+// Closing sign-off — the very last thing on the page (under the positioning).
+function AboutSignoff() {
+  return (
+    <section style={{ padding: "8px 72px 120px", textAlign: "center" }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+        <span style={{ width: 24, height: 2, background: "rgba(242,237,228,0.25)" }} />
+      </div>
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontSize: 17, color: "rgba(242,237,228,0.62)" }}>— The Shape team</div>
     </section>
   );
 }
@@ -124,13 +129,13 @@ function AboutVision() {
   const colTitle = { fontFamily: serif, fontSize: 26, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.02em", color: INK, lineHeight: 1.12, marginBottom: 16 };
   const colBody = { fontFamily: serif, fontSize: 17, fontStyle: "italic", fontWeight: 300, color: "rgba(242,237,228,0.8)", lineHeight: 1.62, margin: 0 };
   return (
-    <section style={{ padding: "20px 72px 130px", position: "relative" }}>
+    <section style={{ padding: "4px 72px 56px", position: "relative" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
           <span style={{ width: 24, height: 1, background: "rgba(242,237,228,0.25)" }} />
         </div>
-        <div style={{ textAlign: "center", marginBottom: 56 }}>
-          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>The idea</div>
+        <div style={{ textAlign: "center", marginBottom: 48 }}>
+          <div style={{ fontFamily: mono, fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: TEAL, marginBottom: 22, lineHeight: 1 }}>The idea</div>
           <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.04 }}>
             The platform coaches build their <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>practice</em> on.
             <br />The place members <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>live</em> their training life.
@@ -348,6 +353,7 @@ function AboutPage() {
         <AboutHero />
         <AboutLetter />
         <AboutVision />
+        <AboutSignoff />
         <Footer logoHeight={58} />
       </div>
     </div>
