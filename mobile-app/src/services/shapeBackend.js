@@ -352,15 +352,24 @@ async function startCheckout({ item, coach, user, role }) {
     throw new Error(payload.error || 'Unable to start checkout.');
   }
 
-  if (payload.url) {
-    if (Capacitor.isNativePlatform()) {
-      window.location.href = payload.url;
-    } else {
-      window.location.assign(payload.url);
-    }
-  }
+  if (payload.url) openCheckoutUrl(payload.url);
 
   return payload;
+}
+
+// Open Stripe Checkout so Apple Pay / Google Pay can appear: on native, use the
+// system browser (SFSafariViewController via the Capacitor Browser plugin) — the
+// in-app WebView can't present the Apple Pay sheet. Falls back to the WebView.
+function openCheckoutUrl(url) {
+  try {
+    const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
+    const Browser = cap && cap.Plugins && cap.Plugins.Browser;
+    if (Capacitor.isNativePlatform() && Browser && Browser.open) {
+      Browser.open({ url, presentationStyle: 'fullscreen' });
+      return;
+    }
+  } catch (e) {}
+  try { window.location.assign(url); } catch (e) { window.location.href = url; }
 }
 
 async function startStripeConnectOnboarding({ role } = {}) {
@@ -3145,7 +3154,7 @@ async function listSalePlans(providerRole, providerId) {
   if (!supabase || !providerRole || !providerId) return [];
   const { data, error } = await supabase.rpc('get_coach_sale_plans', { p_provider_role: providerRole, p_provider_id: Number(providerId) });
   if (error) return [];
-  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '' }));
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program') }));
 }
 async function listPurchasedPlans() {
   if (!supabase || !state.user?.id) return [];

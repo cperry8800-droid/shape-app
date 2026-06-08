@@ -13125,7 +13125,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         body: JSON.stringify({ successPath: '/m/', cancelPath: '/m/' }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.url) window.location.href = data.url;
+      if (res.ok && data.url) bsOpenCheckout(data.url);
       else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.('Create an account to become a Shape member', 'info'); }
       else window.__bsToast?.(data?.error || 'Upgrade unavailable right now', 'err');
     } catch (e) {
@@ -14336,6 +14336,20 @@ function BSContactPage({ onBack }) {
 
 // Start the $5/mo Shape Platform checkout (shared by the Pricing page + the
 // settings upgrade button). Signed out → account gate / Stripe 401 hint.
+// Open a Stripe Checkout URL so Apple Pay / Google Pay work: on native we open
+// the system browser (SFSafariViewController) via the Capacitor Browser plugin —
+// the in-app WebView can't present the Apple Pay sheet. Falls back to the WebView.
+function bsOpenCheckout(url) {
+  try {
+    const cap = (typeof window !== 'undefined' && window.Capacitor) || null;
+    const Browser = cap && cap.Plugins && cap.Plugins.Browser;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform() && Browser && Browser.open) {
+      Browser.open({ url, presentationStyle: 'fullscreen' });
+      return;
+    }
+  } catch (e) {}
+  try { window.location.href = url; } catch (e) {}
+}
 async function bsStartPlatformCheckout() {
   if (window.bsRequireAccount && !window.bsRequireAccount('become a Shape member')) return;
   try {
@@ -14345,7 +14359,7 @@ async function bsStartPlatformCheckout() {
       body: JSON.stringify({ successPath: '/m/', cancelPath: '/m/' }),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.ok && data.url) window.location.href = data.url;
+    if (res.ok && data.url) bsOpenCheckout(data.url);
     else if (res.status === 401) { if (window.__bsGoAuth) window.__bsGoAuth('create'); else window.__bsToast?.('Create an account to become a Shape member', 'info'); }
     else window.__bsToast?.(data?.error || 'Checkout unavailable right now', 'err');
   } catch (e) { window.__bsToast?.('Checkout unavailable right now', 'err'); }

@@ -892,6 +892,18 @@ function BSCoachDetailPublic({ coach, onBack }) {
     window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
     return () => { on = false; };
   }, [saleProviderId, saleProviderRole]);
+  // Role-aware catalogue tabs: trainers → Programs / Workouts / Plans;
+  // nutritionists → Meals / Diets / Plans. The last tab is the catch-all.
+  const PLAN_TABS = saleProviderRole === 'nutritionist'
+    ? [['meal', 'Meals', (c) => /meal/.test(c)], ['diet', 'Diets', (c) => /diet/.test(c)], ['plans', 'Plans', null]]
+    : [['program', 'Programs', (c) => /program/.test(c)], ['workout', 'Workouts', (c) => /workout|single/.test(c)], ['plans', 'Plans', null]];
+  const [planTab, setPlanTab] = useStateBSM2(PLAN_TABS[0][0]);
+  const planMatched = (pl) => PLAN_TABS.slice(0, -1).some(([, , m]) => m && m(pl.category || ''));
+  const plansForTab = (key) => {
+    const tab = PLAN_TABS.find((x) => x[0] === key) || PLAN_TABS[0];
+    if (tab[2]) return (salePlans || []).filter((pl) => tab[2](pl.category || ''));
+    return (salePlans || []).filter((pl) => /plan/.test(pl.category || '') || !planMatched(pl));
+  };
 
   // Live coach reviews (1–10), shared with the website via /api/coaches/reviews.
   const coachSlug = coach.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -1163,23 +1175,41 @@ function BSCoachDetailPublic({ coach, onBack }) {
 
       {tab === 'packages' && (
         <>
-          {salePlans && salePlans.length > 0 && (
-            <>
-              <BSSection title="Plans for sale" meta={`${salePlans.length} ${salePlans.length === 1 ? 'plan' : 'plans'}`} />
-              <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 8 }}>
-                {salePlans.map((pl) => (
-                  <div key={pl.id} style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: roleColor }}>{pl.kind === 'meal_plan' ? 'Meal plan' : 'Program'}</div>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
-                      {pl.meta && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.meta}</div>}
+          {salePlans && salePlans.length > 0 && (() => {
+            const list = plansForTab(planTab);
+            return (
+              <>
+                <BSSection title={saleProviderRole === 'nutritionist' ? 'Meal plans & diets' : 'Workouts & programs'} meta={`${salePlans.length} listed`} />
+                <div style={{ padding: `0 ${t.padX}px 10px`, display: 'flex', gap: 6 }}>
+                  {PLAN_TABS.map(([key, label]) => {
+                    const on = planTab === key;
+                    const n = plansForTab(key).length;
+                    return (
+                      <button key={key} onClick={() => setPlanTab(key)} style={{ flex: 1, padding: '8px 6px', borderRadius: 999, cursor: 'pointer', border: on ? 0 : `1px solid ${t.RULE}`, background: on ? roleColor : 'transparent', color: on ? '#fff' : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}{n ? ` · ${n}` : ''}</button>
+                    );
+                  })}
+                </div>
+                <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 8 }}>
+                  {list.length === 0 ? (
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>Nothing listed here yet.</div>
+                  ) : list.map((pl) => (
+                    <div key={pl.id} style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: roleColor }}>{String(pl.category || (pl.kind === 'meal_plan' ? 'meal' : 'program')).toUpperCase()}</div>
+                        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                        {pl.meta && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.meta}</div>}
+                      </div>
+                      {pl.price ? (
+                        <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ flexShrink: 0, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, padding: '9px 15px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {pl.price}</button>
+                      ) : (
+                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Listed</span>
+                      )}
                     </div>
-                    <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ flexShrink: 0, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, padding: '9px 15px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {pl.price}</button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+                  ))}
+                </div>
+              </>
+            );
+          })()}
           <BSSection title="Packages" meta="Pricing" />
           <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 10 }}>
             {p.packages.map(item => <BSPublicPackageCard key={item.name} item={item} onSelect={openCheckout} />)}

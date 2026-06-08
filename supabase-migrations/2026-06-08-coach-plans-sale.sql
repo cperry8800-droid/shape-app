@@ -11,9 +11,11 @@
 alter table public.one_time_purchases
   add column if not exists plan_id uuid references public.coach_plans(id) on delete set null;
 
--- Published, priced plans for sale by a marketplace coach (provider row → owner).
+-- A marketplace coach's PUBLISHED plans (for their profile catalogue). Priced
+-- plans are buyable; others are just listed. `category` (from the AI-draft
+-- buildType, else the kind) drives the per-role tabs on the profile.
 create or replace function public.get_coach_sale_plans(p_provider_role text, p_provider_id bigint)
-returns table (id uuid, kind text, name text, meta text, price text)
+returns table (id uuid, kind text, name text, meta text, price text, category text)
 language sql stable security definer set search_path = public as $$
   with own as (
     select case
@@ -21,13 +23,13 @@ language sql stable security definer set search_path = public as $$
       else (select owner_id from trainers where id = p_provider_id)
     end as oid
   )
-  select cp.id, cp.kind, cp.name, cp.meta, cp.price
+  select cp.id, cp.kind, cp.name, cp.meta, cp.price,
+    lower(coalesce(nullif(cp.detail->>'buildType', ''), case when cp.kind = 'meal_plan' then 'meal' else 'program' end)) as category
   from coach_plans cp
   where cp.owner_id = (select oid from own)
     and cp.published = true
-    and cp.price is not null and btrim(cp.price) <> ''
   order by cp.created_at desc
-  limit 50;
+  limit 80;
 $$;
 grant execute on function public.get_coach_sale_plans(text, bigint) to authenticated, anon;
 

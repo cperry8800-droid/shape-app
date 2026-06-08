@@ -68,6 +68,16 @@ changelog whenever something ships.
   client **Library** (`owned`) via `get_my_purchased_plans`.
 - Coach already sets price + publishes at plan-create time. Needs **live Stripe** to verify
   the actual charge.
+- **Catalogue tabs on the coach profile** (Packages tab): role-aware sub-tabs — trainers
+  **Programs / Workouts / Plans**, nutritionists **Meals / Diets / Plans** — populated from
+  the coach's published `coach_plans` (categorised by `detail.buildType`, else the kind).
+  Priced → **Buy**, otherwise **Listed**. `get_coach_sale_plans` now returns all published
+  plans (+ a `category`), not just priced ones.
+- **Apple Pay / Google Pay on checkout:** native checkout (the $5/mo membership + coach/plan
+  buys) now opens in the **system browser (SFSafariViewController)** via the Capacitor Browser
+  plugin so Stripe Checkout can present the **Apple Pay sheet** (the in-app WebView can't).
+  Falls back to the WebView when the plugin/native isn't present. Needs `@capacitor/browser`
+  + Apple Pay enabled in Stripe to go live.
 
 ### 2026-06-08 — War Room: North Star + Up-next P1 queue + build-order gaps
 - **North Star panel** (top of `/warroom`): the positioning — Shape as a **coach
