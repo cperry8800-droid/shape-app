@@ -115,8 +115,16 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
   const c = tierOf(d).color;
   const coach = d.role !== "client";
   const Visual = direction === "terrain" ? TerrainVisual : SignalVisual;
+  const cover = d.custom && d.custom.cover && d.custom.cover.image;
   return (
-    <section style={{ maxWidth: 1240, margin: "0 auto", padding: "56px 40px 8px", display: "grid", gridTemplateColumns: "1.05fr 1fr", gap: 56, alignItems: "center" }} className="dk-hero">
+    <div style={{ position: "relative" }}>
+      {cover && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
+          <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.42 }} />
+          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${dHexA(LV_BG, 0.45)}, ${dHexA(LV_BG, 0.72)} 62%, ${LV_BG})` }} />
+        </div>
+      )}
+    <section style={{ position: "relative", zIndex: 1, maxWidth: 1240, margin: "0 auto", padding: "56px 40px 8px", display: "grid", gridTemplateColumns: "1.05fr 1fr", gap: 56, alignItems: "center" }} className="dk-hero">
       {/* identity */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
@@ -183,6 +191,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
       {/* signature visual */}
       <Visual d={d} reduced={reduced} />
     </section>
+    </div>
   );
 }
 
@@ -537,6 +546,7 @@ function DesktopTabs({ direction, tab, setTab, c }) {
 
 // ── Profile customization (song · prompts · links · bio) — desktop ────────────
 const DK_PROMPTS = ["Never skip", "Pre-workout fuel", "Currently chasing", "Form check I love", "My non-negotiable", "Rest day looks like", "A win this month", "Training motto"];
+const DK_ACCENTS = ["#34d6c5", "#5ec8e0", "#7bbf5a", "#d8a23a", "#e0644b", "#e0518a", "#8a5cf6"];
 const DK_LINKS = [
   { key: "instagram", label: "Instagram", pre: "instagram.com/" },
   { key: "tiktok", label: "TikTok", pre: "tiktok.com/@" },
@@ -555,10 +565,10 @@ function dkLinkHref(key, val) {
   return "https://" + (pre ? pre + v.replace(/^@/, "") : v);
 }
 function ProfileExtras({ d, owner }) {
-  const c = tierOf(d).color;
   const [cust, setCust] = React.useState(d.custom || null);
   const [edit, setEdit] = React.useState(false);
   const cu = cust || {};
+  const c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : tierOf(d).color;
   const embed = dkSpotifyEmbed(cu.song && cu.song.url);
   const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === "object") ? DK_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
@@ -605,7 +615,25 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   const [songLabel, setSongLabel] = React.useState((init.song && init.song.label) || "");
   const [links, setLinks] = React.useState({ ...(init.links || {}) });
   const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: DK_PROMPTS[0], a: "" }]);
+  const [coverUrl, setCoverUrl] = React.useState((init.cover && init.cover.image) || "");
+  const [accent, setAccent] = React.useState(init.accent || "");
+  const [coverBusy, setCoverBusy] = React.useState(false);
+  const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
+  const onCoverFile = async (e) => {
+    const file = e && e.target && e.target.files && e.target.files[0]; if (e && e.target) e.target.value = "";
+    if (!file) return; setCoverBusy(true);
+    try {
+      const cl = window.shapeDb && window.shapeDb.client;
+      const { data: u } = await cl.auth.getUser();
+      const path = `${u.user.id}/cover-${Date.now()}.${(file.name.split(".").pop() || "jpg")}`;
+      const up = await cl.storage.from("community-photos").upload(path, file, { upsert: true, contentType: file.type });
+      if (up.error) throw up.error;
+      const { data: pub } = cl.storage.from("community-photos").getPublicUrl(path);
+      setCoverUrl(pub.publicUrl);
+    } catch (err) { alert((err && err.message) || "Could not upload cover."); }
+    finally { setCoverBusy(false); }
+  };
   const field = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 11, border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: dHexA(LV_INK, 0.03), color: LV_INK, fontFamily: dSans, fontSize: 14, outline: "none" };
   const label = { fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), marginBottom: 7, display: "block" };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
@@ -618,6 +646,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
       song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
       links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
+      cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
+      accent: accent || null,
     };
     try {
       const cl = window.shapeDb && window.shapeDb.client;
@@ -633,6 +663,25 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
           <button onClick={onClose} style={{ background: "transparent", border: 0, color: dHexA(LV_INK, 0.6), fontSize: 22, cursor: "pointer" }}>×</button>
         </div>
         <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /></div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Cover image</span>
+          <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(accent || c, 0.4)}, ${dHexA(accent || c, 0.08)})` }}>
+            {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+            <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.6)}`, background: "rgba(0,0,0,0.5)", color: LV_INK, cursor: coverBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{coverBusy ? "Uploading…" : coverUrl ? "Replace" : "Upload cover"}</button>
+              {coverUrl && <button onClick={() => setCoverUrl("")} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.4)}`, background: "rgba(0,0,0,0.5)", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button>}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Accent color</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <button onClick={() => setAccent("")} title="Tier default" style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${!accent ? LV_INK : dHexA(LV_INK, 0.25)}`, background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, color: "#fff", fontSize: 12 }}>{!accent ? "✓" : ""}</button>
+            {DK_ACCENTS.map((a) => <button key={a} onClick={() => setAccent(a)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${accent === a ? LV_INK : "transparent"}`, background: a, color: "#fff", fontSize: 12 }}>{accent === a ? "✓" : ""}</button>)}
+          </div>
+          <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
+        </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Profile song · Spotify link</span>
           <input value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" style={field} />

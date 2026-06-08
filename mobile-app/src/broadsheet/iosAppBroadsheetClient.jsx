@@ -6652,6 +6652,7 @@ function bsSpotifyEmbed(url) {
   return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
 }
 const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
+const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
 const BS_PROFILE_LINKS = [
   { key: 'instagram', label: 'Instagram', pre: 'instagram.com/' },
   { key: 'tiktok', label: 'TikTok', pre: 'tiktok.com/@' },
@@ -6669,6 +6670,7 @@ function bsLinkHref(key, val) {
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
   const cu = custom || {};
+  c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
   const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
@@ -6717,7 +6719,18 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
   const [songLabel, setSongLabel] = useStateBSC((init.song && init.song.label) || '');
   const [links, setLinks] = useStateBSC({ ...(init.links || {}) });
   const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: BS_PROFILE_PROMPTS[0], a: '' }]);
+  const [coverUrl, setCoverUrl] = useStateBSC((init.cover && init.cover.image) || '');
+  const [accent, setAccent] = useStateBSC(init.accent || '');
+  const [coverBusy, setCoverBusy] = useStateBSC(false);
+  const coverRef = React.useRef(null);
   const [busy, setBusy] = useStateBSC(false);
+  const onCoverFile = async (e) => {
+    const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
+    if (!file) return; setCoverBusy(true);
+    try { const url = await window.ShapeCommunity?.uploadPhoto?.(file); if (url) setCoverUrl(url); else throw new Error('Upload failed'); }
+    catch (err) { window.__bsToast?.(err?.message || 'Could not upload cover.', 'err'); }
+    finally { setCoverBusy(false); }
+  };
   const field = { width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, background: bsTHexA(INK, 0.03), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
   const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 7, display: 'block' };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
@@ -6732,6 +6745,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
       song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
       links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)),
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
+      cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
+      accent: accent || null,
     };
     try { await window.shapeDb?.saveUserGoals?.('profile_custom', doc); } catch (e) {}
     setBusy(false);
@@ -6747,6 +6762,27 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Bio</span>
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: 'vertical', minHeight: 64 }} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Cover image</span>
+          <div style={{ position: 'relative', height: 110, borderRadius: 12, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.16)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
+            {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+            <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: 'none' }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: '7px 13px', borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.6)}`, background: bsTHexA('#000', 0.5), color: INK, cursor: coverBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{coverBusy ? 'Uploading…' : coverUrl ? 'Replace' : 'Upload cover'}</button>
+              {coverUrl && <button onClick={() => setCoverUrl('')} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.4)}`, background: bsTHexA('#000', 0.5), color: bsTHexA(INK, 0.8), cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Remove</button>}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Accent color</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
+            <button onClick={() => setAccent('')} title="Tier default" style={{ width: 30, height: 30, borderRadius: 999, cursor: 'pointer', border: `2px solid ${!accent ? INK : bsTHexA(INK, 0.25)}`, background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 11 }}>{!accent ? '✓' : ''}</button>
+            {BS_PROFILE_ACCENTS.map((a) => (
+              <button key={a} onClick={() => setAccent(a)} style={{ width: 30, height: 30, borderRadius: 999, cursor: 'pointer', border: `2px solid ${accent === a ? INK : 'transparent'}`, background: a, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 11 }}>{accent === a ? '✓' : ''}</button>
+            ))}
+          </div>
+          <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Profile song · Spotify link</span>
@@ -7124,8 +7160,14 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           const hp = Math.max(0.05, Math.min(pct, 0.66));
           const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
           return (
-          <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA(c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
-            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ display: 'block' }}>
+          <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
+            {custom && custom.cover && custom.cover.image && (
+              <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: H, zIndex: 0 }}>
+                <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
+                <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.2)}, ${bsTHexA('#100d0a', 0.55)} 70%, ${bsTHexA('#100d0a', 0.9)})` }} />
+              </div>
+            )}
+            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ display: 'block', position: 'relative' }}>
               <defs><linearGradient id={`asc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.32)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
               {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
               <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill={`url(#asc${seed})`} />
@@ -7474,7 +7516,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      <div style={{ flex: 1, padding: '46px 22px 28px' }}>
+      <div style={{ flex: 1, padding: '46px 22px 28px', position: 'relative' }}>
+        {custom && custom.cover && custom.cover.image && (
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 320, zIndex: -1, pointerEvents: 'none' }}>
+            <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
+            <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.35)}, ${bsTHexA(BG, 0.55)} 58%, ${BG})` }} />
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
