@@ -1729,6 +1729,7 @@ function communityPostFromRow(row) {
     created_at: row.created_at || null,
     name: authorName,
     photo: row.photo_url || (metrics && metrics.photo_url) || null,
+    mentions: Array.isArray(metrics.mentions) ? metrics.mentions : [],
     channel: typeof metrics.channel === 'string' ? metrics.channel : '',
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
@@ -2108,6 +2109,7 @@ async function createCommunityPost({
   sourceActivityId = '',
   channel = '',
   photoUrl = '',
+  mentions = [],
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
   const cleanPhoto = String(photoUrl || '').trim();
@@ -2120,7 +2122,11 @@ async function createCommunityPost({
   // jsonb metrics so a post made on the Shape or Community tab stays on that tab
   // — author_role alone would collapse every post into the user's own role feed.
   const cleanChannel = String(channel || '').trim().toUpperCase();
-  const mergedMetrics = cleanChannel ? { ...(metrics || {}), channel: cleanChannel } : (metrics || {});
+  const mergedMetrics = { ...(metrics || {}) };
+  if (cleanChannel) mergedMetrics.channel = cleanChannel;
+  if (Array.isArray(mentions) && mentions.length) {
+    mergedMetrics.mentions = mentions.map((x) => ({ userId: x.userId || x.id || null, name: x.name || x.full_name || '' })).filter((x) => x.name).slice(0, 12);
+  }
   const payload = {
     author_id: state.user.id,
     author_name: authorName,

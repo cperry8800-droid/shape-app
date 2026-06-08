@@ -7459,6 +7459,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       id: p.id, userId: p.author_id || null, mine, who: mine ? 'You' : (p.name || 'Member'), kind, authorKind, init: (mine ? bsMyName() : (p.avatar || p.name || '?')).toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
       photo: p.photo || null,
+      mentions: Array.isArray(p.mentions) ? p.mentions : [],
       body: p.photo ? (p.note || (p.status && p.status !== 'Photo' ? p.status : '')) : (p.note || p.status || p.body || p.workout || ''),
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
       replies: Array.isArray(p.comments) ? p.comments.length : (p.commentCount || 0),
@@ -7503,16 +7504,37 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // the render below, so `shown` isn't used for it.)
   const shown = ((loggedIn && !postsLive) ? [] : posts).filter(p => p.kind === filter);
 
+  // Tag members in a post/workout — a searchable picker; tagged people ride on
+  // the post (metrics.mentions) and render as tappable "with @Name" chips.
+  const [tagged, setTagged] = useStateBSC([]); // [{ id, name }]
+  const [tagOpen, setTagOpen] = useStateBSC(false);
+  const [tagQuery, setTagQuery] = useStateBSC('');
+  const [tagResults, setTagResults] = useStateBSC([]);
+  React.useEffect(() => {
+    if (!tagOpen || !window.ShapeChannels?.searchMembers) return undefined;
+    let active = true;
+    window.ShapeChannels.searchMembers(tagQuery).then(r => { if (active) setTagResults(r?.data || []); }).catch(() => {});
+    return () => { active = false; };
+  }, [tagOpen, tagQuery]);
+  const toggleTagged = (m) => {
+    const id = m.id || m.user_id || m.name; const nm = m.name || m.full_name || 'Member';
+    setTagged(prev => prev.some(x => (x.id || x.name) === id) ? prev.filter(x => (x.id || x.name) !== id) : [...prev, { id: m.id || m.user_id || null, name: nm }]);
+  };
+  const removeTagged = (id) => setTagged(prev => prev.filter(x => (x.id || x.name) !== id));
+  const mentionsPayload = () => tagged.map(x => ({ userId: x.id || null, name: x.name }));
+
   const post = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body && tagged.length === 0) return;
     setDraft('');
     // Tag the post with the chip you're posting from (Shape / Community / your
     // role channel) so it lands on that feed — not always the Client feed.
     const kind = (filter && ROLE[filter]) ? filter : myRoleChip;
     const where = ROLE[kind] ? ROLE[kind].label : 'the group';
-    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
-    try { await window.ShapeCommunity?.createPost?.({ title: body, note: body, channel: kind, privacy: 'community' }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
+    const mentions = mentionsPayload();
+    setTagged([]);
+    setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body, mentions, hearts: 0, replies: 0 }, ...prev]);
+    try { await window.ShapeCommunity?.createPost?.({ title: body || 'Tagged', note: body, channel: kind, privacy: 'community', mentions }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
   };
   // Photo post — upload to community-photos then create a post carrying the URL.
@@ -7526,13 +7548,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const caption = draft.trim();
     const kind = (filter && ROLE[filter]) ? filter : myRoleChip;
     const where = ROLE[kind] ? ROLE[kind].label : 'the group';
+    const mentions = mentionsPayload();
     setPhotoBusy(true);
     try {
       const url = await window.ShapeCommunity?.uploadPhoto?.(file);
       if (!url) throw new Error('Upload failed.');
-      setDraft('');
-      setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body: caption, photo: url, hearts: 0, replies: 0 }, ...prev]);
-      await window.ShapeCommunity?.createPost?.({ title: caption || 'Photo', note: caption, channel: kind, privacy: 'community', photoUrl: url });
+      setDraft(''); setTagged([]);
+      setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body: caption, photo: url, mentions, hearts: 0, replies: 0 }, ...prev]);
+      await window.ShapeCommunity?.createPost?.({ title: caption || 'Photo', note: caption, channel: kind, privacy: 'community', photoUrl: url, mentions });
       window.__bsToast?.(`Photo posted to ${where}`, 'ok');
     } catch (err) { window.__bsToast?.(err?.message || 'Could not post photo.', 'err'); }
     finally { setPhotoBusy(false); }
@@ -7608,6 +7631,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: p.photo && !p.body ? 4 : '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
               {p.body && <div style={{ padding: p.photo ? '7px 10px 9px' : 0 }}>{p.body}</div>}
               {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12 }} />}
+              {Array.isArray(p.mentions) && p.mentions.length > 0 && (
+                <div style={{ padding: p.photo ? '8px 10px 2px' : '8px 0 0', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: p.official ? '#5a534a' : muted }}>
+                  with {p.mentions.map((mn, mi) => (
+                    <React.Fragment key={mi}>
+                      <button onClick={() => mn.userId && setOpenProfile({ who: mn.name, userId: mn.userId, kind: 'CLIENT', tier: bsPostTier({ who: mn.name }), init: bsInitials(mn.name), public: true })} style={{ background: 'transparent', border: 0, padding: 0, cursor: mn.userId ? 'pointer' : 'default', fontFamily: 'inherit', fontSize: 'inherit', color: tc, fontWeight: 700 }}>@{mn.name}</button>
+                      {mi < p.mentions.length - 1 ? ', ' : ''}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -8050,8 +8083,33 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {tab === 'feed' && (
         <>
           <input ref={feedPhotoRef} type="file" accept="image/*" onChange={onFeedPhotoFile} style={{ display: 'none' }} />
-          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} pinned placeholder="Message…" />
+          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} pinned placeholder="Message…" />
         </>
+      )}
+      {tagOpen && createPortal(
+        <div onClick={() => setTagOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>Tag people</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, margin: '4px 0 12px' }}>{tagged.length ? `${tagged.length} tagged` : 'Search Shape members'}</div>
+            {tagged.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {tagged.map((x) => <button key={x.id || x.name} onClick={() => removeTagged(x.id || x.name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, border: `1px solid ${TEALB}`, background: `${TEALB}1f`, color: t.INK, padding: '5px 10px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>@{x.name} ✕</button>)}
+              </div>
+            )}
+            <input autoFocus value={tagQuery} onChange={(e) => setTagQuery(e.target.value)} placeholder="Search members…" style={{ width: '100%', height: 44, background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, outline: 'none', boxSizing: 'border-box', marginBottom: 12 }} />
+            {tagResults.map((m) => { const nm = m.name || m.full_name || 'Member'; const id = m.id || m.user_id || nm; const on = tagged.some(x => (x.id || x.name) === id); const pal = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6']; return (
+              <button key={id} onClick={() => toggleTagged(m)} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '10px 12px', borderRadius: 12, border: `1px solid ${on ? TEALB : t.RULE}`, background: on ? `${TEALB}1a` : t.PAPER2, color: t.INK, marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}>
+                <BSFacetAvatar size={36} c={pal[nm.length % pal.length]} initial={nm.trim().charAt(0).toUpperCase()} showRank={false} />
+                <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15 }}>{nm}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: on ? TEALB : t.INK50 }}>{on ? 'TAGGED ✓' : 'TAG'}</span>
+              </button>
+            ); })}
+            {tagResults.length === 0 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK50, padding: '8px 2px' }}>{tagQuery.trim() ? 'No matches.' : 'Type a name to find someone.'}</div>}
+            <button onClick={() => setTagOpen(false)} style={{ width: '100%', marginTop: 8, padding: '13px', borderRadius: 12, border: 0, background: t.ACCENT, color: '#031f1c', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Done</button>
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'teams' && teamsSel === 'support' && (
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
@@ -8124,10 +8182,11 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, placeholder = 'Message...', pinned = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false }) {
   const t = useBS();
-  const canSend = value.trim().length > 0;
+  const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
+  const TEALB = t.isLight ? '#0a8f87' : '#34d6c5';
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
   // lives inside the phone-frame container (next to the tab bar). The slot is
@@ -8241,8 +8300,22 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="M21 16l-5-5L5 19" /></svg>}
     </button>
   ) : null;
-  const fieldRow = onPhoto
-    ? <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%' }}>{photoBtn}{field}</div>
+  // Tag-people button (community feed) — opens the member picker.
+  const tagBtn = onTag ? (
+    <button onClick={onTag} aria-label="Tag people" title="Tag people" style={{
+      flexShrink: 0, width: 38, height: 40, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 20,
+      background: pinned ? t.SURFACE : t.PAPER, color: (tags && tags.length) ? TEALB : t.INK, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
+    }}>@</button>
+  ) : null;
+  const leftBtns = (photoBtn || tagBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}</div> : null;
+  const tagChips = (onTag && tags && tags.length) ? (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+      {tags.map((x) => <button key={x.id || x.name} onClick={() => onRemoveTag && onRemoveTag(x.id || x.name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, border: `1px solid ${TEALB}`, background: `${TEALB}1f`, color: t.INK, padding: '4px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, cursor: 'pointer' }}>@{x.name} ✕</button>)}
+    </div>
+  ) : null;
+  const fieldRow = leftBtns
+    ? <div><div>{tagChips}</div><div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%' }}>{leftBtns}{field}</div></div>
     : field;
   const body = canChat ? fieldRow : lockedField;
 

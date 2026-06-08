@@ -55,6 +55,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Tag members in posts/workouts on the feed (mobile + website)
+- **Mobile** (`BSClientFeed`): the feed composer gained an **@ Tag people** button (next
+  to the photo button) → a member-search sheet (`search_members` RPC); tagged people show
+  as removable chips and ride on the post. Both text posts and photo/workout posts carry
+  the tags. `renderPost` shows a tappable **"with @Name, @Name"** line (opens each member's
+  profile). `BSMessageComposer` got `onTag` / `tags` / `onRemoveTag` props + a chip row.
+- **Website** (`dashboardCommunity.jsx`): `PostComposer` gained **@ TAG PEOPLE** with an
+  inline member search (chips + toggle); `onSubmit` POSTs `metrics.mentions`; `FeedItem`
+  renders the **"with @Name"** line (links to each member's profile).
+- **Backend** (`shapeBackend.js`): `createCommunityPost({ …, mentions })` stores
+  `metrics.mentions` (`[{userId,name}]`, capped 12); `communityPostFromRow` exposes
+  `mentions`. No migration (rides in the existing `community_posts.metrics` jsonb).
+
 ### 2026-06-08 — Progress hub on app (Overall / Training / Nutrition) — website data → app
 - **Mobile `BSClientProgress` rebuilt as a 3-tab hub** mirroring the website's
   Progress / Train / Nutrition pages, reached from **Me → "Progress & PRs"** (and the
