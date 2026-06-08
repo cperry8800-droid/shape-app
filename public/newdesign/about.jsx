@@ -188,7 +188,7 @@ function AboutPillars() {
     },
   ];
   return (
-    <section style={{ padding: "120px 72px" }}>
+    <section style={{ padding: "120px 72px 44px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>What you get</div>
@@ -351,7 +351,6 @@ function AboutPage() {
         <AboutLetter />
         <AboutVision />
         <AboutPillars />
-        <AboutCTA />
         <AboutSignoff />
         <Footer />
       </div>
