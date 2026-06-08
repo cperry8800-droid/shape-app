@@ -950,6 +950,9 @@ function ChatWidget(props) {
                 const cancelLongPress = () => { if (longPressRef.id) clearTimeout(longPressRef.id); };
                 // Full name where possible (thread name in a 1:1) so initials are 2 letters.
                 const avatarName = (active && active.group) ? (m.who || (active && active.who)) : ((active && active.who) || m.who);
+                // Bubble carries the sender's tier color (incoming = their tier,
+                // mine = my tier) so chat stays coordinated with the avatars/feed.
+                const bubbleTC = cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(m.me ? myName : avatarName));
                 return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 11, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
@@ -980,8 +983,9 @@ function ChatWidget(props) {
                       onTouchEnd={cancelLongPress}
                       style={{
                         maxWidth: "100%", width: "fit-content", overflowWrap: "anywhere", padding: "9px 13px", borderRadius: 12,
-                        background: m.me ? TEAL : "rgba(242,237,228,0.06)",
-                        color: m.me ? PAPER : INK,
+                        background: bubbleTC + (m.me ? "30" : "22"),
+                        color: INK,
+                        border: "1px solid " + bubbleTC + "55",
                         borderTopRightRadius: m.me ? 3 : 12,
                         borderTopLeftRadius: m.me ? 12 : 3,
                         fontSize: 13.5, lineHeight: 1.45,

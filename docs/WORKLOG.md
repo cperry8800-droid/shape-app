@@ -55,6 +55,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Chat bubbles carry the sender's tier color (mobile + website)
+- **Mobile** (`BSChatThread`): DM/channel message bubbles are now tinted to the
+  sender's **tier color** — incoming = their tier, mine = my tier — for both members
+  and coaches (coaches use the coach ladder colors). Replaced the neutral incoming /
+  cream-inverted outgoing bubbles with a tier tint + matching hairline border.
+- **Website** (`chatWidget.jsx`): same — bubble background/border derive from
+  `cwTierColor` of the sender (live tier when known, else the stable name-hash tier),
+  mine from my tier. Text stays `INK` for legibility.
+
 ### 2026-06-08 — Follower / following system (mobile + website public profiles)
 - **Migration `2026-06-08-user-follows.sql`** (**run on Supabase**): `user_follows`
   directed graph (RLS: public read, self insert/delete) + SECURITY DEFINER RPCs

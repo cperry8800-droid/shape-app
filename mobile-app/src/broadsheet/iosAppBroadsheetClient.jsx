@@ -8438,7 +8438,11 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           const senderRole = String(m.role || (threadKind === 'NUTRI' ? 'nutritionist' : 'trainer')).toLowerCase();
           const roleC = isCoachSender ? (senderRole === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
           const roleLabel = isCoachSender ? (senderRole === 'nutritionist' ? 'Nutritionist' : 'Trainer') : null;
-          const incomingBg = t.isLight ? t.PAPER2 : '#1a1713';
+          // Bubbles carry the sender's tier color (incoming = their tier, mine =
+          // my tier) so chat stays color-coordinated with the feed + avatars.
+          const myTC = bsMyTierColor();
+          const bubbleTC = me ? myTC : senderTC;
+          const bubbleBg = t.isLight ? `${bubbleTC}1c` : `${bubbleTC}2b`;
           return (
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
               <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
@@ -8459,18 +8463,18 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
                 <div {...lp} style={{
                   borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5,
                   fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em',
-                  color: me ? t.PAPER : t.INK,
-                  background: me ? t.INK : incomingBg,
-                  border: me ? 'none' : `1px solid ${t.SURFACE_BORDER}`,
+                  color: t.INK,
+                  background: bubbleBg,
+                  border: `1px solid ${bubbleTC}40`,
                   padding: '11px 14px',
                   cursor: 'pointer', userSelect: 'none',
                 }}>
                   {m.t}
                   {m.clip && (
-                    <div style={{ marginTop: 9, padding: '9px 11px', background: me ? 'rgba(0,0,0,0.06)' : t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
+                    <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
                       <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 5, fontWeight: 800 }}>Program tweak · applied</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: me ? t.PAPER : t.INK }}>{m.clip.lift}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: t.INK }}>{m.clip.lift}</span>
                         {m.clip.was && <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, textDecoration: 'line-through' }}>{m.clip.was}</span>}
                         {m.clip.next && <span style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>→ {m.clip.next}</span>}
                       </div>
