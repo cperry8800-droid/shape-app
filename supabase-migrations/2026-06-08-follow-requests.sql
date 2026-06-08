@@ -43,12 +43,13 @@ language sql security definer set search_path = public as $$
 $$;
 grant execute on function public.get_follow_stats(uuid) to authenticated, anon;
 
--- follow / request / cancel-or-unfollow toggle
+-- follow / request / cancel-or-unfollow toggle (notifies the owner on a new
+-- follow or request — notifications bypass RLS via SECURITY DEFINER)
 drop function if exists public.toggle_follow(uuid);
 create function public.toggle_follow(p_user_id uuid)
 returns table (followers int, following int, is_following boolean, is_pending boolean)
 language plpgsql security definer set search_path = public as $$
-declare me uuid := auth.uid(); vis text;
+declare me uuid := auth.uid(); vis text; new_status text; actor text;
 begin
   if me is null then raise exception 'Authentication required.'; end if;
   if me = p_user_id then raise exception 'You cannot follow yourself.'; end if;
@@ -57,9 +58,18 @@ begin
     delete from user_follows where follower_id = me and following_id = p_user_id;
   else
     vis := public.shape_profile_visibility(p_user_id);
+    new_status := case when vis = 'public' then 'accepted' else 'pending' end;
     insert into user_follows (follower_id, following_id, status)
-    values (me, p_user_id, case when vis = 'public' then 'accepted' else 'pending' end)
+    values (me, p_user_id, new_status)
     on conflict (follower_id, following_id) do nothing;
+    select coalesce(full_name, 'A member') into actor from public.profiles where id = me;
+    insert into public.notifications (user_id, type, title, body, route, data)
+    values (
+      p_user_id,
+      case when new_status = 'pending' then 'follow_request' else 'follow' end,
+      case when new_status = 'pending' then actor || ' requested to follow you' else actor || ' started following you' end,
+      '', 'profile', jsonb_build_object('actorId', me, 'status', new_status)
+    );
   end if;
   return query
     select
@@ -107,16 +117,22 @@ language sql security definer set search_path = public as $$
 $$;
 grant execute on function public.list_follow_requests() to authenticated;
 
--- owner accepts (true) or declines (false) a pending request from p_follower_id
+-- owner accepts (true) or declines (false) a pending request from p_follower_id;
+-- on accept, notify the requester that they were approved
 create or replace function public.respond_follow_request(p_follower_id uuid, p_accept boolean)
 returns integer
 language plpgsql security definer set search_path = public as $$
-declare me uuid := auth.uid();
+declare me uuid := auth.uid(); owner_name text;
 begin
   if me is null then raise exception 'Authentication required.'; end if;
   if p_accept then
     update user_follows set status = 'accepted'
     where follower_id = p_follower_id and following_id = me and status = 'pending';
+    if found then
+      select coalesce(full_name, 'A member') into owner_name from public.profiles where id = me;
+      insert into public.notifications (user_id, type, title, body, route, data)
+      values (p_follower_id, 'follow_accept', owner_name || ' accepted your follow request', '', 'profile', jsonb_build_object('actorId', me));
+    end if;
   else
     delete from user_follows
     where follower_id = p_follower_id and following_id = me and status = 'pending';

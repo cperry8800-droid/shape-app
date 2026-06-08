@@ -70,6 +70,12 @@ changelog whenever something ships.
 - **Website** (`MemberProfile.html` + `livingDesktop.jsx`): same — Follow/Requested/
   Following on the hero + locked card, an owner **"N requests"** chip → accept/decline
   modal. Applies to **client and coach** profiles.
+- **Notifications** (in the same migration): `toggle_follow` notifies the owner —
+  `follow_request` ("X requested to follow you") on a private/friends request, or
+  `follow` ("X started following you") on a public follow; `respond_follow_request`
+  accept notifies the requester (`follow_accept`, "X accepted your follow request").
+  Written into the existing `notifications` table from the SECURITY DEFINER RPCs (no app
+  change — the existing notifications surface renders them).
 
 ### 2026-06-08 — Website public profile = desktop Terrain/Signal (same direction as mobile)
 - Dropped the **desktop** living-identity designs (`chat-design-v2/Shape (13).zip` =
