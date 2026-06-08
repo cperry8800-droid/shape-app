@@ -3329,6 +3329,11 @@ async function getClientTrain() { return getJsonOrDefault(`${apiBaseUrl || ''}/a
 async function getClientNutrition() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/nutrition`, null, (d) => (d && d.ok ? d : null)); }
 window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
 
+// Coach sigil rings — live { habits, clientWorkouts, ownActivity } (0..1 or null)
+// for the signed-in coach (self only; RLS-scoped). Null fields fall back to demo.
+async function getCoachRings() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/coach/rings`, null, (d) => (d && d.isCoach ? d : null)); }
+window.ShapeCoachRings = { get: getCoachRings };
+
 // Follower / following graph (public profiles). stats → counts + my state;
 // toggle → follow/unfollow; list → the followers/following names.
 // A shared cache + `shape:follows` event keep every on-screen count in sync —

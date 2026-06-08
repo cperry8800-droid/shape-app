@@ -7518,9 +7518,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   }, [person.userId]);
   const [custom, setCustom] = useStateBSC(null);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
+  const [ringLive, setRingLive] = useStateBSC(null);
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  // Live sigil rings for your own coach profile (habits / client workouts / own activity).
+  React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const isNutri = person.kind === 'NUTRI';
@@ -7546,10 +7549,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const sigilToNext = _sigTop ? 1 : Math.max(0.05, Math.min(0.97, (_sigPts - _sigFloor) / Math.max(1, _sigNext - _sigFloor)));
   const sigilNextTier = _sigTop ? bsCoachTier(baseTier) : bsCoachTier(['base', 'tempo', 'form', 'peak', 'legend'][_sigIdx + 1]);
   const _sigClamp = (v) => Math.max(0.1, Math.min(0.98, v));
+  // Live values when we have them (your own profile); else anchored to tier progress.
+  const _ringVal = (live, fallback) => (live != null && Number.isFinite(live)) ? _sigClamp(live) : _sigClamp(fallback);
   const sigilRings = [
-    ['Habits', _sigClamp(sigilToNext + 0.14)],
-    ['Client workouts', _sigClamp(sigilToNext - 0.1)],
-    ['Own activity', _sigClamp(sigilToNext + 0.02)],
+    ['Habits', _ringVal(ringLive && ringLive.habits, sigilToNext + 0.14)],
+    ['Client workouts', _ringVal(ringLive && ringLive.clientWorkouts, sigilToNext - 0.1)],
+    ['Own activity', _ringVal(ringLive && ringLive.ownActivity, sigilToNext + 0.02)],
   ];
   const roleLabel = isNutri ? 'Nutritionist · RD' : 'Trainer · CPT';
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.');

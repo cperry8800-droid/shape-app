@@ -62,7 +62,7 @@ function DesktopNav({ d, direction }) {
 // Coach sigil ring model — three contributions (Habits · Client workouts · Own
 // activity) whose fill tracks how close the coach is to the next tier; the outer
 // heptagon frame fills as the overall progress bar.
-function coachSigilModel(d) {
+function coachSigilModel(d, live) {
   const TH = [0, 750, 2000, 5000, 15000], NM = ["Certified", "Pro", "Elite", "Master", "Icon"];
   const pts = Number(d.score) || 0;
   let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
@@ -70,12 +70,28 @@ function coachSigilModel(d) {
   const floor = TH[i], next = top ? floor : TH[i + 1];
   const progress = top ? 1 : Math.max(0.05, Math.min(0.97, (pts - floor) / Math.max(1, next - floor)));
   const clamp = (v) => Math.max(0.1, Math.min(0.98, v));
-  const rings = [["Habits", clamp(progress + 0.14)], ["Client workouts", clamp(progress - 0.1)], ["Own activity", clamp(progress + 0.02)]];
+  // Live values (your own profile) where available, else anchored to tier progress.
+  const rv = (lv, fb) => (lv != null && isFinite(lv)) ? clamp(lv) : clamp(fb);
+  const rings = [
+    ["Habits", rv(live && live.habits, progress + 0.14)],
+    ["Client workouts", rv(live && live.clientWorkouts, progress - 0.1)],
+    ["Own activity", rv(live && live.ownActivity, progress + 0.02)],
+  ];
   return { progress, rings, nextTier: top ? NM[i] : NM[i + 1], top };
 }
-function SignalVisual({ d, reduced }) {
+function SignalVisual({ d, reduced, owner }) {
   const coach = d.role !== "client";
-  const m = coach ? coachSigilModel(d) : null;
+  const [ringLive, setRingLive] = React.useState(null);
+  React.useEffect(() => {
+    if (!coach || !owner) return;
+    let on = true;
+    fetch("/api/coach/rings", { credentials: "same-origin" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => { if (on && j && j.isCoach) setRingLive(j); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [coach, owner]);
+  const m = coach ? coachSigilModel(d, ringLive) : null;
   return (
     <div style={{ position: "relative", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", minHeight: 420 }}>
       <div style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -232,7 +248,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
         )}
       </div>
       {/* signature visual */}
-      <Visual d={d} reduced={reduced} />
+      <Visual d={d} reduced={reduced} owner={owner} />
     </section>
     </div>
   );
