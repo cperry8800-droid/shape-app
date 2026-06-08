@@ -11622,7 +11622,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       {purchasesLocked && (
         <div style={{ padding: `12px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 14, border: `1px solid ${t.AMBER}55`, background: `${t.AMBER}14`, padding: '12px 14px' }}>
-            <span style={{ fontSize: 18, lineHeight: 1 }}>🔒</span>
+            <span style={{ fontSize: 18, lineHeight: 1, filter: 'grayscale(1)' }}>🔒</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Browse freely — join to redeem</div>
               <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>You still earn points. Become a member to spend them on gear, credits & rewards.</div>
@@ -11685,7 +11685,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
               <div style={{ textAlign: 'right', alignSelf: 'center' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: canAfford ? t.ACCENT : t.INK50 }}>{p.cost.toLocaleString()} pts</div>
                 <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: p.locked ? t.INK50 : purchasesLocked ? t.AMBER : canAfford ? t.GREEN : t.INK50 }}>
-                  {p.locked ? 'Tier locked' : purchasesLocked ? '🔒 Members' : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
+                  {p.locked ? 'Tier locked' : purchasesLocked ? (<><span style={{ filter: 'grayscale(1)' }}>🔒</span> Members</>) : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
                 </div>
               </div>
             </div>

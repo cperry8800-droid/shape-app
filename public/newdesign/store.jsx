@@ -150,7 +150,7 @@ function ProductCard({ p, balance, onRedeem, locked = false }) {
   const dollar = p.retail ? `~$${p.retail} retail` : null;
   const cta =
     p.locked ? "Tier locked" :
-    membersOnly ? "🔒 Members only" :
+    membersOnly ? (<><span style={{ filter: "grayscale(1)" }}>🔒</span> Members only</>) :
     p.kind === "lead_boost" ? "Activate boost →" :
     canAfford ? "Redeem →" : `+${(p.cost - balance).toLocaleString()} to go`;
   return (
@@ -229,7 +229,7 @@ function StoreGrid({ locked = false, signedIn = false }) {
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           {locked && (
             <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "14px 18px", borderRadius: 12, border: "1px solid rgba(232,177,74,0.4)", background: "rgba(232,177,74,0.08)" }}>
-              <span style={{ fontSize: 20 }}>🔒</span>
+              <span style={{ fontSize: 20, filter: "grayscale(1)" }}>🔒</span>
               <div style={{ flex: 1, minWidth: 220 }}>
                 <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.015em", color: INK }}>Browse freely — join to redeem</div>
                 <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>You still earn points. Become a member to spend them on gear, training credits & rewards.</div>
