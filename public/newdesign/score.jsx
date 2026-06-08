@@ -264,7 +264,8 @@ function ScoreActivity() {
           </div>
           <div style={{ background: INK, color: PAPER, borderRadius: 6, padding: 36, display: "flex", flexDirection: "column" }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL }}>How you earn</div>
-            <h3 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", fontWeight: 400, margin: "10px 0 26px", color: PAPER }}>Points, by action.</h3>
+            <h3 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", fontWeight: 400, margin: "10px 0 20px", color: PAPER }}>Points, by action.</h3>
+            <div className="sc-scroll" style={{ maxHeight: 360, overflowY: "auto", margin: "0 -12px", padding: "0 12px" }}>
             {[
               ["Sessions", "Session kept", "with a coach", "12–18"],
               ["Sessions", "Intro consult done", "first call with a coach", "8"],
@@ -296,6 +297,7 @@ function ScoreActivity() {
                 <div style={{ fontFamily: mono, fontSize: 13, color: TEAL }}>+{p}</div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       </ScReveal>
@@ -338,7 +340,7 @@ function ScoreLedger() {
               })}
             </div>
           </div>
-          <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, overflow: "hidden" }}>
+          <div className="sc-scroll" style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, maxHeight: 440, overflowY: "auto" }}>
             {rows.length === 0 ? (
               <div style={{ padding: "28px 26px", fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.55)" }}>No entries in this category yet.</div>
             ) : rows.map(function (row, i) {
