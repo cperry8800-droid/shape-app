@@ -438,23 +438,31 @@ function FeedBlock({ d, direction, owner }) {
         <DKick>{d.feedLabel}{direction === "terrain" ? " · log" : ""}</DKick>
         {owner && <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.4) }}>＋ Post</span>}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="dk-feed">
+      {/* expedition log — a dashed trail descending with waypoint chevrons (matches the mobile app timeline) */}
+      <div style={{ position: "relative", paddingLeft: 30 }}>
+        <div style={{ position: "absolute", left: 7, top: 7, bottom: 12, width: 0, borderLeft: `1.5px dashed ${dHexA(c, 0.4)}` }} />
         {shown.map((it, i) => {
           const hot = it.k === "win" || it.k === "pr";
           return (
-            <div key={i} style={dCard({ padding: "18px 20px" })}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <span style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: c, background: dHexA(c, 0.12), padding: "4px 8px", borderRadius: 6 }}>{mark}{LV_FEED[it.k] || it.k}</span>
-                <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>{it.time}</span>
+            <div key={i} style={{ position: "relative", marginBottom: 14 }}>
+              <div style={{ position: "absolute", left: -30, top: 17, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 10, height: 10, transform: "rotate(45deg)", background: LV_BG, border: `2px solid ${hot ? LV_TEAL : c}` }} />
               </div>
-              <div style={{ fontFamily: dSerif, fontSize: 21, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 12 }}>{it.t}</div>
-              <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "8px 0 0", textWrap: "pretty" }}>{it.b}</p>
-              {it.metric && (
-                <div style={{ display: "inline-flex", alignItems: "baseline", gap: 9, marginTop: 14, padding: "7px 13px", borderRadius: 10, background: dHexA(c, 0.1), border: `1px solid ${dHexA(c, 0.22)}` }}>
-                  <span style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>{it.metric[0]}</span>
-                  <span style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: hot ? LV_TEAL : LV_INK }}>{it.metric[1]}</span>
+              <div style={dCard({ padding: "16px 19px" })}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: hot ? LV_TEAL : c }}>{mark}{LV_FEED[it.k] || it.k}</span>
+                  <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>{it.time}</span>
                 </div>
-              )}
+                <div style={{ fontFamily: dSerif, fontSize: 21, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 11 }}>{it.t}</div>
+                <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "7px 0 0", textWrap: "pretty" }}>{it.b}</p>
+                {it.metric && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 13 }}>
+                    <div style={{ flex: 1, height: 1, background: dHexA(LV_INK, 0.12) }} />
+                    <span style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>{it.metric[0]}</span>
+                    <span style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: hot ? LV_TEAL : LV_INK }}>{it.metric[1]}</span>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}

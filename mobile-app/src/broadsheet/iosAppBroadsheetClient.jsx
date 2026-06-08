@@ -8545,10 +8545,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // continuous AI-backed thread (rendered inline below), not a channel.
           const chList = (channels && channels.length) ? channels : (loggedIn ? [] : BS_SAMPLE_CHANNELS);
           const _chQ = channelQuery.trim().toLowerCase();
-          const chDisplay = chList
-            .map(c => ({ ...c, pinned: (c.id in pinOverride) ? pinOverride[c.id] : !!c.pinned }))
-            .filter(c => !_chQ || (c.name || '').toLowerCase().includes(_chQ))
-            .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+          // Shape HQ is the official channel — always pinned to the very top for
+          // every profile. Use the member's real HQ channel if they have one
+          // (so it opens), else a canonical entry.
+          const _isHQ = (c) => (c && (c.name || '').toLowerCase() === 'shape hq');
+          const _realHQ = chList.find(_isHQ);
+          const _hqSeed = BS_SAMPLE_CHANNELS.find(c => c.id === 'sample-shapehq') || {};
+          const _shapeHQ = _realHQ
+            ? { ..._realHQ, pinned: true, official: true }
+            : { ..._hqSeed, description: _hqSeed.description || 'The official Shape channel — product news, drops & events.', online: _hqSeed.online || 120, joined: true, pinned: true, live: true, official: true };
+          const chDisplay = (() => {
+            const base = chList
+              .filter(c => !_isHQ(c))
+              .map(c => ({ ...c, pinned: (c.id in pinOverride) ? pinOverride[c.id] : !!c.pinned }))
+              .filter(c => !_chQ || (c.name || '').toLowerCase().includes(_chQ))
+              .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+            const hqShown = !_chQ || 'shape hq'.includes(_chQ);
+            return hqShown ? [_shapeHQ, ...base] : base;
+          })();
           const _coachUnread = (coaches || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
           // Channels moved to its own top-level tab — Team keeps Coaches + Support.
           const selectors = [
