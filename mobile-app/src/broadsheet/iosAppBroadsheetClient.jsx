@@ -14974,8 +14974,8 @@ function BSAboutPage({ onBack }) {
         <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
       </div>
 
-      {/* sign-off — the very end of the page */}
-      <div style={{ padding: `4px ${px}px 36px`, textAlign: 'center' }}>
+      {/* sign-off — the very end of the page (extra gap below the CTA) */}
+      <div style={{ padding: `52px ${px}px 40px`, textAlign: 'center' }}>
         <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— The Shape team</div>
       </div>
       <BSFooter right="About" />
