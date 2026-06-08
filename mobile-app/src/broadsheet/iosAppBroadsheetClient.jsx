@@ -920,6 +920,20 @@ function useBSLibrary() {
         setItems(merged);
       }).catch(() => {});
     } catch (e) {}
+    // Plans you BOUGHT from a coach land in your Library automatically (owned).
+    try {
+      if (window.ShapeCoachPlans && window.ShapeCoachPlans.purchased) {
+        window.ShapeCoachPlans.purchased().then((plans) => {
+          if (!Array.isArray(plans) || !plans.length) return;
+          const owned = plans.map((p) => ({ id: 'plan-' + p.id, kind: 'plan', title: p.name, meta: p.meta || 'Purchased plan', owned: true, savedAt: p.purchasedAt ? new Date(p.purchasedAt).getTime() : Date.now() }));
+          setItems((cur) => {
+            const byId = new Map();
+            for (const it of [...owned, ...cur]) if (it && it.id && !byId.has(it.id)) byId.set(it.id, it);
+            return [...byId.values()].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+          });
+        }).catch(() => {});
+      }
+    } catch (e) {}
     return () => window.removeEventListener('bs-library', sync);
   }, []);
   return items;

@@ -150,6 +150,7 @@ export async function POST(request: Request) {
               application_fee_cents: applicationFeeCents,
               stripe_checkout_session_id: session.id,
               stripe_payment_intent_id: pi,
+              plan_id: session.metadata?.plan_id || null,
               status: 'paid',
             },
             { onConflict: 'stripe_checkout_session_id' }

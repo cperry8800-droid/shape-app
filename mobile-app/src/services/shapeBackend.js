@@ -3139,7 +3139,36 @@ async function removeCoachPlan(id) {
   });
   return res.ok;
 }
-window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan };
+// Sell-a-plan: a coach's published plans for sale, the buyer's owned plans, and
+// the checkout that buys one (Stripe Connect via /api/stripe/checkout-session).
+async function listSalePlans(providerRole, providerId) {
+  if (!supabase || !providerRole || !providerId) return [];
+  const { data, error } = await supabase.rpc('get_coach_sale_plans', { p_provider_role: providerRole, p_provider_id: Number(providerId) });
+  if (error) return [];
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '' }));
+}
+async function listPurchasedPlans() {
+  if (!supabase || !state.user?.id) return [];
+  const { data, error } = await supabase.rpc('get_my_purchased_plans');
+  if (error) return [];
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', detail: r.detail || {}, role: r.provider_role, purchasedAt: r.purchased_at }));
+}
+async function buyCoachPlan({ plan, providerRole, providerId } = {}) {
+  if (!plan || !providerRole || !providerId) throw new Error('Plan unavailable to purchase.');
+  const res = await fetch(`${apiBaseUrl || ''}/api/stripe/checkout-session`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      item: { type: 'plan', name: plan.name, price: plan.price, planId: plan.id },
+      coach: { provider_id: providerId, provider_role: providerRole },
+      successPath: '/purchase/success', cancelPath: '/m/',
+    }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d.url) throw new Error(d.error || 'Could not start checkout.');
+  return d.url;
+}
+window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, purchased: listPurchasedPlans, buy: buyCoachPlan };
 
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.

@@ -148,7 +148,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
-      { task: 'Trainer "sell a plan" paid-checkout path', status: 'not-started', priority: 'P1' },
+      { task: 'Trainer "sell a plan" paid-checkout path — built on the Connect checkout: coach publishes a priced plan → "Plans for sale" + Buy on the coach profile → plan_id rides through checkout/webhook → unlocks in the buyer\'s Library. Needs live Stripe to verify the charge', status: 'in-progress', priority: 'P1' },
       { task: 'Adjust → full program/plan regeneration', status: 'not-started', priority: 'P2' },
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },

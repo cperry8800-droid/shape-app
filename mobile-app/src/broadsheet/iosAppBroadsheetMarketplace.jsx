@@ -881,6 +881,18 @@ function BSCoachDetailPublic({ coach, onBack }) {
   const [checkoutBusy, setCheckoutBusy] = useStateBSM2(false);
   const tabs = ['profile', 'packages', 'sample', 'reviews'];
 
+  // The coach's real published plans for sale (coach_plans). Bought through the
+  // same Stripe Connect checkout; the plan_id rides along so the buyer owns it.
+  const saleProviderRole = getPublicProfileKind(coach);
+  const saleProviderId = coach.provider_id || coach.db_id || null;
+  const [salePlans, setSalePlans] = useStateBSM2(null);
+  React.useEffect(() => {
+    if (!saleProviderId || !window.ShapeCoachPlans?.salePlans) { setSalePlans([]); return; }
+    let on = true;
+    window.ShapeCoachPlans.salePlans(saleProviderRole, saleProviderId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
+    return () => { on = false; };
+  }, [saleProviderId, saleProviderRole]);
+
   // Live coach reviews (1–10), shared with the website via /api/coaches/reviews.
   const coachSlug = coach.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const coachKind = coach.tag === 'Nutritionist' ? 'nutritionist' : 'trainer';
@@ -1151,6 +1163,23 @@ function BSCoachDetailPublic({ coach, onBack }) {
 
       {tab === 'packages' && (
         <>
+          {salePlans && salePlans.length > 0 && (
+            <>
+              <BSSection title="Plans for sale" meta={`${salePlans.length} ${salePlans.length === 1 ? 'plan' : 'plans'}`} />
+              <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 8 }}>
+                {salePlans.map((pl) => (
+                  <div key={pl.id} style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: roleColor }}>{pl.kind === 'meal_plan' ? 'Meal plan' : 'Program'}</div>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                      {pl.meta && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.meta}</div>}
+                    </div>
+                    <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ flexShrink: 0, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, padding: '9px 15px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {pl.price}</button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <BSSection title="Packages" meta="Pricing" />
           <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 10 }}>
             {p.packages.map(item => <BSPublicPackageCard key={item.name} item={item} onSelect={openCheckout} />)}

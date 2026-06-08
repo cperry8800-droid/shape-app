@@ -55,6 +55,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Sell-a-plan (Up-next #2): buy a coach's published plan
+- **Migration `2026-06-08-coach-plans-sale.sql`** (**run on Supabase**): `get_coach_sale_plans(role,id)`
+  (a coach's published, priced plans — public read, maps provider row → owner), a `plan_id`
+  column on `one_time_purchases`, and `get_my_purchased_plans()` (the buyer's paid plans).
+- **Checkout**: `/api/stripe/checkout-session` passes `item.planId` → `metadata.plan_id`;
+  the **webhook** stores it on the `one_time_purchases` row. Reuses the existing Stripe
+  Connect destination-charge + 15% fee.
+- **Mobile**: `ShapeCoachPlans.salePlans / purchased / buy`. The coach profile's Packages
+  tab now shows a **"Plans for sale"** section (real `coach_plans`) with a **Buy · $X** button
+  → the existing checkout flow (plan_id rides along). Purchased plans auto-merge into the
+  client **Library** (`owned`) via `get_my_purchased_plans`.
+- Coach already sets price + publishes at plan-create time. Needs **live Stripe** to verify
+  the actual charge.
+
 ### 2026-06-08 — War Room: North Star + Up-next P1 queue + build-order gaps
 - **North Star panel** (top of `/warroom`): the positioning — Shape as a **coach
   marketplace with a social presence**, fusing the three camps (social fitness · coaching

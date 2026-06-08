@@ -166,6 +166,7 @@ export async function POST(request: Request) {
         price_cents: String(priceCents),
         kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
         item_name: String(itemName),
+        ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
       },
       ...(isSubscription
         ? {
