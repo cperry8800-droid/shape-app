@@ -221,12 +221,19 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
                   </div>
                   {l.gaps && l.gaps.length > 0 && (
                     <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.warn, marginBottom: 5 }}>Still to do</div>
-                      {l.gaps.map((g) => (
-                        <div key={g} style={{ display: 'flex', gap: 6, fontSize: 11.5, color: C.dim, lineHeight: 1.4, marginBottom: 3 }}>
-                          <span style={{ color: C.warn, flexShrink: 0 }}>▸</span><span>{g}</span>
-                        </div>
-                      ))}
+                      <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.warn, marginBottom: 6 }}>Still to do · build order</div>
+                      {[...l.gaps].sort((a, b) => a.priority.localeCompare(b.priority)).map((g) => {
+                        const pc = g.priority === 'P1' ? C.bad : g.priority === 'P2' ? C.warn : C.dim;
+                        return (
+                          <div key={g.task} style={{ display: 'flex', gap: 7, alignItems: 'baseline', fontSize: 11.5, color: C.dim, lineHeight: 1.4, marginBottom: 5 }}>
+                            <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 800, color: pc, border: `1px solid ${pc}`, borderRadius: 4, padding: '1px 4px' }}>{g.priority}</span>
+                            <span style={{ flex: 1 }}>{g.task}</span>
+                            <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: g.status === 'in-progress' ? C.accent : C.dim }}>
+                              {g.status === 'in-progress' ? '● in progress' : '○ not started'}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -469,9 +476,12 @@ function ArchDiagram({ arch }: { arch: WarRoomSnapshot['architecture'] }) {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, flex: 1 }}>
                 {l.pieces.map((pc) => <span key={pc} style={{ fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 999, padding: '2px 7px' }}>{pc}</span>)}
               </div>
-              {l.gaps && l.gaps.length > 0 && (
-                <span title={l.gaps.join(' · ')} style={{ fontSize: 9.5, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{l.gaps.length} to do</span>
-              )}
+              {l.gaps && l.gaps.length > 0 && (() => {
+                const p1 = l.gaps.filter((g) => g.priority === 'P1').length;
+                return (
+                  <span title={l.gaps.map((g) => `${g.priority} ${g.task}`).join(' · ')} style={{ fontSize: 9.5, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{l.gaps.length} to do{p1 ? ` · ${p1}×P1` : ''}</span>
+                );
+              })()}
             </div>
             {i < arch.layers.length - 1 && <div style={{ textAlign: 'center', color: C.dim, fontSize: 15, lineHeight: '20px' }}>↓</div>}
           </div>

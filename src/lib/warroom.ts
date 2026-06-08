@@ -42,7 +42,8 @@ export type ChecklistSection = { section: string; items: ChecklistItem[] };
 // and a persona × area matrix. Edit this as the product evolves.
 export type ArchPersona = { key: string; label: string; tagline: string };
 export type ArchFlowStep = { n: number; stage: string; persona: string; detail: string };
-export type ArchLayer = { layer: string; serves: string; purpose: string; pieces: string[]; gaps: string[] };
+export type ArchGap = { task: string; status: 'in-progress' | 'not-started'; priority: 'P1' | 'P2' | 'P3' };
+export type ArchLayer = { layer: string; serves: string; purpose: string; pieces: string[]; gaps: ArchGap[] };
 export type ArchMatrixRow = { area: string; member: string; trainer: string; nutritionist: string };
 export type ShapeArchitecture = {
   summary: string;
@@ -102,12 +103,37 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     { n: 10, stage: 'Coach side (parallel)', persona: 'Trainer / Nutritionist', detail: 'Apply → approved → roster → build/adjust programs & plans → message clients & co-coaches (Care Team) → payouts.' },
   ],
   layers: [
-    { layer: 'Surfaces', serves: 'Everyone', purpose: 'Where Shape is used.', pieces: ['Mobile broadsheet (/m, Capacitor)', 'Website (marketing + /newdesign)', 'Coach apps (trainer + nutritionist shells)', 'Web dashboard'], gaps: ['iOS App Store build (push plugin + APNs entitlements)', 'Android signed release', 'Native mic + camera plugins (WebView fallback today)'] },
-    { layer: 'The Loop (member value)', serves: 'Member', purpose: 'The daily reason to open the app.', pieces: ['Train', 'Eat', 'Habits', 'Goals', 'Shape Score', 'Progress hub', 'Library', 'Store'], gaps: ['Food-database free-text search in the logger', 'On-device macro-read from a meal photo', "Train deck per-day workouts driven by coach Adjust", 'Some Progress sub-data still illustrative'] },
-    { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: ['Trainer "sell a plan" paid-checkout path', 'Adjust → full program/plan regeneration', 'Website soundtrack attach for demo-seed rows still local'] },
-    { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: ['Rich profile sub-data (climb / disciplines / records / field-notes) is demo — wire to real workout/PR data', 'Presence rail + activity proof cards are demo', 'Follow suggestions need real account volume'] },
-    { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: ['Activate system push (FCM keys + Database Webhook + native build)', 'Garmin Health API approval (access-request form down)', 'Per-endpoint paid-feature enforcement beyond the proxy gate'] },
-    { layer: 'Data & infra', serves: 'System', purpose: 'Source of truth + enforcement.', pieces: ['Supabase (Auth, Postgres, RLS, SECURITY DEFINER RPCs, Storage)', 'Next.js API routes', 'Edge proxy membership gate', 'War Room'], gaps: ['Live Shape Store redemption API (UI is illustrative)', 'Per-person live presence/activity (count only today)', 'is_member() RPC to collapse membership checks'] },
+    { layer: 'Surfaces', serves: 'Everyone', purpose: 'Where Shape is used.', pieces: ['Mobile broadsheet (/m, Capacitor)', 'Website (marketing + /newdesign)', 'Coach apps (trainer + nutritionist shells)', 'Web dashboard'], gaps: [
+      { task: 'iOS App Store build (push plugin + APNs entitlements)', status: 'not-started', priority: 'P1' },
+      { task: 'Android signed release', status: 'not-started', priority: 'P2' },
+      { task: 'Native mic + camera plugins (WebView fallback today)', status: 'not-started', priority: 'P3' },
+    ] },
+    { layer: 'The Loop (member value)', serves: 'Member', purpose: 'The daily reason to open the app.', pieces: ['Train', 'Eat', 'Habits', 'Goals', 'Shape Score', 'Progress hub', 'Library', 'Store'], gaps: [
+      { task: 'Train deck per-day workouts driven by coach Adjust', status: 'not-started', priority: 'P2' },
+      { task: 'Food-database free-text search in the logger', status: 'not-started', priority: 'P2' },
+      { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
+      { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
+    ] },
+    { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
+      { task: 'Trainer "sell a plan" paid-checkout path', status: 'not-started', priority: 'P1' },
+      { task: 'Adjust → full program/plan regeneration', status: 'not-started', priority: 'P2' },
+      { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
+    ] },
+    { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: [
+      { task: 'Wire rich profile sub-data (climb / disciplines / records / field-notes) to real workout/PR data', status: 'not-started', priority: 'P1' },
+      { task: 'Presence rail + activity proof cards are demo', status: 'not-started', priority: 'P2' },
+      { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
+    ] },
+    { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
+      { task: 'Activate system push (FCM keys + Database Webhook + native build)', status: 'in-progress', priority: 'P1' },
+      { task: 'Per-endpoint paid-feature enforcement beyond the proxy gate', status: 'not-started', priority: 'P2' },
+      { task: 'Garmin Health API approval (access-request form down)', status: 'not-started', priority: 'P3' },
+    ] },
+    { layer: 'Data & infra', serves: 'System', purpose: 'Source of truth + enforcement.', pieces: ['Supabase (Auth, Postgres, RLS, SECURITY DEFINER RPCs, Storage)', 'Next.js API routes', 'Edge proxy membership gate', 'War Room'], gaps: [
+      { task: 'Live Shape Store redemption API (UI is illustrative)', status: 'not-started', priority: 'P2' },
+      { task: 'Per-person live presence/activity (count only today)', status: 'not-started', priority: 'P3' },
+      { task: 'is_member() RPC to collapse membership checks', status: 'not-started', priority: 'P3' },
+    ] },
   ],
   matrix: [
     { area: 'Train', member: 'Follows assigned workouts, swaps moves, logs sessions', trainer: 'Programs & adjusts the week; reviews logs', nutritionist: '—' },
