@@ -6135,12 +6135,17 @@ const BS_SAMPLE_CHANNELS = [
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', onOpenProfile }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
   const uid = userId || (isSelf ? ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || null) : null);
-  const [stats, setStats] = useStateBSC({ followers: 0, following: 0, isFollowing: false });
+  // Followers/following are ALWAYS public — never hidden by a privacy setting.
+  // Accountless demo/community people (no uid) still show a block with derived
+  // preview counts + a front-end follow toggle so it's visible on every profile.
+  const demo = !uid;
+  const seed = (() => { let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; })();
+  const [stats, setStats] = useStateBSC(demo ? { followers: 40 + (seed % 860), following: 28 + ((seed >> 5) % 320), isFollowing: false } : { followers: 0, following: 0, isFollowing: false });
   const [busy, setBusy] = useStateBSC(false);
   const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following'
   const [list, setList] = useStateBSC(null);
@@ -6151,7 +6156,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', onO
     return () => { alive = false; };
   }, [uid]);
   const onToggle = async () => {
-    if (!uid || busy || !window.ShapeFollows?.toggle) return;
+    if (busy) return;
+    if (demo) { setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) })); return; }
+    if (!uid || !window.ShapeFollows?.toggle) return;
     setBusy(true);
     const prev = stats;
     setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) }));
@@ -6160,11 +6167,11 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', onO
     finally { setBusy(false); }
   };
   const openList = (kind) => {
-    if (!uid) return;
+    if (!uid) return; // demo people have no real follow list to open
     setSheet(kind); setList(null);
     window.ShapeFollows?.list?.(uid, kind).then((r) => setList(r || [])).catch(() => setList([]));
   };
-  if (!uid) return null;
+  if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
     <button onClick={() => openList(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: INK, letterSpacing: '-0.02em' }}>{n}</span>
@@ -6735,7 +6742,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       </div>
 
       <div style={{ flex: 1, padding: '24px 22px 28px' }}>
-        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
+        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} />
         {isPrivate ? (
           <div style={{ ...card, padding: '18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span aria-hidden style={{ fontSize: 16 }}>🔒</span>
@@ -6962,7 +6969,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </div>
         </div>
 
-        <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} /></div>
+        <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} /></div>
 
         {/* the instrument — discipline rings around a portrait core */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
