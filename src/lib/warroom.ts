@@ -405,6 +405,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'In-app notifications (needs migrations)', status: 'manual' },
         { label: 'System push (FCM keys + webhook secret)', status: auto(pushReady) },
         { label: 'APNs key uploaded to Firebase (iOS)', status: 'manual' },
+        { label: 'Device registers its push token at sign-in (registerPush wired into getCurrentSession)', status: 'done' },
+        { label: 'Supabase Database Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret)', status: 'manual' },
+        { label: 'Native build: npm i @capacitor/push-notifications + cap sync + Firebase config (google-services.json / GoogleService-Info.plist) + Push capability', status: 'manual' },
       ],
     },
     {

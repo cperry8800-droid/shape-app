@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
+import { registerPush } from './push.js';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -303,6 +304,7 @@ async function getCurrentSession() {
   const profile = user ? await fetchProfile(user) : null;
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
+  if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);

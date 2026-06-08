@@ -55,6 +55,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — System push: register device tokens at sign-in (close the wiring gap)
+- The push pipeline already existed end-to-end — `push_tokens` table, `/api/push/register`,
+  `/api/push/dispatch` (Supabase **Database Webhook** on `notifications` INSERT →
+  `sendPushToUser` via FCM in `src/lib/push.ts`), and `mobile-app/src/services/push.js`
+  `registerPush()` (Capacitor PushNotifications → `/api/push/register`). The one gap:
+  **`registerPush()` was never called**, so no device ever stored a token.
+- Wired `registerPush()` into `getCurrentSession()` (fires on every session resolve,
+  alongside `startPresence()`). No-op on web / until the native plugin + build exist.
+- **So every in-app notification we already write** (follow / messages / coach content /
+  grocery / bookings …) **fans out to a phone's lock-screen + banner once activated** —
+  no per-event wiring needed (the webhook is the single chokepoint).
+- **Activation checklist** (nothing testable in the web container):
+  1. Run the `push_tokens` migration (`2026-05-30-push-tokens.sql`) if not already.
+  2. Set env: `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` (Firebase
+     service account) + `PUSH_WEBHOOK_SECRET`.
+  3. Supabase → Database → Webhooks: `notifications` · Insert · HTTP POST →
+     `https://theshapecommunity.com/api/push/dispatch`, header `x-push-secret: <PUSH_WEBHOOK_SECRET>`.
+  4. iOS: upload an APNs key to Firebase (FCM relays to APNs).
+  5. Native build: `cd mobile-app && npm i @capacitor/push-notifications && npx cap sync`,
+     add `google-services.json` (Android) + `GoogleService-Info.plist` (iOS) + enable the
+     Push Notifications capability/entitlement. Users toggle it from iOS/Android settings.
+
 ### 2026-06-08 — Follow requests for private profiles (approve to follow) — app + website
 - **Migration `2026-06-08-follow-requests.sql`** (**run on Supabase**): adds
   `user_follows.status` ('accepted'|'pending') + `shape_profile_visibility(uid)`. Reworks
