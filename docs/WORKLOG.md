@@ -78,6 +78,11 @@ changelog whenever something ships.
   plugin so Stripe Checkout can present the **Apple Pay sheet** (the in-app WebView can't).
   Falls back to the WebView when the plugin/native isn't present. Needs `@capacitor/browser`
   + Apple Pay enabled in Stripe to go live.
+- *Tracked follow-up (wanted):* a **full in-app Stripe PaymentSheet** — native Apple Pay /
+  Google Pay sheet with no browser hop. Needs a Stripe mobile/Capacitor SDK
+  (`@capacitor-community/stripe`), a PaymentIntent/SetupIntent + customer ephemeral-key
+  endpoint for the $5/mo sub + coach/plan buys, and the native build. Logged in the War Room
+  (Platform services · P3).
 
 ### 2026-06-08 — War Room: North Star + Up-next P1 queue + build-order gaps
 - **North Star panel** (top of `/warroom`): the positioning — Shape as a **coach
