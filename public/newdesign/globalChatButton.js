@@ -543,15 +543,10 @@
 
     window.addEventListener("pageshow", function () { syncVisibility(button); });
 
-    // Keep the chat open across navigation. On pages that natively mount the
-    // rich widget (supportBubble.jsx / a non-injected chatWidget.jsx), it
-    // reopens itself from the persisted open state — don't double-mount here.
-    try {
-      if (localStorage.getItem("shape.chat.open") === "1" &&
-          !document.querySelector('script[src$="supportBubble.jsx"], script[src$="chatWidget.jsx"]:not([data-shape-chat])')) {
-        openRichChat();
-      }
-    } catch (e) {}
+    // The chat panel does NOT auto-reopen across navigation — it was staying open
+    // and blocking the page. Each page starts with just the bubble; the panel
+    // opens only on an explicit click / __openChat call. Clear any stale flag.
+    try { localStorage.removeItem("shape.chat.open"); } catch (e) {}
   }
 
   if (document.readyState === "loading") {

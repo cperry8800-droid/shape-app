@@ -80,9 +80,9 @@ function ChatWidget(props) {
   // Open state persists across full page navigations (the newdesign pages
   // are separate static HTML files, so React state resets on every load).
   const OPEN_KEY = "shape.chat.open";
-  const [open, setOpen] = React.useState(() => {
-    try { return localStorage.getItem(OPEN_KEY) === "1"; } catch { return false; }
-  });
+  // Start closed on every fresh page load — the chat should not stay open across
+  // navigation (it was blocking the page). It only opens on an explicit action.
+  const [open, setOpen] = React.useState(false);
   React.useEffect(() => {
     try {
       if (open) localStorage.setItem(OPEN_KEY, "1");
@@ -888,10 +888,10 @@ function ChatWidget(props) {
                 <div style={{ position: "absolute", inset: 0, zIndex: 12, background: "#1a1612", display: "flex", flexDirection: "column", overflowY: "auto" }}>
                   <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
                     <button onClick={() => setProfileFor(null)} style={{ background: "transparent", border: 0, color: TEAL_BRIGHT, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em" }}>← BACK</button>
-                    {(profileFor.userId || isCoach) && (
-                      <a href={profileFor.userId ? `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}` : "/newdesign/Marketplace.html"}
-                        style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>
-                    )}
+                    <a href={profileFor.userId
+                        ? `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`
+                        : `/newdesign/MemberProfile.html?name=${encodeURIComponent(profileFor.who)}&role=${encodeURIComponent(isCoach ? (/nutrition/i.test(profileFor.role || "") ? "nutritionist" : "trainer") : "client")}`}
+                      style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>
                   </div>
                   <div style={{ padding: 18 }}>
                     <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>

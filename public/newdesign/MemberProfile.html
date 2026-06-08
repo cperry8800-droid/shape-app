@@ -70,7 +70,12 @@ function LiveProfilePage() {
     (async () => {
       const c = cl();
       if (!c || !c.rpc) { if (on) setSt({ loading: false, status: "unavailable" }); return; }
-      const qid = new URLSearchParams(window.location.search).get("u");
+      const params = new URLSearchParams(window.location.search);
+      const qid = params.get("u");
+      const qname = params.get("name");
+      // A named person without a real account (e.g. a demo chat contact) → render
+      // a derived public profile (same idea as the mobile app), not a redirect.
+      if (qname && !qid) { if (on) setSt({ loading: false, status: "derived", derived: { name: qname, role: params.get("role") || "client" } }); return; }
       let me = null; try { const r = await c.auth.getUser(); me = r && r.data ? r.data.user : null; } catch (e) {}
       const uid = qid || (me && me.id);
       if (!uid) { if (on) setSt({ loading: false, status: "signin" }); return; }
@@ -86,7 +91,7 @@ function LiveProfilePage() {
 
   const onMessage = () => {
     if (st.isSelf) { window.location.href = "/newdesign/ClientMe.html"; return; }
-    const nm = st.row && st.row.full_name;
+    const nm = (st.row && st.row.full_name) || (st.derived && st.derived.name);
     try { if (window.__openChat) { window.__openChat({ who: nm }); return; } } catch (e) {}
     const b = document.getElementById("shape-global-chat-button"); if (b) { b.click(); return; }
     window.location.href = "/newdesign/ClientCommunity.html";
@@ -126,9 +131,19 @@ function LiveProfilePage() {
   );
   if (st.loading) return center("Loading profile…");
   if (st.status === "signin") return center("Sign in to view your public profile.", <a href="/login" style={{ background: "#1ec0a8", color: "#06110e", borderRadius: 999, padding: "12px 24px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 14 }}>Sign in →</a>);
-  if (st.status !== "ok") return center(st.status === "notfound" ? "This profile isn't available." : "Profiles aren't available right now.");
+  if (st.status !== "ok" && st.status !== "derived") return center(st.status === "notfound" ? "This profile isn't available." : "Profiles aren't available right now.");
 
-  const row = st.row;
+  // Derived profile (a named person with no real account) — synthesize a row so
+  // the same DesktopProfile layout renders, with a stable name-hashed tier.
+  const row = st.status === "derived"
+    ? (() => {
+        const d = st.derived; const nm = String(d.name || "Shape member");
+        let h = 0; for (let i = 0; i < nm.length; i++) h = (h + nm.charCodeAt(i) * (i + 1)) % 9973;
+        const isCoachD = d.role === "trainer" || d.role === "nutritionist";
+        const pts = (isCoachD ? [900, 2400, 5200] : [200, 1284, 3200])[h % 3];
+        return { role: d.role, points: pts, full_name: nm, is_public: true, can_view: true, bio: null, pronouns: null, goal: null, link: null, avatar: "" };
+      })()
+    : st.row;
   const role = row.role === "trainer" ? "trainer" : row.role === "nutritionist" ? "nutritionist" : "client";
   const coach = role !== "client";
   const direction = coach ? "signal" : "terrain";
@@ -155,7 +170,7 @@ function LiveProfilePage() {
 
   return (
     <React.Fragment>
-      <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/Marketplace.html" />
+      <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" />
       {sheet && (
         <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", maxHeight: "76vh", overflowY: "auto", background: "#1b1714", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 22, fontFamily: "'Space Grotesk',sans-serif" }}>
