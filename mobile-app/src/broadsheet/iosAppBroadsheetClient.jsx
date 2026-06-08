@@ -14889,9 +14889,12 @@ function BSAboutPage({ onBack }) {
   return (
     <BSPage>
       {/* minimal back row (the hero is the title, mirroring the website) */}
-      <div style={{ padding: `54px ${px}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: `54px ${px}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>About · Shape</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>About · Shape</span>
+          <BSMeCorner size={30} />
+        </div>
       </div>
 
       {/* HERO — A place / for helping shape a lifestyle (teal-stroke "shape") */}
