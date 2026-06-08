@@ -7704,7 +7704,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
           <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · {reviewCount} reviews</div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
         </div>
 
         {isPrivate ? (
@@ -7716,6 +7716,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               { key: 'activity', label: 'Activity' },
               { key: 'about', label: 'About' },
               { key: 'coaching', label: 'Coaching' },
+              { key: 'reviews', label: 'Reviews' },
             ]} />
           </div>
           {tab === 'about' && (<>
@@ -7796,14 +7797,16 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
           </div>
 
-          {/* reviews — live (/api/coaches/reviews) when present, else illustrative */}
-          {(() => {
+          </>)}
+
+          {/* Reviews — its own tab (live /api/coaches/reviews when present) */}
+          {tab === 'reviews' && (() => {
             const liveAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
             const liveList = (liveReviews && liveReviews.length)
               ? liveReviews.map((r) => [r.author || 'Member', (r.author || 'M').slice(0, 2).toUpperCase(), 160, r.text || '', Math.round(r.rating || 0)])
               : reviews.map((r) => [...r, 10]);
             return (
-            <div style={{ marginTop: 28 }}>
+            <div style={{ marginTop: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
                 {liveList.map(([nm, ini, hue, body, stars], i) => (
@@ -7816,9 +7819,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
             );
           })()}
-
-
-          </>)}
 
           {tab === 'activity' && (
           /* field notes */

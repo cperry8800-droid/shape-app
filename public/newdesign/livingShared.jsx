@@ -383,7 +383,7 @@ const LV_PRIV_ORDER = ["public", "circle", "private"];
 // Categorized services — distinctive filing-card tabs that physically
 // connect into the panel below (a card-index, not a generic tab bar).
 const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
-function LvServices({ d, light, ink, c, owner }) {
+function LvServices({ d, light, ink, c, owner, onReviews }) {
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
   // back to the demo offerings when the coach hasn't published any.
   const [real, setReal] = React.useState(null);
@@ -433,7 +433,7 @@ function LvServices({ d, light, ink, c, owner }) {
     <div style={{ marginTop: 30 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
         <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>{d.offerLabel}</div>
-        <div style={{ fontFamily: lvMono, fontSize: 10, color: c }}>★ {d.rating}/10 · {d.reviewCount}</div>
+        <div style={{ fontFamily: lvMono, fontSize: 10, color: c }}>★ {d.rating}/10 · <span onClick={onReviews} style={{ cursor: onReviews ? "pointer" : "default", textDecoration: onReviews ? "underline" : "none", textUnderlineOffset: 2 }}>{d.reviewCount} reviews</span></div>
       </div>
       {/* filing tabs */}
       <div className="lv-tabrow" style={{ display: "flex", gap: 4, alignItems: "flex-end", paddingLeft: 2, position: "relative", zIndex: 2, overflowX: "auto", scrollbarWidth: "none" }}>
@@ -532,7 +532,9 @@ function LvClientBand({ d, light }) {
 // ── Coach marketplace blocks (trainer/nutritionist only) ─────
 // Certifications (verified), Services & prices, Reviews. Adapts to
 // the host direction via `light` + the --lvc tier var.
-function LvCoachBlocks({ d, light, owner }) {
+function LvCoachBlocks({ d, light, owner, view, onReviews }) {
+  const showCoaching = view !== "reviews";
+  const showReviews = view !== "coaching";
   const c = tierOf(d).color;
   const ink = light ? "#1a1612" : LV_INK;
   const card = { background: hexA(ink, 0.04), border: `1px solid ${hexA(ink, 0.09)}`, borderRadius: 14 };
@@ -568,6 +570,7 @@ function LvCoachBlocks({ d, light, owner }) {
     : d.reviews.map((r) => ({ ...r, stars10: 10 }));
   return (
     <div>
+      {showCoaching && <React.Fragment>
       {/* Work with {first} — storefront CTA */}
       {!owner && (
         <div style={{ ...card, padding: "20px 22px", marginTop: 4 }}>
@@ -599,10 +602,11 @@ function LvCoachBlocks({ d, light, owner }) {
       </div>
 
       {/* Services & prices — categorized via filing-card tabs */}
-      <LvServices d={d} light={light} ink={ink} c={c} card={card} owner={owner} />
+      <LvServices d={d} light={light} ink={ink} c={c} card={card} owner={owner} onReviews={onReviews} />
+      </React.Fragment>}
 
-      {/* Reviews — marketplace */}
-      <div style={{ marginTop: 30 }}>
+      {/* Reviews — its own tab */}
+      {showReviews && <div style={{ marginTop: showCoaching ? 30 : 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 13 }}>
           <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>Reviews</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
@@ -622,7 +626,7 @@ function LvCoachBlocks({ d, light, owner }) {
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

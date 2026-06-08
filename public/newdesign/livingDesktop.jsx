@@ -596,7 +596,7 @@ function DesktopFooter() {
 function DesktopTabs({ direction, tab, setTab, c }) {
   const coach = direction !== "terrain";
   const tabs = coach
-    ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"]]
+    ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"], ["reviews", "Reviews"]]
     : [["activity", "Activity"], ["signals", "Signals"], ["climb", "Climb"]];
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 40px 0" }}>
@@ -903,10 +903,17 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               </section>
             )}
 
-            {/* Coaching (coach only) — services / certs / reviews */}
+            {/* Coaching (coach only) — services / certs (reviews on their own tab) */}
             {coach && tab === "coaching" && (
               <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
-                <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} /></div>
+                <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} view="coaching" onReviews={() => setTab("reviews")} /></div>
+              </section>
+            )}
+
+            {/* Reviews (coach only) — its own tab */}
+            {coach && tab === "reviews" && (
+              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
+                <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} view="reviews" /></div>
               </section>
             )}
           </React.Fragment>
