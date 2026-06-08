@@ -63,7 +63,7 @@ function AboutLetter() {
     padding: "10px 0",
   };
   return (
-    <section style={{ color: INK, position: "relative", padding: "80px 24px 140px" }}>
+    <section style={{ color: INK, position: "relative", padding: "80px 24px 36px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", position: "relative" }}>
         <h2 style={{ fontFamily: serif, fontSize: "clamp(26px, 3vw, 38px)", letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 8px", lineHeight: 1.15, color: INK, textAlign: "center", fontStyle: "italic" }}>
           <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>Fitness</em> is the entry point. Your <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>lifestyle</em> is the goal.
@@ -116,10 +116,7 @@ function AboutLetter() {
 function AboutSignoff() {
   return (
     <section style={{ padding: "8px 72px 120px", textAlign: "center" }}>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-        <span style={{ width: 24, height: 2, background: "rgba(242,237,228,0.25)" }} />
-      </div>
-      <div style={{ fontFamily: serif, fontStyle: "italic", fontSize: 17, color: "rgba(242,237,228,0.62)" }}>— The Shape team</div>
+      <div style={{ fontFamily: serif, fontStyle: "italic", fontWeight: 600, fontSize: 18, color: "rgba(242,237,228,0.82)" }}>— The Shape team</div>
     </section>
   );
 }
@@ -135,7 +132,7 @@ function AboutVision() {
           <span style={{ width: 24, height: 1, background: "rgba(242,237,228,0.25)" }} />
         </div>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={{ fontFamily: mono, fontSize: "clamp(28px, 4vw, 48px)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: TEAL, marginBottom: 22, lineHeight: 1 }}>The idea</div>
+          <div style={{ fontFamily: serif, fontSize: "clamp(26px, 3.6vw, 42px)", fontWeight: 400, fontStyle: "italic", letterSpacing: "-0.02em", color: TEAL, marginBottom: 18, lineHeight: 1.05 }}>The idea.</div>
           <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.04 }}>
             The platform coaches build their <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>practice</em> on.
             <br />The place members <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>live</em> their training life.

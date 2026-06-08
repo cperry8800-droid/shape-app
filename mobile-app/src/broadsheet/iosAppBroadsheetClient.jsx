@@ -14929,17 +14929,14 @@ function BSAboutPage({ onBack }) {
 
         <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>The community isn't a forum. It's the people in your loop.</div>
 
-        <p style={{ ...para, marginBottom: 36 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
-
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><span style={{ width: 24, height: 2, background: t.RULE }} /></div>
-        <div style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK50 }}>— The Shape team</div>
+        <p style={{ ...para, marginBottom: 0 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
       </div>
 
       {/* THE IDEA — dual positioning (coaches build their practice · members live it socially) */}
-      <div style={{ padding: `34px ${px}px 8px` }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
-        <div style={{ textAlign: 'center', marginBottom: 30 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, marginBottom: 12 }}>The idea</div>
+      <div style={{ padding: `14px ${px}px 8px` }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.02em', color: teal, marginBottom: 14, lineHeight: 1.05 }}>The idea.</div>
           <h3 style={{ fontFamily: t.DISPLAY, fontSize: 26, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.08, color: t.INK }}>
             The platform coaches build their <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>practice</em> on. The place members <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>live</em> their training life.
           </h3>
@@ -14973,8 +14970,13 @@ function BSAboutPage({ onBack }) {
       </div>
 
       {/* CTA */}
-      <div style={{ padding: `26px ${px}px 36px`, textAlign: 'center' }}>
+      <div style={{ padding: `26px ${px}px 24px`, textAlign: 'center' }}>
         <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
+      </div>
+
+      {/* sign-off — the very end of the page */}
+      <div style={{ padding: `4px ${px}px 36px`, textAlign: 'center' }}>
+        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 16, color: t.INK }}>— The Shape team</div>
       </div>
       <BSFooter right="About" />
     </BSPage>
