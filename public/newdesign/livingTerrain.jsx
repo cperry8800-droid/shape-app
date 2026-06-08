@@ -146,7 +146,7 @@ function TerrainProfile({ persona = "client", variant = "public" }) {
         </div>
         <div style={{ position: "relative", padding: "58px 22px 0", minHeight: 300, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: c, border: `1px solid ${hexA(c, 0.4)}`, borderRadius: 999, padding: "5px 10px" }}>▲ {tierOf(d).name} · {tierOf(d).rank}</span>
+            <span style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: c, border: `1px solid ${hexA(c, 0.4)}`, borderRadius: 999, padding: "5px 10px" }}>▲ {tierOf(d).name}</span>
             <LvKicker>ELEV. {d.score.toLocaleString()}</LvKicker>
           </div>
           <div style={{ marginTop: 130 }}>

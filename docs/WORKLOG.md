@@ -6,7 +6,13 @@ changelog whenever something ships.
 
 ## How we work
 
-- 🗒️ **Migrations: just post the raw GitHub SQL link.** When a migration is
+- **No colored emoji for NEW additions going forward.** Any emoji you *add* from
+  now on should be monochrome — use typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or
+  theme-tinted inline SVG/icons, matching the editorial aesthetic. **Do NOT
+  retroactively change existing emoji or colors** already in the app/website
+  (especially on profiles) — leave current ones as-is. Rule applies to new emoji
+  only.
+- **Migrations: just post the raw GitHub SQL link.** When a migration is
   created, reply with only the `raw.githubusercontent.com/.../supabase-migrations/<file>.sql`
   link — the user runs it on Supabase. Don't paste the SQL body or long explanations.
 - ⛔️ **NEVER edit on a stale base — verify FIRST, every session/turn.** The web
