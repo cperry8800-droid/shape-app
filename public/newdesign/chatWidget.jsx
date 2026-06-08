@@ -916,9 +916,9 @@ function ChatWidget(props) {
                     )}
                     <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
                       <button onClick={() => setProfileFor(null)} style={{ flex: 1, padding: "12px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Message →</button>
-                      {isCoach
-                        ? <a href="/Marketplace.html" style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>
-                        : (profileFor.userId && <a href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`} style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>)}
+                      {profileFor.userId
+                        ? <a href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`} style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>
+                        : (isCoach && <a href="/Marketplace.html" style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>)}
                     </div>
                   </div>
                 </div>

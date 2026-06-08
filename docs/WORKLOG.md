@@ -55,6 +55,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Website public profile = desktop Terrain/Signal (same direction as mobile)
+- Dropped the **desktop** living-identity designs (`chat-design-v2/Shape (13).zip` =
+  Terrain/member, `(14).zip` = Signal/coach) into `public/newdesign/`: **`livingShared.jsx`**
+  (design system), **`livingTerrain.jsx`** / **`livingSignal.jsx`** (signature visuals),
+  **`livingDesktop.jsx`** (`DesktopProfile` layout — nav, split hero, signals band,
+  2-col grid, feed, footer, locked card).
+- **`MemberProfile.html` rebuilt** to render `<DesktopProfile>` wired to real data:
+  role → **terrain (member)** / **signal (coach)**; name / tier (member or coach ladder
+  colors) / Shape Score / avatar (real photo via `lvPortraitURL` pass-through, else
+  initials) / goal / pronouns / privacy are live (`get_public_profile`); rich sub-data
+  stays illustrative (same as mobile). **Message** → site chat (`window.__openChat`),
+  **Edit profile** on your own, **Follow** → `toggle_follow`, **Coaching** → Marketplace.
+- **Followers / Following** counts in the hero are **public + live links** → a people
+  sheet (`get_follow_list`); kept visible on the **locked** (private) card too.
+- Patched `livingDesktop.jsx` `DesktopProfile`/`DesktopHero`/`DesktopLocked` to accept a
+  `person` override + `onMessage`/`onFollow`/`follow`/`coachingHref`; `lvPortraitURL` now
+  passes through full `http(s)`/`data:` avatar URLs.
+- **`chatWidget.jsx`**: the chat profile-preview "View full profile →" now points **any
+  real account (member OR coach)** to `MemberProfile.html?u=` (Signal for coaches);
+  accountless coaches still link to Marketplace. The old `memberProfile.jsx` card view is
+  superseded (left in place, unreferenced).
+
 ### 2026-06-08 — Tag members in posts/workouts on the feed (mobile + website)
 - **Mobile** (`BSClientFeed`): the feed composer gained an **@ Tag people** button (next
   to the photo button) → a member-search sheet (`search_members` RPC); tagged people show
