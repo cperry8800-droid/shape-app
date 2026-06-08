@@ -315,6 +315,7 @@
   #shape-intro .ib.r{width:680px;height:680px;bottom:-14%;right:-10%;background:radial-gradient(circle,var(--rust),transparent 70%);animation-delay:.15s}
   #shape-intro .scan{position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal) 30%,var(--rust) 70%,transparent);opacity:0;animation:siScan 2.8s ease-in-out forwards}
   #shape-intro .iw{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 24px}
+  #shape-intro .im{width:clamp(60px,10vw,98px);height:auto;margin:0 0 28px;opacity:0;transform:translateY(10px);animation:siUp .9s .1s cubic-bezier(.2,.7,.2,1) forwards}
   #shape-intro .ik{font-family:var(--mono);font-size:clamp(24px,4.5vw,52px);letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;color:#fff;opacity:0;transform:translateY(10px);animation:siUp .9s .25s cubic-bezier(.2,.7,.2,1) forwards}
   #shape-intro .it{display:block;height:clamp(28px,4.5vw,48px);width:auto;max-width:none;margin:20px 0 0;
     opacity:0;filter:blur(18px) brightness(0) invert(1);transform:scale(1.04);animation:siReveal 1.5s .35s cubic-bezier(.16,1,.3,1) forwards;will-change:opacity,filter,transform}
@@ -449,6 +450,12 @@
   <span class="ib t"></span><span class="ib r"></span>
   <span class="scan"></span>
   <div class="iw">
+    <svg class="im" viewBox="0 0 100 100" focusable="false" aria-hidden="true">
+      <polygon points="20,40 20,88 56,64" fill="#0ac5a8"/>
+      <polygon points="80,12 80,60 44,36" fill="#ffffff"/>
+      <polygon points="20,40 20,88 56,64" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
+      <polygon points="80,12 80,60 44,36" fill="none" stroke="#0ac5a8" stroke-width="1.6" stroke-linejoin="round"/>
+    </svg>
     <div class="ik">Welcome to</div>
     <img class="it" src="/logo-text-trimmed.png" alt="Shape" />
   </div>

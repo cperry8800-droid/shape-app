@@ -14935,6 +14935,28 @@ function BSAboutPage({ onBack }) {
         <div style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK50 }}>— The Shape team</div>
       </div>
 
+      {/* THE IDEA — dual positioning (coaches build their practice · members live it socially) */}
+      <div style={{ padding: `34px ${px}px 8px` }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
+        <div style={{ textAlign: 'center', marginBottom: 30 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, marginBottom: 12 }}>The idea</div>
+          <h3 style={{ fontFamily: t.DISPLAY, fontSize: 26, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.08, color: t.INK }}>
+            The platform coaches build their <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>practice</em> on. The place members <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>live</em> their training life.
+          </h3>
+        </div>
+        {[
+          ['For coaches', 'Your whole practice, in one place.', "Audience, credibility, clients, and income — built and run from a single home. Bring the people you already train; reach the ones you haven't met yet. Set your own rate, keep your own voice, get paid directly. Shape is where a coaching practice grows up."],
+          ['For members', "A training life that's actually social.", "Real coaches, plans that are yours, and people training alongside you who are mid-loop too. Not a highlight reel — the day-to-day of getting better, shared with the ones in your corner. The coach gets you started; the community keeps you here."],
+        ].map(([ey, h, p], i) => (
+          <div key={i} style={{ borderTop: `2px solid ${teal}`, paddingTop: 18, marginBottom: 24 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: tealB, marginBottom: 10 }}>{ey}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 21, letterSpacing: '-0.015em', fontWeight: 400, fontStyle: 'italic', color: t.INK, lineHeight: 1.18, marginBottom: 10 }}>{h}</div>
+            <p style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.58, margin: 0 }}>{p}</p>
+          </div>
+        ))}
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontStyle: 'italic', color: t.INK70, textAlign: 'center', margin: '30px auto 0', lineHeight: 1.55 }}>Coaches bring the people. The people build the place. <em style={{ color: tealB }}>That's the whole idea.</em></p>
+      </div>
+
       {/* PILLARS */}
       <div style={{ padding: `48px ${px}px 8px` }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
