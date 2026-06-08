@@ -493,11 +493,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
     const Living = window.BSPublicProfile;
     if (Living) {
       const kind = getPublicProfileKind(open);
+      const prof = buildPublicProfile(open);
       const person = {
         who: open.name, kind: kind === 'nutritionist' ? 'NUTRI' : 'TRAINER',
         userId: open.provider_user_id || null, city: open.loc || open.city || 'Remote',
         bio: open.bio || '', init: open.init || (open.name ? open.name[0] : '?'),
         tier: open.tier || null, public: true,
+        // Commerce payload so the living profile's Coaching tab is a real storefront
+        // (Subscribe / Book / packages), driven by the same global services.
+        commerce: { coach: open, role: kind, packages: prof.packages },
       };
       return <Living person={person} onBack={() => setOpen(null)} onMessage={(p) => { setOpen(null); if (goChat) goChat((p && p.who) || open.name, kind === 'nutritionist' ? 'Nutritionist' : 'Trainer'); }} />;
     }

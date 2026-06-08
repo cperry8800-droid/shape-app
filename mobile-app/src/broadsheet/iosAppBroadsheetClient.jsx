@@ -7558,6 +7558,30 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   ];
   const roleLabel = isNutri ? 'Nutritionist · RD' : 'Trainer · CPT';
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.');
+  // ── Storefront: the profile IS the marketplace listing. Subscribe / Book run
+  // the same global Stripe + booking services the old detail page used. ──
+  const commerce = person.commerce || null;
+  const commerceCoach = (commerce && commerce.coach) || { name, provider_role: isNutri ? 'nutritionist' : 'trainer', provider_id: person.providerId || null, rate: 120, loc: city, id: person.userId };
+  const monthlyPkg = (commerce && Array.isArray(commerce.packages) && commerce.packages.find((p) => p.type === 'Subscription')) || { type: 'Subscription', name: 'Monthly coaching', price: `$${isNutri ? 240 : 200}`, unit: '/ month', perks: ['Custom programming', 'Weekly check-ins', 'Daily chat'] };
+  const doSubscribe = async () => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('subscribe')) return;
+    try { const r = await window.ShapePayments?.startCheckout?.({ item: monthlyPkg, coach: commerceCoach, role: commerceCoach.provider_role, user: window.ShapeAuth?.getCachedState?.()?.user }); if (r && r.demo) window.__bsToast?.(r.message || 'Checkout setup needed.', 'info'); }
+    catch (e) { window.__bsToast?.(e?.message || 'Could not start checkout.', 'err'); }
+  };
+  const doBookIntro = async () => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
+    try { await window.ShapeBookings?.submitConsultationBooking?.({ coach: commerceCoach, role: commerceCoach.provider_role, topic: 'Free intro call' }); window.__bsToast?.(`Intro requested — ${first} will follow up.`, 'ok'); }
+    catch (e) { window.__bsToast?.(e?.message || 'Could not book.', 'err'); }
+  };
+  // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
+  const [liveReviews, setLiveReviews] = useStateBSC(null);
+  React.useEffect(() => {
+    const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    let on = true;
+    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null)).then((d) => { if (on && d && Array.isArray(d.reviews) && d.reviews.length) setLiveReviews(d.reviews); }).catch(() => {});
+    return () => { on = false; };
+  }, [name]);
   const disLabel = isNutri ? 'Practice focus' : 'Coaching focus';
   const disciplines = isNutri ? [['Performance', 0.9], ['Gut health', 0.82], ['Iron & ferritin', 0.86], ['Recovery', 0.8]] : [['Strength', 0.95], ['Hypertrophy', 0.88], ['Powerlifting', 0.8], ['Form audit', 0.92]];
   const lifts = isNutri ? [['Clients', '200+'], ['Rating', '9.9'], ['Years', '7']] : [['Clients', '90+'], ['Rating', '9.94'], ['Years', '9']];
@@ -7739,6 +7763,18 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>)}
 
           {tab === 'coaching' && (<>
+          {/* Work with {first} — the storefront CTA (subscribe + book) */}
+          {!isSelf && (
+            <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
+              <Kick col={c}>Work with {first}</Kick>
+              <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: c }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
+              {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 13 }}>
+                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Subscribe</button>
+                <button onClick={doBookIntro} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Book intro · Free</button>
+              </div>
+            </div>
+          )}
           {/* services & prices — sub-tabbed by type (like the website catalogue) */}
           <div style={{ marginTop: 28 }}>
             <Kick>{isNutri ? 'Work with ' + first : 'Train with ' + first}</Kick>
@@ -7763,18 +7799,26 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
           </div>
 
-          {/* reviews */}
-          <div style={{ marginTop: 28 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {reviewCount}</span></div></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              {reviews.map(([nm, ini, hue, body], i) => (
-                <div key={i} style={{ ...card, padding: '13px 15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12 }}>{ini}</div><span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500 }}>{nm}</span><span style={{ fontFamily: MONO, fontSize: 11, color: c }}>★★★★★</span></div>
-                  <p style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 1.45, color: bsTHexA(INK, 0.82), margin: '10px 0 0' }}>“{body}”</p>
-                </div>
-              ))}
+          {/* reviews — live (/api/coaches/reviews) when present, else illustrative */}
+          {(() => {
+            const liveAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+            const liveList = (liveReviews && liveReviews.length)
+              ? liveReviews.map((r) => [r.author || 'Member', (r.author || 'M').slice(0, 2).toUpperCase(), 160, r.text || '', Math.round(r.rating || 0)])
+              : reviews.map((r) => [...r, 10]);
+            return (
+            <div style={{ marginTop: 28 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                {liveList.map(([nm, ini, hue, body, stars], i) => (
+                  <div key={i} style={{ ...card, padding: '13px 15px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12 }}>{ini}</div><span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500 }}>{nm}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: c }}>{stars}/10</span></div>
+                    <p style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 1.45, color: bsTHexA(INK, 0.82), margin: '10px 0 0' }}>“{body}”</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+            );
+          })()}
 
 
           </>)}
@@ -7813,8 +7857,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             <button onClick={onEdit} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
           ) : (
             <>
-              <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message →</button>
-              <button onClick={() => { try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Coaching →</button>
+              <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
+              <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>Work with {first} →</button>
             </>
           )}
         </div>
