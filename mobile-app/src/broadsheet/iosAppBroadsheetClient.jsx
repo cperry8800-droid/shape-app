@@ -7250,7 +7250,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
             <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
-            <div style={{ position: 'absolute', right: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, textAlign: 'right', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>{nextLevel ? <>Next level<br />{nextLevel}</> : <>Max level<br />{curLevel}</>}</div>
+            <div style={{ position: 'absolute', right: 12, top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'right', background: bsTHexA('#0c1110', 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>

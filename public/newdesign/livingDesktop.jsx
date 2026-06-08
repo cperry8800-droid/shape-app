@@ -120,12 +120,13 @@ function SignalVisual({ d, reduced, owner }) {
 // Where a member stands toward the next level (tier) — drives the ascent hero.
 function memberLevel(d) {
   const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
+  const COL = ["#8a93a0", "#d8a23a", "#1ec0a8", "#8a5cf6", "#e0518a"];
   const pts = Number(d.score) || 0;
   let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
   const top = i >= TH.length - 1;
   const f = TH[i], nx = top ? f : TH[i + 1];
   const pct = top ? 1 : Math.max(0.05, Math.min(0.97, (pts - f) / Math.max(1, nx - f)));
-  return { pct, cur: NM[i], next: top ? null : NM[i + 1], top };
+  return { pct, cur: NM[i], next: top ? null : NM[i + 1], top, nextColor: top ? COL[i] : COL[i + 1] };
 }
 // Ascent-profile card — the "you-are-here" climb toward the next level (tier):
 // a ridgeline, a teal progress trace, the member's avatar climbing it, and a
@@ -164,7 +165,7 @@ function TerrainVisual({ d }) {
       </div>
       {/* current level (base) + next level (by the flag, top-right) */}
       <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{startLabel} · now</div>
-      <div style={{ position: "absolute", right: 16, top: 16, fontFamily: dMono, fontSize: 10, lineHeight: 1.4, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, textAlign: "right", background: dHexA(LV_BG, 0.7), padding: "4px 9px", borderRadius: 5 }}>{lvl.next ? <React.Fragment>Next level<br />{lvl.next}</React.Fragment> : <React.Fragment>Max level<br />{lvl.cur}</React.Fragment>}</div>
+      <div style={{ position: "absolute", right: 16, top: 56, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "right", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }}>{lvl.next || lvl.cur}</div>
     </div>
   );
 }
