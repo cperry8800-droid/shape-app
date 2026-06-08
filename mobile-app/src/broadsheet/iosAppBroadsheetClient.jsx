@@ -6700,7 +6700,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
 
             <div>
-              <Kick>Field notes · log</Kick>
+              <Kick>Personal activities</Kick>
               <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
                 <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
                 {feedEff.map((it, i) => (
