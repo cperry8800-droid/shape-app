@@ -6526,7 +6526,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           const W = 330, H = 220;
           const base = [10, H - 26], peak = [W - 26, 34];
           const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 40}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
-          const here = { x: base[0] + (peak[0] - base[0]) * pct, y: base[1] + (peak[1] - base[1]) * (pct * 1.05) };
+          // Clamp the you-are-here marker so it tracks progress but never climbs
+          // into the summit-flag corner (where it overlapped + clipped the card).
+          const hp = Math.max(0.05, Math.min(pct, 0.66));
+          const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
           return (
           <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA(c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
             <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ display: 'block' }}>
@@ -6545,9 +6548,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} rank={bsTierRank(tierKey)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {pctLabel}%</div>
             </div>
-            {/* base + summit labels */}
-            <div style={{ position: 'absolute', left: 14, bottom: 12, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{arc[0][0]} · start</div>
-            <div style={{ position: 'absolute', right: 14, top: 14, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'right', maxWidth: 130 }}>Summit<br />{summitEff}</div>
+            {/* base + summit labels (chip-backed so they read cleanly over the terrain) */}
+            <div style={{ position: 'absolute', left: 12, bottom: 12, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{arc[0][0]} · start</div>
+            <div style={{ position: 'absolute', right: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'right', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>Summit<br />{summitEff}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
@@ -7710,16 +7713,23 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <button onClick={() => setNewChannel(newChannel === null ? '' : null)} aria-label={newChannel === null ? 'Create channel' : 'Cancel'} title={newChannel === null ? 'Create new channel' : 'Cancel'} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 11, background: newChannel === null ? `${TEALB}1f` : 'transparent', color: newChannel === null ? TEALB : muted, border: `1px solid ${newChannel === null ? `${TEALB}66` : hair}`, fontSize: 20, fontWeight: 400, lineHeight: 1, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform .15s', transform: newChannel === null ? 'none' : 'rotate(45deg)' }}>+</button>
                 </div>
                 {newChannel !== null && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderRadius: 12, border: `1px solid ${hair}`, background: card, padding: 10 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
-                      <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ minWidth: 0, height: 36, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none' }} />
-                      <button onClick={createChannelNow} style={{ height: 36, padding: '0 16px', borderRadius: 999, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>Create</button>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                      {[['public', 'Public · anyone can join'], ['private', 'Private · invite only']].map(([k, l]) => {
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 11, borderRadius: 14, border: `1px solid ${hair}`, background: card, padding: 13 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEALB }}>New channel</div>
+                    <input autoFocus value={newChannel} onChange={(e) => setNewChannel(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') createChannelNow(); if (e.key === 'Escape') { setNewChannel(null); setNewChannelPrivate(false); } }} placeholder="Channel name — e.g. Sunday Run Club" style={{ width: '100%', boxSizing: 'border-box', height: 40, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 12, padding: '0 14px', fontFamily: t.BODY, fontSize: 14.5, color: t.INK, outline: 'none' }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      {[['public', 'Public', 'Anyone can join', '🌐'], ['private', 'Private', 'Invite only', '🔒']].map(([k, title, sub, icon]) => {
                         const on = (k === 'private') === newChannelPrivate;
-                        return <button key={k} onClick={() => setNewChannelPrivate(k === 'private')} style={{ padding: '8px 8px', borderRadius: 999, border: `1px solid ${on ? TEALB : hair}`, background: on ? `${TEALB}1f` : 'transparent', color: on ? cardInk : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{l}</button>;
+                        return (
+                          <button key={k} onClick={() => setNewChannelPrivate(k === 'private')} style={{ display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'left', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${on ? TEALB : hair}`, background: on ? `${TEALB}1a` : 'transparent', cursor: 'pointer' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: on ? cardInk : muted, letterSpacing: '-0.01em' }}><span style={{ fontSize: 12 }}>{icon}</span>{title}</span>
+                            <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{sub}</span>
+                          </button>
+                        );
                       })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 1 }}>
+                      <button onClick={() => { setNewChannel(null); setNewChannelPrivate(false); }} style={{ flex: '0 0 auto', height: 40, padding: '0 18px', borderRadius: 12, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={createChannelNow} disabled={!newChannel.trim()} style={{ flex: 1, height: 40, borderRadius: 12, background: newChannel.trim() ? TEAL : `${TEAL}55`, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: newChannel.trim() ? 'pointer' : 'default' }}>Create channel</button>
                     </div>
                   </div>
                 )}
