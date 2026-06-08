@@ -888,10 +888,9 @@ function ChatWidget(props) {
                 <div style={{ position: "absolute", inset: 0, zIndex: 12, background: "#1a1612", display: "flex", flexDirection: "column", overflowY: "auto" }}>
                   <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
                     <button onClick={() => setProfileFor(null)} style={{ background: "transparent", border: 0, color: TEAL_BRIGHT, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em" }}>← BACK</button>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>Public profile</span>
                     {(profileFor.userId || isCoach) && (
                       <a href={profileFor.userId ? `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}` : "/newdesign/Marketplace.html"}
-                        style={{ marginLeft: "auto", color: TEAL_BRIGHT, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Full profile →</a>
+                        style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>
                     )}
                   </div>
                   <div style={{ padding: 18 }}>
