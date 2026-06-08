@@ -6751,9 +6751,21 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // On your OWN profile the climb is wired to real data, and you can choose what
   // it tracks: body weight (goal + weigh-ins), Shape Score (→ next tier), or day
   // streak. Others always see the body-weight climb (derived/demo).
-  const CLIMB_SOURCES = [{ key: 'weight', label: 'Body weight' }, { key: 'score', label: 'Shape Score' }, { key: 'streak', label: 'Day streak' }];
+  const CLIMB_SOURCES = [
+    { key: 'weight', label: 'Body weight' },
+    { key: 'bodyfat', label: 'Body fat' },
+    { key: 'strength', label: 'Strength' },
+    { key: 'score', label: 'Shape Score' },
+    { key: 'streak', label: 'Day streak' },
+  ];
+  const CLIMB_DEFAULT_SHOWN = ['weight', 'strength', 'score'];
   const [realGoal, setRealGoal] = useStateBSC(null);
   const [climbSource, setClimbSource] = useStateBSC('weight');
+  // Which aspects appear as tabs in the climb box (owner-customizable).
+  const [climbShown, setClimbShown] = useStateBSC(CLIMB_DEFAULT_SHOWN);
+  const [climbCustomizing, setClimbCustomizing] = useStateBSC(false);
+  // Real progress rollup (strength PRs, body-fat trend) for the self climb.
+  const [climbProgress, setClimbProgress] = useStateBSC(null);
   const prog = useBSProgram();
   const [coachReal, setCoachReal] = useStateBSC(null);
   React.useEffect(() => {
@@ -6770,7 +6782,15 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       if (Array.isArray(weigh) && weigh.length) merged = { ...(o || {}), weighIns: weigh, now: Number(weigh[weigh.length - 1].kg) };
       if (merged && (merged.start != null || merged.target != null || merged.now != null)) setRealGoal(merged);
       if (climb && climb.source) setClimbSource(climb.source);
+      if (climb && Array.isArray(climb.shown) && climb.shown.length) setClimbShown(climb.shown.filter((k) => CLIMB_SOURCES.some((s) => s.key === k)));
     })();
+    return () => { alive = false; };
+  }, [isSelf]);
+  // Strength PRs + body-fat trend for the self climb (demo fallback otherwise).
+  React.useEffect(() => {
+    if (!isSelf || !(window.ShapeProgress && window.ShapeProgress.progress)) return;
+    let alive = true;
+    window.ShapeProgress.progress().then((d) => { if (alive && d) setClimbProgress(d); }).catch(() => {});
     return () => { alive = false; };
   }, [isSelf]);
   React.useEffect(() => {
@@ -6779,7 +6799,19 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     window.ShapeMessages.listDirectCoachThreads().then(list => { if (alive && Array.isArray(list) && list.length) { const co = list[0]; const nm = co.who || co.name || co.full_name; if (nm) setCoachReal({ name: nm, init: bsInitials(nm) || 'C' }); } }).catch(() => {});
     return () => { alive = false; };
   }, [isSelf]);
-  const pickClimb = (k) => { setClimbSource(k); try { window.shapeDb?.saveUserGoals?.('client_climb', { source: k }); } catch (e) {} };
+  const persistClimb = (source, shown) => { try { window.shapeDb?.saveUserGoals?.('client_climb', { source, shown }); } catch (e) {} };
+  const pickClimb = (k) => { setClimbSource(k); persistClimb(k, climbShown); };
+  const toggleClimbShown = (k) => {
+    setClimbShown((prev) => {
+      const has = prev.includes(k);
+      let next = has ? prev.filter((x) => x !== k) : CLIMB_SOURCES.map((s) => s.key).filter((x) => x === k || prev.includes(x));
+      if (!next.length) next = [k];
+      let src = climbSource;
+      if (!next.includes(src)) { src = next[0]; setClimbSource(src); }
+      persistClimb(src, next);
+      return next;
+    });
+  };
   // Field notes / log — wired to your real logged activities on your own profile.
   const [realFeed, setRealFeed] = useStateBSC(null);
   React.useEffect(() => {
@@ -6858,20 +6890,49 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     const span = Math.abs(tg - s);
     return { arc: [[realGoal.startMonth || 'Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']], pct: span < 0.01 ? 0.5 : Math.max(0.04, Math.min(0.98, Math.abs(n - s) / span)), summit: realGoal.title || fmt(tg) };
   })() : null;
-  const climbCfg = (() => {
-    if (isSelf && climbSource === 'score') {
-      const pts = (typeof window !== 'undefined' && window.ShapeScore && Number(window.ShapeScore.points)) || (points || 0);
+  // Per-aspect climb config — real data on your own profile where we have it,
+  // demo fallback otherwise (so every aspect tab always renders a ridgeline).
+  const climbCfgFor = (aspect) => {
+    if (aspect === 'score') {
+      const pts = (isSelf ? ((typeof window !== 'undefined' && window.ShapeScore && Number(window.ShapeScore.points)) || (points || 0)) : (points || 0)) || 0;
       const TH = [0, 750, 2000, 5000, 15000], NM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
       let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
       const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
       return { arc: [[NM[i], `${floor.toLocaleString()} pts`, 'start'], ['Now', `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
     }
-    if (isSelf && climbSource === 'streak') {
+    if (aspect === 'streak') {
       const s = Number(streak) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
       return { arc: [['Start', 'Day 0', 'start'], ['Now', `${s} days`, 'now'], ['Goal', `${target} days`, 'target']], pct: Math.max(0.04, Math.min(0.98, target ? s / target : 0)), summit: `${target}-day streak` };
     }
+    if (aspect === 'bodyfat') {
+      const k = climbProgress && climbProgress.kpis;
+      if (isSelf && k && k.bodyFatFirst != null && k.bodyFatLatest != null) {
+        const s = Number(k.bodyFatFirst), n = Number(k.bodyFatLatest);
+        const tg = (realGoal && Number(realGoal.bodyFatTarget)) || Math.max(8, Math.round(n - 4));
+        const fmt = (v) => `${Math.round(v * 10) / 10}%`;
+        const span = Math.abs(s - tg) || 1;
+        return { arc: [['Start', fmt(s), 'start'], ['Now', fmt(n), 'now'], ['Target', fmt(tg), 'target']], pct: Math.max(0.04, Math.min(0.98, Math.abs(s - n) / span)), summit: `${fmt(tg)} body fat` };
+      }
+      return { arc: [['Start', '22%', 'start'], ['Now', '17%', 'now'], ['Target', '12%', 'target']], pct: 0.5, summit: '12% body fat' };
+    }
+    if (aspect === 'strength') {
+      const prs = climbProgress && Array.isArray(climbProgress.prs) ? climbProgress.prs : null;
+      if (isSelf && prs && prs.length) {
+        const pr = prs[0];
+        const unit = pr.unit || 'lb';
+        const now = `${Math.round(pr.best)} ${unit}${pr.bestReps ? ` × ${pr.bestReps}` : ''}`;
+        const tg = Math.round(pr.best * 1.1);
+        const moveName = String(pr.move || 'Top lift').replace(/\b\w/g, (x) => x.toUpperCase());
+        return { arc: [[moveName, 'Logged', 'start'], ['Now', now, 'now'], ['Target', `${tg} ${unit}`, 'target']], pct: 0.62, summit: `${tg} ${unit}` };
+      }
+      return { arc: [['Bar-only squat', 'Started', 'start'], ['Now', '245 lb × 5', 'now'], ['Target', '1.5×BW', 'target']], pct: 0.55, summit: '1.5× bodyweight' };
+    }
+    // weight (default)
     return realArc || { arc: (person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
-  })();
+  };
+  const climbTabs = CLIMB_SOURCES.filter((s) => climbShown.includes(s.key));
+  const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : (climbTabs[0] && climbTabs[0].key) || 'weight';
+  const climbCfg = climbCfgFor(activeClimb);
   const arc = climbCfg.arc;
   const pct = climbCfg.pct;
   const pctLabel = Math.round(pct * 100);
@@ -6976,11 +7037,25 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 <Kick>The climb</Kick>
                 <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since} · <a href={stravaUrl} target="_blank" rel="noopener noreferrer" style={{ color: c, textDecoration: 'none' }}>Strava ↗</a></span>
               </div>
-              {isSelf && (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-                  {CLIMB_SOURCES.map((s) => { const on = climbSource === s.key; return (
+              {climbTabs.length > 1 && (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {climbTabs.map((s) => { const on = activeClimb === s.key; return (
                     <button key={s.key} onClick={() => pickClimb(s.key)} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{s.label}</button>
                   ); })}
+                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" style={{ marginLeft: 'auto', padding: '5px 9px', borderRadius: 999, border: `1px solid ${climbCustomizing ? TEAL : bsTHexA(INK, 0.18)}`, background: climbCustomizing ? bsTHexA(TEAL, 0.14) : 'transparent', color: climbCustomizing ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>⚙ Customize</button>}
+                </div>
+              )}
+              {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (
+                <div style={{ marginBottom: 14, border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 13, padding: '12px 13px', background: bsTHexA(INK, 0.02) }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>Show on your climb</div>
+                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ background: 'transparent', border: 0, color: TEAL, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Done</button>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {CLIMB_SOURCES.map((s) => { const on = climbShown.includes(s.key); return (
+                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{on ? '✓ ' : '+ '}{s.label}</button>
+                    ); })}
+                  </div>
                 </div>
               )}
               {(() => {
