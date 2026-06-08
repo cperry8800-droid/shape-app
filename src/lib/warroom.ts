@@ -36,6 +36,22 @@ export type ServiceCheck = {
 export type ChecklistItem = { label: string; status: 'done' | 'pending' | 'manual' };
 export type ChecklistSection = { section: string; items: ChecklistItem[] };
 
+// ── Architecture & flow (the "how Shape works" map) ─────────────────────────
+// A curated, human snapshot (not config-derived) so the whole product can be
+// read top-to-bottom: who it serves, the member journey, the stack of layers,
+// and a persona × area matrix. Edit this as the product evolves.
+export type ArchPersona = { key: string; label: string; tagline: string };
+export type ArchFlowStep = { n: number; stage: string; persona: string; detail: string };
+export type ArchLayer = { layer: string; serves: string; purpose: string; pieces: string[] };
+export type ArchMatrixRow = { area: string; member: string; trainer: string; nutritionist: string };
+export type ShapeArchitecture = {
+  summary: string;
+  personas: ArchPersona[];
+  flow: ArchFlowStep[];
+  layers: ArchLayer[];
+  matrix: ArchMatrixRow[];
+};
+
 export type ApiRouteInfo = { path: string; methods: string[]; group: string; probeable: boolean };
 export type ApiRouteGroup = { group: string; routes: ApiRouteInfo[] };
 
@@ -59,6 +75,49 @@ export type WarRoomSnapshot = {
   apiRoutes: ApiRouteGroup[];
   checklist: ChecklistSection[];
   readiness: { score: number; total: number; label: string };
+  architecture: ShapeArchitecture;
+};
+
+// The product map. Keep this current — it's the "what Shape is becoming" outline.
+const SHAPE_ARCHITECTURE: ShapeArchitecture = {
+  summary:
+    'Shape is a members-only ($5/mo) fitness-lifestyle platform. Members hire affordable, vetted coaches and run a daily Train → Eat → Habits loop that feeds a Shape Score and a social feed; coaches program the work, get paid directly, and price themselves. Everything funnels through one membership + one notifications spine.',
+  personas: [
+    { key: 'prospect', label: 'Prospect / Visitor', tagline: 'Browsing before joining — marketing site, app preview, Nora AI support.' },
+    { key: 'member', label: 'Member (client)', tagline: 'The core user. $5/mo. Lives in the daily loop + community.' },
+    { key: 'trainer', label: 'Trainer', tagline: 'Programs workouts, manages a roster, sells programs, paid directly.' },
+    { key: 'nutritionist', label: 'Nutritionist / RD', tagline: 'Builds meal plans + grocery lists, sells plans, paid directly.' },
+    { key: 'admin', label: 'Admin', tagline: 'Runs the platform — approvals, War Room, ops.' },
+  ],
+  flow: [
+    { n: 1, stage: 'Discover', persona: 'Prospect', detail: 'Marketing site + /newdesign, app preview behind the paywall, Nora AI answers + recommends coaches.' },
+    { n: 2, stage: 'Join (gate)', persona: 'Prospect → Member', detail: 'Members-only wall → $5/mo platform checkout (Stripe). Coaches & admins bypass by role.' },
+    { n: 3, stage: 'Onboard', persona: 'Member', detail: 'First-run tour, set goals, edit profile (Terrain), connect integrations (Whoop/Garmin/Strava/Apple Health/Spotify).' },
+    { n: 4, stage: 'Find a coach', persona: 'Member', detail: 'Marketplace → subscribe to a trainer and/or nutritionist; coach sets their own rate and is paid directly.' },
+    { n: 5, stage: 'Daily loop', persona: 'Member', detail: 'Train (assigned workouts), Eat (meal plan → grocery list), Habits + Goals. Logging earns points.' },
+    { n: 6, stage: 'Shape Score', persona: 'Member', detail: 'Consistency rolls up into a tier ladder — the mirror of the work. Coaches climb a parallel coach ladder.' },
+    { n: 7, stage: 'Community', persona: 'Member + Coach', detail: 'Feed (posts/photos/tags), channels, DMs, follow graph (+requests on private), public profiles, Shape Radio.' },
+    { n: 8, stage: 'Rewards', persona: 'Member', detail: 'Shape Store — browse open to all, redeem points (members-only). Points are the platform currency.' },
+    { n: 9, stage: 'Retain', persona: 'All', detail: 'Every in-app notification fans out to a phone push when the app is closed; presence + streaks pull people back.' },
+    { n: 10, stage: 'Coach side (parallel)', persona: 'Trainer / Nutritionist', detail: 'Apply → approved → roster → build/adjust programs & plans → message clients & co-coaches (Care Team) → payouts.' },
+  ],
+  layers: [
+    { layer: 'Surfaces', serves: 'Everyone', purpose: 'Where Shape is used.', pieces: ['Mobile broadsheet (/m, Capacitor)', 'Website (marketing + /newdesign)', 'Coach apps (trainer + nutritionist shells)', 'Web dashboard'] },
+    { layer: 'The Loop (member value)', serves: 'Member', purpose: 'The daily reason to open the app.', pieces: ['Train', 'Eat', 'Habits', 'Goals', 'Shape Score', 'Progress hub', 'Library', 'Store'] },
+    { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'] },
+    { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'] },
+    { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'] },
+    { layer: 'Data & infra', serves: 'System', purpose: 'Source of truth + enforcement.', pieces: ['Supabase (Auth, Postgres, RLS, SECURITY DEFINER RPCs, Storage)', 'Next.js API routes', 'Edge proxy membership gate', 'War Room'] },
+  ],
+  matrix: [
+    { area: 'Train', member: 'Follows assigned workouts, swaps moves, logs sessions', trainer: 'Programs & adjusts the week; reviews logs', nutritionist: '—' },
+    { area: 'Eat', member: 'Meal plan → grocery list, swaps + logs meals', trainer: '—', nutritionist: 'Builds plans, grocery lists, macro targets' },
+    { area: 'Shape Score', member: 'Earns a tier from the loop', trainer: 'Coach ladder (Certified→Icon)', nutritionist: 'Coach ladder (Certified→Icon)' },
+    { area: 'Coaching', member: 'Hires, messages, buys plans', trainer: 'Sells programs, sets rate, paid directly', nutritionist: 'Sells plans, sets rate, paid directly' },
+    { area: 'Community', member: 'Posts, follows, channels, DMs', trainer: 'Posts + client/co-coach chat', nutritionist: 'Posts + client/co-coach chat' },
+    { area: 'Billing', member: '$5/mo platform membership', trainer: 'Coach sub + payouts', nutritionist: 'Coach sub + payouts' },
+    { area: 'Profile', member: 'Terrain (member identity page)', trainer: 'Signal (coach instrument page)', nutritionist: 'Signal (coach instrument page)' },
+  ],
 };
 
 // ── Full API surface ────────────────────────────────────────────────────────
@@ -649,5 +708,6 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
     apiRoutes,
     checklist,
     readiness: { score, total, label },
+    architecture: SHAPE_ARCHITECTURE,
   };
 }

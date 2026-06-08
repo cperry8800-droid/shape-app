@@ -55,6 +55,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — War Room: "Architecture & flow" map (how Shape works / who it serves)
+- New top panel on `/warroom` summarizing the whole product so direction stays organized:
+  **personas** (prospect / member / trainer / nutritionist / admin), the **10-step member
+  journey** (Discover → Join → Onboard → Find a coach → Daily loop → Shape Score →
+  Community → Rewards → Retain, + the parallel coach side), the **6 layers of the stack**
+  (Surfaces · The Loop · Coach tools · Social graph · Platform services · Data & infra,
+  each with who-it-serves + the pieces), and an **Area × persona matrix** (Train / Eat /
+  Score / Coaching / Community / Billing / Profile). Curated static data in
+  `SHAPE_ARCHITECTURE` (`src/lib/warroom.ts`) — edit it as the product evolves.
+
 ### 2026-06-08 — System push: register device tokens at sign-in (close the wiring gap)
 - The push pipeline already existed end-to-end — `push_tokens` table, `/api/push/register`,
   `/api/push/dispatch` (Supabase **Database Webhook** on `notifications` INSERT →

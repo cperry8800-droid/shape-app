@@ -179,6 +179,74 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>
 
+          {/* Architecture & flow — the "how Shape works" map */}
+          <Panel title="Shape — architecture & flow" hint="how it works · who it serves" wide>
+            <div style={{ fontSize: 13.5, color: C.dim, lineHeight: 1.6, marginBottom: 18 }}>{snap.architecture.summary}</div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 10 }}>Who it serves</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginBottom: 22 }}>
+              {snap.architecture.personas.map((p) => (
+                <div key={p.key} style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px' }}>
+                  <b style={{ fontSize: 13 }}>{p.label}</b>
+                  <div style={{ fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{p.tagline}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 8 }}>The flow · member journey</div>
+            <div style={{ marginBottom: 22 }}>
+              {snap.architecture.flow.map((s) => (
+                <div key={s.n} style={{ display: 'grid', gridTemplateColumns: '26px 132px 1fr', gap: 12, alignItems: 'baseline', padding: '9px 0', borderTop: s.n > 1 ? `1px solid ${C.border}` : 0 }}>
+                  <span style={{ fontFamily: 'monospace', color: C.accent, fontWeight: 800, fontSize: 12 }}>{String(s.n).padStart(2, '0')}</span>
+                  <div>
+                    <b style={{ fontSize: 13 }}>{s.stage}</b>
+                    <div style={{ fontSize: 10, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{s.persona}</div>
+                  </div>
+                  <span style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5 }}>{s.detail}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 10 }}>The stack · layers</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, marginBottom: 22 }}>
+              {snap.architecture.layers.map((l) => (
+                <div key={l.layer} style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                    <b style={{ fontSize: 13 }}>{l.layer}</b>
+                    <span style={{ fontSize: 9.5, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{l.serves}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>{l.purpose}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 9 }}>
+                    {l.pieces.map((pc) => <span key={pc} style={{ fontSize: 11, color: C.text, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 999, padding: '3px 8px' }}>{pc}</span>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 10 }}>Area × persona</div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12.5, minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    {['Area', 'Member', 'Trainer', 'Nutritionist'].map((h) => (
+                      <th key={h} style={{ textAlign: 'left', padding: '8px 10px', color: C.dim, borderBottom: `1px solid ${C.border}`, fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {snap.architecture.matrix.map((r) => (
+                    <tr key={r.area}>
+                      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, color: C.text, fontWeight: 700, whiteSpace: 'nowrap', verticalAlign: 'top' }}>{r.area}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, color: C.dim, verticalAlign: 'top', lineHeight: 1.4 }}>{r.member}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, color: C.dim, verticalAlign: 'top', lineHeight: 1.4 }}>{r.trainer}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${C.border}`, color: C.dim, verticalAlign: 'top', lineHeight: 1.4 }}>{r.nutritionist}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+
           {/* Config & secrets */}
           <Panel title="Config & secrets" hint="wired? (values never shown)" wide>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
