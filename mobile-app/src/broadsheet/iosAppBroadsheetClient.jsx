@@ -7482,50 +7482,50 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const showRoute = a.kind === 'run';
     const openCardProfile = () => setOpenProfile({ who: a.who, kind: 'CLIENT', tier: a.tier, init: bsInitials(a.who), city: a.city, public: true, photo: bsDemoFace(a.who) });
     return (
-      <div style={{ borderRadius: 18, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
-        <div style={{ height: 3, background: tc }} />
-        <div style={{ padding: '13px 15px 15px' }}>
+      <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
+        <div style={{ height: 2, background: tc }} />
+        <div style={{ padding: '10px 13px 11px' }}>
           {/* author + activity type */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
-            <BSFacetAvatar size={42} c={tc} initial={bsInitials(a.who) || '?'} photo={bsDemoFace(a.who)} showRank={false} onClick={openCardProfile} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who) || '?'} photo={bsDemoFace(a.who)} showRank={false} onClick={openCardProfile} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '2px 5px', borderRadius: 3, lineHeight: 1 }}>{String(a.tier)}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{String(a.tier)}</span>
               </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 4, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
             </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 5 }}>{typeLabel}</span>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
           </div>
           {/* title + note */}
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.12 }}>{title}</div>
-          {a.body && <p style={{ fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.4, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
+          {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '4px 0 0' }}>{a.body}</p>}
           {/* GPS route map (runs) — halftone dot grid in the member's tier color */}
           {showRoute && (
-            <div style={{ position: 'relative', marginTop: 12, height: 104, borderRadius: 12, overflow: 'hidden', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
-              <span style={{ position: 'absolute', left: 10, bottom: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '3px 6px', borderRadius: 3 }}>GPS route</span>
+            <div style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
+              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
             </div>
           )}
           {/* stat row */}
-          <div style={{ display: 'flex', marginTop: 13, paddingTop: 12, borderTop: `1px solid ${hair}` }}>
+          <div style={{ display: 'flex', marginTop: 10, paddingTop: 9, borderTop: `1px solid ${hair}` }}>
             {stats.map(([k, v], i) => (
-              <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${hair}` : 0, paddingLeft: i ? 12 : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{k}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: cardInk, marginTop: 3, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+              <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${hair}` : 0, paddingLeft: i ? 11 : 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{k}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: cardInk, marginTop: 2, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
               </div>
             ))}
           </div>
           {/* verified + engagement */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 13 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 'auto', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEALB, fontWeight: 800 }}>
-              <span style={{ display: 'inline-flex', width: 12, height: 12, borderRadius: 6, border: `1px solid ${TEALB}`, alignItems: 'center', justifyContent: 'center', fontSize: 7 }}>✓</span>Verified
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 'auto', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEALB, fontWeight: 800 }}>
+              <span style={{ display: 'inline-flex', width: 11, height: 11, borderRadius: 6, border: `1px solid ${TEALB}`, alignItems: 'center', justifyContent: 'center', fontSize: 6.5 }}>✓</span>Verified
             </span>
-            <button onClick={() => toggleActLike(key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', borderRadius: 999, padding: '7px 13px', background: liked ? tc : 'transparent', color: liked ? '#fff' : muted, border: `1px solid ${liked ? tc : hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↑ {cheer} · {(a.kudos || 0) + (liked ? 1 : 0)}</button>
-            <button onClick={() => openActComments(key, cmtOpen)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', borderRadius: 999, padding: '7px 12px', background: cmtOpen ? `${TEALB}1f` : 'transparent', color: cmtOpen ? TEALB : muted, border: `1px solid ${cmtOpen ? TEALB : hair}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↳ {(a.replies || 0) + comments.length}</button>
+            <button onClick={() => toggleActLike(key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 11px', background: liked ? tc : 'transparent', color: liked ? '#fff' : muted, border: `1px solid ${liked ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↑ {cheer} · {(a.kudos || 0) + (liked ? 1 : 0)}</button>
+            <button onClick={() => openActComments(key, cmtOpen)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 10px', background: cmtOpen ? `${TEALB}1f` : 'transparent', color: cmtOpen ? TEALB : muted, border: `1px solid ${cmtOpen ? TEALB : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↳ {(a.replies || 0) + comments.length}</button>
           </div>
           {/* comments */}
           {cmtOpen && (
-            <div style={{ marginTop: 12, borderTop: `1px solid ${hair}`, paddingTop: 12 }}>
+            <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
               {comments.map((c, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
