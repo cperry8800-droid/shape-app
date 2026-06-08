@@ -6477,6 +6477,44 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     return () => { alive = false; };
   }, [isSelf]);
   const pickClimb = (k) => { setClimbSource(k); try { window.shapeDb?.saveUserGoals?.('client_climb', { source: k }); } catch (e) {} };
+  // Field notes / log — wired to your real logged activities on your own profile.
+  const [realFeed, setRealFeed] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeActivities?.list) return;
+    let alive = true;
+    const ago = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso); if (isNaN(d)) return '';
+      const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+      if (m < 60) return `${m || 1}m`;
+      const h = Math.round(m / 60); if (h < 24) return `${h}h`;
+      const days = Math.round(h / 24); if (days < 7) return `${days}d`;
+      const w = Math.round(days / 7); return w < 5 ? `${w}w` : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    };
+    const cap = (s) => String(s || 'Workout').replace(/[_-]+/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
+    (async () => {
+      let d = null;
+      try { d = await window.ShapeActivities.list(); } catch (e) {}
+      if (!alive) return;
+      const acts = (d && Array.isArray(d.activities)) ? d.activities : [];
+      const mapped = acts.slice(0, 6).map((a) => {
+        const type = cap(a.activity_type);
+        const km = Number(a.distance_km), min = Number(a.duration_min), kcal = Number(a.calories);
+        const bits = [];
+        if (Number.isFinite(km) && km > 0) bits.push(`${Math.round(km * 10) / 10} km`);
+        if (Number.isFinite(min) && min > 0) bits.push(`${min} min`);
+        if (Number.isFinite(kcal) && kcal > 0) bits.push(`${Math.round(kcal)} kcal`);
+        let metric = null;
+        if (Number.isFinite(km) && km > 0 && Number.isFinite(min) && min > 0) metric = [`${Math.round(km * 10) / 10}K`, `${min} min`];
+        else if (Number.isFinite(min) && min > 0) metric = ['Time', `${min} min`];
+        else if (Number.isFinite(kcal) && kcal > 0) metric = ['Burn', `${Math.round(kcal)} kcal`];
+        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, time: ago(a.started_at), hot: false };
+      });
+      if (mapped.length) setRealFeed(mapped);
+    })();
+    return () => { alive = false; };
+  }, [isSelf]);
+  const feedEff = (isSelf && realFeed && realFeed.length) ? realFeed : feed;
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
     const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
@@ -6664,7 +6702,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <Kick>Field notes · log</Kick>
               <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
                 <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
-                {feed.map((it, i) => (
+                {feedEff.map((it, i) => (
                   <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
                     <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
                     <div style={{ ...card, padding: '13px 15px' }}>
@@ -13904,7 +13942,6 @@ function BSAboutPage({ onBack }) {
         eyebrow="Shape"
         kicker="About"
         title={<>A place<br/>for helping <span style={{ color: teal }}>shape</span> a lifestyle.</>}
-        trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />}
       />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontStyle: 'italic', fontWeight: 500, lineHeight: 1.45, color: t.INK }}>
