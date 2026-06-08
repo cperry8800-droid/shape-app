@@ -3286,7 +3286,7 @@ async function getPublicProfile(userId) {
   if (error) return null;
   const r = Array.isArray(data) ? data[0] : data;
   if (!r) return null;
-  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '', avatar: r.avatar || null };
+  return { userId: r.user_id, name: r.full_name, role: r.role, points: Number(r.points) || 0, bio: r.bio || '', pronouns: r.pronouns || '', goal: r.goal || '', link: r.link || '', avatar: r.avatar || null, visibility: r.visibility, custom: r.custom || null };
 }
 async function getUserPoints(ids) {
   const list = (ids || []).filter(Boolean);

@@ -6641,6 +6641,153 @@ function BSTerrainRidge({ c, teal, ink, arc }) {
   );
 }
 
+// ── Profile customization (song · prompts · links · bio) ──────────────────────
+// Stored in user_goals('profile_custom'); surfaced to others via get_public_profile
+// (`custom`). Music is a Spotify embed (reuses the existing integration model).
+function bsSpotifyEmbed(url) {
+  if (!url) return null;
+  const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/.exec(String(url));
+  return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
+}
+const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
+const BS_PROFILE_LINKS = [
+  { key: 'instagram', label: 'Instagram', pre: 'instagram.com/' },
+  { key: 'tiktok', label: 'TikTok', pre: 'tiktok.com/@' },
+  { key: 'youtube', label: 'YouTube', pre: 'youtube.com/@' },
+  { key: 'website', label: 'Website', pre: '' },
+];
+function bsLinkHref(key, val) {
+  const v = String(val || '').trim(); if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  const def = BS_PROFILE_LINKS.find((l) => l.key === key);
+  const pre = def ? def.pre : '';
+  return 'https://' + (pre ? pre + v.replace(/^@/, '') : v);
+}
+// Render block — the song, prompts, and social links a member added.
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const cu = custom || {};
+  const embed = bsSpotifyEmbed(cu.song && cu.song.url);
+  const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
+  const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
+  const empty = !embed && !prompts.length && !links.length;
+  if (empty && !isSelf) return null;
+  const Kick = ({ children }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
+  return (
+    <div style={{ marginBottom: 26 }}>
+      {isSelf && (
+        <button onClick={onCustomize} style={{ width: '100%', marginBottom: empty ? 0 : 16, padding: '11px 14px', borderRadius: 13, border: `1px dashed ${bsTHexA(c, 0.5)}`, background: bsTHexA(c, 0.06), color: c, cursor: 'pointer', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>✎ Customize profile</button>
+      )}
+      {embed && (
+        <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
+          <Kick>{(cu.song && cu.song.label) ? cu.song.label : 'Profile song'}</Kick>
+          <div style={{ marginTop: 10, borderRadius: 14, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+            <iframe title="Profile song" src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} />
+          </div>
+        </div>
+      )}
+      {prompts.length > 0 && (
+        <div style={{ marginBottom: links.length ? 18 : 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {prompts.map((p, i) => (
+            <div key={i} style={{ background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14, padding: '13px 15px' }}>
+              <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{p.q}</div>
+              <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6 }}>{p.a}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {links.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {links.map(([l, v]) => { const href = bsLinkHref(l.key, v); return (
+            <a key={l.key} href={href} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, border: `1px solid ${bsTHexA(c, 0.4)}`, background: bsTHexA(c, 0.08), color: c, fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l.label} ↗</a>
+          ); })}
+        </div>
+      )}
+    </div>
+  );
+}
+// Editor bottom sheet — bio override, profile song, prompts, social links.
+function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const init = initial || {};
+  const [bio, setBio] = useStateBSC(init.bio || '');
+  const [songUrl, setSongUrl] = useStateBSC((init.song && init.song.url) || '');
+  const [songLabel, setSongLabel] = useStateBSC((init.song && init.song.label) || '');
+  const [links, setLinks] = useStateBSC({ ...(init.links || {}) });
+  const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: BS_PROFILE_PROMPTS[0], a: '' }]);
+  const [busy, setBusy] = useStateBSC(false);
+  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, background: bsTHexA(INK, 0.03), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
+  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 7, display: 'block' };
+  const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
+  const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: BS_PROFILE_PROMPTS[prev.length % BS_PROFILE_PROMPTS.length], a: '' }]);
+  const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
+  const embedPreview = bsSpotifyEmbed(songUrl);
+  const save = async () => {
+    setBusy(true);
+    const doc = {
+      ...init,
+      bio: bio.trim(),
+      song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
+      links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)),
+      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
+    };
+    try { await window.shapeDb?.saveUserGoals?.('profile_custom', doc); } catch (e) {}
+    setBusy(false);
+    onSave(doc);
+  };
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 220, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px 18px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '88%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div><div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>Your profile</div><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em', marginTop: 3 }}>Customize.</div></div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 20, cursor: 'pointer', padding: 4 }}>×</button>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Bio</span>
+          <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: 'vertical', minHeight: 64 }} />
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Profile song · Spotify link</span>
+          <input value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" style={field} />
+          <input value={songLabel} onChange={(e) => setSongLabel(e.target.value)} placeholder="Label (optional) — e.g. Lift anthem" style={{ ...field, marginTop: 8 }} />
+          {songUrl.trim() && !embedPreview && <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, color: '#c0533b', letterSpacing: '0.04em' }}>Paste a Spotify track or playlist link (open.spotify.com/…).</div>}
+          {embedPreview && <div style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.1)}` }}><iframe title="Song preview" src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} /></div>}
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Prompts</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {prompts.map((p, i) => (
+              <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 12, padding: 11 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <select value={p.q} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '8px 10px', fontSize: 12.5, flex: 1 }}>
+                    {BS_PROFILE_PROMPTS.map((q) => <option key={q} value={q}>{q}</option>)}
+                  </select>
+                  <button onClick={() => removePrompt(i)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 30, height: 30, cursor: 'pointer', flexShrink: 0 }}>×</button>
+                </div>
+                <input value={p.a} onChange={(e) => setPrompt(i, 'a', e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
+              </div>
+            ))}
+          </div>
+          {prompts.length < 4 && <button onClick={addPrompt} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add prompt</button>}
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          <span style={label}>Social links</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {BS_PROFILE_LINKS.map((l) => (
+              <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: '0 0 76px', fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{l.label}</span>
+                <input value={links[l.key] || ''} onChange={(e) => setLinks((prev) => ({ ...prev, [l.key]: e.target.value }))} placeholder={l.pre ? l.pre + 'you' : 'yoursite.com'} style={{ ...field, flex: 1 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? 'Saving…' : 'Save profile'}</button>
+      </div>
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+  );
+}
+
 // Shared segmented tab bar for the living-identity profiles (Terrain + Signal).
 // Sticky under the hero; the accent follows the profile's tier color. Personal
 // activities is always the first tab so a profile opens on what someone's doing.
@@ -6664,8 +6811,14 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
+  const [custom, setCustom] = useStateBSC(null);
+  const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  // Profile customization (song/prompts/links/bio): self loads its own doc;
+  // others read it from the public-profile RPC (`custom`).
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const tierKey = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
@@ -6677,7 +6830,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const pronouns = (!isPrivate && live && live.pronouns) || '';
   const score = points != null ? points : 1284;
   const goal = (!isPrivate && ((live && live.goal) || person.goal)) || null;
-  const bio = (!isPrivate && ((live && live.bio) || person.bio)) || null;
+  const bio = (!isPrivate && ((custom && custom.bio) || (live && live.bio) || person.bio)) || null;
   const tierName = String(tierKey).charAt(0).toUpperCase() + String(tierKey).slice(1);
   const seed = (() => { let n = 0; const s = String(name); for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 99991; return n + 7; })();
   // Illustrative living-identity data (wire to real logs later).
@@ -7124,6 +7277,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
             {tab === 'activity' && (
             <div>
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Kick>Personal activities</Kick>
                 {isSelf && (
@@ -7155,6 +7309,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </>
         )}
       </div>
+
+      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
 
       {/* dock — always-available Message / Edit (+ privacy on your own) */}
       <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
@@ -7227,8 +7383,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     window.ShapeCoachPlans.salePlansByUser(person.userId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
     return () => { on = false; };
   }, [person.userId]);
+  const [custom, setCustom] = useStateBSC(null);
+  const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
+  React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
   const isNutri = person.kind === 'NUTRI';
   const points = live && Number.isFinite(live.points) ? live.points : null;
@@ -7450,6 +7610,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
+            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} />
             <Kick>Personal activities</Kick>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
@@ -7469,6 +7630,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </>
         )}
       </div>
+
+      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
 
       {/* dock (+ privacy on your own) */}
       <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
