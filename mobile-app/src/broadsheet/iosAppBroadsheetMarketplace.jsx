@@ -502,23 +502,21 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
         ))}
       </div>
 
-      {/* Category sub-filters — role-specific, matching the website marketplace */}
+      {/* Category sub-filters — role-specific dropdowns (compact) */}
       {catList && (() => {
-        const catPill = (on) => ({ flex: 'none', padding: '7px 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
-          border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
-          color: on ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' });
         const sel = { flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, outline: 'none' };
         return (
-        <div style={{ padding: `0 ${t.padX}px 16px`, display: 'flex', flexDirection: 'column', gap: 9, minWidth: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {catList.map((ct) => <button key={ct} onClick={() => setCat(ct)} style={catPill(cat === ct)}>{ct === 'All Categories' ? 'All' : ct}</button>)}
+        <div style={{ padding: `0 ${t.padX}px 16px`, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={cat} onChange={(e) => setCat(e.target.value)} style={sel}>
+              {catList.map((ct) => <option key={ct} value={ct}>{ct === 'All Categories' ? 'All categories' : ct}</option>)}
+            </select>
+            {pill === 'Trainers' && (
+              <select value={format} onChange={(e) => setFormat(e.target.value)} style={sel}>
+                {BSM_MARKETPLACE_FORMATS.map((f) => <option key={f} value={f}>{f === 'All formats' ? 'All formats' : f}</option>)}
+              </select>
+            )}
           </div>
-          {pill === 'Trainers' && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-              <span style={{ flex: 'none', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginRight: 2 }}>Format</span>
-              {BSM_MARKETPLACE_FORMATS.map((f) => <button key={f} onClick={() => setFormat(f)} style={catPill(format === f)}>{f === 'All formats' ? 'All' : f}</button>)}
-            </div>
-          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <select value={loc} onChange={(e) => setLoc(e.target.value)} style={sel}>
               {(locList || ['Anywhere']).map((l) => <option key={l} value={l}>{l}</option>)}
