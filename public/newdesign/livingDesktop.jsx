@@ -165,7 +165,7 @@ function TerrainVisual({ d }) {
       </div>
       {/* current level (base) + next level (by the flag, top-right) */}
       <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{startLabel} · now</div>
-      <div style={{ position: "absolute", right: 16, top: 56, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "right", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }}>{lvl.next || lvl.cur}</div>
+      <div style={{ position: "absolute", left: `${(peak[0] / W) * 100}%`, transform: "translateX(-50%)", top: 56, fontFamily: dMono, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: lvl.nextColor, textAlign: "center", whiteSpace: "nowrap", background: dHexA(LV_BG, 0.72), padding: "4px 10px", borderRadius: 5 }}>{lvl.next || lvl.cur}</div>
     </div>
   );
 }

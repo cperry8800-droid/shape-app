@@ -7250,7 +7250,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
             <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
-            <div style={{ position: 'absolute', right: 12, top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'right', background: bsTHexA('#0c1110', 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
+            <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA('#0c1110', 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
@@ -7303,11 +7303,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since}</span>
               </div>
               {climbTabs.length > 1 && (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
-                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{s.label}</button>
+                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{s.label}</button>
                   ); })}
-                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" style={{ marginLeft: 'auto', padding: '5px 9px', borderRadius: 999, border: `1px solid ${climbCustomizing ? TEAL : bsTHexA(INK, 0.18)}`, background: climbCustomizing ? bsTHexA(TEAL, 0.14) : 'transparent', color: climbCustomizing ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>⚙ Customize</button>}
+                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" title="Customize climb" style={{ flex: 'none', width: 28, height: 27, borderRadius: 999, border: `1px solid ${climbCustomizing ? TEAL : bsTHexA(INK, 0.18)}`, background: climbCustomizing ? bsTHexA(TEAL, 0.14) : 'transparent', color: climbCustomizing ? TEAL : bsTHexA(INK, 0.6), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </button>}
                 </div>
               )}
               {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (
