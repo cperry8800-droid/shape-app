@@ -219,6 +219,16 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 9 }}>
                     {l.pieces.map((pc) => <span key={pc} style={{ fontSize: 11, color: C.text, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 999, padding: '3px 8px' }}>{pc}</span>)}
                   </div>
+                  {l.gaps && l.gaps.length > 0 && (
+                    <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${C.border}` }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.warn, marginBottom: 5 }}>Still to do</div>
+                      {l.gaps.map((g) => (
+                        <div key={g} style={{ display: 'flex', gap: 6, fontSize: 11.5, color: C.dim, lineHeight: 1.4, marginBottom: 3 }}>
+                          <span style={{ color: C.warn, flexShrink: 0 }}>▸</span><span>{g}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -459,6 +469,9 @@ function ArchDiagram({ arch }: { arch: WarRoomSnapshot['architecture'] }) {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, flex: 1 }}>
                 {l.pieces.map((pc) => <span key={pc} style={{ fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 999, padding: '2px 7px' }}>{pc}</span>)}
               </div>
+              {l.gaps && l.gaps.length > 0 && (
+                <span title={l.gaps.join(' · ')} style={{ fontSize: 9.5, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{l.gaps.length} to do</span>
+              )}
             </div>
             {i < arch.layers.length - 1 && <div style={{ textAlign: 'center', color: C.dim, fontSize: 15, lineHeight: '20px' }}>↓</div>}
           </div>
