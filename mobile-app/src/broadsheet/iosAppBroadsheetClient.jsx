@@ -7504,7 +7504,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.');
   const disLabel = isNutri ? 'Practice focus' : 'Coaching focus';
   const disciplines = isNutri ? [['Performance', 0.9], ['Gut health', 0.82], ['Iron & ferritin', 0.86], ['Recovery', 0.8]] : [['Strength', 0.95], ['Hypertrophy', 0.88], ['Powerlifting', 0.8], ['Form audit', 0.92]];
-  const lifts = isNutri ? [['Clients', '200+'], ['Rating', '4.95'], ['Years', '7']] : [['Clients', '90+'], ['Rating', '4.97'], ['Years', '9']];
+  const lifts = isNutri ? [['Clients', '200+'], ['Rating', '9.9'], ['Years', '7']] : [['Clients', '90+'], ['Rating', '9.94'], ['Years', '9']];
   const week = [88, 60, 92, 70, 95, 50, 80];
   const certs = isNutri
     ? [['RD', 'Registered Dietitian', '2018'], ['CSSD', 'Sports Dietetics Specialist', '2020'], ['FODMAP', 'Monash FODMAP-trained', '2022']]
@@ -7556,7 +7556,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const offerings = realOfferings.length ? realOfferings : demoOfferings;
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
   const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
-  const rating = isNutri ? '4.95' : '4.97', reviewCount = isNutri ? 198 : 284;
+  const rating = isNutri ? '9.9' : '9.94', reviewCount = isNutri ? 198 : 284;
   const reviews = isNutri
     ? [['Sofia M.', 'SM', 300, 'She found my low ferritin before any doctor did. I train 50% more volume now.'], ['Diego R.', 'DR', 200, 'Learned what fueling a lifting block actually looks like. Clearest plans I’ve seen.']]
     : [['Priya S.', 'PS', 168, '+60 lb on my deadlift in 14 weeks without a single bad-back day.'], ['Marcus L.', 'ML', 220, 'World-class programming. She books up fast — plan ahead, it’s worth it.']];
@@ -7614,7 +7614,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
           <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating} · {reviewCount} reviews</div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · {reviewCount} reviews</div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
         </div>
 
         {isPrivate ? (
@@ -7696,7 +7696,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
           {/* reviews */}
           <div style={{ marginTop: 28 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>★ {reviewCount}</span></div></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {reviewCount}</span></div></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               {reviews.map(([nm, ini, hue, body], i) => (
                 <div key={i} style={{ ...card, padding: '13px 15px' }}>

@@ -163,7 +163,7 @@ function Spotlight({ tab }) {
                 <div style={{ display: "flex", gap: 16, marginTop: "auto", paddingTop: 18, borderTop: "1px solid rgba(26,22,18,0.1)", alignItems: "center" }}>
                   <div>
                     <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.025em", color: PAPER, lineHeight: 1 }}>${s.lead.rate}<span style={{ fontSize: 11, color: "rgba(26,22,18,0.55)", fontFamily: sans, marginLeft: 4 }}>/session</span></div>
-                    <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(26,22,18,0.55)", marginTop: 4 }}>★ {s.lead.rating.toFixed(2)} · {s.lead.sessions.toLocaleString()} sessions</div>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: "rgba(26,22,18,0.55)", marginTop: 4 }}>★ {(s.lead.rating * 2).toFixed(1)}/10 · {s.lead.sessions.toLocaleString()} sessions</div>
                   </div>
                   <span style={{ marginLeft: "auto", padding: "11px 18px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 12.5, fontWeight: 600 }}>View profile →</span>
                 </div>
@@ -183,7 +183,7 @@ function Spotlight({ tab }) {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontFamily: serif, fontSize: 20, color: INK, letterSpacing: "-0.01em", lineHeight: 1 }}>${p.rate}</div>
-                    <div style={{ fontFamily: mono, fontSize: 10, color: TEAL, marginTop: 4 }}>★ {p.rating.toFixed(2)}</div>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: TEAL, marginTop: 4 }}>★ {(p.rating * 2).toFixed(1)}/10</div>
                   </div>
                 </a>
               ))}
@@ -283,7 +283,7 @@ function CoachCard({ c }) {
       <div style={{ position: "relative" }}>
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
-        <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>★ {c.rating.toFixed(2)}</span>
+        <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>★ {(c.rating * 2).toFixed(1)}/10</span>
         {c.isLeadBoosted && (
           <span style={{ position: "absolute", left: 10, bottom: 10, fontFamily: mono, fontSize: 9, padding: "4px 8px", background: "rgba(10,197,168,0.95)", color: PAPER, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>
             Lead Boost · {c.boostDays}d

@@ -131,7 +131,7 @@ function TeamRoster() {
                   <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 12 }}>Up next</div>
                   <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK, lineHeight: 1.2 }}>{m.next}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-                    {[[m.sessions, "sessions"], [`${m.completion}%`, "kept"], [m.rating, "rating"]].map(([v, l], j) => (
+                    {[[m.sessions, "sessions"], [`${m.completion}%`, "kept"], [`${(m.rating * 2).toFixed(1)}/10`, "rating"]].map(([v, l], j) => (
                       <div key={j}>
                         <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{v}</div>
                         <div style={{ fontFamily: sans, fontSize: 10.5, color: "rgba(242,237,228,0.5)", marginTop: 4 }}>{l}</div>

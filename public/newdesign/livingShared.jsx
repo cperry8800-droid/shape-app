@@ -69,14 +69,14 @@ const LV_PEOPLE = {
     goal: "Get strong, stay strong.", goalShort: "STRENGTH, MADE SIMPLE", goalKicker: "Coaching philosophy",
     disciplines: [["Strength", 0.95], ["Hypertrophy", 0.88], ["Powerlifting", 0.8], ["Form audit", 0.92]],
     discLabel: "Coaching focus",
-    lifts: [["Clients", "90+"], ["Rating", "4.97"], ["Years", "9"]],
+    lifts: [["Clients", "90+"], ["Rating", "9.94"], ["Years", "9"]],
     liftsLabel: "Track record",
     arc: [["2016", "First client", "start"], ["NOW", "90+ coached", "now"], ["NEXT", "Strength cohort", "target"]],
     arcLabel: "The practice",
     relation: { kicker: "Recent win", name: "Jonah W.", initials: "JW", hue: 200, note: "Pulled 2× bodyweight after 8 months — never touched a barbell before me." },
     pronouns: "she/her", link: ["Site", "mayaokafor.co"], since: "2016", sinceLabel: "Coaching since",
     portrait: "1438761681033-6461ffad8d80",
-    rating: "4.97", reviewCount: 284, responds: "within 2 hours",
+    rating: "9.94", reviewCount: 284, responds: "within 2 hours",
     certs: [
       { abbr: "NASM-CPT", body: "Certified Personal Trainer", year: "2016", verified: true },
       { abbr: "USAW-L1", body: "USA Weightlifting", year: "2020", verified: true },
@@ -114,14 +114,14 @@ const LV_PEOPLE = {
     goal: "Fuel the work you’re doing.", goalShort: "FOOD IS FUEL", goalKicker: "Practice philosophy",
     disciplines: [["Performance", 0.9], ["Gut health", 0.82], ["Iron & ferritin", 0.86], ["Recovery", 0.8]],
     discLabel: "Practice focus",
-    lifts: [["Clients", "200+"], ["Rating", "4.95"], ["Years", "7"]],
+    lifts: [["Clients", "200+"], ["Rating", "9.9"], ["Years", "7"]],
     liftsLabel: "Track record",
     arc: [["2018", "Registered", "start"], ["NOW", "200+ fueled", "now"], ["NEXT", "Endurance panel", "target"]],
     arcLabel: "The practice",
     relation: { kicker: "Recent win", name: "Sofia M.", initials: "SM", hue: 300, note: "Found her low ferritin before any doctor did — training volume up 50%." },
     pronouns: "she/her", link: ["Substack", "fuel-notes.rae"], since: "2018", sinceLabel: "Practicing since",
     portrait: "1494790108377-be9c29b29330",
-    rating: "4.95", reviewCount: 198, responds: "within 3 hours",
+    rating: "9.9", reviewCount: 198, responds: "within 3 hours",
     certs: [
       { abbr: "RD", body: "Registered Dietitian", year: "2018", verified: true },
       { abbr: "CSSD", body: "Sports Dietetics Specialist", year: "2020", verified: true },
@@ -433,7 +433,7 @@ function LvServices({ d, light, ink, c, owner }) {
     <div style={{ marginTop: 30 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
         <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>{d.offerLabel}</div>
-        <div style={{ fontFamily: lvMono, fontSize: 10, color: c }}>★ {d.rating} · {d.reviewCount}</div>
+        <div style={{ fontFamily: lvMono, fontSize: 10, color: c }}>★ {d.rating}/10 · {d.reviewCount}</div>
       </div>
       {/* filing tabs */}
       <div className="lv-tabrow" style={{ display: "flex", gap: 4, alignItems: "flex-end", paddingLeft: 2, position: "relative", zIndex: 2, overflowX: "auto", scrollbarWidth: "none" }}>
@@ -567,7 +567,7 @@ function LvCoachBlocks({ d, light, owner }) {
           <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>Reviews</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
             <span style={{ fontFamily: lvSerif, fontSize: 22, letterSpacing: "-0.02em", color: ink }}>{d.rating}</span>
-            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>★ {d.reviewCount} reviews</span>
+            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {d.reviewCount} reviews</span>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

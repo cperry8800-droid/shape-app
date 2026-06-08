@@ -945,7 +945,7 @@ function ThemedHero({ p, kind, theme, onUploadCover }) {
             </div>
             <div style={{ background: "var(--p-widget-bg)", border: "1px solid var(--p-widget-border)", borderRadius: 12, padding: 24, marginTop: 120, backdropFilter: "blur(8px)" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                <div className="themed-serif" style={{ fontSize: 56, color: "var(--p-ink)", letterSpacing: "-0.03em", lineHeight: 1 }}>{p.rating}</div>
+                <div className="themed-serif" style={{ fontSize: 56, color: "var(--p-ink)", letterSpacing: "-0.03em", lineHeight: 1 }}>{(p.rating * 2).toFixed(2)}<span style={{ fontSize: 22, color: "color-mix(in srgb, var(--p-ink) 45%, transparent)" }}>/10</span></div>
                 <div style={{ fontFamily: "var(--p-sans)", fontSize: 13, color: "color-mix(in srgb, var(--p-ink) 55%, transparent)" }}>★ {p.reviews} reviews</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--p-widget-border)" }}>

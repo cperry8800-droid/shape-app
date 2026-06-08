@@ -341,7 +341,7 @@ function MktCoachCard({ c, onOpen }) {
       </div>
       <div style={{ marginTop: 8 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>★ {c.rating} · ${c.rate}/mo</div>
+        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</div>
       </div>
     </button>
   );
@@ -360,7 +360,7 @@ function MktRow({ c, onOpen }) {
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1 }}>${c.rate}</div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>/mo</div>
-        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70 }}>★ {c.rating}</div>
+        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70 }}>★ {formatCoachRating10(c)}</div>
       </div>
     </button>
   );
