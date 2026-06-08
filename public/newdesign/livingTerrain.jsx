@@ -51,9 +51,12 @@ function TerrainContours({ d, w = 360, h = 300, reduced }) {
 function TerrainRidge({ d }) {
   const c = tierOf(d).color;
   const W = 320, H = 132;
-  const ys = [H - 18, H * 0.52, 22];
+  // The "now" dot height tracks the selected aspect's progress when provided, so
+  // the ridgeline adjusts as you switch Climb tabs (falls back to the midpoint).
+  const npct = (d.climbPct != null) ? Math.max(0.05, Math.min(0.95, d.climbPct)) : 0.48;
+  const ys = [H - 18, (H - 18) + (22 - (H - 18)) * npct, 22];
   const xs = [24, W / 2, W - 24];
-  const ridge = `M ${xs[0]} ${ys[0]} Q ${(xs[0]+xs[1])/2} ${ys[0]-26}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+  const ridge = `M ${xs[0]} ${ys[0]} Q ${(xs[0]+xs[1])/2} ${(ys[0]+ys[1])/2-14}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
   const fill = `${ridge} L ${xs[2]} ${H} L ${xs[0]} ${H} Z`;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden="true" style={{ display: "block", overflow: "visible" }}>

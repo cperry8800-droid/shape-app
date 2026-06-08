@@ -303,15 +303,15 @@ function dkClimbCfg(d, aspect) {
     const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
     let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
     const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
-    return { arc: [[NM[i], `${floor.toLocaleString()} pts`, "start"], ["Now", `${pts.toLocaleString()} pts`, "now"], [nextName, `${next.toLocaleString()} pts`, "target"]] };
+    return { arc: [[NM[i], `${floor.toLocaleString()} pts`, "start"], ["Now", `${pts.toLocaleString()} pts`, "now"], [nextName, `${next.toLocaleString()} pts`, "target"]], pct: last ? 1 : Math.max(0.05, Math.min(0.95, (pts - floor) / Math.max(1, next - floor))) };
   }
   if (aspect === "streak") {
     const s = Number(d.streak) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
-    return { arc: [["Start", "Day 0", "start"], ["Now", `${s} days`, "now"], ["Goal", `${target} days`, "target"]] };
+    return { arc: [["Start", "Day 0", "start"], ["Now", `${s} days`, "now"], ["Goal", `${target} days`, "target"]], pct: Math.max(0.05, Math.min(0.95, target ? s / target : 0)) };
   }
-  if (aspect === "bodyfat") return { arc: [["Start", "22%", "start"], ["Now", "17%", "now"], ["Target", "12%", "target"]] };
-  if (aspect === "strength") return { arc: [["Bar-only squat", "Started", "start"], ["Now", "245 lb × 5", "now"], ["Target", "1.5×BW", "target"]] };
-  return { arc: d.arc };
+  if (aspect === "bodyfat") return { arc: [["Start", "22%", "start"], ["Now", "17%", "now"], ["Target", "12%", "target"]], pct: 0.5 };
+  if (aspect === "strength") return { arc: [["Bar-only squat", "Started", "start"], ["Now", "245 lb × 5", "now"], ["Target", "1.5×BW", "target"]], pct: 0.55 };
+  return { arc: d.arc, pct: d.goalPct != null ? d.goalPct : 0.84 };
 }
 function ClimbBlock({ d, owner }) {
   const c = tierOf(d).color;
@@ -351,7 +351,8 @@ function ClimbBlock({ d, owner }) {
   };
   const tabs = DK_CLIMB_SOURCES.filter((s) => shown.includes(s.key));
   const active = tabs.some((s) => s.key === source) ? source : (tabs[0] && tabs[0].key) || "weight";
-  const arc = dkClimbCfg(d, active).arc;
+  const climbCfg = dkClimbCfg(d, active);
+  const arc = climbCfg.arc;
   const pick = (k) => { setSource(k); persist(k, shown); };
   const toggleShown = (k) => {
     setShown((prev) => {
@@ -388,7 +389,7 @@ function ClimbBlock({ d, owner }) {
           </div>
         </div>
       )}
-      <TerrainRidge d={{ ...d, arc }} />
+      <TerrainRidge d={{ ...d, arc, climbPct: climbCfg.pct }} />
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
         {arc.map((a, i) => (
           <div key={i} style={{ flex: 1, textAlign: i === 0 ? "left" : i === 2 ? "right" : "center" }}>

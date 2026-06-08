@@ -7319,8 +7319,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 </div>
               )}
               {(() => {
-                const W = 320, H = 132; const ys = [H - 18, H * 0.52, 22]; const xs = [24, W / 2, W - 24];
-                const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${ys[0] - 26}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+                // The "now" dot height tracks the selected aspect's progress (pct),
+                // so the ridgeline visibly adjusts when you switch Climb tabs.
+                const W = 320, H = 132; const npct = Math.max(0.05, Math.min(0.95, pct || 0));
+                const ys = [H - 18, (H - 18) + (22 - (H - 18)) * npct, 22]; const xs = [24, W / 2, W - 24];
+                const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
                 return (
                 <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
                   <defs><linearGradient id={`tdr${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.3)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
