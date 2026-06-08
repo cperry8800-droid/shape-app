@@ -354,7 +354,7 @@ function AboutPage() {
         <AboutLetter />
         <AboutVision />
         <AboutSignoff />
-        <Footer logoHeight={58} />
+        <Footer />
       </div>
     </div>
   );

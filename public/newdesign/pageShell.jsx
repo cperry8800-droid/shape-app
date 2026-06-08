@@ -294,7 +294,7 @@ function HeroBg() {
   );
 }
 
-function Footer({ logoHeight = 80 } = {}) {
+function Footer({ logoHeight = 64 } = {}) {
   return (
     <footer className="shape-footer" style={{ position: "relative", padding: "56px 72px 36px", background: INK_DEEP, color: INK }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
