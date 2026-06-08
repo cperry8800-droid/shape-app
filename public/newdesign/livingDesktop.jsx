@@ -217,17 +217,112 @@ function SignalsBand({ d }) {
 }
 
 // ── The climb (terrain) — ridgeline ascent ─────────────────────
-function ClimbBlock({ d }) {
+// Owner-customizable: the climb can track different aspects/goals (body weight,
+// body fat, strength, Shape Score, day streak) via in-box tabs; the owner picks
+// which appear. Persisted to user_goals('client_climb') so it carries across
+// surfaces (mobile uses the same key).
+const DK_CLIMB_SOURCES = [
+  { key: "weight", label: "Body weight" },
+  { key: "bodyfat", label: "Body fat" },
+  { key: "strength", label: "Strength" },
+  { key: "score", label: "Shape Score" },
+  { key: "streak", label: "Day streak" },
+];
+const DK_CLIMB_DEFAULT = ["weight", "strength", "score"];
+function dkClimbCfg(d, aspect) {
+  if (aspect === "score") {
+    const pts = Number(d.score) || 0;
+    const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
+    let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
+    const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
+    return { arc: [[NM[i], `${floor.toLocaleString()} pts`, "start"], ["Now", `${pts.toLocaleString()} pts`, "now"], [nextName, `${next.toLocaleString()} pts`, "target"]] };
+  }
+  if (aspect === "streak") {
+    const s = Number(d.streak) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
+    return { arc: [["Start", "Day 0", "start"], ["Now", `${s} days`, "now"], ["Goal", `${target} days`, "target"]] };
+  }
+  if (aspect === "bodyfat") return { arc: [["Start", "22%", "start"], ["Now", "17%", "now"], ["Target", "12%", "target"]] };
+  if (aspect === "strength") return { arc: [["Bar-only squat", "Started", "start"], ["Now", "245 lb × 5", "now"], ["Target", "1.5×BW", "target"]] };
+  return { arc: d.arc };
+}
+function ClimbBlock({ d, owner }) {
   const c = tierOf(d).color;
+  const [shown, setShown] = React.useState(DK_CLIMB_DEFAULT);
+  const [source, setSource] = React.useState("weight");
+  const [custom, setCustom] = React.useState(false);
+  // Load saved climb config (which aspects show + default) for the owner.
+  React.useEffect(() => {
+    if (!owner) return;
+    let alive = true;
+    (async () => {
+      try {
+        const cl = window.shapeDb && window.shapeDb.client;
+        if (!cl) return;
+        const { data: u } = await cl.auth.getUser();
+        if (!u || !u.user) return;
+        const { data } = await cl.from("user_goals").select("data").eq("user_id", u.user.id).eq("kind", "client_climb").maybeSingle();
+        const cfg = data && data.data;
+        if (!alive || !cfg) return;
+        if (Array.isArray(cfg.shown) && cfg.shown.length) setShown(cfg.shown.filter((k) => DK_CLIMB_SOURCES.some((s) => s.key === k)));
+        if (cfg.source) setSource(cfg.source);
+      } catch (e) {}
+    })();
+    return () => { alive = false; };
+  }, [owner]);
+  const persist = (src, sh) => {
+    if (!owner) return;
+    (async () => {
+      try {
+        const cl = window.shapeDb && window.shapeDb.client;
+        if (!cl) return;
+        const { data: u } = await cl.auth.getUser();
+        if (!u || !u.user) return;
+        await cl.from("user_goals").upsert({ user_id: u.user.id, kind: "client_climb", data: { source: src, shown: sh } }, { onConflict: "user_id,kind" });
+      } catch (e) {}
+    })();
+  };
+  const tabs = DK_CLIMB_SOURCES.filter((s) => shown.includes(s.key));
+  const active = tabs.some((s) => s.key === source) ? source : (tabs[0] && tabs[0].key) || "weight";
+  const arc = dkClimbCfg(d, active).arc;
+  const pick = (k) => { setSource(k); persist(k, shown); };
+  const toggleShown = (k) => {
+    setShown((prev) => {
+      const has = prev.includes(k);
+      let next = has ? prev.filter((x) => x !== k) : DK_CLIMB_SOURCES.map((s) => s.key).filter((x) => x === k || prev.includes(x));
+      if (!next.length) next = [k];
+      let src = source;
+      if (!next.includes(src)) { src = next[0]; setSource(src); }
+      persist(src, next);
+      return next;
+    });
+  };
+  const pill = (on) => ({ padding: "5px 11px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.18)}`, background: on ? dHexA(LV_TEAL, 0.14) : "transparent", color: on ? LV_TEAL : dHexA(LV_INK, 0.6), fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" });
   return (
     <div style={dCard({ padding: "24px 26px" })}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <DKick>{d.arcLabel}</DKick>
         <span style={{ fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.5) }}>{d.sinceLabel} {d.since}</span>
       </div>
-      <TerrainRidge d={d} />
+      {tabs.length > 1 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+          {tabs.map((s) => <button key={s.key} onClick={() => pick(s.key)} style={pill(active === s.key)}>{s.label}</button>)}
+          {owner && <button onClick={() => setCustom((v) => !v)} style={{ ...pill(custom), marginLeft: "auto" }}>⚙ Customize</button>}
+        </div>
+      )}
+      {owner && (tabs.length <= 1 || custom) && (
+        <div style={{ marginBottom: 16, border: `1px solid ${dHexA(LV_INK, 0.12)}`, borderRadius: 13, padding: "13px 14px", background: dHexA(LV_INK, 0.02) }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 11 }}>
+            <span style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55) }}>Show on your climb</span>
+            {tabs.length > 1 && <button onClick={() => setCustom(false)} style={{ background: "transparent", border: 0, color: LV_TEAL, fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Done</button>}
+          </div>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            {DK_CLIMB_SOURCES.map((s) => { const on = shown.includes(s.key); return <button key={s.key} onClick={() => toggleShown(s.key)} style={{ ...pill(on), color: on ? LV_TEAL : dHexA(LV_INK, 0.45) }}>{on ? "✓ " : "+ "}{s.label}</button>; })}
+          </div>
+        </div>
+      )}
+      <TerrainRidge d={{ ...d, arc }} />
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
-        {d.arc.map((a, i) => (
+        {arc.map((a, i) => (
           <div key={i} style={{ flex: 1, textAlign: i === 0 ? "left" : i === 2 ? "right" : "center" }}>
             <div style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", color: a[2] === "now" ? LV_TEAL : dHexA(LV_INK, 0.5) }}>{a[0]}</div>
             <div style={{ fontFamily: dSans, fontSize: 14, color: dHexA(LV_INK, 0.85), marginTop: 5 }}>{a[1]}</div>
@@ -492,7 +587,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             {/* Climb (member only) */}
             {!coach && tab === "climb" && (
               <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
-                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}><ClimbBlock d={d} /></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}><ClimbBlock d={d} owner={owner} /></div>
                 <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail"><RecordsBlock d={d} /></aside>
               </section>
             )}
