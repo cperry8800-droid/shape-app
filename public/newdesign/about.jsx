@@ -135,7 +135,7 @@ function AboutVision() {
           <div style={{ fontFamily: serif, fontSize: "clamp(26px, 3.6vw, 42px)", fontWeight: 400, fontStyle: "italic", letterSpacing: "-0.02em", color: TEAL, marginBottom: 18, lineHeight: 1.05 }}>The idea.</div>
           <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.04 }}>
             The platform coaches build their <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>business</em> on.
-            <br />The <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>social network</em> for coaching, training &amp; nutrition.
+            <br />The <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>social network</em> for coaching, training and nutrition.
           </h3>
         </div>
         <div className="about-vision-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>

@@ -7143,6 +7143,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
+  const [offerTab, setOfferTab] = useStateBSC('All');
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
@@ -7166,9 +7167,28 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const certs = isNutri
     ? [['RD', 'Registered Dietitian', '2018'], ['CSSD', 'Sports Dietetics Specialist', '2020'], ['FODMAP', 'Monash FODMAP-trained', '2022']]
     : [['NASM-CPT', 'Certified Personal Trainer', '2016'], ['USAW-L1', 'USA Weightlifting', '2020'], ['FMS-L2', 'Functional Movement Screen', '2021']];
+  // Offerings, categorised so the Coaching tab can sub-tab them (like the website
+  // catalogue): trainers → Workouts / Programs / Coaching; nutritionists →
+  // Meals / Diets / Coaching. Each row: [cat, kind, name, sub, price].
   const offerings = isNutri
-    ? [['Meal plan', 'Custom meal plan', '2 weeks, built to your macros', '$60'], ['Program', '6-week nutrition program', 'Plan + weekly adjustments', '$220'], ['Coaching', 'Monthly coaching', 'Plans, labs review, accountability', '$160/mo'], ['Consult', 'Intro call', '15 min — see if we’re a fit', 'Free']]
-    : [['Workout', 'Single 1:1 session', '60 min, in-person or remote', '$32'], ['Program', '6-week strength block', 'Custom programming + check-ins', '$240'], ['Coaching', 'Monthly coaching', 'Full programming + daily chat', '$180/mo'], ['Consult', 'Intro call', '15 min — see if we’re a fit', 'Free']];
+    ? [
+        ['Meals', 'Meal plan', 'Custom meal plan', '2 weeks, built to your macros', '$60'],
+        ['Meals', 'Meal plan', 'Single-week reset', 'A 7-day plan + grocery list', '$35'],
+        ['Diets', 'Program', '6-week nutrition program', 'Plan + weekly adjustments', '$220'],
+        ['Diets', 'Program', 'Cut / recomp protocol', '8 weeks, macros + check-ins', '$280'],
+        ['Coaching', 'Coaching', 'Monthly coaching', 'Plans, labs review, accountability', '$160/mo'],
+        ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
+      ]
+    : [
+        ['Workouts', 'Workout', 'Single 1:1 session', '60 min, in-person or remote', '$32'],
+        ['Workouts', 'Workout', 'Technique / form check', '30 min video review', '$20'],
+        ['Programs', 'Program', '6-week strength block', 'Custom programming + check-ins', '$240'],
+        ['Programs', 'Program', '12-week hypertrophy', 'Full block + deloads', '$420'],
+        ['Coaching', 'Coaching', 'Monthly coaching', 'Full programming + daily chat', '$180/mo'],
+        ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
+      ];
+  const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
+  const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
   const rating = isNutri ? '4.95' : '4.97', reviewCount = isNutri ? 198 : 284;
   const reviews = isNutri
     ? [['Sofia M.', 'SM', 300, 'She found my low ferritin before any doctor did. I train 50% more volume now.'], ['Diego R.', 'DR', 200, 'Learned what fueling a lifting block actually looks like. Clearest plans I’ve seen.']]
@@ -7274,11 +7294,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>)}
 
           {tab === 'coaching' && (<>
-          {/* services & prices */}
+          {/* services & prices — sub-tabbed by type (like the website catalogue) */}
           <div style={{ marginTop: 28 }}>
             <Kick>{isNutri ? 'Work with ' + first : 'Train with ' + first}</Kick>
+            {/* category sub-tabs */}
+            <div style={{ display: 'flex', gap: 6, marginTop: 12, overflowX: 'auto' }} className="bs-hide-scroll">
+              {offerCats.map((ct) => { const on = offerTab === ct; return (
+                <button key={ct} onClick={() => setOfferTab(ct)} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{ct}</button>
+              ); })}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              {offerings.map(([kind, nm, sub, price], i) => (
+              {visibleOfferings.map(([cat, kind, nm, sub, price], i) => (
                 <div key={i} style={{ ...card, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.01em' }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
                   <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>
