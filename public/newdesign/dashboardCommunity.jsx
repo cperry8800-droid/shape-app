@@ -57,7 +57,8 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
           time: since(p.created_at),
           title: p.title,
-          body: p.note || p.title,
+          body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
+          photo: p.photo_url || null,
           likes: Array.isArray(p.likes) ? p.likes.length : 0,
           comments: Array.isArray(p.comments) ? p.comments.length : 0,
           tag: tagFor(p.activity_type),
@@ -207,7 +208,8 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         {p.kind === "meal"    && <MealStat p={p} />}
         {p.kind === "streak"  && <StreakStat p={p} />}
         {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
-        {p.note && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(242,237,228,0.55)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
+        {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", maxHeight: 420, objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)" }} />}
+        {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(242,237,228,0.55)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
           <button onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: liked ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
@@ -503,6 +505,19 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           onSubmit={(post) => {
             setFeed(prev => [{ id: "me-" + Date.now(), isMe: true, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post }, ...prev]);
             setComposerOpen(false);
+            // Persist to the live feed (best-effort; the optimistic post already shows).
+            const tag = post.tag ? { tags: [String(post.tag).toUpperCase()] } : undefined;
+            fetch('/api/community/feed', {
+              method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: (post.body || '').trim() || 'Photo',
+                note: post.body || '',
+                activityType: post.kind || 'workout',
+                privacy: 'community',
+                photoUrl: post.photo || '',
+                metrics: tag,
+              }),
+            }).catch(() => {});
           }}
         />
       )}
@@ -521,11 +536,36 @@ function PostComposer({ me, onCancel, onSubmit }) {
   const [kind, setKind] = React.useState("post");
   const [body, setBody] = React.useState("");
   const [tag, setTag] = React.useState("");
-  const canSubmit = body.trim().length > 0;
+  const [photoUrl, setPhotoUrl] = React.useState("");
+  const [photoBusy, setPhotoBusy] = React.useState(false);
+  const fileRef = React.useRef(null);
+  const canSubmit = (body.trim().length > 0 || !!photoUrl) && !photoBusy;
+  const uploadPhoto = async (file) => {
+    const client = window.shapeDb && window.shapeDb.client;
+    if (!client) throw new Error("Not connected.");
+    const { data: ures } = await client.auth.getUser();
+    const user = ures && ures.user;
+    if (!user) throw new Error("Sign in to add a photo.");
+    const ext = (((file.type || "").split("/")[1]) || "jpg").replace(/[^a-z0-9]/gi, "") || "jpg";
+    const path = user.id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 7) + "." + ext;
+    const { error } = await client.storage.from("community-photos").upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+    if (error) throw error;
+    const { data } = client.storage.from("community-photos").getPublicUrl(path);
+    return (data && data.publicUrl) || null;
+  };
+  const onPhotoFile = async (e) => {
+    const file = e.target && e.target.files && e.target.files[0];
+    if (e.target) e.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true);
+    try { const url = await uploadPhoto(file); if (url) setPhotoUrl(url); }
+    catch (err) { alert((err && err.message) || "Could not upload photo."); }
+    finally { setPhotoBusy(false); }
+  };
   const submit = () => {
     if (!canSubmit) return;
     const k = KINDS.find(x => x.value === kind) || KINDS[0];
-    onSubmit({ kind, body: body.trim(), tag: tag.trim() || k.tag || undefined });
+    onSubmit({ kind, body: body.trim(), tag: tag.trim() || k.tag || undefined, photo: photoUrl || undefined });
   };
   return (
     <div onClick={onCancel}
@@ -575,6 +615,19 @@ function PostComposer({ me, onCancel, onSubmit }) {
             style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em", outline: "none" }}
           />
         </div>
+
+        <input ref={fileRef} type="file" accept="image/*" onChange={onPhotoFile} style={{ display: "none" }} />
+        {photoUrl ? (
+          <div style={{ marginTop: 12, position: "relative", display: "inline-block" }}>
+            <img src={photoUrl} alt="" style={{ display: "block", maxHeight: 180, maxWidth: "100%", borderRadius: 10, border: "1px solid rgba(242,237,228,0.14)" }} />
+            <button onClick={() => setPhotoUrl("")} aria-label="Remove photo" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 999, background: "rgba(10,10,8,0.7)", color: INK, border: "1px solid rgba(242,237,228,0.2)", cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
+          </div>
+        ) : (
+          <button onClick={() => fileRef.current && fileRef.current.click()} disabled={photoBusy} style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(242,237,228,0.04)", color: photoBusy ? "rgba(242,237,228,0.45)" : INK, border: "1px solid rgba(242,237,228,0.14)", padding: "9px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", cursor: photoBusy ? "default" : "pointer" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5L5 19"/></svg>
+            {photoBusy ? "UPLOADING…" : "ADD PHOTO"}
+          </button>
+        )}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>{body.length} CHARS</span>

@@ -1728,6 +1728,7 @@ function communityPostFromRow(row) {
     author_id: row.author_id || null,
     created_at: row.created_at || null,
     name: authorName,
+    photo: row.photo_url || (metrics && metrics.photo_url) || null,
     channel: typeof metrics.channel === 'string' ? metrics.channel : '',
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
@@ -2106,9 +2107,11 @@ async function createCommunityPost({
   sourceProvider = '',
   sourceActivityId = '',
   channel = '',
+  photoUrl = '',
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
-  const cleanTitle = String(title || '').trim();
+  const cleanPhoto = String(photoUrl || '').trim();
+  const cleanTitle = String(title || '').trim() || (cleanPhoto ? 'Photo' : '');
   if (!cleanTitle) throw new Error('Post title is required.');
 
   const profile = state.profile || {};
@@ -2129,6 +2132,7 @@ async function createCommunityPost({
     note: String(note || '').trim() || null,
     metrics: mergedMetrics,
     route: route || {},
+    photo_url: cleanPhoto || null,
     source_provider: sourceProvider || null,
     source_activity_id: sourceActivityId || null,
   };
@@ -3166,9 +3170,36 @@ window.ShapeMessages = {
   subscribeMessages: subscribeDirectMessages,
 };
 
+// Upload a feed photo to the public `community-photos` bucket (own <uid>/ folder,
+// gated by storage RLS) and return its public URL. Used by the feed + profile
+// photo-post composers; the URL rides on the post's photo_url column.
+async function uploadCommunityPhoto(file) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to add a photo.');
+  if (!file) throw new Error('No photo selected.');
+  const ext = ((file.type && file.type.split('/')[1]) || 'jpg').replace(/[^a-z0-9]/gi, '') || 'jpg';
+  const path = `${state.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const { error } = await supabase.storage.from('community-photos').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from('community-photos').getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+// All posts by one author (for the profile "Personal activities" feed) — newest
+// first, optionally only those carrying a photo.
+async function listCommunityPostsByAuthor(authorId, { withPhotoOnly = false } = {}) {
+  if (!supabase || !authorId) return { stored: 'local', data: [] };
+  let q = supabase.from('community_posts').select(COMMUNITY_POST_SELECT).eq('author_id', authorId).order('created_at', { ascending: false }).limit(40);
+  if (withPhotoOnly) q = q.not('photo_url', 'is', null);
+  const { data, error } = await q;
+  if (error) return { stored: 'local', data: [], error };
+  return { stored: 'supabase', data: (data || []).map(communityPostFromRow) };
+}
+
 window.ShapeCommunity = {
   listPosts: listCommunityPosts,
+  listByAuthor: listCommunityPostsByAuthor,
   createPost: createCommunityPost,
+  uploadPhoto: uploadCommunityPhoto,
   toggleLike: toggleCommunityLike,
   addComment: addCommunityComment,
 };

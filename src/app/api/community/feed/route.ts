@@ -52,11 +52,13 @@ export async function POST(request: Request) {
     privacy?: unknown;
     metrics?: unknown;
     route?: unknown;
+    photoUrl?: unknown;
     sourceProvider?: unknown;
     sourceActivityId?: unknown;
   } | null;
 
-  const title = String(payload?.title ?? '').trim();
+  const photoUrl = String(payload?.photoUrl ?? '').trim();
+  const title = String(payload?.title ?? '').trim() || (photoUrl ? 'Photo' : '');
   if (!title) return NextResponse.json({ error: 'Title is required.' }, { status: 400 });
 
   const profile = await profileForUser(client, user.id);
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
       note: String(payload?.note || '').trim() || null,
       metrics: typeof payload?.metrics === 'object' && payload?.metrics ? payload.metrics : {},
       route: typeof payload?.route === 'object' && payload?.route ? payload.route : {},
+      photo_url: photoUrl || null,
       source_provider: String(payload?.sourceProvider || '').trim() || null,
       source_activity_id: String(payload?.sourceActivityId || '').trim() || null,
     })

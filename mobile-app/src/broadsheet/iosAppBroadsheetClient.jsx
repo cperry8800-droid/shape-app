@@ -6514,7 +6514,40 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     })();
     return () => { alive = false; };
   }, [isSelf]);
-  const feedEff = (isSelf && realFeed && realFeed.length) ? realFeed : feed;
+  // Photo posts on this profile's personal feed (this member's community photo
+  // posts). Loaded for anyone; on your own profile you can add one.
+  const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
+  const feedAuthorId = isSelf ? (person.userId || myId) : (person.userId || null);
+  const [photoPosts, setPhotoPosts] = useStateBSC([]);
+  const [photoBusy, setPhotoBusy] = useStateBSC(false);
+  const photoInputRef = React.useRef(null);
+  const agoShort = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
+  const loadPhotoPosts = React.useCallback(() => {
+    if (!feedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
+    window.ShapeCommunity.listByAuthor(feedAuthorId, { withPhotoOnly: true })
+      .then((r) => { const items = (r?.data || []).map((p) => ({ k: 'Photo', t: p.note || '', b: '', photo: p.photo, time: agoShort(p.created_at), hot: false })); setPhotoPosts(items); })
+      .catch(() => {});
+  }, [feedAuthorId]);
+  React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts]);
+  const addProfilePhoto = () => { try { photoInputRef.current && photoInputRef.current.click(); } catch (e) {} };
+  const onProfilePhotoFile = async (e) => {
+    const file = e?.target?.files?.[0];
+    if (e?.target) e.target.value = '';
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      const url = await window.ShapeCommunity?.uploadPhoto?.(file);
+      if (!url) throw new Error('Upload failed.');
+      await window.ShapeCommunity?.createPost?.({ title: 'Photo', note: '', channel: 'COMMUNITY', privacy: 'public', photoUrl: url });
+      setPhotoPosts((prev) => [{ k: 'Photo', t: '', b: '', photo: url, time: 'now', hot: false }, ...prev]);
+      window.__bsToast?.('Photo added', 'ok');
+    } catch (err) { window.__bsToast?.(err?.message || 'Could not add photo.', 'err'); }
+    finally { setPhotoBusy(false); }
+  };
+  const feedEff = (() => {
+    const base = (isSelf && realFeed && realFeed.length) ? realFeed : feed;
+    return photoPosts.length ? [...photoPosts, ...base] : base;
+  })();
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
     const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
@@ -6700,7 +6733,17 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
 
             <div>
-              <Kick>Personal activities</Kick>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <Kick>Personal activities</Kick>
+                {isSelf && (
+                  <>
+                    <input ref={photoInputRef} type="file" accept="image/*" onChange={onProfilePhotoFile} style={{ display: 'none' }} />
+                    <button onClick={() => !photoBusy && addProfilePhoto()} disabled={photoBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.45)}`, color: TEAL, borderRadius: 999, padding: '6px 12px', cursor: photoBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                      {photoBusy ? 'Uploading…' : '+ Photo'}
+                    </button>
+                  </>
+                )}
+              </div>
               <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
                 <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
                 {feedEff.map((it, i) => (
@@ -6708,8 +6751,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                     <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
                     <div style={{ ...card, padding: '13px 15px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
-                      <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{it.t}</div>
-                      <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0' }}>{it.b}</p>
+                      {it.t && <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{it.t}</div>}
+                      {it.b && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0' }}>{it.b}</p>}
+                      {it.photo && <img src={it.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: it.t || it.b ? 10 : 6 }} />}
                       {it.metric && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}><div style={{ flex: 1, height: 1, background: bsTHexA(INK, 0.12) }} /><span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{it.metric[0]}</span><span style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: it.hot ? TEAL : INK }}>{it.metric[1]}</span></div>}
                     </div>
                   </div>
@@ -6931,7 +6975,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
           {/* field notes */}
           <div style={{ marginTop: 28 }}>
-            <Kick>Field notes</Kick>
+            <Kick>Personal activities</Kick>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
               {feed.map(([k, t2, b, time], i) => (
@@ -7307,7 +7351,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     return {
       id: p.id, userId: p.author_id || null, mine, who: mine ? 'You' : (p.name || 'Member'), kind, authorKind, init: (mine ? bsMyName() : (p.avatar || p.name || '?')).toString().trim().charAt(0).toUpperCase(),
       hue: HUE[kind], time: p.time || 'now', pinned: !!p.pinned, official: kind === 'SHAPE',
-      body: p.note || p.status || p.body || p.workout || '',
+      photo: p.photo || null,
+      body: p.photo ? (p.note || (p.status && p.status !== 'Photo' ? p.status : '')) : (p.note || p.status || p.body || p.workout || ''),
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
       replies: Array.isArray(p.comments) ? p.comments.length : (p.commentCount || 0),
       comments: Array.isArray(p.comments) ? p.comments.map(c => ({ who: c.author_name || c.who || 'Member', body: c.body || c.text || '' })) : [],
@@ -7362,6 +7407,28 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body, hearts: 0, replies: 0 }, ...prev]);
     try { await window.ShapeCommunity?.createPost?.({ title: body, note: body, channel: kind, privacy: 'community' }); window.__bsToast?.(`Posted to ${where}`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not post.', 'err'); }
+  };
+  // Photo post — upload to community-photos then create a post carrying the URL.
+  const feedPhotoRef = React.useRef(null);
+  const [photoBusy, setPhotoBusy] = useStateBSC(false);
+  const onFeedPhoto = () => { try { feedPhotoRef.current && feedPhotoRef.current.click(); } catch (e) {} };
+  const onFeedPhotoFile = async (e) => {
+    const file = e?.target?.files?.[0];
+    if (e?.target) e.target.value = '';
+    if (!file) return;
+    const caption = draft.trim();
+    const kind = (filter && ROLE[filter]) ? filter : myRoleChip;
+    const where = ROLE[kind] ? ROLE[kind].label : 'the group';
+    setPhotoBusy(true);
+    try {
+      const url = await window.ShapeCommunity?.uploadPhoto?.(file);
+      if (!url) throw new Error('Upload failed.');
+      setDraft('');
+      setPosts(prev => [{ id: 'tmp-' + Date.now(), who: 'You', mine: true, userId: myUserId, kind, authorKind: myRoleChip, init: bsMyName().trim().charAt(0).toUpperCase(), hue: HUE[kind] || ROLE[kind].color, time: 'now', body: caption, photo: url, hearts: 0, replies: 0 }, ...prev]);
+      await window.ShapeCommunity?.createPost?.({ title: caption || 'Photo', note: caption, channel: kind, privacy: 'community', photoUrl: url });
+      window.__bsToast?.(`Photo posted to ${where}`, 'ok');
+    } catch (err) { window.__bsToast?.(err?.message || 'Could not post photo.', 'err'); }
+    finally { setPhotoBusy(false); }
   };
   const like = (p) => {
     setPosts(prev => prev.map(x => x.id === p.id ? { ...x, hearts: (x.hearts || 0) + 1 } : x));
@@ -7431,7 +7498,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rc, border: `1px solid ${rc}66`, borderRadius: 4, padding: '1px 5px' }}>{roleMeta.label}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 9, color: muted }}>{p.time}</span>
             </div>
-            <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4 }}>{p.body}</div>
+            <div style={{ borderRadius: 16, [right ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, padding: p.photo && !p.body ? 4 : '11px 14px', background: bubbleBg, color: p.official ? '#1a1713' : cardInk, border: p.official ? 'none' : `1px solid ${tc}40`, fontFamily: p.official ? `'Newsreader', Georgia, serif` : t.DISPLAY, fontStyle: p.official ? 'italic' : 'normal', fontSize: p.official ? 15 : 14, lineHeight: 1.4, overflow: 'hidden' }}>
+              {p.body && <div style={{ padding: p.photo ? '7px 10px 9px' : 0 }}>{p.body}</div>}
+              {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12 }} />}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
@@ -7871,7 +7941,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </>
       )}
       {tab === 'feed' && (
-        <BSMessageComposer value={draft} onChange={setDraft} onSend={post} pinned placeholder="Message…" />
+        <>
+          <input ref={feedPhotoRef} type="file" accept="image/*" onChange={onFeedPhotoFile} style={{ display: 'none' }} />
+          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} pinned placeholder="Message…" />
+        </>
       )}
       {tab === 'teams' && teamsSel === 'support' && (
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
@@ -7944,7 +8017,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...', pinned = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, placeholder = 'Message...', pinned = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0;
   const canChat = useBSCanChat();
@@ -8049,7 +8122,22 @@ function BSMessageComposer({ value, onChange, onSend, placeholder = 'Message...'
       <span aria-hidden>🔒</span> Join Shape to send messages
     </button>
   );
-  const body = canChat ? field : lockedField;
+  // Optional photo-attach button (community feed). Sits to the left of the field.
+  const photoBtn = onPhoto ? (
+    <button onClick={() => !photoBusy && onPhoto()} disabled={photoBusy} aria-label="Add photo" title="Add a photo" style={{
+      flexShrink: 0, width: 38, height: 40, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 20,
+      background: pinned ? t.SURFACE : t.PAPER, color: photoBusy ? t.INK50 : t.INK, cursor: photoBusy ? 'default' : 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end',
+    }}>
+      {photoBusy
+        ? <span style={{ width: 14, height: 14, border: `2px solid ${t.INK50}`, borderTopColor: 'transparent', borderRadius: 999, display: 'inline-block', animation: 'bsspin 0.7s linear infinite' }} />
+        : <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="M21 16l-5-5L5 19" /></svg>}
+    </button>
+  ) : null;
+  const fieldRow = onPhoto
+    ? <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%' }}>{photoBtn}{field}</div>
+    : field;
+  const body = canChat ? fieldRow : lockedField;
 
   if (pinned) {
     // Docked input bar: spans the full phone-frame width and sits flush on top

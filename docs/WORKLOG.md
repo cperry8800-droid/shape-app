@@ -55,6 +55,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Photo posts on community feed + profile feeds (mobile + website)
+- **Migration `2026-06-08-community-photos.sql`** (**run on Supabase**): public
+  **`community-photos`** storage bucket (15 MB, image mimes; public read, owner can
+  write/update/delete their own `<uid>/…` folder via storage RLS) + a **`photo_url`**
+  column on `community_posts`. Idempotent.
+- **Shared backend:** `POST /api/community/feed` accepts `photoUrl` → `photo_url`
+  (title defaults to "Photo" for photo-only posts). Uploads go **browser → Supabase
+  storage** directly on both surfaces (gated by the owner-folder RLS), returning a
+  public URL that rides on the post.
+- **Mobile** (`shapeBackend.js`): `ShapeCommunity.uploadPhoto(file)` (own folder →
+  public URL), `listByAuthor(id,{withPhotoOnly})`, `createPost({…, photoUrl})`;
+  `communityPostFromRow` exposes `photo`. **Feed composer** (`BSMessageComposer`)
+  gained a 📷 attach button (`onPhoto`) → upload + post; `renderPost` renders the
+  image in the bubble. **Profile "Personal activities"** (`BSTerrainProfile`) loads
+  the member's photo posts and renders them; your own profile has a **+ Photo**
+  button (uploads → public community post → shows on your feed + profile).
+- **Website** (`dashboardCommunity.jsx`): `PostComposer` gained **ADD PHOTO** (uploads
+  via `window.shapeDb.client.storage`), the composer now actually **POSTs to
+  `/api/community/feed`** (was local-only), and `FeedItem` renders the photo. Live
+  feed mapper reads `photo_url`.
+
 ### 2026-06-08 — Care Team on mobile (coach ↔ co-coach messaging)
 - **Mobile coach client profile** (`BSProClientFullProfilePage`, Manage tab) now shows
   a **Care Team** section listing the *other* coach(es) on the same client (trainer ↔
