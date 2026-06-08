@@ -554,6 +554,17 @@
   } else {
     mount();
   }
+
+  // Grant any one-time Shape Score tier bonuses for the signed-in member
+  // (idempotent server-side; runs once per page load, cheap).
+  try {
+    var cl = window.shapeDb && window.shapeDb.client;
+    if (cl && cl.auth && cl.rpc) {
+      cl.auth.getUser().then(function (r) {
+        if (r && r.data && r.data.user) { cl.rpc("award_tier_bonuses").catch(function () {}); }
+      }).catch(function () {});
+    }
+  } catch (e) {}
 })();
 
 /* The persistent Shape Radio mini-player has been removed from the website. */
