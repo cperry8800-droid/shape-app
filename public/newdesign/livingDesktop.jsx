@@ -69,16 +69,43 @@ function SignalVisual({ d, reduced }) {
     </div>
   );
 }
-function TerrainVisual({ d, reduced }) {
+// Ascent-profile card — the "you-are-here" climb toward the summit (matches the
+// mobile Terrain hero): a ridgeline, a teal progress trace, the member's avatar
+// climbing it, and a summit flag.
+function TerrainVisual({ d }) {
   const c = tierOf(d).color;
+  const W = 520, H = 460;
+  const pct = Math.max(0.05, Math.min(d.goalPct != null ? d.goalPct : 0.84, 0.98));
+  const base = [44, H - 56], peak = [W - 64, 64];
+  const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 96}, ${W * 0.6} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
+  const hp = Math.max(0.05, Math.min(pct, 0.7));
+  const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
+  const pctLabel = Math.round(pct * 100);
+  const summit = d.goalShort || d.goal || "Summit";
+  const startLabel = (d.arc && d.arc[0] && d.arc[0][0]) || "Start";
+  // ridge length ≈ perimeter; dash to reveal pct of the trace.
+  const dash = Math.round(pct * 1100);
   return (
-    <div style={{ position: "relative", borderRadius: 22, overflow: "hidden", minHeight: 420, border: `1px solid ${dHexA(c, 0.2)}`, background: dHexA(c, 0.04) }}>
-      <div style={{ position: "absolute", inset: 0 }}><TerrainContours d={d} w={520} h={460} reduced={reduced} /></div>
-      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(120% 80% at 50% 40%, transparent 40%, ${dHexA(LV_BG, 0.55)})` }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" }}>
-        <LvPortrait d={d} size={120} duotone />
+    <div style={{ position: "relative", borderRadius: 22, overflow: "hidden", minHeight: 420, border: `1px solid ${dHexA(c, 0.2)}`, background: `linear-gradient(180deg, ${dHexA(c, 0.16)}, ${dHexA(LV_BG, 0.02)})` }}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" aria-hidden style={{ display: "block" }}>
+        <defs><linearGradient id="dkAscent" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={dHexA(c, 0.32)} /><stop offset="100%" stopColor={dHexA(c, 0)} /></linearGradient></defs>
+        {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={dHexA(LV_INK, 0.06)} strokeWidth="1" />)}
+        <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill="url(#dkAscent)" />
+        <path d={ridge} fill="none" stroke={dHexA(LV_INK, 0.4)} strokeWidth="2" />
+        <path d={ridge} fill="none" stroke={LV_TEAL} strokeWidth="3.5" strokeDasharray={`${dash} 2000`} strokeLinecap="round" />
+        <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 30} stroke={dHexA(LV_INK, 0.6)} strokeWidth="2" />
+        <path d={`M ${peak[0]} ${peak[1] - 30} l 22 7 l -22 7 z`} fill="#e0644b" />
+        <circle cx={peak[0]} cy={peak[1]} r="5" fill="#e0644b" />
+        <circle cx={base[0]} cy={base[1]} r="5" fill={dHexA(LV_INK, 0.5)} />
+      </svg>
+      {/* you-are-here avatar climbing the ridge */}
+      <div style={{ position: "absolute", left: `calc(${(here.x / W) * 100}% - 44px)`, top: `calc(${(here.y / H) * 100}% - 100px)`, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <LvPortrait d={d} size={88} />
+        <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: LV_TEAL, background: dHexA(LV_BG, 0.85), padding: "3px 9px", borderRadius: 5, whiteSpace: "nowrap" }}>You · {pctLabel}%</div>
       </div>
-      <div style={{ position: "absolute", left: 20, bottom: 18, fontFamily: dMono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>ELEV. {d.score.toLocaleString()} · summit ahead</div>
+      {/* base + summit labels */}
+      <div style={{ position: "absolute", left: 16, bottom: 16, fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), background: dHexA(LV_BG, 0.7), padding: "3px 8px", borderRadius: 5 }}>{startLabel} · start</div>
+      <div style={{ position: "absolute", left: 16, top: 16, fontFamily: dMono, fontSize: 10, lineHeight: 1.4, letterSpacing: "0.1em", textTransform: "uppercase", color: "#e0644b", background: dHexA(LV_BG, 0.7), padding: "4px 9px", borderRadius: 5 }}>Summit<br />{summit}</div>
     </div>
   );
 }
