@@ -6651,6 +6651,20 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const streak = 14;
   const disciplines = [['Strength', 0.82], ['Endurance', 0.64], ['Consistency', 0.91], ['Recovery', 0.73]];
   const lifts = [['Squat', '245'], ['Deadlift', '285'], ['Bench', '135']];
+  // On your own profile, the "signature numbers" come from your real logged PRs
+  // (/api/client/train rollup); demo values otherwise.
+  const [realLifts, setRealLifts] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeProgress?.train) return;
+    let on = true;
+    window.ShapeProgress.train().then((d) => {
+      const prs = (d && Array.isArray(d.prs)) ? d.prs : [];
+      const top = prs.slice(0, 3).map((p) => [String(p.lift || 'Lift'), `${p.value}${p.unit ? ' ' + p.unit : ''}`]);
+      if (on && top.length) setRealLifts(top);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [isSelf]);
+  const liftsEff = (isSelf && realLifts && realLifts.length) ? realLifts : lifts;
   const traj = [176, 175, 174, 173, 172, 171, 171];
   const week = [40, 72, 55, 88, 33, 90, 18];
   const feed = [
@@ -6956,7 +6970,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
 
             <div style={{ display: 'flex', gap: 9, marginBottom: 28 }}>
-              {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, ...card, borderRadius: 13, padding: '14px 8px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
+              {liftsEff.map(([label, val]) => <div key={label} style={{ flex: 1, ...card, borderRadius: 13, padding: '14px 8px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
 
             <div>

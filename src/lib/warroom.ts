@@ -153,7 +153,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: [
-      { task: 'Wire rich profile sub-data (climb / disciplines / records / field-notes) to real workout/PR data', status: 'not-started', priority: 'P1' },
+      { task: 'Wire rich profile sub-data (climb / disciplines / records / field-notes) to real workout/PR data — climb, personal activities + key lifts now live; disciplines next', status: 'in-progress', priority: 'P1' },
       { task: 'Presence rail + activity proof cards are demo', status: 'not-started', priority: 'P2' },
       { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
     ] },
