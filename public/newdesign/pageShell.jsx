@@ -220,7 +220,7 @@ function Header({ active }) {
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 44px", gap: 20 }}>
-        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0, marginLeft: 16 }}>
           <img src="/shape-logo-new-teal-white.png?v=1" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
