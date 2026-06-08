@@ -147,10 +147,11 @@ function ClientNutriPage() {
       return arr.map((m) => ({ name: m.name, time: m.time || "—", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, planned: true, source: m.source || "Shape Kitchen", _baseName: m.name }));
     } catch (e) { return []; }
   })();
-  const todayMeals = [
-    ...(data.todayMeals || []).map((m) => { const ov = mealOverrides[m.name]; return ov ? { ...m, ...ov, _baseName: m.name } : { ...m, _baseName: m.name }; }),
-    ...planExtras,
-  ];
+  const baseTodayMeals = (data.todayMeals || []).map((m) => { const ov = mealOverrides[m.name]; return ov ? { ...m, ...ov, _baseName: m.name } : { ...m, _baseName: m.name }; });
+  // Dedupe localStorage extras against the API's meals (signed-in users get their
+  // planned meals from the server, so don't double-show the localStorage copy).
+  const baseNames = new Set(baseTodayMeals.map((m) => String(m.name || '').toLowerCase()));
+  const todayMeals = [...baseTodayMeals, ...planExtras.filter((m) => !baseNames.has(String(m.name || '').toLowerCase()))];
   const upcomingMeals = data.upcomingMeals || [];
   const topFoods = data.topFoods || [];
   const grocery = data.grocery || [];

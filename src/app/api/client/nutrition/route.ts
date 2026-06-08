@@ -83,5 +83,28 @@ export async function GET() {
     };
   });
 
+  // Member-added meals (e.g. recipe "Add to today's plan") for today — synced to
+  // the account so they show wherever the nutrition feed is read (web + mobile).
+  const todayDate = new Date();
+  const todayKey = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+  const { data: plannedRows } = await supabase
+    .from('client_planned_meals')
+    .select('name, kcal, protein, carbs, fat, source')
+    .eq('user_id', user.id)
+    .eq('planned_on', todayKey)
+    .order('created_at', { ascending: true });
+  for (const r of plannedRows ?? []) {
+    todayMeals.push({
+      time: '—',
+      name: typeof r.name === 'string' ? r.name : 'Meal',
+      kcal: num(r.kcal) ?? 0,
+      protein: num(r.protein) ?? 0,
+      carbs: num(r.carbs) ?? 0,
+      fat: num(r.fat) ?? 0,
+      alternatives: [],
+      planned: true,
+    });
+  }
+
   return NextResponse.json({ ok: true, today, week, loggedDays7, todayMeals });
 }

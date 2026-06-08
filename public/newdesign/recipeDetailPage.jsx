@@ -119,7 +119,19 @@ function RecipeDetailPage() {
   const [added, setAdded] = React.useState(0); // count of items added (0 = not yet)
   const addToGrocery = () => { setAdded(rdAddRecipeToGrocery(recipe)); };
   const [planAdded, setPlanAdded] = React.useState(false);
-  const addToPlan = () => { rdAddRecipeToPlan(recipe); setPlanAdded(true); };
+  const addToPlan = () => {
+    setPlanAdded(true);
+    const m = recipe.macros || {};
+    const body = { name: recipe.title, kcal: recipe.kcal || 0, protein: m.p || 0, carbs: m.c || 0, fat: m.f || 0, source: "Shape Kitchen", mealRef: "recipe-" + recipeSlug(recipe) };
+    // Signed in → sync to the account (shows on web + mobile); else localStorage.
+    if (me) {
+      fetch("/api/client/planned-meals", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then((r) => { if (!r.ok) rdAddRecipeToPlan(recipe); })
+        .catch(() => rdAddRecipeToPlan(recipe));
+    } else {
+      rdAddRecipeToPlan(recipe);
+    }
+  };
 
   // Save-to-library (gated behind an account).
   const rslug = recipeSlug(recipe);
