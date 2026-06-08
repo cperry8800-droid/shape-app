@@ -312,7 +312,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
@@ -9988,28 +9988,47 @@ function BSMoodSheet({ onClose, onSaved }) {
 
 function BSLogActivity({ onClose, onSaved }) {
   const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [type, setType] = useStateBSC('Run');
+  const [custom, setCustom] = useStateBSC('');
   const [duration, setDuration] = useStateBSC(45);
   const [distance, setDistance] = useStateBSC('');
   const [calories, setCalories] = useStateBSC('');
+  const [note, setNote] = useStateBSC('');
+  const [share, setShare] = useStateBSC(true);
   const [busy, setBusy] = useStateBSC(false);
 
+  const isCustom = type === 'Custom';
+  const activityName = (isCustom && custom.trim()) ? custom.trim() : type;
   const mins = Math.max(0, Math.round(Number(duration) || 0));
-  const showDistance = _BS_ACTIVITY_DISTANCE.has(type);
+  const showDistance = _BS_ACTIVITY_DISTANCE.has(type) || isCustom;
   // Live Shape Score preview — mirrors the server formula (1pt/5min, 2–20).
   const ptsPreview = mins ? Math.max(2, Math.min(20, Math.round(mins / 5))) : 0;
 
   const save = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;
     if (!mins) { window.__bsToast?.('Set a duration', 'err'); return; }
+    if (isCustom && !custom.trim()) { window.__bsToast?.('Name your activity', 'err'); return; }
     setBusy(true);
+    const name = activityName;
+    const noteClean = note.trim();
     try {
       const res = await window.ShapeActivities.log({
-        activityType: type.toLowerCase(), durationMin: mins,
+        activityType: name.toLowerCase(), durationMin: mins,
         distanceKm: showDistance && distance ? Number(distance) : undefined,
         calories: calories ? Number(calories) : undefined,
+        title: noteClean || name,
       });
-      window.__bsToast?.(`Logged ${type}${res?.pointsAwarded ? ` · +${res.pointsAwarded} pts` : ''}`, 'ok');
+      // Sync to the community feed (chat) so it shows for everyone + on your profile.
+      if (share) {
+        try {
+          await window.ShapeCommunity?.createPost?.({
+            title: name, note: noteClean, activityType: name.toLowerCase(), channel: 'COMMUNITY', privacy: 'public',
+            metrics: { durationMin: mins, ...(showDistance && distance ? { distanceKm: Number(distance) } : {}), ...(calories ? { calories: Number(calories) } : {}) },
+          });
+        } catch (e) { /* feed post is best-effort */ }
+      }
+      window.__bsToast?.(`Logged ${name}${res?.pointsAwarded ? ` · +${res.pointsAwarded} pts` : ''}`, 'ok');
       onSaved?.();
       onClose?.();
     } catch (e) {
@@ -10027,16 +10046,16 @@ function BSLogActivity({ onClose, onSaved }) {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => setN(n - step)} style={_bsStepBtn(t)}>−</button>
-          <div style={{ flex: 1, textAlign: 'center', background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '12px 0' }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{n || '—'}</span>
+          <div style={{ flex: 1, textAlign: 'center', background: t.PAPER2, border: `1px solid ${t.RULE}`, borderRadius: 14, padding: '13px 0' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{n || '—'}</span>
             <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginLeft: 6 }}>{unit}</span>
           </div>
           <button onClick={() => setN(n + step)} style={_bsStepBtn(t)}>+</button>
         </div>
         {chips && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 9, justifyContent: 'center' }}>
             {chips.map(c => (
-              <button key={c} onClick={() => setVal(String(c))} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${n === c ? t.ACCENT : t.RULE}`, background: n === c ? t.ACCENT : 'transparent', color: n === c ? '#031f1c' : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer' }}>{c}m</button>
+              <button key={c} onClick={() => setVal(String(c))} style={{ padding: '6px 13px', borderRadius: 999, border: `1px solid ${n === c ? teal : t.RULE}`, background: n === c ? teal : 'transparent', color: n === c ? '#031f1c' : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer' }}>{c}m</button>
             ))}
           </div>
         )}
@@ -10044,69 +10063,91 @@ function BSLogActivity({ onClose, onSaved }) {
     );
   };
 
-  const sectionLabel = (s) => <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 9 }}>{s}</div>;
+  const eyebrow = (s) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 10 }}>{s}</div>;
+  const fieldStyle = { width: '100%', boxSizing: 'border-box', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, outline: 'none' };
 
   return createPortal((
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, maxHeight: '92vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '10px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
-        {/* Grab handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 12px' }}>
+      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, maxHeight: '94vh', overflowY: 'auto', background: t.PAPER, color: t.INK, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '8px 18px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 14px' }}>
           <div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        {/* editorial header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.025em' }}>Log activity</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>Counts toward your Shape Score</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Log · counts toward Shape Score</div>
+            <h2 style={{ fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 400, letterSpacing: '-0.035em', margin: '6px 0 0', lineHeight: 0.95, color: t.INK }}>Log <span style={{ fontStyle: 'italic', color: teal }}>activity.</span></h2>
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontSize: 17, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
 
-        {/* Activity type — icon grid */}
-        {sectionLabel('Activity')}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, marginBottom: 20 }}>
-          {_BS_ACTIVITY_TYPES.map(a => {
+        {/* Activity type — pills + Custom */}
+        {eyebrow('Activity')}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, marginBottom: isCustom ? 9 : 22 }}>
+          {[..._BS_ACTIVITY_TYPES, 'Custom'].map(a => {
             const on = a === type;
+            const isC = a === 'Custom';
             return (
               <button key={a} onClick={() => setType(a)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                minHeight: 46, padding: '9px 2px 7px', borderRadius: 12, cursor: 'pointer',
-                border: `1px solid ${on ? t.ACCENT : t.RULE}`,
-                background: on ? `${t.ACCENT}22` : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                minHeight: 44, padding: '9px 2px', borderRadius: 11, cursor: 'pointer',
+                border: `1px solid ${on ? teal : (isC ? `${teal}66` : t.RULE)}`,
+                background: on ? (t.isLight ? `${teal}1a` : `${teal}26`) : 'transparent',
               }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{a}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: on ? teal : (isC ? teal : t.INK50), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{isC ? '+ Custom' : a}</span>
               </button>
             );
           })}
         </div>
+        {isCustom && (
+          <div style={{ marginBottom: 22 }}>
+            <input autoFocus value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={40} placeholder="Name your activity — e.g. Rock climbing"
+              style={{ ...fieldStyle, fontSize: 16, fontFamily: t.DISPLAY }} />
+          </div>
+        )}
 
-        {/* Duration stepper */}
-        {sectionLabel('Duration')}
-        <div style={{ marginBottom: 18 }}>{stepper(duration, setDuration, 5, 'min', [15, 30, 45, 60])}</div>
+        {/* Duration */}
+        {eyebrow('Duration')}
+        <div style={{ marginBottom: 20 }}>{stepper(duration, setDuration, 5, 'min', [15, 30, 45, 60])}</div>
 
-        {/* Optional: distance (only for distance sports) + calories */}
+        {/* Distance + calories */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
           {showDistance && (
             <div style={{ flex: 1 }}>
-              {sectionLabel('Distance · km')}
-              <input value={distance} onChange={(e) => setDistance(e.target.value)} placeholder="—" type="number" inputMode="decimal"
-                style={{ width: '100%', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box' }} />
+              {eyebrow('Distance · km')}
+              <input value={distance} onChange={(e) => setDistance(e.target.value)} placeholder="—" type="number" inputMode="decimal" style={fieldStyle} />
             </div>
           )}
           <div style={{ flex: 1 }}>
-            {sectionLabel('Calories')}
-            <input value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="optional" type="number" inputMode="decimal"
-              style={{ width: '100%', height: 48, background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: '0 14px', fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, outline: 'none', boxSizing: 'border-box' }} />
+            {eyebrow('Calories')}
+            <input value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="optional" type="number" inputMode="decimal" style={fieldStyle} />
           </div>
         </div>
 
+        {/* Note */}
+        {eyebrow('Note · optional')}
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={200} placeholder="How'd it go? This shows on the community feed + your profile."
+          style={{ ...fieldStyle, height: 'auto', minHeight: 56, padding: '12px 14px', fontSize: 14, fontFamily: t.BODY, fontWeight: 400, resize: 'vertical', marginBottom: 14 }} />
+
+        {/* Share toggle */}
+        <button onClick={() => setShare((v) => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderRadius: 13, border: `1px solid ${share ? teal : t.RULE}`, background: share ? (t.isLight ? `${teal}12` : `${teal}1c`) : 'transparent', cursor: 'pointer', marginBottom: 18 }}>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Share to community</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>Posts to the feed + your profile</div>
+          </div>
+          <div style={{ width: 42, height: 24, flexShrink: 0, borderRadius: 999, background: share ? teal : t.RULE, position: 'relative', transition: 'background .15s' }}>
+            <div style={{ position: 'absolute', top: 2, left: share ? 20 : 2, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left .15s' }} />
+          </div>
+        </button>
+
         {/* Points preview + CTA */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flexShrink: 0, textAlign: 'center', padding: '8px 14px', borderRadius: 12, border: `1px solid ${t.GREEN}`, background: `${t.GREEN}18` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.GREEN, lineHeight: 1 }}>+{ptsPreview}</div>
+          <div style={{ flexShrink: 0, textAlign: 'center', padding: '9px 15px', borderRadius: 13, border: `1px solid ${t.GREEN}`, background: `${t.GREEN}18` }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, color: t.GREEN, lineHeight: 1 }}>+{ptsPreview}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>pts</div>
           </div>
-          <button onClick={save} disabled={busy || !mins} style={{ flex: 1, padding: '16px 0', borderRadius: 999, background: t.ACCENT, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: (busy || !mins) ? 'default' : 'pointer', opacity: (busy || !mins) ? 0.5 : 1 }}>{busy ? 'Saving…' : `Log ${type} →`}</button>
+          <button onClick={save} disabled={busy || !mins} style={{ flex: 1, padding: '16px 0', borderRadius: 999, background: teal, color: '#031f1c', border: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: (busy || !mins) ? 'default' : 'pointer', opacity: (busy || !mins) ? 0.5 : 1 }}>{busy ? 'Saving…' : `Log ${activityName.length > 12 ? 'activity' : activityName} →`}</button>
         </div>
       </div>
     </div>
@@ -11215,8 +11256,18 @@ function BSClientGoals({ onBack }) {
   );
 }
 
-function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, goRadio = () => {}, tweaks = {}, setTweak = () => {} }) {
+function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, goRadio = () => {}, goChat = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
+  // Live coaches — the member's actual linked coaches (DM threads), demo fallback.
+  const [teamCoaches, setTeamCoaches] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!window.ShapeMessages?.listDirectCoachThreads) return;
+    let on = true;
+    window.ShapeMessages.listDirectCoachThreads()
+      .then((r) => { if (on && r && Array.isArray(r.data)) setTeamCoaches(r.data); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
   const [showHabits, setShowHabits] = useStateBSC(false);
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
@@ -11673,19 +11724,32 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
         <div style={{ fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 2 }}>Coaches</div>
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {[
-          { name: 'Jordan Chen', role: 'Coach · Hypertrophy · SF', d: 'Msg 3' },
-          { name: 'Dr. Maya Patel', role: 'Nutritionist · Consult Thu', d: '—' },
-        ].map((p, i, arr) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 750, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{p.role}</div>
-            </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: p.d === '—' ? t.INK50 : t.ACCENT, fontWeight: 700 }}>{p.d}</span>
-          </div>
-        ))}
+        {(() => {
+          const live = (teamCoaches && teamCoaches.length)
+            ? teamCoaches.slice(0, 6).map((th) => { const u = th.unread || (window.ShapeUnread?.forConversation?.(th.conversation_id || th.id)) || 0; return { name: th.who || 'Coach', role: th.provider_role === 'nutritionist' ? 'Nutritionist' : 'Coach', d: u > 0 ? `Msg ${u}` : '—', live: true }; })
+            : null;
+          const rows = live || [
+            { name: 'Jordan Chen', role: 'Coach · Hypertrophy · SF', d: 'Msg 3' },
+            { name: 'Dr. Maya Patel', role: 'Nutritionist · Consult Thu', d: '—' },
+          ];
+          return rows.map((p, i, arr) => (
+            <button key={i} onClick={() => goChat(p.name, p.role)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 12, padding: `${t.rowY + 5}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 750, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{p.role}</div>
+              </div>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: p.d === '—' ? t.INK50 : t.ACCENT, fontWeight: 700 }}>{p.d}</span>
+            </button>
+          ));
+        })()}
+        {teamCoaches && teamCoaches.length === 0 && (
+          <button onClick={() => goMarket()} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: `${t.rowY + 5}px 0`, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: t.INK50 }}>01</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70 }}>Find a coach to start your team</div>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>Browse →</span>
+          </button>
+        )}
       </div>
 
       {/* SHORTCUTS / Your stuff */}
