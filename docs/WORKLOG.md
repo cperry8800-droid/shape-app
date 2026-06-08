@@ -55,6 +55,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Up-next #3 done: profile sub-data wired to real rollups
+- The member **Terrain** profile's living-identity sub-data now reads from the real self
+  rollups (demo fallback per field): **climb** (weigh-ins), **personal activities** (logged
+  activities), **key lifts** (`/api/client/train` PRs), and now the **disciplines strata** —
+  Strength = strength-trend gain (`/api/client/progress`), Endurance = recent training
+  volume, Consistency = workout adherence (`/api/client/analytics`), Recovery = sleep.
+- Coach **Signal** competency rings stay illustrative by design (they're practice focus,
+  not workout/PR data). Removes the P1 "rich profile sub-data" gap from the build queue.
+
 ### 2026-06-08 — Sell-a-plan (Up-next #2): buy a coach's published plan
 - **Migration `2026-06-08-coach-plans-sale.sql`** (**run on Supabase**): `get_coach_sale_plans(role,id)`
   (a coach's published, priced plans — public read, maps provider row → owner), a `plan_id`

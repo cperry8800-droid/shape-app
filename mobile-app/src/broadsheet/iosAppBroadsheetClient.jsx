@@ -6664,6 +6664,38 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // Illustrative living-identity data (wire to real logs later).
   const streak = 14;
   const disciplines = [['Strength', 0.82], ['Endurance', 0.64], ['Consistency', 0.91], ['Recovery', 0.73]];
+  // On your own profile, the discipline strata derive from your real rollups:
+  // Strength = strength-trend gain, Endurance = recent training volume,
+  // Consistency = workout adherence, Recovery = sleep. Per-field demo fallback.
+  const [realDisc, setRealDisc] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeProgress) return;
+    let on = true;
+    const vals = (s) => (Array.isArray(s) ? s : []).map((x) => (x && typeof x === 'object' ? x.value : x)).filter((v) => Number.isFinite(Number(v))).map(Number);
+    const clamp = (v) => Math.max(0.05, Math.min(1, v));
+    Promise.all([
+      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
+      window.ShapeProgress.analytics ? window.ShapeProgress.analytics().catch(() => null) : null,
+      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
+    ]).then(([prog, ana, train]) => {
+      if (!on) return;
+      const m = {};
+      const ss = vals(prog && prog.series && prog.series.strength);
+      if (ss.length >= 2) m.Strength = clamp(0.55 + ((ss[ss.length - 1] - ss[0]) / Math.max(1, ss[0])) * 1.5);
+      const vm = vals(prog && prog.series && prog.series.volume);
+      if (vm.length) m.Endurance = clamp(vm[vm.length - 1] / 300);
+      const adh = ana && ana.kpis && Number(ana.kpis.workout_adherence_pct);
+      if (Number.isFinite(adh)) m.Consistency = clamp(adh / 100);
+      else if (train && train.stats && train.stats.thisWeekCount != null) m.Consistency = clamp(Number(train.stats.thisWeekCount) / 5);
+      const sleep = prog && prog.kpis && Number(prog.kpis.sleepAvg);
+      if (Number.isFinite(sleep)) m.Recovery = clamp(sleep / 8.2);
+      if (Object.keys(m).length >= 2) {
+        setRealDisc([['Strength', m.Strength], ['Endurance', m.Endurance], ['Consistency', m.Consistency], ['Recovery', m.Recovery]].map(([k, v], i) => [k, v != null ? v : disciplines[i][1]]));
+      }
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [isSelf]);
+  const disciplinesEff = (isSelf && realDisc) ? realDisc : disciplines;
   const lifts = [['Squat', '245'], ['Deadlift', '285'], ['Bench', '135']];
   // On your own profile, the "signature numbers" come from your real logged PRs
   // (/api/client/train rollup); demo values otherwise.
@@ -6977,7 +7009,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div style={{ marginBottom: 28 }}>
               <Kick>Disciplines · strata</Kick>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                {disciplines.map(([label, val], i) => { const col = i === disciplines.length - 1 ? TEAL : c; return (
+                {disciplinesEff.map(([label, val], i) => { const col = i === disciplinesEff.length - 1 ? TEAL : c; return (
                   <div key={label}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}><span style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{label}</span><span style={{ fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.5) }}>{Math.round(val * 100)}</span></div><div style={{ height: 7, borderRadius: 4, background: bsTHexA(INK, 0.08), overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: `linear-gradient(90deg, ${bsTHexA(col, 0.5)}, ${col})`, borderRadius: 4 }} /></div></div>
                 ); })}
               </div>
