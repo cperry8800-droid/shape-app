@@ -23,9 +23,9 @@ function AboutHero() {
         <p style={{ fontFamily: serif, fontSize: 22, fontStyle: "italic", fontWeight: 300, letterSpacing: "-0.005em", color: "rgba(242,237,228,0.82)", margin: "44px auto 0", maxWidth: 760, lineHeight: 1.55 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
         </p>
-        {/* Connector cue down to the letter section. */}
+        {/* Connector cue down to the positioning section. */}
         <div style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }} aria-hidden="true">
-          <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>A letter</span>
+          <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>The idea</span>
           <span style={{ width: 1, height: 56, background: `linear-gradient(to bottom, transparent, ${TEAL})`, display: "block" }} />
         </div>
       </div>
@@ -126,7 +126,7 @@ function AboutVision() {
   const colTitle = { fontFamily: serif, fontSize: 26, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.02em", color: INK, lineHeight: 1.12, marginBottom: 16 };
   const colBody = { fontFamily: serif, fontSize: 17, fontStyle: "italic", fontWeight: 300, color: "rgba(242,237,228,0.8)", lineHeight: 1.62, margin: 0 };
   return (
-    <section style={{ padding: "4px 72px 56px", position: "relative" }}>
+    <section style={{ padding: "26px 72px 60px", position: "relative" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
           <span style={{ width: 24, height: 1, background: "rgba(242,237,228,0.25)" }} />
@@ -134,16 +134,16 @@ function AboutVision() {
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div style={{ fontFamily: serif, fontSize: "clamp(26px, 3.6vw, 42px)", fontWeight: 400, fontStyle: "italic", letterSpacing: "-0.02em", color: TEAL, marginBottom: 18, lineHeight: 1.05 }}>The idea.</div>
           <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.04 }}>
-            The platform coaches build their <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>practice</em> on.
-            <br />The place members <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>live</em> their training life.
+            The platform coaches build their <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>business</em> on.
+            <br />The <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>social network</em> for coaching, training &amp; nutrition.
           </h3>
         </div>
         <div className="about-vision-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
-          {/* Coach-first: the wedge. Shape is where a practice gets built and run. */}
+          {/* Coach-first: the wedge. Shape is the business + the social media for coaches. */}
           <div style={{ borderTop: `2px solid ${TEAL}`, paddingTop: 24 }}>
             <div style={colHead}>For coaches</div>
-            <div style={colTitle}>Your whole practice, in one place.</div>
-            <p style={colBody}>Audience, credibility, clients, and income — built and run from a single home. Bring the people you already train; reach the ones you haven't met yet. Set your own rate, keep your own voice, get paid directly. Shape is where a coaching practice grows up.</p>
+            <div style={colTitle}>Your business and your audience — one home.</div>
+            <p style={colBody}>Run your whole practice — clients, programs, payments — and build your following on the social platform made for coaching, training, and nutrition. Your content, your clients, your income, in one place: not five apps and the wrong crowd. Here, everyone's already training — so your audience is the right one. This is where a coaching business is built and seen.</p>
           </div>
           {/* Members: the retention engine. The social loop keeps people here. */}
           <div style={{ borderTop: `2px solid ${TEAL}`, paddingTop: 24 }}>
@@ -188,7 +188,7 @@ function AboutPillars() {
     },
   ];
   return (
-    <section style={{ padding: "120px 72px 44px" }}>
+    <section style={{ padding: "72px 72px 44px" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 64 }}>
           <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>What you get</div>
@@ -348,8 +348,8 @@ function AboutPage() {
         <style>{`@media (max-width: 720px) { .about-vision-grid { grid-template-columns: 1fr !important; gap: 36px !important; } }`}</style>
         <Header active="About" />
         <AboutHero />
-        <AboutLetter />
         <AboutVision />
+        <AboutLetter />
         <AboutPillars />
         <AboutSignoff />
         <Footer />
