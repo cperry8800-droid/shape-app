@@ -71,6 +71,52 @@ function formatProviderCategory(value) {
   return text.replace(/\w\S*/g, word => word[0].toUpperCase() + word.slice(1).toLowerCase());
 }
 
+// Map a live provider's free-text specialty/tags → the closest marketplace
+// FILTER category, so every real coach is filterable (not just demo coaches).
+// Ordered most-specific → general; falls back to the role's base category.
+const BSM_CAT_KEYWORDS = {
+  Trainer: [
+    ['Hyrox', ['hyrox']],
+    ['Just for Women', ['women', 'woman', 'female', 'postpartum', 'prenatal', 'pelvic', 'hormonal', 'cycle']],
+    ['Pure Running', ['running', 'runner', 'marathon', 'ultra', 'trail', 'track', '5k', '10k', 'pace', 'usatf', 'rrca']],
+    ['Bodybuilding', ['bodybuilding', 'physique', 'posing', 'contest', 'ifbb', 'prep']],
+    ['HIIT', ['hiit', 'metcon', 'metabolic', 'plyo', 'interval']],
+    ['At Home', ['at-home', 'at home', 'home workout', 'minimal equipment', 'bodyweight', 'kettlebell', 'bands']],
+    ['Mobility, Recovery & Rehab', ['mobility', 'recovery', 'rehab', 'yoga', 'prehab', 'physio', 'post-op', 'return-to-sport']],
+    ['Functional & Hybrid', ['functional', 'hybrid', 'crossfit', 'olympic', 'athletic']],
+    ['Cardio & Endurance', ['cardio', 'endurance', 'conditioning', 'vo2', 'cycling', 'triathlon', 'swim', 'aerobic']],
+    ['Fat Burn', ['fat loss', 'fat-loss', 'fat burn', 'cutting', 'lean', 'weight loss']],
+    ['Strength & Resistance', ['strength', 'resistance', 'powerlifting', 'hypertrophy', 'lifting', 'barbell']],
+  ],
+  Nutritionist: [
+    ['Prenatal', ['prenatal', 'postnatal', 'pregnan', 'postpartum']],
+    ['Plant-Based', ['plant', 'vegan', 'vegetarian']],
+    ['Gut Health & Functional Nutrition', ['gut', 'fodmap', 'functional', 'digest', 'ibs']],
+    ['Medical & Condition-Specific', ['medical', 'clinical', 'diabet', 'condition', 'auto-immune', 'cardiac', 'insulin', 'therapy']],
+    ['Longevity & Healthspan', ['longevity', 'healthspan', 'bloodwork', 'anti-aging', 'aging']],
+    ['Muscle Gain / Bulking', ['bulk', 'muscle', 'lean mass', 'recomp', 'gain']],
+    ['Meal Prep', ['meal prep', 'batch', 'budget', 'prep']],
+    ['Sports Performance & Hydration', ['sport', 'hydration', 'athlete', 'fueling', 'fuel']],
+    ['Weight Mgmt', ['weight', 'fat loss', 'slim', 'habit']],
+    ['Performance Nutrition', ['performance', 'macros', 'timing']],
+  ],
+};
+function bsmFilterCategory(role, rawText, fallback) {
+  const text = String(rawText || '').toLowerCase();
+  for (const [cat, kws] of (BSM_CAT_KEYWORDS[role] || [])) {
+    if (kws.some((k) => text.includes(k))) return cat;
+  }
+  return fallback;
+}
+function bsmNormalizeFormat(raw, location) {
+  const f = String(raw || '').toLowerCase();
+  if (/in.?person|studio|gym/.test(f)) return 'In-person';
+  if (/remote|online|virtual/.test(f)) return 'Remote';
+  if (/hybrid/.test(f)) return 'Hybrid';
+  if (!location || /remote|online|anywhere/i.test(String(location))) return 'Remote';
+  return 'Hybrid';
+}
+
 function mapSupabaseProvider(row, role) {
   const isNutritionist = role === 'Nutritionist';
   const specialty = row.specialty || row.specialty_type || formatProviderCategory(row.category);
@@ -93,9 +139,9 @@ function mapSupabaseProvider(row, role) {
     provider_user_id: row.owner_id || null,
     provider_role: isNutritionist ? 'nutritionist' : 'trainer',
     name: row.name || (isNutritionist ? 'Shape Nutritionist' : 'Shape Trainer'),
-    loc: row.location || (isNutritionist ? 'Remote' : 'Remote'),
-    category: specialty || (isNutritionist ? 'Performance Nutrition' : 'Strength & Resistance'),
-    format: row.format || (row.location ? 'Hybrid' : 'Remote'),
+    loc: row.location || 'Remote',
+    category: bsmFilterCategory(role, [specialty, formatProviderCategory(row.category), ...specs].filter(Boolean).join(' '), isNutritionist ? 'Performance Nutrition' : 'Strength & Resistance'),
+    format: bsmNormalizeFormat(row.format, row.location),
     cred: `${row.credential || 'Certified'} - ${row.experience || `${years} yrs`}`,
     certifications: row.credential ? [row.credential] : [],
     spec: specs.length ? specs.slice(0, 5) : [specialty || (isNutritionist ? 'Nutrition' : 'Training')],
