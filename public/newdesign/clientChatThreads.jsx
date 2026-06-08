@@ -1,10 +1,10 @@
 // Shared chat data for logged-in client pages.
-// Tabs: Circle (your coaches), Clients (training partners), Trainers (other trainers),
+// Tabs: Team (your coaches), Clients (training partners), Trainers (other trainers),
 //       Nutritionists (other nutritionists), Community (channels).
 const clientChatTabs = [
   {
     id: "circle",
-    label: "Circle",
+    label: "Team",
     eyebrow: "DIRECT CHAT",
     title: "Your coaches",
     threads: [

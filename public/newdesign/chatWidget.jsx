@@ -413,6 +413,7 @@ function ChatWidget(props) {
   // message carries a real user id (i.e. an actual signed-in account).
   const [profileFor, setProfileFor] = React.useState(null);
   const [profLive, setProfLive] = React.useState(null);
+  const [profFollow, setProfFollow] = React.useState(null);
   // My own display name (for my avatar next to my own messages).
   const [myName, setMyName] = React.useState("You");
   const openProfile = (m) => {
@@ -429,10 +430,15 @@ function ChatWidget(props) {
   const profUid = profileFor && profileFor.userId;
   React.useEffect(() => {
     setProfLive(null);
+    setProfFollow(null);
     if (!profUid) return;
     try {
       const cl = window.shapeDb && window.shapeDb.client;
-      if (cl && cl.rpc) cl.rpc("get_public_profile", { p_user_id: profUid }).then(function (r) { if (r && r.data) setProfLive(r.data); }).catch(function () {});
+      if (cl && cl.rpc) {
+        cl.rpc("get_public_profile", { p_user_id: profUid }).then(function (r) { if (r && r.data) setProfLive(r.data); }).catch(function () {});
+        // Follower / following counts (public) — adds real "more info" to the card.
+        cl.rpc("get_follow_stats", { p_user_id: profUid }).then(function (r) { const d = r && r.data; const row = Array.isArray(d) ? d[0] : d; if (row) setProfFollow(row); }).catch(function () {});
+      }
     } catch (e) {}
   }, [profUid]);
 
@@ -862,6 +868,9 @@ function ChatWidget(props) {
               const pronouns = !isPrivate && profLive && profLive.pronouns;
               const goal = !isPrivate && profLive && profLive.goal;
               const link = !isPrivate && profLive && profLive.link;
+              const followers = profFollow && Number.isFinite(profFollow.followers) ? profFollow.followers : null;
+              const following = profFollow && Number.isFinite(profFollow.following) ? profFollow.following : null;
+              const handle = "@" + String(profileFor.who).toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18);
               const bio = isPrivate ? null : ((profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`);
               const Stat = (st) => (
                 <div style={{ flex: 1, minWidth: 0, borderRadius: 12, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "10px 12px" }}>
@@ -880,6 +889,10 @@ function ChatWidget(props) {
                   <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
                     <button onClick={() => setProfileFor(null)} style={{ background: "transparent", border: 0, color: TEAL_BRIGHT, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em" }}>← BACK</button>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>Public profile</span>
+                    {(profileFor.userId || isCoach) && (
+                      <a href={profileFor.userId ? `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}` : "/newdesign/Marketplace.html"}
+                        style={{ marginLeft: "auto", color: TEAL_BRIGHT, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Full profile →</a>
+                    )}
                   </div>
                   <div style={{ padding: 18 }}>
                     <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
@@ -888,8 +901,14 @@ function ChatWidget(props) {
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
                           <span style={{ color: tc }}>{tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{roleLabel}</span>
                         </div>
-                        <div style={{ marginTop: 5, fontFamily: sans, fontSize: 23, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
-                        <div style={{ marginTop: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>● Member of the Shape community</div>
+                        <div style={{ marginTop: 5, fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
+                        <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>{handle}</div>
+                        {(followers != null || following != null) && (
+                          <div style={{ marginTop: 7, display: "flex", gap: 12, fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.6)" }}>
+                            <span><b style={{ color: INK, fontWeight: 700 }}>{(followers || 0).toLocaleString()}</b> followers</span>
+                            <span><b style={{ color: INK, fontWeight: 700 }}>{(following || 0).toLocaleString()}</b> following</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
@@ -914,11 +933,8 @@ function ChatWidget(props) {
                         )}
                       </React.Fragment>
                     )}
-                    <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-                      <button onClick={() => setProfileFor(null)} style={{ flex: 1, padding: "12px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Message →</button>
-                      {profileFor.userId
-                        ? <a href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`} style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>
-                        : (isCoach && <a href="/Marketplace.html" style={{ flex: "none", padding: "12px 18px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.16)", color: INK, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>View full profile →</a>)}
+                    <div style={{ marginTop: 16, display: "flex", justifyContent: "center" }}>
+                      <button onClick={() => setProfileFor(null)} style={{ padding: "11px 44px", borderRadius: 999, border: 0, background: TEAL, color: PAPER, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>Message {first} →</button>
                     </div>
                   </div>
                 </div>
