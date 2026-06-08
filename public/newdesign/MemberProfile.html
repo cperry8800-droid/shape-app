@@ -75,7 +75,7 @@ function LiveProfilePage() {
       const qname = params.get("name");
       // A named person without a real account (e.g. a demo chat contact) → render
       // a derived public profile (same idea as the mobile app), not a redirect.
-      if (qname && !qid) { if (on) setSt({ loading: false, status: "derived", derived: { name: qname, role: params.get("role") || "client" } }); return; }
+      if (qname && !qid) { if (on) setSt({ loading: false, status: "derived", derived: { name: qname, role: params.get("role") || "client", pts: Number(params.get("pts")) || null, avatar: params.get("avatar") || "" } }); return; }
       let me = null; try { const r = await c.auth.getUser(); me = r && r.data ? r.data.user : null; } catch (e) {}
       const uid = qid || (me && me.id);
       if (!uid) { if (on) setSt({ loading: false, status: "signin" }); return; }
@@ -140,8 +140,10 @@ function LiveProfilePage() {
         const d = st.derived; const nm = String(d.name || "Shape member");
         let h = 0; for (let i = 0; i < nm.length; i++) h = (h + nm.charCodeAt(i) * (i + 1)) % 9973;
         const isCoachD = d.role === "trainer" || d.role === "nutritionist";
-        const pts = (isCoachD ? [900, 2400, 5200] : [200, 1284, 3200])[h % 3];
-        return { role: d.role, points: pts, full_name: nm, is_public: true, can_view: true, bio: null, pronouns: null, goal: null, link: null, avatar: "" };
+        // Use the points + avatar passed from the chat card so the full profile
+        // matches what was shown there (same tier + photo); else derive.
+        const pts = (d.pts && d.pts > 0) ? d.pts : (isCoachD ? [900, 2400, 5200] : [200, 1284, 3200])[h % 3];
+        return { role: d.role, points: pts, full_name: nm, is_public: true, can_view: true, bio: null, pronouns: null, goal: null, link: null, avatar: d.avatar || "" };
       })()
     : st.row;
   const role = row.role === "trainer" ? "trainer" : row.role === "nutritionist" ? "nutritionist" : "client";

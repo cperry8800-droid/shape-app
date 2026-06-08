@@ -872,6 +872,19 @@ function ChatWidget(props) {
               const following = profFollow && Number.isFinite(profFollow.following) ? profFollow.following : null;
               const handle = "@" + String(profileFor.who).toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18);
               const bio = isPrivate ? null : ((profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`);
+              // Full-profile link → the SAME person shown here. Real accounts load
+              // by id; for demo people we pass the name + role + this card's points
+              // and avatar so the full page matches (same tier + photo, not a re-derive).
+              const fullProfileHref = (() => {
+                if (profileFor.userId) return `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`;
+                const role = isCoach ? (/nutrition/i.test(profileFor.role || "") ? "nutritionist" : "trainer") : "client";
+                const ptsMap = { base: 200, tempo: 950, form: 2400, peak: 5400, legend: 15400 };
+                const ptsForLink = points != null ? points : (ptsMap[String(tier).toLowerCase()] || 200);
+                const avatarUrl = (profLive && profLive.avatar) || cwDemoFace(profileFor.who) || "";
+                const q = new URLSearchParams({ name: profileFor.who, role: role, pts: String(ptsForLink) });
+                if (avatarUrl) q.set("avatar", avatarUrl);
+                return `/newdesign/MemberProfile.html?${q.toString()}`;
+              })();
               const Stat = (st) => (
                 <div style={{ flex: 1, minWidth: 0, borderRadius: 12, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "10px 12px" }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>{st.label}</div>
@@ -888,9 +901,7 @@ function ChatWidget(props) {
                 <div style={{ position: "absolute", inset: 0, zIndex: 12, background: "#1a1612", display: "flex", flexDirection: "column", overflowY: "auto" }}>
                   <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
                     <button onClick={() => setProfileFor(null)} style={{ background: "transparent", border: 0, color: TEAL_BRIGHT, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em" }}>← BACK</button>
-                    <a href={profileFor.userId
-                        ? `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`
-                        : `/newdesign/MemberProfile.html?name=${encodeURIComponent(profileFor.who)}&role=${encodeURIComponent(isCoach ? (/nutrition/i.test(profileFor.role || "") ? "nutritionist" : "trainer") : "client")}`}
+                    <a href={fullProfileHref}
                       style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>
                   </div>
                   <div style={{ padding: 18 }}>
