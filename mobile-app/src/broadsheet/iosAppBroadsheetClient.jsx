@@ -3101,6 +3101,18 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
       />
 
+      {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible */}
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '9px 13px', borderRadius: 999, border: `1px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}55`, background: t.isLight ? '#9c7b4314' : '#e7dcc314', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 8, background: t.isLight ? '#9c7b43' : '#e7dcc3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, color: t.INK }}>Find a trainer</span>
+          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vetted coaches</span>
+        </div>
+        <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 15, flexShrink: 0, fontWeight: 700 }}>→</span>
+      </button>
+
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
@@ -3219,21 +3231,6 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           </>
         );
       })()}
-
-      {/* Find a trainer — marketplace deep link (Trainer tab), pinned to the bottom */}
-      <BSTrackHeader kicker="Marketplace" title="Coaching" />
-      <div style={{ padding: `12px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('trainer')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
-          <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: t.isLight ? '#9c7b43' : '#e7dcc3', color: t.isLight ? '#fff' : '#2a1f12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a trainer</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>Vetted coaches · filter by goal & schedule</div>
-          </div>
-          <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 16, flexShrink: 0, fontWeight: 700 }}>→</span>
-        </button>
-      </div>
 
       <BSFooter right="Pg 2 of 5" />
     </BSPage>
@@ -5445,6 +5442,18 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
       />
 
+      {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible */}
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '9px 13px', borderRadius: 999, border: `1px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}55`, background: t.isLight ? '#9c7b4314' : '#e7dcc314', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 8, background: t.isLight ? '#9c7b43' : '#e7dcc3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, color: t.INK }}>Find a nutritionist</span>
+          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vetted RDs</span>
+        </div>
+        <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 15, flexShrink: 0, fontWeight: 700 }}>→</span>
+      </button>
+
       <BSNutritionTopTabs active="eat" onChange={setView} />
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -5618,21 +5627,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           </>
         );
       })()}
-
-      {/* Find a nutritionist — marketplace deep link (Nutritionist tab), pinned to the bottom */}
-      <BSTrackHeader kicker="Marketplace" title="Coaching" />
-      <div style={{ padding: `12px ${t.padX}px 28px` }}>
-        <button onClick={() => goMarket('nutritionist')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
-          <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: t.isLight ? '#9c7b43' : '#e7dcc3', color: t.isLight ? '#fff' : '#2a1f12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 16, color: t.INK }}>Find a nutritionist</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.05em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>Vetted RDs · filter by goal & specialty</div>
-          </div>
-          <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 16, flexShrink: 0, fontWeight: 700 }}>→</span>
-        </button>
-      </div>
 
       <BSFooter right="Pg 3 of 5" />
     </BSPage>
@@ -14416,9 +14410,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <BSFollowMini onOpen={() => setShowPublicProfile(true)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 16, flexWrap: 'nowrap' }}>
+            <div style={{ display: 'flex', gap: 7, marginTop: 16, justifyContent: 'center' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
-                <button key={l} onClick={on} style={{ padding: '9px 10px', borderRadius: 11, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+                <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '11px 6px', borderRadius: 11, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
             <button onClick={() => setShowPublicProfile(true)} style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>View public profile →</button>
