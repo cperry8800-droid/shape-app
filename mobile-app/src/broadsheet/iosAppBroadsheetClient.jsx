@@ -7205,7 +7205,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       <div style={{ padding: '48px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
         {isSelf
-          ? <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+          ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <button onClick={onEdit} aria-label="Edit profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              </button>
+              <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+            </div>
           : <BSMeCorner size={30} />}
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
@@ -7422,15 +7427,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
 
-      {/* dock — always-available Message / Edit (+ privacy on your own) */}
-      <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
-        {isSelf && <BSProfilePrivacy teal={TEAL} ink={INK} />}
-        {isSelf ? (
-          <button onClick={onEdit} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
-        ) : (
+      {/* dock — Message others (edit + privacy live in the header / settings now) */}
+      {!isSelf && (
+        <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
           <button onClick={() => onMessage(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -7660,10 +7662,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
-              ? <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+              ? <>
+                  <button onClick={onEdit} aria-label="Edit profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </button>
+                  <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                </>
               : <BSMeCorner size={30} />}
           </div>
         </div>
@@ -7852,20 +7859,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
 
-      {/* dock (+ privacy on your own) */}
-      <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
-        {isSelf && <BSProfilePrivacy teal={TEAL} ink={INK} />}
-        <div style={{ display: 'flex', gap: 10 }}>
-          {isSelf ? (
-            <button onClick={onEdit} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Edit profile →</button>
-          ) : (
-            <>
-              <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
-              <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>Work with {first} →</button>
-            </>
-          )}
+      {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
+      {!isSelf && (
+        <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
+            <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>Work with {first} →</button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
