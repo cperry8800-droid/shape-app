@@ -3102,13 +3102,13 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       />
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '9px 13px', borderRadius: 999, border: `1px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}55`, background: t.isLight ? '#9c7b4314' : '#e7dcc314', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 8, background: t.isLight ? '#9c7b43' : '#e7dcc3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5v11M3 9.5v5M17.5 6.5v11M21 9.5v5M6.5 12h11"/></svg>
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 12, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '11px 13px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: t.isLight ? '#9c7b4316' : '#e7dcc316', border: `1px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}45`, color: t.isLight ? '#9c7b43' : '#e7dcc3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, color: t.INK }}>Find a trainer</span>
-          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vetted coaches</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>Find a trainer</span>
+          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted coaches</span>
         </div>
         <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 15, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
@@ -3916,14 +3916,14 @@ function BSNutritionTopTabs({ active, onChange }) {
     ['recipes', 'Recipes'],
   ];
   return (
-    <div style={{ padding: `9px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+    <div style={{ padding: `8px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
           <button key={key} onClick={() => onChange(key)} style={{ borderRadius: t.RADIUS_SM,
-            padding: '12px 8px', border: `1px solid ${on ? teal : t.RULE}`,
+            padding: '8px 8px', border: `1px solid ${on ? teal : t.RULE}`,
             background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK,
-            fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
+            fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
             cursor: 'pointer',
           }}>{label}</button>
         );
@@ -5443,13 +5443,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       />
 
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '9px 13px', borderRadius: 999, border: `1px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}55`, background: t.isLight ? '#9c7b4314' : '#e7dcc314', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 8, background: t.isLight ? '#9c7b43' : '#e7dcc3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.isLight ? '#fff' : '#2a1f12'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 4 13C4 7 9 3 20 3C20 12 16 20 11 20Z"/><path d="M4 21C5.5 15 9 11.5 14 10"/></svg>
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 12, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '11px 13px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: t.isLight ? '#9c7b4316' : '#e7dcc316', border: `1px solid ${t.isLight ? '#9c7b43' : '#e7dcc3'}45`, color: t.isLight ? '#9c7b43' : '#e7dcc3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, color: t.INK }}>Find a nutritionist</span>
-          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vetted RDs</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK }}>Find a nutritionist</span>
+          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted RDs</span>
         </div>
         <span style={{ color: t.isLight ? '#9c7b43' : '#e7dcc3', fontSize: 15, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
@@ -7295,7 +7295,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 10 }}>
                 <Kick>The climb</Kick>
-                <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since} · <a href={stravaUrl} target="_blank" rel="noopener noreferrer" style={{ color: c, textDecoration: 'none' }}>Strava ↗</a></span>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since}</span>
               </div>
               {climbTabs.length > 1 && (
                 <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
