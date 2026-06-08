@@ -7572,6 +7572,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   };
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
+  const [reviewerProfile, setReviewerProfile] = useStateBSC(null);
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
@@ -7645,6 +7646,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const initials = bsInitials(name) || (person.init || '?');
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
+  // Tap a reviewer → open who wrote the review (their public profile).
+  if (reviewerProfile) return <BSPublicProfile person={reviewerProfile} onBack={() => setReviewerProfile(null)} onMessage={onMessage} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
@@ -7803,18 +7806,21 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           {tab === 'reviews' && (() => {
             const liveAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
             const liveList = (liveReviews && liveReviews.length)
-              ? liveReviews.map((r) => [r.author || 'Member', (r.author || 'M').slice(0, 2).toUpperCase(), 160, r.text || '', Math.round(r.rating || 0)])
-              : reviews.map((r) => [...r, 10]);
+              ? liveReviews.map((r) => [r.author || 'Member', (r.author || 'M').slice(0, 2).toUpperCase(), 160, r.text || '', Math.round(r.rating || 0), r.authorId || null])
+              : reviews.map((r) => [...r, 10, null]);
             return (
             <div style={{ marginTop: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                {liveList.map(([nm, ini, hue, body, stars], i) => (
+                {liveList.map(([nm, ini, hue, body, stars, authorId], i) => {
+                  const open = authorId ? () => setReviewerProfile({ who: nm, kind: 'CLIENT', userId: authorId, public: true }) : null;
+                  return (
                   <div key={i} style={{ ...card, padding: '13px 15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12 }}>{ini}</div><span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500 }}>{nm}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: c }}>{stars}/10</span></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div onClick={open || undefined} style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12, cursor: open ? 'pointer' : 'default' }}>{ini}</div><span onClick={open || undefined} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500, cursor: open ? 'pointer' : 'default', textDecoration: open ? 'underline' : 'none', textUnderlineOffset: 2 }}>{nm}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: c }}>{stars}/10</span></div>
                     <p style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 1.45, color: bsTHexA(INK, 0.82), margin: '10px 0 0' }}>“{body}”</p>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
             );

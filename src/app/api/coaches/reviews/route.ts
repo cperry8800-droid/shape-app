@@ -11,9 +11,9 @@ function clampRating(value: unknown): number {
   const n = Math.round(Number(value) || 0);
   return Math.max(0, Math.min(10, n));
 }
-type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; created_at: string };
+type ReviewRow = { id: string; rating: number; body: string | null; author_name: string | null; user_id?: string | null; created_at: string };
 function shape(row: ReviewRow) {
-  return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', date: row.created_at };
+  return { id: row.id, rating: row.rating, text: row.body ?? '', author: row.author_name ?? 'Member', authorId: row.user_id ?? null, date: row.created_at };
 }
 
 // GET /api/coaches/reviews?coach=<slug>  -> { reviews, avg, count }
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   if (slug) {
     const { data, error } = await supabase
       .from('coach_reviews')
-      .select('id, rating, body, author_name, created_at')
+      .select('id, rating, body, author_name, user_id, created_at')
       .eq('coach_slug', slug)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from('coach_reviews')
     .insert({ coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text })
-    .select('id, rating, body, author_name, created_at')
+    .select('id, rating, body, author_name, user_id, created_at')
     .single();
   if (error) {
     console.error('coach review insert failed:', error);

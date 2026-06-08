@@ -566,8 +566,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   };
   const reviewsAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
   const reviewItems = (liveReviews && liveReviews.length)
-    ? liveReviews.map((r) => ({ name: r.author || "Member", initials: (r.author || "M").slice(0, 2).toUpperCase(), hue: 160, stars10: Math.round(r.rating || 0), body: r.text || "", time: "" }))
-    : d.reviews.map((r) => ({ ...r, stars10: 10 }));
+    ? liveReviews.map((r) => ({ name: r.author || "Member", initials: (r.author || "M").slice(0, 2).toUpperCase(), hue: 160, stars10: Math.round(r.rating || 0), body: r.text || "", time: "", authorId: r.authorId || null }))
+    : d.reviews.map((r) => ({ ...r, stars10: 10, authorId: null }));
   return (
     <div>
       {showCoaching && <React.Fragment>
@@ -618,8 +618,15 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           {reviewItems.map((r, i) => (
             <div key={i} style={{ ...card, padding: "13px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
-                <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink }}>{r.name}</span>
+                {r.authorId
+                  ? <a href={"MemberProfile.html?u=" + encodeURIComponent(r.authorId)} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
+                      <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink, textDecoration: "underline", textUnderlineOffset: 2 }}>{r.name}</span>
+                    </a>
+                  : <React.Fragment>
+                      <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
+                      <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink }}>{r.name}</span>
+                    </React.Fragment>}
                 <span style={{ marginLeft: "auto", fontFamily: lvMono, fontSize: 10, color: c }}>{r.stars10}/10</span>
               </div>
               <p style={{ fontFamily: lvSerif, fontSize: 14, fontStyle: "italic", lineHeight: 1.45, color: hexA(ink, 0.82), margin: "10px 0 0", textWrap: "pretty" }}>“{r.body}”</p>
