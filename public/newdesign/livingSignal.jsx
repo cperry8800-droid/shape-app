@@ -167,7 +167,7 @@ function SignalProfile({ persona = "client", variant = "public" }) {
          <React.Fragment>
         {/* header line */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <LvKicker c={c}>{tierOf(d).name} · Rank {tierOf(d).rank}</LvKicker>
+          <LvKicker c={c}>{tierOf(d).name}</LvKicker>
           <LvKicker>NO. {d.member}</LvKicker>
         </div>
 

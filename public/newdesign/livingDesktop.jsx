@@ -93,7 +93,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
       {/* identity */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
-          <span style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: c, border: `1px solid ${dHexA(c, 0.4)}`, borderRadius: 999, padding: "6px 12px" }}>{direction === "terrain" ? "▲ " : "◇ "}{tierOf(d).name} · Rank {tierOf(d).rank}</span>
+          <span style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: c, border: `1px solid ${dHexA(c, 0.4)}`, borderRadius: 999, padding: "6px 12px" }}>{direction === "terrain" ? "▲ " : "◇ "}{tierOf(d).name}</span>
           {coach && d.verified && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase", color: LV_TEAL }}><SpVerifiedDot /> Verified</span>}
           {!coach && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: LV_TEAL }}><span className={reduced ? "" : "lv-pulse"} style={{ width: 7, height: 7, borderRadius: 999, background: LV_TEAL }} /> In training</span>}
         </div>
@@ -349,7 +349,7 @@ function DesktopLocked({ d, follow, onMessage, onFollow, coachingHref }) {
       </div>
       <h2 style={{ fontFamily: dSerif, fontSize: 48, fontWeight: 400, letterSpacing: "-0.03em", margin: "26px 0 0" }}>{d.name}</h2>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 14 }}>
-        <span style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: c, border: `1px solid ${dHexA(c, 0.45)}`, borderRadius: 999, padding: "6px 12px" }}>● {tierOf(d).name} · Rank {tierOf(d).rank}</span>
+        <span style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: c, border: `1px solid ${dHexA(c, 0.45)}`, borderRadius: 999, padding: "6px 12px" }}>● {tierOf(d).name}</span>
         <span style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55) }}>{d.roleLabel}</span>
       </div>
       <p style={{ fontFamily: dSans, fontSize: 15, lineHeight: 1.6, color: dHexA(LV_INK, 0.55), maxWidth: 380, margin: "22px auto 0" }}>

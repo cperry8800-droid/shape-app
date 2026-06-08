@@ -634,7 +634,7 @@ function LvLockedVeil({ d, privacy }) {
       {/* name + tier — the only things shared */}
       <h2 style={{ fontFamily: lvSerif, fontSize: 34, fontWeight: 400, letterSpacing: "-0.025em", margin: "22px 0 0", lineHeight: 1 }}>{d.name}</h2>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
-        <span style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: c, border: `1px solid ${hexA(c, 0.45)}`, borderRadius: 999, padding: "5px 11px" }}>● {tierOf(d).name} · Rank {tierOf(d).rank}</span>
+        <span style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: c, border: `1px solid ${hexA(c, 0.45)}`, borderRadius: 999, padding: "5px 11px" }}>● {tierOf(d).name}</span>
         <span style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(LV_INK, 0.55) }}>{d.roleLabel}</span>
       </div>
 
