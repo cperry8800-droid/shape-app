@@ -1,0 +1,61 @@
+// Authoritative Shape Store catalogue (server-side).
+//
+// The store UIs (mobile + website) render their own copy of this list, but the
+// redemption endpoint must NOT trust the cost the client sends — it looks the
+// item up here and charges the real cost. Keep this in sync with:
+//   - public/newdesign/store.jsx  (website)
+//   - BSShapeStorePage in mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
+//
+// Uniform value: 1 Shape point = $0.05 (20 points = $1). Cost derives from the
+// item's retail $, so the rate is consistent across the whole catalogue.
+
+export const SHAPE_PTS_PER_USD = 20;
+
+export type StoreItem = {
+  id: string;
+  name: string;
+  cat: string;
+  retail: number;
+  /** Tier-locked items can't be redeemed (gated above the membership check). */
+  locked?: boolean;
+  kind?: 'merch' | 'credit' | 'service' | 'lead_boost';
+};
+
+const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
+  // Shape Merch
+  { id: 'merch_training_tee', name: 'Shape Training Tee', cat: 'Shape Merch', retail: 48, kind: 'merch' },
+  { id: 'merch_crewneck', name: 'Shape Crewneck', cat: 'Shape Merch', retail: 72, kind: 'merch' },
+  { id: 'merch_bottle', name: 'Shape Training Bottle', cat: 'Shape Merch', retail: 28, kind: 'merch' },
+  { id: 'merch_towel', name: 'Shape Gym Towel', cat: 'Shape Merch', retail: 22, kind: 'merch' },
+  { id: 'merch_duffel', name: 'Shape Training Duffel', cat: 'Shape Merch', retail: 165, kind: 'merch', locked: true },
+
+  // Training
+  { id: 'train_credit_25', name: '$25 session credit', cat: 'Training', retail: 25, kind: 'credit' },
+  { id: 'train_credit_50', name: '$50 session credit', cat: 'Training', retail: 50, kind: 'credit' },
+  { id: 'train_second_opinion', name: 'Coach 2nd-opinion', cat: 'Training', retail: 95, kind: 'service' },
+  { id: 'train_program_review', name: 'Program review credit', cat: 'Training', retail: 85, kind: 'service' },
+
+  // Nutrition
+  { id: 'nutri_meal_plan_refresh', name: 'Meal-plan Refresh', cat: 'Nutrition', retail: 140, kind: 'service' },
+  { id: 'nutri_credit_25', name: '$25 nutrition credit', cat: 'Nutrition', retail: 25, kind: 'credit' },
+  { id: 'nutri_grocery_buildout', name: 'Grocery list buildout', cat: 'Nutrition', retail: 45, kind: 'service' },
+  { id: 'nutri_recipe_pack', name: 'Recipe archive pack', cat: 'Nutrition', retail: 35, kind: 'service' },
+
+  // Shape Perks
+  { id: 'perk_annual_credit', name: 'Annual membership credit', cat: 'Shape Perks', retail: 200, kind: 'credit', locked: true },
+
+  // Coach Tools (lead boosts have their own activation path, not point-redeemed)
+  { id: 'lead_boost_7', name: 'Lead Boost · 7 days', cat: 'Coach Tools', retail: 79, kind: 'lead_boost' },
+  { id: 'lead_boost_14', name: 'Lead Boost · 14 days', cat: 'Coach Tools', retail: 139, kind: 'lead_boost' },
+  { id: 'lead_boost_30', name: 'Lead Boost · 30 days', cat: 'Coach Tools', retail: 249, kind: 'lead_boost' },
+];
+
+export const STORE_CATALOGUE: StoreItem[] = RAW.map((p) => ({ ...p }));
+
+export function storeItemCost(item: StoreItem): number {
+  return Math.round(item.retail * SHAPE_PTS_PER_USD);
+}
+
+export function findStoreItem(id: string): StoreItem | undefined {
+  return STORE_CATALOGUE.find((p) => p.id === id);
+}

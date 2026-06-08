@@ -261,6 +261,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/radio/rooms', 'GET,POST'],
   ['/api/recipes/reviews', 'GET,POST'],
   ['/api/sessions/manage', 'GET,POST'],
+  ['/api/store/redeem', 'GET,POST'],
   ['/api/stripe/billing-portal', 'POST'],
   ['/api/stripe/checkout-session', 'POST'],
   ['/api/stripe/connect-account', 'POST'],

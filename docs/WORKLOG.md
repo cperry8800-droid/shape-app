@@ -55,6 +55,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Store redemption is real: points become spendable (mobile + website)
+- **Migration `2026-06-08-store-redemptions.sql`** (**run on Supabase**): `store_redemptions`
+  table (owner-read RLS) + 3 SECURITY DEFINER RPCs — `get_my_points_balance()` (live balance =
+  Σ `score_ledger.delta`), `get_my_redemptions()` (the locker), and **`redeem_store_item(item_id,
+  name, cost)`** which **atomically** (per-user `pg_advisory_xact_lock`) checks the balance,
+  writes a **negative ledger row** (category `other`, `source_kind 'store_redeem'`) so the spend
+  shows on the score page + lowers the balance, and issues a one-time `CODE-XXXXXXXX`. Raises
+  `insufficient_points` when short — no double-spend.
+- **API `/api/store/redeem`** (GET locker+balance / POST redeem). Auth Bearer-or-cookie; looks up
+  the **authoritative cost server-side** from new **`src/lib/store-catalogue.ts`** (never trusts the
+  client), gates on membership (`computeMembership` — points earn for all, spend for members/coaches/
+  admin), and blocks tier-locked + lead-boost items. Registered in War Room `RAW_ROUTES`.
+- **Mobile** (`shapeBackend.js` `ShapeStore = { get, redeem }`): `BSShapeStorePage` now loads the
+  **live balance + locker**, every catalogue row is a **tappable Redeem →** (deducts + issues a code,
+  shows an inline notice, refreshes the balance + Unlocked codes). Demo values remain the signed-out
+  fallback. Each product carries a stable `id` matching the server catalogue.
+- **Website** (`store.jsx`): `StorePage` fetches the same endpoint → live hero balance, real Redeem
+  buttons (busy state + notice), and the **Your locker** section renders real redemption codes.
+  Products carry server item ids via a name→id map.
+- Builds on the 20 pts = $1 rate — points are now genuine purchasing power end-to-end.
+
 ### 2026-06-08 — Up-next #4: native push/browser plugin prep (code side complete)
 - Declared **`@capacitor/push-notifications`** + **`@capacitor/browser`** in
   `mobile-app/package.json` and added a `PushNotifications.presentationOptions`

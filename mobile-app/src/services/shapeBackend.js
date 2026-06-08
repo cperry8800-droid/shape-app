@@ -2855,6 +2855,26 @@ async function getPlan() {
 }
 window.ShapePlan = { get: getPlan };
 
+// ─── Shape Store (redeem points for real rewards) ────────────────────────────
+// GET returns the live points balance + redemption locker; POST redeems an
+// item by id (server validates cost + deducts atomically, issues a code).
+async function getStore() {
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/store/redeem`, { balance: null, redemptions: [] },
+    (data) => ({ balance: typeof data.balance === 'number' ? data.balance : null, redemptions: Array.isArray(data.redemptions) ? data.redemptions : [] }));
+}
+async function redeemStoreItem(itemId) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/store/redeem`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ itemId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Redemption failed.');
+  return data;
+}
+window.ShapeStore = { get: getStore, redeem: redeemStoreItem };
+
 window.ShapeNotifications = {
   list: listNotifications,
   markRead: markNotificationRead,

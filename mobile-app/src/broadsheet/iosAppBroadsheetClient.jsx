@@ -11706,40 +11706,55 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
 function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
-  const balance = profile.available;
   const lifetime = profile.lifetime;
-  const redeemedCount = profile.redeemedCount;
   const categories = ['All', 'Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
   const [cat, setCat] = useStateBSC('All');
   const [affordable, setAffordable] = useStateBSC(false);
+  // Live points balance + redemption locker (members only). Falls back to the
+  // demo profile values until the real fetch resolves / for signed-out preview.
+  const [store, setStore] = useStateBSC({ balance: null, redemptions: null });
+  const [notice, setNotice] = useStateBSC('');
+  const [busyId, setBusyId] = useStateBSC('');
+  const balance = store.balance == null ? profile.available : store.balance;
+  const reloadStore = React.useCallback(async () => {
+    try {
+      const d = window.ShapeStore ? await window.ShapeStore.get() : null;
+      if (d) setStore({ balance: typeof d.balance === 'number' ? d.balance : null, redemptions: Array.isArray(d.redemptions) ? d.redemptions : [] });
+    } catch (e) {}
+  }, []);
   // Membership gate — the Shape Store (redeeming points for gear/rewards) is a
   // Shape member perk. Coaches (providers) and active members get in; free or
   // signed-out users see an upgrade prompt instead of the catalogue.
   const memberGate = useBSMembership();
   const products = [
-    { cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
-    { cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
-    { cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
-    { cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
-    { cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
-    { cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
-    { cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
-    { cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
-    { cat: 'Training', name: 'Program review credit', brand: 'Shape trainer review', cost: 780, retail: 85, stock: 'Unlimited' },
-    { cat: 'Nutrition', name: 'Meal-plan Refresh', brand: 'With your Shape RD', cost: 1200, retail: 140, tag: 'Popular', stock: 'Unlimited' },
-    { cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
-    { cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
-    { cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
-    { cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
+    { id: 'merch_training_tee', cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
+    { id: 'merch_crewneck', cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
+    { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
+    { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
+    { id: 'merch_duffel', cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
+    { id: 'train_credit_25', cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
+    { id: 'train_credit_50', cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
+    { id: 'train_second_opinion', cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
+    { id: 'train_program_review', cat: 'Training', name: 'Program review credit', brand: 'Shape trainer review', cost: 780, retail: 85, stock: 'Unlimited' },
+    { id: 'nutri_meal_plan_refresh', cat: 'Nutrition', name: 'Meal-plan Refresh', brand: 'With your Shape RD', cost: 1200, retail: 140, tag: 'Popular', stock: 'Unlimited' },
+    { id: 'nutri_credit_25', cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
+    { id: 'nutri_grocery_buildout', cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
+    { id: 'nutri_recipe_pack', cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
+    { id: 'perk_annual_credit', cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
   ];
   // Uniform store value: 1 Shape point = $0.05 (20 points = $1). Every item is
   // priced straight off its retail $, so the rate is consistent across the catalogue.
   const SHAPE_PTS_PER_USD = 20;
   products.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * SHAPE_PTS_PER_USD); });
-  const unlocked = [
-    ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
-    ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
-  ];
+  // Live redemption locker → falls back to demo codes for signed-out preview.
+  const liveRedemptions = Array.isArray(store.redemptions) ? store.redemptions : null;
+  const unlocked = liveRedemptions && liveRedemptions.length > 0
+    ? liveRedemptions.map((r) => [r.code, r.item_name, r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '', r.cost_points])
+    : (liveRedemptions ? [] : [
+        ['SHAPE-TEE-48F2', 'Shape Training Tee', 'Jun 30', 450],
+        ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
+      ]);
+  const redeemedCount = liveRedemptions ? liveRedemptions.length : profile.redeemedCount;
   const visible = products.filter(p => {
     if (cat !== 'All' && p.cat !== cat) return false;
     if (affordable && (p.locked || p.cost > balance)) return false;
@@ -11753,6 +11768,28 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   // Anyone can browse the catalogue; only redeeming is members-only. Coaches +
   // active members can redeem; free / signed-out users see a "join to redeem" CTA.
   const purchasesLocked = !memberGate.allowed && !memberGate.loading;
+
+  React.useEffect(() => { if (memberGate.allowed) reloadStore(); }, [memberGate.allowed, reloadStore]);
+
+  async function handleRedeem(p) {
+    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    if (p.locked || busyId) return;
+    if (p.cost > balance) { setNotice('Not enough points for that yet — keep earning!'); return; }
+    setBusyId(p.id);
+    setNotice('');
+    try {
+      const d = await window.ShapeStore.redeem(p.id);
+      setNotice(`${p.name} redeemed! Code ${d.code} is in your locker below.`);
+      await reloadStore();
+    } catch (e) {
+      const m = String((e && e.message) || '');
+      if (m.includes('insufficient_points')) setNotice('Not enough points for that yet — keep earning!');
+      else if (m.includes('membership_required')) setNotice('Become a Shape member to redeem your points.');
+      else setNotice('Redemption failed. Please try again.');
+    } finally {
+      setBusyId('');
+    }
+  }
 
   return (
     <BSPage>
@@ -11800,6 +11837,12 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         </div>
       )}
 
+      {!!notice && (
+        <div style={{ padding: `12px ${t.padX}px 0` }}>
+          <div style={{ borderRadius: 14, border: `1px solid ${t.ACCENT}55`, background: `${t.ACCENT}14`, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{notice}</div>
+        </div>
+      )}
+
       <div style={{
         padding: `10px ${t.padX}px 4px`,
         display: 'grid',
@@ -11835,12 +11878,17 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {visible.map((p, i) => {
           const canAfford = !p.locked && p.cost <= balance;
+          const busy = busyId === p.id;
+          const tappable = !p.locked && (purchasesLocked || canAfford) && !busy;
           return (
-            <div key={`${p.cat}-${p.name}`} style={{
-              padding: '13px 0', borderBottom: i === visible.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              display: 'grid', gridTemplateColumns: '1fr 76px', gap: 12,
-              opacity: p.locked ? 0.62 : 1,
-            }}>
+            <div key={`${p.cat}-${p.name}`}
+              onClick={tappable ? () => handleRedeem(p) : undefined}
+              style={{
+                padding: '13px 0', borderBottom: i === visible.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                display: 'grid', gridTemplateColumns: '1fr 76px', gap: 12,
+                opacity: p.locked ? 0.62 : 1,
+                cursor: tappable ? 'pointer' : 'default',
+              }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
@@ -11852,8 +11900,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
               </div>
               <div style={{ textAlign: 'right', alignSelf: 'center' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: canAfford ? t.ACCENT : t.INK50 }}>{p.cost.toLocaleString()} pts</div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: p.locked ? t.INK50 : purchasesLocked ? t.AMBER : canAfford ? t.GREEN : t.INK50 }}>
-                  {p.locked ? 'Tier locked' : purchasesLocked ? (<><span style={{ filter: 'grayscale(1)' }}>🔒</span> Members</>) : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: p.locked ? t.INK50 : busy ? t.ACCENT : purchasesLocked ? t.AMBER : canAfford ? t.GREEN : t.INK50 }}>
+                  {busy ? 'Redeeming…' : p.locked ? 'Tier locked' : purchasesLocked ? (<><span style={{ filter: 'grayscale(1)' }}>🔒</span> Members</>) : canAfford ? 'Redeem →' : `+${(p.cost - balance).toLocaleString()}`}
                 </div>
               </div>
             </div>
@@ -11865,7 +11913,9 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       <BSSection title="Unlocked" kicker="Codes" />
       <div style={{ padding: `0 ${t.padX}px 8px` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-        {unlocked.map(([code, name, expires, cost], i) => (
+        {unlocked.length === 0 ? (
+          <div style={{ padding: '18px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>No codes yet — redeem above</div>
+        ) : unlocked.map(([code, name, when, cost], i) => (
           <div key={code} style={{
             padding: '13px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}`,
             display: 'grid', gridTemplateColumns: '1fr 72px', gap: 10,
@@ -11875,7 +11925,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{name}</div>
             </div>
             <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
-              {cost} pts<br/>Exp {expires}
+              {cost} pts{when ? <><br/>{when}</> : null}
             </div>
           </div>
         ))}

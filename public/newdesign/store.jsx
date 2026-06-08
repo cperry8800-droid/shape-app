@@ -39,8 +39,30 @@ const COACH_LEAD_BOOST_PRODUCTS = [
 
 // Uniform store value: 1 Shape point = $0.05 (20 points = $1) — clients + coaches.
 const SHAPE_PTS_PER_USD = 20;
+// Stable item ids matching the server catalogue (src/lib/store-catalogue.ts) so
+// the redemption endpoint can charge the authoritative cost by id.
+const STORE_ITEM_IDS = {
+  "Shape Training Tee": "merch_training_tee",
+  "Shape Crewneck": "merch_crewneck",
+  "Shape Training Bottle": "merch_bottle",
+  "Shape Gym Towel": "merch_towel",
+  "Shape Training Duffel": "merch_duffel",
+  "$25 session credit": "train_credit_25",
+  "$50 session credit": "train_credit_50",
+  "Coach 2nd-opinion": "train_second_opinion",
+  "Program review credit": "train_program_review",
+  "Meal-plan Refresh": "nutri_meal_plan_refresh",
+  "$25 nutrition credit": "nutri_credit_25",
+  "Grocery list buildout": "nutri_grocery_buildout",
+  "Recipe archive pack": "nutri_recipe_pack",
+  "Annual membership credit": "perk_annual_credit",
+  "Lead Boost · 7 days": "lead_boost_7",
+  "Lead Boost · 14 days": "lead_boost_14",
+  "Lead Boost · 30 days": "lead_boost_30",
+};
 [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS].forEach((p) => {
   if (p.retail) p.cost = Math.round(p.retail * SHAPE_PTS_PER_USD);
+  p.itemId = STORE_ITEM_IDS[p.name] || "";
 });
 
 function getRoleHint() {
@@ -84,7 +106,7 @@ const UNLOCKED = [
   { code: "NUTRI-PLAN-04F1", name: "Grocery list buildout", expires: "May 20", cost: 420, redeemed: "Apr 04" },
 ];
 
-function StoreHero() {
+function StoreHero({ balance = BALANCE }) {
   return (
     <section style={{ padding: "80px 72px 60px", position: "relative", overflow: "hidden" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative" }}>
@@ -103,10 +125,10 @@ function StoreHero() {
           <div style={{ padding: "28px 28px 28px 0" }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Available balance</div>
             <div style={{ fontFamily: serif, fontSize: 76, letterSpacing: "-0.035em", color: INK, lineHeight: 1, marginTop: 12 }}>
-              {BALANCE.toLocaleString()}
+              {balance.toLocaleString()}
               <span style={{ fontSize: 18, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 10 }}>pts</span>
             </div>
-            <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: TEAL, marginTop: 8 }}>≈ ${(BALANCE / SHAPE_PTS_PER_USD).toFixed(2)} value</div>
+            <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: TEAL, marginTop: 8 }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)} value</div>
             <a href="Score.html" style={{ fontFamily: sans, fontSize: 12, color: TEAL, marginTop: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
               View Rewards page →
             </a>
@@ -152,11 +174,12 @@ function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable,
   );
 }
 
-function ProductCard({ p, balance, onRedeem, locked = false }) {
+function ProductCard({ p, balance, onRedeem, locked = false, busy = false }) {
   const canAfford = !p.locked && p.cost <= balance;
   const membersOnly = locked && !p.locked; // browsing is open; redeeming is members-only
   const dollar = p.retail ? `~$${p.retail} retail` : null;
   const cta =
+    busy ? "Redeeming…" :
     p.locked ? "Tier locked" :
     membersOnly ? (<><span style={{ filter: "grayscale(1)" }}>🔒</span> Members only</>) :
     p.kind === "lead_boost" ? "Activate boost →" :
@@ -181,8 +204,8 @@ function ProductCard({ p, balance, onRedeem, locked = false }) {
             <span style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", fontFamily: sans, marginLeft: 6 }}>pts</span>
           </div>
           <button
-            disabled={membersOnly ? false : !canAfford}
-            onClick={() => { if (membersOnly) { onRedeem && onRedeem(p); return; } if (canAfford && onRedeem) onRedeem(p); }}
+            disabled={busy ? true : membersOnly ? false : !canAfford}
+            onClick={() => { if (busy) return; if (membersOnly) { onRedeem && onRedeem(p); return; } if (canAfford && onRedeem) onRedeem(p); }}
             style={{ padding: "9px 14px", borderRadius: 6, background: membersOnly ? "rgba(232,177,74,0.16)" : canAfford ? INK : "rgba(242,237,228,0.08)", color: membersOnly ? "#e8b14a" : canAfford ? PAPER : "rgba(242,237,228,0.45)", border: membersOnly ? "1px solid rgba(232,177,74,0.4)" : 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: (membersOnly || canAfford) ? "pointer" : "not-allowed" }}
           >
             {cta}
@@ -193,34 +216,59 @@ function ProductCard({ p, balance, onRedeem, locked = false }) {
   );
 }
 
-function StoreGrid({ locked = false, signedIn = false }) {
+function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRedeemed }) {
   const [cat, setCat] = useSStore("All");
   const [sort, setSort] = useSStore("Featured");
   const [query, setQuery] = useSStore("");
   const [affordable, setAffordable] = useSStore(false);
   const [notice, setNotice] = useSStore("");
+  const [busy, setBusy] = useSStore("");
   const roleHint = useMStore(() => getRoleHint(), []);
   const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
 
   async function handleRedeem(product) {
     if (locked) { window.location.href = "Pricing.html"; return; }
-    if (product.kind !== "lead_boost") {
-      setNotice(`${product.name} unlocked. Code will appear in your locker.`);
+    if (product.kind === "lead_boost") {
+      try {
+        const boost = await redeemLeadBoostRemote({ role: roleHint, days: product.days });
+        const duration = Number(boost?.days || product.days || 0);
+        setNotice(`Lead Boost is live for ${duration} days (${roleHint}). Marketplace ranking has been updated.`);
+      } catch (err) {
+        setNotice((err && err.message) || "Lead Boost redemption failed. Please try again.");
+      }
       return;
     }
+    // Real point redemption — deducts from the live balance + issues a code.
+    if (busy) return;
+    setBusy(product.itemId || product.name);
+    setNotice("");
     try {
-      const boost = await redeemLeadBoostRemote({ role: roleHint, days: product.days });
-      const duration = Number(boost?.days || product.days || 0);
-      setNotice(`Lead Boost is live for ${duration} days (${roleHint}). Marketplace ranking has been updated.`);
+      const res = await fetch("/api/store/redeem", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: product.itemId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (d.error === "insufficient_points") setNotice("Not enough points for that yet — keep earning!");
+        else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
+        else setNotice((d && d.error) || "Redemption failed. Please try again.");
+        return;
+      }
+      setNotice(`${product.name} redeemed! Code ${d.code} is in your locker below.`);
+      if (onRedeemed) onRedeemed();
     } catch (err) {
-      setNotice((err && err.message) || "Lead Boost redemption failed. Please try again.");
+      setNotice((err && err.message) || "Redemption failed. Please try again.");
+    } finally {
+      setBusy("");
     }
   }
 
   const list = useMStore(() => {
     let arr = allProducts.filter(p => {
       if (cat !== "All" && p.cat !== cat) return false;
-      if (affordable && (p.locked || p.cost > BALANCE)) return false;
+      if (affordable && (p.locked || p.cost > balance)) return false;
       if (query && !`${p.name} ${p.brand} ${p.cat}`.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
@@ -253,7 +301,7 @@ function StoreGrid({ locked = false, signedIn = false }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
             <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.65)" }}>
               {list.length} {list.length === 1 ? "item" : "items"}{cat !== "All" ? ` in ${cat}` : ""}
-              {affordable ? " · within your 940 balance" : ""}
+              {affordable ? ` · within your ${balance.toLocaleString()} balance` : ""}
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               Points refresh nightly · 00:00 UTC
@@ -261,7 +309,7 @@ function StoreGrid({ locked = false, signedIn = false }) {
           </div>
           {list.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
-              {list.map(p => <ProductCard key={p.id} p={p} balance={BALANCE} onRedeem={handleRedeem} locked={locked} />)}
+              {list.map(p => <ProductCard key={p.id} p={p} balance={balance} onRedeem={handleRedeem} locked={locked} busy={busy === (p.itemId || p.name)} />)}
             </div>
           ) : (
             <div style={{ padding: 80, textAlign: "center", fontFamily: sans, color: "rgba(242,237,228,0.5)", border: "1px dashed rgba(242,237,228,0.1)", borderRadius: 12 }}>
@@ -274,7 +322,17 @@ function StoreGrid({ locked = false, signedIn = false }) {
   );
 }
 
-function UnlockedCoupons() {
+function UnlockedCoupons({ redemptions }) {
+  // Real redemptions when present; demo locker otherwise (signed-out / preview).
+  const live = Array.isArray(redemptions) && redemptions.length > 0;
+  const items = live
+    ? redemptions.map((r) => ({
+        code: r.code,
+        name: r.item_name,
+        redeemed: r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+        expires: "—",
+      }))
+    : UNLOCKED;
   return (
     <section style={{ padding: "60px 72px", background: "rgba(242,237,228,0.02)", borderTop: "1px solid rgba(242,237,228,0.06)", borderBottom: "1px solid rgba(242,237,228,0.06)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
@@ -286,12 +344,12 @@ function UnlockedCoupons() {
           <a href="Store.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)", borderBottom: "1px solid rgba(242,237,228,0.3)", paddingBottom: 2 }}>Redemption history →</a>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          {UNLOCKED.map((u, i) => (
+          {items.map((u, i) => (
             <div key={i} style={{ border: "1px dashed rgba(10,197,168,0.35)", borderRadius: 10, padding: "22px 24px", background: "rgba(10,197,168,0.04)", display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "center" }}>
               <div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: TEAL, letterSpacing: "0.14em" }}>{u.code}</div>
                 <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginTop: 6 }}>{u.name}</div>
-                <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>Redeemed {u.redeemed} · expires {u.expires}</div>
+                <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>Redeemed {u.redeemed}{u.expires && u.expires !== "—" ? ` · expires ${u.expires}` : ""}</div>
               </div>
               <button style={{ padding: "10px 14px", borderRadius: 6, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>Use code</button>
             </div>
@@ -359,6 +417,22 @@ function StoreMembersOnly({ signedIn }) {
 
 function StorePage() {
   const [gate, setGate] = useSStore({ loading: true, allowed: false, signedIn: false });
+  // Live points balance + redemption locker (members only; falls back to the
+  // seed values for signed-out / preview).
+  const [store, setStore] = useSStore({ balance: null, redemptions: null });
+  const reloadStore = useMStore(() => async () => {
+    try {
+      const res = await fetch("/api/store/redeem", { credentials: "include", cache: "no-store" });
+      if (!res.ok) return;
+      const d = await res.json();
+      setStore({
+        balance: typeof d.balance === "number" ? d.balance : null,
+        redemptions: Array.isArray(d.redemptions) ? d.redemptions : [],
+      });
+    } catch (_) {}
+  }, []);
+  useEStore(() => { if (gate.allowed) reloadStore(); }, [gate.allowed]);
+  const liveBalance = store.balance == null ? BALANCE : store.balance;
   useEStore(() => {
     let cancelled = false;
     (async () => {
@@ -394,9 +468,9 @@ function StorePage() {
           <section style={{ padding: "120px 24px", textAlign: "center", fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Loading…</section>
         ) : (
           <React.Fragment>
-            <StoreHero />
-            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} />
-            <UnlockedCoupons />
+            <StoreHero balance={liveBalance} />
+            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} balance={liveBalance} onRedeemed={reloadStore} />
+            <UnlockedCoupons redemptions={store.redemptions} />
             <StoreFAQ />
           </React.Fragment>
         )}
