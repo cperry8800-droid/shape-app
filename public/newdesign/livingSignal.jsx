@@ -6,6 +6,22 @@
 // Depends on livingShared.jsx.
 // ═══════════════════════════════════════════════════════════════
 
+// Sigil animations (matches the mobile app): the live blip orbits the core, the
+// core pulses, the discipline rings breathe. Injected once.
+if (typeof document !== "undefined" && !document.getElementById("lv-signal-anim")) {
+  const lvSt = document.createElement("style");
+  lvSt.id = "lv-signal-anim";
+  lvSt.textContent =
+    "@keyframes sgOrbit{to{transform:rotate(360deg)}}" +
+    ".sg-orbit{animation:sgOrbit 7s linear infinite}" +
+    "@keyframes sgCore{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.72;transform:scale(.92)}}" +
+    ".sg-core{animation:sgCore 3s ease-in-out infinite}" +
+    "@keyframes sgRing{0%,100%{opacity:1}50%{opacity:.62}}" +
+    ".sg-ring{animation:sgRing 4s ease-in-out infinite}" +
+    "@media (prefers-reduced-motion:reduce){.sg-orbit,.sg-core,.sg-ring{animation:none!important}}";
+  document.head.appendChild(lvSt);
+}
+
 // Breathing generative sigil: discipline arcs + cardiac sweep + core.
 function SignalSigil({ d, size = 250, reduced, goalPct }) {
   const c = tierOf(d).color;

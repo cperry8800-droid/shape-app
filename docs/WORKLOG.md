@@ -6,6 +6,9 @@ changelog whenever something ships.
 
 ## How we work
 
+- 🗒️ **Migrations: just post the raw GitHub SQL link.** When a migration is
+  created, reply with only the `raw.githubusercontent.com/.../supabase-migrations/<file>.sql`
+  link — the user runs it on Supabase. Don't paste the SQL body or long explanations.
 - ⛔️ **NEVER edit on a stale base — verify FIRST, every session/turn.** The web
   container periodically re-clones/resets the working tree to an *older* commit
   while `origin/main` holds the real latest. Editing on that stale base creates
