@@ -12436,7 +12436,19 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   const rust = teal; // grocery (food list) page uses the nutrition teal accent
   const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
   const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
-  const shareList = () => { try { const txt = list.aisles.flatMap(a => a.items.map(it => `${it.q} ${it.n}`)).join('\n'); navigator.clipboard?.writeText(`${list.name} — Shop list\n\n${txt}`); } catch (e) {} window.__bsToast?.('Shop list copied', 'ok'); };
+  const shareList = async () => {
+    const lines = list.aisles.map(a => `${a.aisle.toUpperCase()}\n${a.items.map(it => `  • ${it.q ? it.q + ' ' : ''}${it.n}`).join('\n')}`).join('\n\n');
+    const body = `${list.name} — Shop list\n\n${lines}`;
+    // Native share sheet (Messages / Mail / etc.) when available, else clipboard.
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title: `${list.name} — Shop list`, text: body });
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; /* fall through to copy */ }
+    try { await navigator.clipboard?.writeText(body); window.__bsToast?.('Shop list copied — paste to share', 'ok'); }
+    catch (e) { window.__bsToast?.('Could not share the list', 'err'); }
+  };
   const sendInstacart = async () => {
     try {
       const items = (list.aisles || []).flatMap(a => a.items || []).map(it => ({ name: it.n, display_text: [it.q, it.n].filter(Boolean).join(' ') })).filter(it => it.name);
