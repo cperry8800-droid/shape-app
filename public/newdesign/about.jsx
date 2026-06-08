@@ -119,6 +119,45 @@ function AboutLetter() {
   );
 }
 
+function AboutVision() {
+  const colHead = { fontFamily: mono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL_BRIGHT, marginBottom: 14 };
+  const colTitle = { fontFamily: serif, fontSize: 26, fontStyle: "italic", fontWeight: 400, letterSpacing: "-0.02em", color: INK, lineHeight: 1.12, marginBottom: 16 };
+  const colBody = { fontFamily: serif, fontSize: 17, fontStyle: "italic", fontWeight: 300, color: "rgba(242,237,228,0.8)", lineHeight: 1.62, margin: 0 };
+  return (
+    <section style={{ padding: "20px 72px 130px", position: "relative" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 40 }}>
+          <span style={{ width: 24, height: 1, background: "rgba(242,237,228,0.25)" }} />
+        </div>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>The idea</div>
+          <h3 style={{ fontFamily: serif, fontSize: "clamp(30px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.04 }}>
+            The platform coaches build their <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>practice</em> on.
+            <br />The place members <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>live</em> their training life.
+          </h3>
+        </div>
+        <div className="about-vision-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
+          {/* Coach-first: the wedge. Shape is where a practice gets built and run. */}
+          <div style={{ borderTop: `2px solid ${TEAL}`, paddingTop: 24 }}>
+            <div style={colHead}>For coaches</div>
+            <div style={colTitle}>Your whole practice, in one place.</div>
+            <p style={colBody}>Audience, credibility, clients, and income — built and run from a single home. Bring the people you already train; reach the ones you haven't met yet. Set your own rate, keep your own voice, get paid directly. Shape is where a coaching practice grows up.</p>
+          </div>
+          {/* Members: the retention engine. The social loop keeps people here. */}
+          <div style={{ borderTop: `2px solid ${TEAL}`, paddingTop: 24 }}>
+            <div style={colHead}>For members</div>
+            <div style={colTitle}>A training life that's actually social.</div>
+            <p style={colBody}>Real coaches, plans that are yours, and people training alongside you who are mid-loop too. Not a highlight reel — the day-to-day of getting better, shared with the ones in your corner. The coach gets you started; the community keeps you here.</p>
+          </div>
+        </div>
+        <p style={{ fontFamily: serif, fontSize: 19, fontStyle: "italic", color: "rgba(242,237,228,0.72)", textAlign: "center", maxWidth: 720, margin: "56px auto 0", lineHeight: 1.6 }}>
+          Coaches bring the people. The people build the place. <em style={{ color: TEAL_BRIGHT }}>That's the whole idea.</em>
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function AboutPillars() {
   const items = [
     {
@@ -304,9 +343,11 @@ function AboutPage() {
         </g>
       </svg>
       <div style={{ position: "relative", zIndex: 1 }}>
+        <style>{`@media (max-width: 720px) { .about-vision-grid { grid-template-columns: 1fr !important; gap: 36px !important; } }`}</style>
         <Header active="About" />
         <AboutHero />
         <AboutLetter />
+        <AboutVision />
         <Footer />
       </div>
     </div>
