@@ -3051,6 +3051,19 @@ async function pushGroceryToClient({ clientId, name, items } = {}) {
 }
 window.ShapeGroceryLists = { list: listGroceryLists, create: createGroceryList, update: updateGroceryList, remove: removeGroceryList, notify: notifyGroceryList, push: pushGroceryToClient };
 
+// Client read of grocery items a coach pushed (coach_pushed_items → /api/client/
+// grocery, flattened to [{ id, item, qty, category, mealName }]). Powers the Eat
+// review card. Returns [] when signed out / none.
+async function listClientGrocery() {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/grocery`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    if (!res.ok) return [];
+    const d = await res.json().catch(() => ({}));
+    return Array.isArray(d.items) ? d.items : [];
+  } catch (e) { return []; }
+}
+window.ShapeClientGrocery = { list: listClientGrocery };
+
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.
 async function listCoachPlans(kind) {

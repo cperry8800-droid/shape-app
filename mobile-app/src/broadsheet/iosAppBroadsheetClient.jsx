@@ -12043,6 +12043,103 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   );
 }
 
+// Item-swap suggestions for a coach-sent grocery item — a keyword map + a
+// category fallback so the member can sub anything for a sensible alternative.
+const BS_GRO_SWAPS = {
+  'white rice': ['Brown rice', 'Quinoa', 'Cauliflower rice'],
+  'rice': ['Brown rice', 'Quinoa', 'Jasmine rice'],
+  'chicken breast': ['Chicken thigh', 'Turkey breast', 'Extra-firm tofu'],
+  'chicken': ['Turkey', 'Tofu', 'Tempeh'],
+  'beef': ['Lean ground beef', 'Bison', 'Turkey'],
+  'salmon': ['Trout', 'Cod', 'Canned tuna'],
+  'milk': ['Almond milk', 'Oat milk', 'Lactose-free milk'],
+  'greek yogurt': ['Skyr', 'Cottage cheese', 'Plant-based yogurt'],
+  'yogurt': ['Greek yogurt', 'Skyr', 'Plant-based yogurt'],
+  'bread': ['Whole-grain bread', 'Sourdough', 'Wraps'],
+  'pasta': ['Whole-wheat pasta', 'Chickpea pasta', 'Rice noodles'],
+  'potato': ['Sweet potato', 'Butternut squash', 'Parsnip'],
+  'spinach': ['Kale', 'Arugula', 'Swiss chard'],
+  'peanut butter': ['Almond butter', 'Sunflower butter', 'Cashew butter'],
+};
+function bsGrocerySwap(name) {
+  const n = String(name || '').toLowerCase().trim();
+  for (const k in BS_GRO_SWAPS) if (n.includes(k)) return BS_GRO_SWAPS[k].filter(x => x.toLowerCase() !== n);
+  const cat = bsGroceryAisleFor(name);
+  const FB = {
+    Produce: ['Seasonal greens', 'Frozen mixed veg', 'A different vegetable'],
+    Protein: ['Tofu', 'Turkey', 'Eggs'],
+    Dairy: ['Plant-based alt', 'Low-fat version', 'Lactose-free version'],
+    Grains: ['Brown rice', 'Quinoa', 'Oats'],
+  };
+  return FB[cat] || ['A similar item', 'Store-brand version', 'Skip this item'];
+}
+// "From your nutritionist" review card — the coach-pushed grocery list, where the
+// member reviews each item and can SWAP it for an alternative before adding it to
+// their own grocery list. Reads coach_pushed_items via /api/client/grocery.
+function BSCoachGroceryReview({ t, teal, onAdd }) {
+  const [groups, setGroups] = useStateBSC(null);
+  const [swapKey, setSwapKey] = useStateBSC(null); // `${gi}-${ii}`
+  const [added, setAdded] = useStateBSC({});
+  React.useEffect(() => {
+    let on = true;
+    if (!window.ShapeClientGrocery?.list) { setGroups([]); return () => { on = false; }; }
+    window.ShapeClientGrocery.list().then(items => {
+      if (!on) return;
+      if (!Array.isArray(items) || !items.length) { setGroups([]); return; }
+      const by = {};
+      items.forEach(it => { const g = (it.mealName || 'Coach list').trim() || 'Coach list'; (by[g] = by[g] || []).push({ item: it.item, qty: it.qty || '', id: it.id }); });
+      setGroups(Object.keys(by).map(name => ({ name, items: by[name] })));
+    }).catch(() => { if (on) setGroups([]); });
+    return () => { on = false; };
+  }, []);
+  if (!groups || !groups.length) return null;
+  const muted = t.INK50;
+  const card = t.SURFACE || t.PAPER2;
+  const setItem = (gi, ii, val) => setGroups(gs => gs.map((g, x) => x !== gi ? g : { ...g, items: g.items.map((it, y) => y !== ii ? it : { ...it, item: val }) }));
+  return (
+    <div style={{ padding: `0 ${t.padX}px 6px` }}>
+      {groups.map((g, gi) => (
+        <div key={gi} style={{ border: `1px solid ${teal}55`, borderRadius: 18, background: card, overflow: 'hidden', marginBottom: 12 }}>
+          <div style={{ height: 3, background: teal }} />
+          <div style={{ padding: '13px 15px 15px' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 900 }}>From your nutritionist</div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{g.name}</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{g.items.length} items · review &amp; swap before adding</div>
+            <div style={{ marginTop: 11, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {g.items.map((it, ii) => {
+                const k = `${gi}-${ii}`;
+                const open = swapKey === k;
+                const alts = open ? bsGrocerySwap(it.item) : [];
+                return (
+                  <div key={ii}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: ii ? `1px solid ${t.RULE}` : 'none' }}>
+                      <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{it.item}{it.qty ? <span style={{ color: muted, fontSize: 12 }}> · {it.qty}</span> : null}</span>
+                      <button onClick={() => setSwapKey(open ? null : k)} style={{ flex: 'none', border: `1px solid ${open ? teal : t.RULE}`, background: open ? `${teal}1f` : 'transparent', color: open ? teal : t.INK70, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>⇄ Swap</button>
+                    </div>
+                    {open && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 0 10px 2px' }}>
+                        {alts.map(a => (
+                          <button key={a} onClick={() => { setItem(gi, ii, a); setSwapKey(null); window.__bsToast?.(`Swapped to ${a}`, 'ok'); }} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, borderRadius: 999, padding: '6px 11px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>{a}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              disabled={!!added[gi]}
+              onClick={() => { onAdd(g); setAdded(a => ({ ...a, [gi]: true })); window.__bsToast?.('Added to your grocery list', 'ok'); }}
+              style={{ width: '100%', marginTop: 13, padding: '12px', borderRadius: 999, border: 0, background: added[gi] ? t.RULE : teal, color: added[gi] ? t.INK50 : '#04201d', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: added[gi] ? 'default' : 'pointer' }}>
+              {added[gi] ? '✓ Added to your list' : 'Add to my grocery list →'}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onProfile = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -12118,6 +12215,14 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
       </div>
 
       <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
+
+      {/* Coach-sent grocery list — review + swap items, then add to your list */}
+      <BSCoachGroceryReview t={t} teal={teal} onAdd={(g) => {
+        const aisles = (list.aisles && list.aisles.length) ? list.aisles.map(a => ({ ...a, items: [...a.items] })) : [];
+        const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
+        (g.items || []).forEach((it, n) => { const ai = findAisle(it.item); aisles[ai].items.push({ id: `coach-${Date.now()}-${n}`, n: it.item, q: it.qty || '1', meals: g.name, have: false }); });
+        onUpdate({ ...list, aisles });
+      }} />
 
       <div style={{ padding: `8px ${t.padX}px 24px` }}>
         {/* Progress card */}
