@@ -6461,15 +6461,17 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
             : <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>}
         </div>
       </div>
-      {editable ? (
+      {editable && (
         <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BG}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
-      ) : live ? (
+      )}
+      {!editable && live && (
         <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BG, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BG}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: FTEAL }} /></span>
-      ) : showRank && tierLabel ? (
-        <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translate(-50%,45%)', background: BG, borderRadius: 999, padding: `${Math.max(1.5, size * 0.035)}px ${Math.max(5, size * 0.13)}px`, boxShadow: `0 0 0 2px ${BG}`, border: `1px solid ${bsTHexA(c, 0.6)}`, whiteSpace: 'nowrap' }}>
-          <span style={{ fontFamily: MONO, fontSize: Math.max(6.5, Math.round(size * 0.13)), fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: c, lineHeight: 1 }}>{tierLabel}</span>
+      )}
+      {!editable && showRank && tierLabel && (
+        <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translate(-50%,72%)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          <span style={{ fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.145)), fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c, lineHeight: 1, textShadow: `0 1px 4px ${BG}, 0 0 3px ${BG}, 0 0 3px ${BG}` }}>{tierLabel}</span>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -7140,7 +7142,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {pctLabel}%</div>
             </div>
             {/* base + summit labels (chip-backed so they read cleanly over the terrain) */}
-            <div style={{ position: 'absolute', left: 12, bottom: 12, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{arc[0][0]} · start</div>
+            <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{arc[0][0]} · start</div>
             <div style={{ position: 'absolute', left: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'left', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>Summit<br />{summitEff}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -8362,7 +8364,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} tierLabel={p.tier ? String(p.tier).charAt(0).toUpperCase() + String(p.tier).slice(1) : ''} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
                   </div>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}
