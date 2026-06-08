@@ -533,63 +533,59 @@ function personaColor(p: string): string {
   return C.accent;
 }
 
-// Company-style hierarchy: a root node that branches top→down into the sections
-// (layers), each section branching down into its pieces — like an org chart /
-// site map. The member journey ribbon sits below as the sequential view.
+// One branch row of the tree: a connector column (vertical rail + elbow tick)
+// next to its content. `last` shortens the rail so it stops at the elbow.
+function TreeRow({ children, last }: { children: React.ReactNode; last: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch' }}>
+      <div style={{ position: 'relative', width: 22, flexShrink: 0 }}>
+        <div style={{ position: 'absolute', left: 8, top: 0, width: 2, height: last ? 15 : '100%', background: C.border }} />
+        <div style={{ position: 'absolute', left: 8, top: 14, width: 12, height: 2, background: C.border }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: 8 }}>{children}</div>
+    </div>
+  );
+}
+
+// Company-style hierarchy as a vertical tree (site-map): a root that branches
+// down into sections, each branching into its pieces. The member journey ribbon
+// sits below as the sequential view.
 function ArchDiagram({ arch }: { arch: WarRoomSnapshot['architecture'] }) {
-  const line = C.border;
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 4 }}>How it's built · hierarchy</div>
-      <div style={{ fontSize: 11, color: C.dim, marginBottom: 14 }}>Shape → its sections → the pieces inside each · scroll →</div>
+      <div style={{ fontSize: 11, color: C.dim, marginBottom: 14 }}>Shape → its sections → the pieces inside each</div>
 
       {/* Root */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', background: C.accent, color: '#04121f', borderRadius: 10, padding: '10px 22px', minWidth: 160 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.02em' }}>SHAPE</div>
-          <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.8 }}>Coach marketplace + social</div>
-        </div>
+      <div style={{ display: 'inline-block', background: C.accent, color: '#04121f', borderRadius: 10, padding: '9px 18px' }}>
+        <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.02em' }}>SHAPE</div>
+        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.82 }}>Coach marketplace + social</div>
       </div>
-      {/* trunk down to the bus */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}><div style={{ width: 2, height: 22, background: line }} /></div>
 
-      {/* Sections tier — each column has a top "bus" segment + down stub, then the
-          section card, then its pieces as children. Horizontally scrollable. */}
-      <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: 'min-content' }}>
-          {arch.layers.map((l, i) => {
-            const first = i === 0, last = i === arch.layers.length - 1;
-            const p1 = l.gaps.filter((g) => g.priority === 'P1').length;
-            return (
-              <div key={l.layer} style={{ width: 210, flexShrink: 0, padding: '0 7px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {/* connector: horizontal bus segment + centered down stub */}
-                <div style={{ position: 'relative', width: '100%', height: 20 }}>
-                  <div style={{ position: 'absolute', top: 0, left: first ? '50%' : 0, right: last ? '50%' : 0, height: 2, background: line }} />
-                  <div style={{ position: 'absolute', top: 0, left: 'calc(50% - 1px)', width: 2, height: 20, background: line }} />
-                </div>
-                {/* section card */}
-                <div style={{ width: '100%', background: C.panel2, border: `1px solid ${line}`, borderTop: `3px solid ${C.accent}`, borderRadius: 10, padding: '10px 11px' }}>
-                  <b style={{ fontSize: 13 }}>{l.layer}</b>
-                  <div style={{ fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{l.serves}</div>
-                  {l.gaps.length > 0 && (
-                    <span title={l.gaps.map((g) => `${g.priority} ${g.task}`).join(' · ')} style={{ display: 'inline-block', marginTop: 7, fontSize: 9, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '1px 7px' }}>{l.gaps.length} to do{p1 ? ` · ${p1}×P1` : ''}</span>
-                  )}
-                </div>
-                {/* stub down to children */}
-                <div style={{ width: 2, height: 12, background: line }} />
-                {/* children (pieces) */}
-                <div style={{ width: '100%', borderLeft: `2px solid ${line}`, paddingLeft: 0 }}>
-                  {l.pieces.map((pc) => (
-                    <div key={pc} style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 5 }}>
-                      <div style={{ width: 12, height: 2, background: line, flexShrink: 0 }} />
-                      <span style={{ fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${line}`, borderRadius: 7, padding: '3px 8px', lineHeight: 1.25 }}>{pc}</span>
-                    </div>
-                  ))}
-                </div>
+      {/* Sections (branch under root), each with its pieces nested below */}
+      <div style={{ paddingLeft: 6, marginTop: 2 }}>
+        {arch.layers.map((l, i) => {
+          const p1 = l.gaps.filter((g) => g.priority === 'P1').length;
+          return (
+            <TreeRow key={l.layer} last={i === arch.layers.length - 1}>
+              <div style={{ background: C.panel2, border: `1px solid ${C.border}`, borderLeft: `3px solid ${C.accent}`, borderRadius: 9, padding: '8px 11px', marginTop: 4, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+                <b style={{ fontSize: 13 }}>{l.layer}</b>
+                <span style={{ fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l.serves}</span>
+                {l.gaps.length > 0 && (
+                  <span title={l.gaps.map((g) => `${g.priority} ${g.task}`).join(' · ')} style={{ fontSize: 9, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '1px 7px' }}>{l.gaps.length} to do{p1 ? ` · ${p1}×P1` : ''}</span>
+                )}
               </div>
-            );
-          })}
-        </div>
+              {/* pieces — nested branch */}
+              <div style={{ paddingLeft: 14, marginTop: 4 }}>
+                {l.pieces.map((pc, j) => (
+                  <TreeRow key={pc} last={j === l.pieces.length - 1}>
+                    <span style={{ display: 'inline-block', marginTop: 7, fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 7, padding: '3px 8px', lineHeight: 1.25 }}>{pc}</span>
+                  </TreeRow>
+                ))}
+              </div>
+            </TreeRow>
+          );
+        })}
       </div>
 
       {/* Member journey — the sequential flow through the hierarchy */}
