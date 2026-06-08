@@ -4,8 +4,15 @@
 //   or legacy:  <ChatWidget threads={[...]} title="..." eyebrow="..." />
 
 // ── Avatar + tier helpers (mirror the mobile app's chat avatars) ─────────────
-// Tier color system: Base=steel, Tempo=gold, Form=teal, Peak=violet, Legend=rose.
-const CW_TIER_COLORS = { raw: "#8a93a0", base: "#8a93a0", tempo: "#d8a23a", form: "#34d6c5", peak: "#8a5cf6", legend: "#e0518a" };
+// Tier ladders — clients: Base/Tempo/Form/Peak/Legend; coaches climb their own
+// ladder: Certified/Pro/Elite/Master/Icon. Same names + colors as the rest of
+// the app (mobile + profiles), so a person's tier reads identically everywhere.
+const CW_TIER_COLORS = {
+  raw: "#8a93a0", base: "#8a93a0", tempo: "#d8a23a", form: "#34d6c5", peak: "#8a5cf6", legend: "#e0518a",
+  certified: "#8a93a0", pro: "#d8a23a", elite: "#e0463c", master: "#8fe3e6", icon: "#34d6c5",
+};
+const CW_CLIENT_LADDER = ["Base", "Tempo", "Form", "Peak", "Legend"];
+const CW_COACH_LADDER = ["Certified", "Pro", "Elite", "Master", "Icon"];
 function cwTierColor(tier) { return CW_TIER_COLORS[String(tier || "").toLowerCase().trim()] || "#d8a23a"; }
 function cwInitials(name) {
   return String(name || "").replace(/^#\s*/, "").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
@@ -42,22 +49,22 @@ function cwDemoFace(name) {
   let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
   return `https://images.unsplash.com/photo-${CW_DEMO_FACES[h % CW_DEMO_FACES.length]}?w=160&h=160&fit=crop&crop=faces&q=72&auto=format`;
 }
-const CW_FEED_TIERS = ["Tempo", "Form", "Peak", "Legend", "Base"];
 // Stable per-name tier for people we have no live points for (demo/seeded
-// threads) — same deterministic hash the mobile app uses as its fallback.
-function cwHashTier(name) {
+// threads) — same deterministic hash the mobile app uses. Coaches climb the
+// coach ladder, clients the client ladder, so the names match everywhere.
+function cwHashTier(name, coach) {
+  const ladder = coach ? CW_COACH_LADDER : CW_CLIENT_LADDER;
   const s = String(name || "");
   let n = 0;
   for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 997;
-  return CW_FEED_TIERS[n % CW_FEED_TIERS.length];
+  // skip rung 0 so demo people aren't all "Base/Certified".
+  return ladder[1 + (n % (ladder.length - 1))];
 }
-function cwTierForPoints(pts) {
+function cwTierForPoints(pts, coach) {
+  const ladder = coach ? CW_COACH_LADDER : CW_CLIENT_LADDER;
   const p = Number(pts) || 0;
-  if (p >= 15000) return "Legend";
-  if (p >= 5000) return "Peak";
-  if (p >= 2000) return "Form";
-  if (p >= 750) return "Tempo";
-  return "Base";
+  const i = p >= 15000 ? 4 : p >= 5000 ? 3 : p >= 2000 ? 2 : p >= 750 ? 1 : 0;
+  return ladder[i];
 }
 
 function ChatWidget(props) {
@@ -860,9 +867,9 @@ function ChatWidget(props) {
             {profileFor && (() => {
               const isPrivate = !!(profLive && profLive.is_public === false);
               const points = (profLive && Number.isFinite(profLive.points)) ? profLive.points : null;
-              const tier = points != null ? cwTierForPoints(points) : (profileFor.tier || cwHashTier(profileFor.who));
-              const tc = cwTierColor(tier);
               const isCoach = profileFor.coach;
+              const tier = points != null ? cwTierForPoints(points, isCoach) : (profileFor.tier || cwHashTier(profileFor.who, isCoach));
+              const tc = cwTierColor(tier);
               const roleLabel = isCoach ? (/nutrition/i.test(profileFor.role || "") ? "Nutritionist" : "Trainer") : "Client";
               const first = String(profileFor.who).split(" ")[0] || "This member";
               const pronouns = !isPrivate && profLive && profLive.pronouns;
@@ -878,7 +885,7 @@ function ChatWidget(props) {
               const fullProfileHref = (() => {
                 if (profileFor.userId) return `/newdesign/MemberProfile.html?u=${encodeURIComponent(profileFor.userId)}`;
                 const role = isCoach ? (/nutrition/i.test(profileFor.role || "") ? "nutritionist" : "trainer") : "client";
-                const ptsMap = { base: 200, tempo: 950, form: 2400, peak: 5400, legend: 15400 };
+                const ptsMap = { base: 200, tempo: 950, form: 2400, peak: 5400, legend: 15400, certified: 200, pro: 950, elite: 2400, master: 5400, icon: 15400 };
                 const ptsForLink = points != null ? points : (ptsMap[String(tier).toLowerCase()] || 200);
                 const avatarUrl = (profLive && profLive.avatar) || cwDemoFace(profileFor.who) || "";
                 const q = new URLSearchParams({ name: profileFor.who, role: role, pts: String(ptsForLink) });
@@ -976,20 +983,24 @@ function ChatWidget(props) {
                 const cancelLongPress = () => { if (longPressRef.id) clearTimeout(longPressRef.id); };
                 // Full name where possible (thread name in a 1:1) so initials are 2 letters.
                 const avatarName = (active && active.group) ? (m.who || (active && active.who)) : ((active && active.who) || m.who);
+                // Coaches use the coach ladder; clients the client ladder (same as
+                // everywhere). Incoming = sender's role; mine = the viewer's role.
+                const mCoach = !!(m && m.coach) || /trainer|coach|nutritionist/i.test((active && active.role) || "");
+                const myCoach = (typeof window !== "undefined" && typeof window.shapeViewerRole === "function") ? /trainer|coach|nutritionist/i.test(window.shapeViewerRole() || "") : false;
                 // Bubble carries the sender's tier color (incoming = their tier,
                 // mine = my tier) so chat stays coordinated with the avatars/feed.
-                const bubbleTC = cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(m.me ? myName : avatarName));
+                const bubbleTC = cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(m.me ? myName : avatarName, m.me ? myCoach : mCoach));
                 return (
                 <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", position: "relative" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 11, flexDirection: m.me ? "row-reverse" : "row", maxWidth: "90%" }}>
                     {!m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
-                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName))} initial={cwInitials(avatarName)} photo={(m && m.userId ? (avatarsByUid[m.userId] || undefined) : cwDemoFace(avatarName))} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(avatarName, mCoach))} initial={cwInitials(avatarName)} photo={(m && m.userId ? (avatarsByUid[m.userId] || undefined) : cwDemoFace(avatarName))} live={!!(window.ShapeWebPresence && m && m.userId && window.ShapeWebPresence.isOnline(m.userId))} onClick={() => openProfile(m)} />
                       </div>
                     )}
                     {m.me && (
                       <div style={{ alignSelf: "flex-start" }}>
-                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName))} initial={cwInitials(myName)} photo={myPhoto || undefined} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
+                        <CwFacetAvatar size={32} c={cwTierColor(m && m.tier ? String(m.tier) : cwHashTier(myName, myCoach))} initial={cwInitials(myName)} photo={myPhoto || undefined} live={!!(window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function" && window.ShapeWebPresence.visible())} />
                       </div>
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
