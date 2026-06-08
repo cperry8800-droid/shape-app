@@ -6590,7 +6590,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {/* back + your-avatar/settings corner (top-right, matches the rest of the app) */}
       <div style={{ padding: '48px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
-        <BSMeCorner size={30} />
+        {isSelf
+          ? <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+          : <BSMeCorner size={30} />}
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '14px 18px 0' }}>
@@ -6871,7 +6873,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <Kick col={c}>{tierName} · coach</Kick>
-            <BSMeCorner size={30} />
+            {isSelf
+              ? <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+              : <BSMeCorner size={30} />}
           </div>
         </div>
 
