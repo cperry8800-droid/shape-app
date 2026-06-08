@@ -10828,6 +10828,8 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
         trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
       />
 
+      <div style={{ padding: `2px ${t.padX}px 0` }}><BSFollowMini onOpen={() => setShowPublicProfile(true)} /></div>
+
       {/* SHAPE SCORE — tappable card: ring + category bars */}
       {(() => {
         const cats = [
