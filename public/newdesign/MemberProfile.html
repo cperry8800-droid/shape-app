@@ -42,7 +42,7 @@
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=4"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=4"></script>
-<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=7"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=8"></script>
 <script type="text/babel" data-presets="react">
 // Live wiring — the desktop Terrain (member) / Signal (coach) profile, fed by
 // get_public_profile + the follow graph. Rich sub-data stays illustrative
@@ -167,6 +167,7 @@ function LiveProfilePage() {
     goal: (!isPrivate && row.goal) || base.goal,
     portrait: row.avatar || "",
     link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : base.link,
+    custom: (!isPrivate && row.custom) || null,
   });
   const variant = (isPrivate && !st.isSelf) ? "locked" : (st.isSelf ? "own" : "public");
   const followProps = Object.assign({}, follow, { openList, requests: reqCount, openRequests: () => openList("requests"), canFollow: !!(st.uid && !st.isSelf) });

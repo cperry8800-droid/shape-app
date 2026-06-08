@@ -535,6 +535,142 @@ function DesktopTabs({ direction, tab, setTab, c }) {
   );
 }
 
+// ── Profile customization (song · prompts · links · bio) — desktop ────────────
+const DK_PROMPTS = ["Never skip", "Pre-workout fuel", "Currently chasing", "Form check I love", "My non-negotiable", "Rest day looks like", "A win this month", "Training motto"];
+const DK_LINKS = [
+  { key: "instagram", label: "Instagram", pre: "instagram.com/" },
+  { key: "tiktok", label: "TikTok", pre: "tiktok.com/@" },
+  { key: "youtube", label: "YouTube", pre: "youtube.com/@" },
+  { key: "website", label: "Website", pre: "" },
+];
+function dkSpotifyEmbed(url) {
+  if (!url) return null;
+  const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/.exec(String(url));
+  return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
+}
+function dkLinkHref(key, val) {
+  const v = String(val || "").trim(); if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  const def = DK_LINKS.find((l) => l.key === key); const pre = def ? def.pre : "";
+  return "https://" + (pre ? pre + v.replace(/^@/, "") : v);
+}
+function ProfileExtras({ d, owner }) {
+  const c = tierOf(d).color;
+  const [cust, setCust] = React.useState(d.custom || null);
+  const [edit, setEdit] = React.useState(false);
+  const cu = cust || {};
+  const embed = dkSpotifyEmbed(cu.song && cu.song.url);
+  const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
+  const links = (cu.links && typeof cu.links === "object") ? DK_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
+  const empty = !embed && !prompts.length && !links.length;
+  if (empty && !owner) return null;
+  return (
+    <div style={{ marginBottom: 22 }}>
+      {owner && <button onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 16, padding: "10px 16px", borderRadius: 12, border: `1px dashed ${dHexA(c, 0.5)}`, background: dHexA(c, 0.06), color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
+      {(embed || prompts.length || links.length) > 0 && (
+        <div style={dCard({ padding: "22px 24px" })}>
+          {embed && (
+            <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
+              <DKick style={{ marginBottom: 12 }}>{(cu.song && cu.song.label) ? cu.song.label : "Profile song"}</DKick>
+              <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
+                <iframe title="Profile song" src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: "block", border: 0 }} />
+              </div>
+            </div>
+          )}
+          {prompts.length > 0 && (
+            <div style={{ marginBottom: links.length ? 18 : 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="dk-feed">
+              {prompts.map((p, i) => (
+                <div key={i} style={{ background: dHexA(LV_INK, 0.04), border: `1px solid ${dHexA(LV_INK, 0.08)}`, borderRadius: 14, padding: "15px 17px" }}>
+                  <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{p.q}</div>
+                  <div style={{ fontFamily: dSerif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.2, marginTop: 7 }}>{p.a}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {links.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+              {links.map(([l, v]) => <a key={l.key} href={dkLinkHref(l.key, v)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", padding: "8px 14px", borderRadius: 999, border: `1px solid ${dHexA(c, 0.4)}`, background: dHexA(c, 0.08), color: c, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{l.label} ↗</a>)}
+            </div>
+          )}
+        </div>
+      )}
+      {edit && <ProfileCustomizer initial={cust} c={c} onClose={() => setEdit(false)} onSave={(doc) => { setCust(doc); setEdit(false); }} />}
+    </div>
+  );
+}
+function ProfileCustomizer({ initial, c, onClose, onSave }) {
+  const init = initial || {};
+  const [bio, setBio] = React.useState(init.bio || "");
+  const [songUrl, setSongUrl] = React.useState((init.song && init.song.url) || "");
+  const [songLabel, setSongLabel] = React.useState((init.song && init.song.label) || "");
+  const [links, setLinks] = React.useState({ ...(init.links || {}) });
+  const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: DK_PROMPTS[0], a: "" }]);
+  const [busy, setBusy] = React.useState(false);
+  const field = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 11, border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: dHexA(LV_INK, 0.03), color: LV_INK, fontFamily: dSans, fontSize: 14, outline: "none" };
+  const label = { fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), marginBottom: 7, display: "block" };
+  const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
+  const embedPreview = dkSpotifyEmbed(songUrl);
+  const save = async () => {
+    setBusy(true);
+    const doc = {
+      ...init,
+      bio: bio.trim(),
+      song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
+      links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
+      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
+    };
+    try {
+      const cl = window.shapeDb && window.shapeDb.client;
+      if (cl) { const { data: u } = await cl.auth.getUser(); if (u && u.user) await cl.from("user_goals").upsert({ user_id: u.user.id, kind: "profile_custom", data: doc }, { onConflict: "user_id,kind" }); }
+    } catch (e) {}
+    setBusy(false); onSave(doc);
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto", background: LV_BG, borderRadius: 20, border: `1px solid ${dHexA(LV_INK, 0.12)}`, padding: 26 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+          <div><div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: c }}>Your profile</div><div style={{ fontFamily: dSerif, fontSize: 26, letterSpacing: "-0.02em", marginTop: 3 }}>Customize.</div></div>
+          <button onClick={onClose} style={{ background: "transparent", border: 0, color: dHexA(LV_INK, 0.6), fontSize: 22, cursor: "pointer" }}>×</button>
+        </div>
+        <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /></div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Profile song · Spotify link</span>
+          <input value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" style={field} />
+          <input value={songLabel} onChange={(e) => setSongLabel(e.target.value)} placeholder="Label (optional) — e.g. Lift anthem" style={{ ...field, marginTop: 8 }} />
+          {embedPreview && <div style={{ marginTop: 10, borderRadius: 11, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.1)}` }}><iframe title="Song preview" src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: "block", border: 0 }} /></div>}
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Prompts</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {prompts.map((p, i) => (
+              <div key={i} style={{ border: `1px solid ${dHexA(LV_INK, 0.12)}`, borderRadius: 11, padding: 11 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <select value={p.q} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{DK_PROMPTS.map((q) => <option key={q} value={q}>{q}</option>)}</select>
+                  <button onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 32, cursor: "pointer" }}>×</button>
+                </div>
+                <input value={p.a} onChange={(e) => setPrompt(i, "a", e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
+              </div>
+            ))}
+          </div>
+          {prompts.length < 4 && <button onClick={() => setPrompts((prev) => [...prev, { q: DK_PROMPTS[prev.length % DK_PROMPTS.length], a: "" }])} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: "8px 14px", cursor: "pointer", fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add prompt</button>}
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          <span style={label}>Social links</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {DK_LINKS.map((l) => (
+              <div key={l.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ flex: "0 0 84px", fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55) }}>{l.label}</span>
+                <input value={links[l.key] || ""} onChange={(e) => setLinks((prev) => ({ ...prev, [l.key]: e.target.value }))} placeholder={l.pre ? l.pre + "you" : "yoursite.com"} style={{ ...field, flex: 1 }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <button onClick={save} disabled={busy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: busy ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
+      </div>
+    </div>
+  );
+}
+
 function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref }) {
   const d = person || LV_PEOPLE[persona];
   const c = tierOf(d).color;
@@ -564,6 +700,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             {/* Activity — personal activities lead */}
             {tab === "activity" && (
               <section style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
+                <ProfileExtras d={d} owner={owner} />
                 <FeedBlock d={d} direction={direction} owner={owner} />
               </section>
             )}
