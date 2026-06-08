@@ -10950,7 +10950,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
           { l: 'Library', s: 'Saved workouts, programs & meals', onClick: () => setShowLibrary(true) },
           { l: 'Habits', s: 'To-dos, to-don’ts & streaks', onClick: () => setShowHabits(true) },
           { l: 'Marketplace', s: 'Find coaches, plans, programs', onClick: () => goMarket() },
-          { l: 'Shape Store', s: storeLocked ? 'Members only · tap to join' : `${scoreProfile.available.toLocaleString()} pts · tap to redeem`, onClick: () => setShowStore(true), locked: storeLocked },
+          { l: 'Shape Store', s: `${scoreProfile.available.toLocaleString()} pts · tap to ${storeLocked ? 'browse' : 'redeem'}`, onClick: () => setShowStore(true) },
           { l: 'Progress & PRs', s: 'Weight, recovery, strength trends', onClick: () => setShowProgress(true) },
           { l: 'Notifications', s: 'Requests, confirmations & updates', onClick: () => setShowNotifications(true) },
           { l: 'Connected apps', s: 'Apple Health · Strava · WHOOP', onClick: onIntegrations },
@@ -11583,33 +11583,9 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const storeHeroRule = t.isLight ? 'rgba(242,237,228,0.16)' : 'rgba(15,14,12,0.16)';
   const storeHeroHair = t.isLight ? 'rgba(242,237,228,0.12)' : 'rgba(15,14,12,0.12)';
 
-  // While we resolve membership, hold the catalogue (so non-members never see it).
-  if (memberGate.loading) {
-    return (
-      <BSPage>
-        <BSDetailHeader onBack={onBack} eyebrow="Store" kicker="Shape Store" title={<>Spend<br/>points.</>} />
-        <div style={{ padding: `34px ${t.padX}px`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
-      </BSPage>
-    );
-  }
-  // Locked — not a Shape member: show the upgrade prompt instead of the store.
-  if (!memberGate.allowed) {
-    return (
-      <BSPage>
-        <BSDetailHeader onBack={onBack} eyebrow="Store" kicker="Shape Store" title={<>Members<br/>only.</>} />
-        <div style={{ padding: `8px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 18, border: `1px solid ${t.AMBER}55`, background: `linear-gradient(150deg, ${t.AMBER}22, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 20, textAlign: 'center' }}>
-            <div style={{ fontSize: 34, lineHeight: 1 }}>🔒</div>
-            <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>The Shape Store is a <span style={{ fontStyle: 'italic', color: t.AMBER }}>member perk.</span></div>
-            <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>Become a Shape member to redeem your points for gear, credits and rewards — plus Shape Radio, the community, and the marketplace.</div>
-            <button onClick={bsStartPlatformCheckout} style={{ marginTop: 18, width: '100%', padding: '14px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{memberGate.signedIn ? 'Activate membership · $5/mo →' : 'Join Shape · $5/mo →'}</button>
-            <button onClick={onBack} style={{ marginTop: 10, width: '100%', padding: '12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Not now</button>
-          </div>
-          <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>You still earn points — redeem them once you’re a member.</div>
-        </div>
-      </BSPage>
-    );
-  }
+  // Anyone can browse the catalogue; only redeeming is members-only. Coaches +
+  // active members can redeem; free / signed-out users see a "join to redeem" CTA.
+  const purchasesLocked = !memberGate.allowed && !memberGate.loading;
 
   return (
     <BSPage>
@@ -11642,6 +11618,19 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
           ))}
         </div>
       </div>
+
+      {purchasesLocked && (
+        <div style={{ padding: `12px ${t.padX}px 0` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 14, border: `1px solid ${t.AMBER}55`, background: `${t.AMBER}14`, padding: '12px 14px' }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>🔒</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Browse freely — join to redeem</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>You still earn points. Become a member to spend them on gear, credits & rewards.</div>
+            </div>
+            <button onClick={bsStartPlatformCheckout} style={{ flexShrink: 0, padding: '9px 13px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{memberGate.signedIn ? 'Join · $5/mo' : 'Join'}</button>
+          </div>
+        </div>
+      )}
 
       <div style={{
         padding: `10px ${t.padX}px 4px`,
@@ -11695,8 +11684,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
               </div>
               <div style={{ textAlign: 'right', alignSelf: 'center' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: canAfford ? t.ACCENT : t.INK50 }}>{p.cost.toLocaleString()} pts</div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: canAfford ? t.GREEN : t.INK50 }}>
-                  {p.locked ? 'Tier locked' : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: p.locked ? t.INK50 : purchasesLocked ? t.AMBER : canAfford ? t.GREEN : t.INK50 }}>
+                  {p.locked ? 'Tier locked' : purchasesLocked ? '🔒 Members' : canAfford ? 'Redeem' : `+${(p.cost - balance).toLocaleString()}`}
                 </div>
               </div>
             </div>

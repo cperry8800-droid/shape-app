@@ -144,11 +144,13 @@ function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable,
   );
 }
 
-function ProductCard({ p, balance, onRedeem }) {
+function ProductCard({ p, balance, onRedeem, locked = false }) {
   const canAfford = !p.locked && p.cost <= balance;
+  const membersOnly = locked && !p.locked; // browsing is open; redeeming is members-only
   const dollar = p.retail ? `~$${p.retail} retail` : null;
   const cta =
     p.locked ? "Tier locked" :
+    membersOnly ? "🔒 Members only" :
     p.kind === "lead_boost" ? "Activate boost →" :
     canAfford ? "Redeem →" : `+${(p.cost - balance).toLocaleString()} to go`;
   return (
@@ -171,9 +173,9 @@ function ProductCard({ p, balance, onRedeem }) {
             <span style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", fontFamily: sans, marginLeft: 6 }}>pts</span>
           </div>
           <button
-            disabled={!canAfford}
-            onClick={() => canAfford && onRedeem && onRedeem(p)}
-            style={{ padding: "9px 14px", borderRadius: 6, background: canAfford ? INK : "rgba(242,237,228,0.08)", color: canAfford ? PAPER : "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: canAfford ? "pointer" : "not-allowed" }}
+            disabled={membersOnly ? false : !canAfford}
+            onClick={() => { if (membersOnly) { onRedeem && onRedeem(p); return; } if (canAfford && onRedeem) onRedeem(p); }}
+            style={{ padding: "9px 14px", borderRadius: 6, background: membersOnly ? "rgba(232,177,74,0.16)" : canAfford ? INK : "rgba(242,237,228,0.08)", color: membersOnly ? "#e8b14a" : canAfford ? PAPER : "rgba(242,237,228,0.45)", border: membersOnly ? "1px solid rgba(232,177,74,0.4)" : 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: (membersOnly || canAfford) ? "pointer" : "not-allowed" }}
           >
             {cta}
           </button>
@@ -183,7 +185,7 @@ function ProductCard({ p, balance, onRedeem }) {
   );
 }
 
-function StoreGrid() {
+function StoreGrid({ locked = false, signedIn = false }) {
   const [cat, setCat] = useSStore("All");
   const [sort, setSort] = useSStore("Featured");
   const [query, setQuery] = useSStore("");
@@ -193,6 +195,7 @@ function StoreGrid() {
   const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
 
   async function handleRedeem(product) {
+    if (locked) { window.location.href = "Pricing.html"; return; }
     if (product.kind !== "lead_boost") {
       setNotice(`${product.name} unlocked. Code will appear in your locker.`);
       return;
@@ -224,6 +227,16 @@ function StoreGrid() {
       <StoreFilters {...{ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }} />
       <section style={{ padding: "48px 72px 40px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+          {locked && (
+            <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "14px 18px", borderRadius: 12, border: "1px solid rgba(232,177,74,0.4)", background: "rgba(232,177,74,0.08)" }}>
+              <span style={{ fontSize: 20 }}>🔒</span>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.015em", color: INK }}>Browse freely — join to redeem</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>You still earn points. Become a member to spend them on gear, training credits & rewards.</div>
+              </div>
+              <a href="Pricing.html" style={{ flex: "none", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px", textDecoration: "none" }}>{signedIn ? "Activate · $5/mo →" : "Join Shape · $5/mo →"}</a>
+            </div>
+          )}
           {!!notice && (
             <div style={{ marginBottom: 20, padding: "12px 14px", borderRadius: 8, border: "1px solid rgba(10,197,168,0.35)", background: "rgba(10,197,168,0.08)", color: INK, fontFamily: sans, fontSize: 13 }}>
               {notice}
@@ -240,7 +253,7 @@ function StoreGrid() {
           </div>
           {list.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
-              {list.map(p => <ProductCard key={p.id} p={p} balance={BALANCE} onRedeem={handleRedeem} />)}
+              {list.map(p => <ProductCard key={p.id} p={p} balance={BALANCE} onRedeem={handleRedeem} locked={locked} />)}
             </div>
           ) : (
             <div style={{ padding: 80, textAlign: "center", fontFamily: sans, color: "rgba(242,237,228,0.5)", border: "1px dashed rgba(242,237,228,0.1)", borderRadius: 12 }}>
@@ -371,15 +384,13 @@ function StorePage() {
         <Header active="Store" />
         {gate.loading ? (
           <section style={{ padding: "120px 24px", textAlign: "center", fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Loading…</section>
-        ) : gate.allowed ? (
+        ) : (
           <React.Fragment>
             <StoreHero />
-            <StoreGrid />
+            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} />
             <UnlockedCoupons />
             <StoreFAQ />
           </React.Fragment>
-        ) : (
-          <StoreMembersOnly signedIn={gate.signedIn} />
         )}
         <Footer />
       </div>
