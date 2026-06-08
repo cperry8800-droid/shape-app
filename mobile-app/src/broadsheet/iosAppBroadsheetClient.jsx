@@ -6445,7 +6445,7 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', editable = false, onEdit, showRank = true, live = false, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
@@ -6468,7 +6468,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
         <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BG, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BG}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: FTEAL }} /></span>
       )}
       {!editable && showRank && tierLabel && (
-        <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translate(-50%,72%)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', left: '50%', whiteSpace: 'nowrap', pointerEvents: 'none', ...(tierPos === 'top' ? { top: 0, transform: 'translate(-50%,-105%)' } : { bottom: 0, transform: 'translate(-50%,72%)' }) }}>
           <span style={{ fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.145)), fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c, lineHeight: 1, textShadow: `0 1px 4px ${BG}, 0 0 3px ${BG}, 0 0 3px ${BG}` }}>{tierLabel}</span>
         </div>
       )}
@@ -7180,7 +7180,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </svg>
             {/* you-are-here FACET badge */}
             <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `calc(${(here.y / H) * 100}% - 64px)` }}>
-              <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} tierLabel={tierName} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+              <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {pctLabel}%</div>
             </div>
             {/* base + summit labels (chip-backed so they read cleanly over the terrain) */}
@@ -7192,7 +7192,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 <h1 style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
                 <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.55), marginTop: 7 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
               </div>
-              <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '5px 11px', whiteSpace: 'nowrap' }}><span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
+              <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.14), border: `1px solid ${bsTHexA(c, 0.5)}`, borderRadius: 999, padding: '7px 14px', whiteSpace: 'nowrap' }}>{tierName}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '5px 11px', whiteSpace: 'nowrap' }}><span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
+              </div>
             </div>
             {/* coached-by band */}
             <div style={{ padding: '0 16px 16px' }}>
@@ -7526,7 +7529,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-            <Kick col={c}>{tierName} · coach</Kick>
+            <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
               ? <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
               : <BSMeCorner size={30} />}
@@ -7539,14 +7542,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} disciplines={disciplines} c={c} teal={TEAL} ink={INK} size={240} />
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
-            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} tierLabel={tierName} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
 
         {/* name block */}
         <div style={{ textAlign: 'center', marginTop: 14 }}>
           <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.98 }}>{name}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.55), flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.14), border: `1px solid ${bsTHexA(c, 0.5)}`, borderRadius: 999, padding: '7px 16px' }}>{tierName}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.55), flexWrap: 'wrap' }}>
             <span>{handle}</span>{pronouns ? <><span style={{ opacity: 0.4 }}>·</span><span>{pronouns}</span></> : null}<span style={{ opacity: 0.4 }}>·</span><span>{city}</span>
           </div>
           <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
@@ -7649,11 +7655,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
           </div>
 
-          {/* recent win */}
-          <div style={{ marginTop: 24, ...card, borderRadius: 16, padding: 16 }}>
-            <Kick>{relation[0]}</Kick>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}><div style={{ width: 42, height: 42, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${relation[3]} 40% 34%), hsl(${relation[3]} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 16 }}>{relation[2]}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 500 }}>{relation[1]}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), lineHeight: 1.4, marginTop: 3 }}>{relation[4]}</div></div></div>
-          </div>
 
           </>)}
 
@@ -8403,16 +8404,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
           </div>
-          <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '13px 12px 8px' }}>
+          <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '20px 12px 8px' }}>
             {TRAINING_NOW.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
               return (
                 <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, photo: bsUnsplash(p.photo) || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} tierLabel={p.tier ? String(p.tier).charAt(0).toUpperCase() + String(p.tier).slice(1) : ''} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
+                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} tierLabel={p.tier ? String(p.tier).charAt(0).toUpperCase() + String(p.tier).slice(1) : ''} tierPos="top" live={!!p.live} BG={t.PAPER} INK={'#fff'} />
                   </div>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 16, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
+                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}

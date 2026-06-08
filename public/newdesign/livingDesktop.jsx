@@ -778,13 +778,10 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               </section>
             )}
 
-            {/* Coaching (coach only) — services / certs / reviews + recent win */}
+            {/* Coaching (coach only) — services / certs / reviews */}
             {coach && tab === "coaching" && (
-              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
-                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                  <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} /></div>
-                </div>
-                <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail"><RelationBlock d={d} /></aside>
+              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
+                <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} /></div>
               </section>
             )}
           </React.Fragment>
