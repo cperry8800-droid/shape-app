@@ -13921,57 +13921,86 @@ async function bsStartPlatformCheckout() {
 function BSAboutPage({ onBack }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const letter = [
-    "Shape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.",
-    "It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We open the door for trainers, nutritionists, and registered dietitians who actually care — and make that level of guidance affordable.",
-    "Your trainer programs your week before you arrive. Your nutritionist builds a meal plan around your goals, and it turns into a grocery list you can shop from. As you show up — day after day — your Shape Score rises with you. Not a vanity metric. A mirror.",
-    "And then there's the part no app gets right: the community. Keep your journey private — or share it. What you cooked, what you lifted, what your coach said. A whole feed of people figuring out the same things you are.",
-  ];
+  const tealB = t.isLight ? '#0a8f87' : '#5fe6d6';
+  const px = t.padX;
+  // Same letter the website runs — drop-cap intro + two pull-quotes.
+  const para = { fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.72, color: t.INK70, margin: '0 0 22px' };
+  const pull = { fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 22, lineHeight: 1.18, letterSpacing: '-0.02em', fontWeight: 500, color: t.INK, margin: '30px 0' };
   const pillars = [
-    ["Personal coaching, lower cost", "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform — your coach sets their own rate and gets paid directly."],
-    ["A real community", "Share your week if you want to — or don't. Either way, find tips, recipes, recommended coaches, and people who get what you're trying to do."],
+    ["Personal coaching, lower cost", "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform. Your coach sets their own rate and gets paid directly."],
+    ["A real community", "Share your week if you want to — or don't. Either way, you can find tips, recipes, recommended coaches, and people who get what you're trying to do."],
     ["Shape Radio + the soundtrack", "Ad-free mixes built for movement, included with every membership. Your coach can drop a playlist onto a workout and it plays right on the card."],
-    ["Lifestyle, structured", "Habit tracking, grocery lists that build themselves, meal plans you actually follow, and a Shape Score that reads the truth at the end of the week."],
-    ["Goals that are yours", "Tell us what you're shaping toward — strength, sleep, calm, a marathon, just feeling like yourself again. We plan around it and your coach holds the line."],
-    ["Public if you want, private always", "Your data is yours. Share progress with the community when you feel like it. Keep it locked when you don't. No algorithm pushing you to overshare."],
+    ["Lifestyle, structured", "Habit tracking, grocery lists that build themselves, meal plans you actually follow, Shape Score that reads the truth at the end of the week. Build the good ones. Break the bad ones."],
+    ["Goals that are yours", "Tell us what you're shaping toward — strength, weight, sleep, calm, a marathon, just feeling like yourself again. We help you plan around it and your coach holds the line."],
+    ["Public if you want, private always", "Your data is yours. Share your progress with the community when you feel like it. Keep it locked when you don't. There's no algorithm pushing you to overshare."],
   ];
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        eyebrow="Shape"
-        kicker="About"
-        title={<>A place<br/>for helping <span style={{ color: teal }}>shape</span> a lifestyle.</>}
-      />
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontStyle: 'italic', fontWeight: 500, lineHeight: 1.45, color: t.INK }}>
-          Your trainer mapped the next few weeks. Your nutritionist's plan became a grocery list before you asked. Open the workout card and the music starts. Shape Score watches all of it. Nobody here is finished — that's the point.
+      {/* minimal back row (the hero is the title, mirroring the website) */}
+      <div style={{ padding: `54px ${px}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>About · Shape</span>
+      </div>
+
+      {/* HERO — A place / for helping shape a lifestyle (teal-stroke "shape") */}
+      <div style={{ padding: `34px ${px}px 26px`, textAlign: 'center' }}>
+        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 300, letterSpacing: '-0.045em', margin: 0, lineHeight: 0.94, color: t.INK }}>
+          A&nbsp;place<br />for helping <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'transparent', WebkitTextStroke: `1.1px ${teal}` }}>shape</em> a&nbsp;lifestyle
+        </h1>
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 16, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.005em', color: t.INK70, margin: '28px auto 0', maxWidth: 560, lineHeight: 1.55 }}>
+          Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
+        </p>
+        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }} aria-hidden>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50 }}>A letter</span>
+          <span style={{ width: 1, height: 48, background: `linear-gradient(to bottom, transparent, ${teal})`, display: 'block' }} />
         </div>
       </div>
 
-      <BSSection title="Fitness is the entry point" meta="A letter" />
-      <div style={{ padding: `6px ${t.padX}px 2px` }}>
-        {letter.map((p, i) => (
-          <p key={i} style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.62, color: t.INK70, margin: '0 0 14px' }}>{p}</p>
-        ))}
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK50, margin: '2px 0 4px' }}>— The Shape team</div>
+      {/* LETTER */}
+      <div style={{ padding: `40px ${px}px 24px` }}>
+        <h2 style={{ fontFamily: t.DISPLAY, fontSize: 24, letterSpacing: '-0.02em', fontWeight: 400, margin: '0 0 8px', lineHeight: 1.18, color: t.INK, textAlign: 'center', fontStyle: 'italic' }}>
+          <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>Fitness</em> is the entry point. Your <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>lifestyle</em> is the goal.
+        </h2>
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 34px' }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
+
+        <p style={para}>
+          <span style={{ float: 'left', fontFamily: t.DISPLAY, fontSize: 74, lineHeight: 0.82, fontWeight: 400, color: teal, padding: '8px 12px 0 0', marginTop: 4 }}>S</span>hape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.
+        </p>
+        <p style={para}>It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us.</p>
+        <p style={para}>Shape builds the loop around all of it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from.</p>
+        <p style={para}>As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned.</p>
+
+        <div style={{ ...pull, textAlign: 'right', paddingRight: 16, borderRight: `3px solid ${teal}` }}>Not a vanity metric. <em style={{ color: tealB }}>A mirror.</em></div>
+
+        <p style={para}>There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down.</p>
+        <p style={para}>And then there's the part no app gets right: <em style={{ fontStyle: 'italic', color: tealB, fontWeight: 500 }}>the community</em>. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.</p>
+
+        <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>The community isn't a forum. It's the people in your loop.</div>
+
+        <p style={{ ...para, marginBottom: 36 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><span style={{ width: 24, height: 2, background: t.RULE }} /></div>
+        <div style={{ textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK50 }}>— The Shape team</div>
       </div>
 
-      <BSSection title="One place for the whole loop" meta="What you get" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {pillars.map(([h, p], i, arr) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: 12, padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: teal, fontWeight: 900 }}>{String(i + 1).padStart(2, '0')}</div>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontStyle: 'italic', fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{h}</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{p}</div>
-            </div>
+      {/* PILLARS */}
+      <div style={{ padding: `48px ${px}px 8px` }}>
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, marginBottom: 12 }}>What you get</div>
+          <h3 style={{ fontFamily: t.DISPLAY, fontSize: 30, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.05, color: t.INK }}>One place for the <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>whole loop</em>.</h3>
+        </div>
+        {pillars.map(([h, p], i) => (
+          <div key={i} style={{ borderTop: `1px solid ${t.RULE}`, paddingTop: 18, marginBottom: 26 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: tealB, marginBottom: 11 }}>{String(i + 1).padStart(2, '0')}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, letterSpacing: '-0.015em', fontWeight: 400, fontStyle: 'italic', color: t.INK, lineHeight: 1.18, marginBottom: 11 }}>{h}</div>
+            <p style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.55, margin: 0 }}>{p}</p>
           </div>
         ))}
       </div>
 
-      <div style={{ padding: `26px ${t.padX}px 32px`, textAlign: 'center' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 30, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape your <span style={{ color: teal }}>community.</span></div>
+      {/* CTA */}
+      <div style={{ padding: `26px ${px}px 36px`, textAlign: 'center' }}>
+        <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>Join the <em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>community.</em></h3>
       </div>
       <BSFooter right="About" />
     </BSPage>
