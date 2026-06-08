@@ -3313,7 +3313,14 @@ async function respondFollowRequest(followerId, accept) {
   _emitFollows([myId, followerId]);
   return true;
 }
-window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows, requests: listFollowRequests, respond: respondFollowRequest, getCached: (uid) => (uid && _followCache[uid]) || null };
+// "Who to follow" suggestions — members you don't already follow, ranked.
+async function getFollowSuggestions(limit = 20) {
+  if (!supabase || !state.user?.id) return [];
+  const { data, error } = await supabase.rpc('get_follow_suggestions', { p_limit: limit });
+  if (error) return [];
+  return (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member', role: r.role || 'client', followers: Number(r.followers) || 0, followsMe: !!r.follows_me, mutuals: Number(r.mutuals) || 0 }));
+}
+window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows, requests: listFollowRequests, respond: respondFollowRequest, suggestions: getFollowSuggestions, getCached: (uid) => (uid && _followCache[uid]) || null };
 
 // ── Member-created community channels ("run club" style) ─────────────────────
 function channelDisplayName() {

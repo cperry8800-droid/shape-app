@@ -6160,6 +6160,58 @@ function BSFollowMini({ onOpen }) {
   return <div style={{ display: 'flex', gap: 18, marginTop: 12 }}>{stat(f.followers, 'Followers')}{stat(f.following, 'Following')}</div>;
 }
 
+// "Who to follow" — suggested members, shown in the Chat page (Friends tab).
+// Each row has a Follow / Requested button (privacy-aware via toggle_follow);
+// tapping the person opens their profile.
+function BSFollowSuggestions({ onOpenProfile }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [people, setPeople] = useStateBSC(null);
+  const [state, setState] = useStateBSC({}); // userId -> 'following' | 'requested' | busy
+  React.useEffect(() => {
+    if (!window.ShapeFollows?.suggestions) { setPeople([]); return; }
+    let on = true;
+    window.ShapeFollows.suggestions(20).then((r) => { if (on) setPeople(r || []); }).catch(() => { if (on) setPeople([]); });
+    return () => { on = false; };
+  }, []);
+  const follow = async (p) => {
+    if (state[p.userId] === 'busy') return;
+    setState((s) => ({ ...s, [p.userId]: 'busy' }));
+    try { const r = await window.ShapeFollows?.toggle?.(p.userId); setState((s) => ({ ...s, [p.userId]: r && r.isFollowing ? 'following' : r && r.isPending ? 'requested' : '' })); }
+    catch (e) { setState((s) => ({ ...s, [p.userId]: '' })); window.__bsToast?.(e?.message || 'Could not follow.', 'err'); }
+  };
+  if (people == null) return null;
+  if (people.length === 0) return null;
+  const reason = (p) => p.followsMe ? 'Follows you' : p.mutuals > 0 ? `${p.mutuals} mutual${p.mutuals === 1 ? '' : 's'}` : p.followers > 0 ? `${p.followers} follower${p.followers === 1 ? '' : 's'}` : 'On Shape';
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 8px' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Who to follow</span>
+      </div>
+      <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+        {people.map((p) => {
+          const st = state[p.userId] || '';
+          const tier = bsPostTier({ who: p.name });
+          const label = st === 'following' ? 'Following' : st === 'requested' ? 'Requested' : st === 'busy' ? '…' : 'Follow';
+          const solid = st === '' ;
+          return (
+            <div key={p.userId} style={{ flex: '0 0 auto', width: 132, borderRadius: 14, border: `1px solid ${t.HAIR}`, background: t.PAPER2, padding: '14px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
+              <button onClick={() => onOpenProfile && onOpenProfile({ who: p.name, userId: p.userId, kind: (p.role || 'client').toUpperCase(), tier, init: bsInitials(p.name), public: true })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+                <BSFacetAvatar size={48} c={bsTierColor(tier)} initial={bsInitials(p.name) || '?'} photo={(p.userId && (typeof window !== 'undefined' && window.ShapeProfiles)) ? undefined : undefined} showRank={false} />
+              </button>
+              <div style={{ minWidth: 0, width: '100%' }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{reason(p)}</div>
+              </div>
+              <button onClick={() => follow(p)} disabled={st === 'busy'} style={{ width: '100%', borderRadius: 999, padding: '7px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', background: solid ? teal : 'transparent', color: solid ? '#06110e' : t.INK, border: `1px solid ${solid ? teal : t.RULE}` }}>{label}</button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
@@ -7971,6 +8023,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
+                <BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} />
                 {ThreadHead(friends)}
                 {friends.map(Row)}
               </div>
