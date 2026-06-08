@@ -537,8 +537,48 @@ function LvCoachBlocks({ d, light, owner }) {
   const ink = light ? "#1a1612" : LV_INK;
   const card = { background: hexA(ink, 0.04), border: `1px solid ${hexA(ink, 0.09)}`, borderRadius: 14 };
   const kick = (t) => <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 13 }}>{t}</div>;
+  // Storefront: the profile is the listing. Resolve the coach's provider (for the
+  // subscription checkout) + live reviews — the same data the marketplace used.
+  const first = d.first || String(d.name || "").split(/\s+/)[0] || "Coach";
+  const monthlyPrice = ((d.offerings || []).find((o) => /coaching/i.test(o.kind) || /month/i.test(o.unit || "")) || {}).price || (d.role === "Nutritionist" ? "$240" : "$200");
+  const [provider, setProvider] = React.useState(null);
+  const [liveReviews, setLiveReviews] = React.useState(null);
+  React.useEffect(() => {
+    const cl = window.shapeDb && window.shapeDb.client;
+    if (d.uid && cl && cl.rpc) cl.rpc("get_coach_sale_plans_by_user", { p_user_id: d.uid }).then((r) => { const rows = (r && !r.error && r.data) || []; if (rows[0]) setProvider({ id: rows[0].provider_id, role: rows[0].provider_role }); }).catch(() => {});
+    const slug = String(d.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    let on = true;
+    fetch(`/api/coaches/reviews?coach=${encodeURIComponent(slug)}`, { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (on && j && Array.isArray(j.reviews) && j.reviews.length) setLiveReviews(j.reviews); }).catch(() => {});
+    return () => { on = false; };
+  }, [d.uid, d.name]);
+  const openChat = () => { try { if (window.__openChat) { window.__openChat({ who: d.name }); return; } const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } catch (e) {} };
+  const subscribe = async () => {
+    if (provider && provider.id) {
+      try {
+        const res = await fetch("/api/stripe/checkout-session", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item: { type: "Subscription", name: "Monthly coaching", price: monthlyPrice, unit: "/ month" }, coach: { provider_id: provider.id, provider_role: provider.role, name: d.name }, successPath: "/purchase/success", cancelPath: "/newdesign/MemberProfile.html" }) });
+        const j = await res.json().catch(() => ({}));
+        if (j.url) { window.location.href = j.url; return; }
+      } catch (e) {}
+    }
+    openChat();
+  };
+  const reviewsAvg = (liveReviews && liveReviews.length) ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
+  const reviewItems = (liveReviews && liveReviews.length)
+    ? liveReviews.map((r) => ({ name: r.author || "Member", initials: (r.author || "M").slice(0, 2).toUpperCase(), hue: 160, stars10: Math.round(r.rating || 0), body: r.text || "", time: "" }))
+    : d.reviews.map((r) => ({ ...r, stars10: 10 }));
   return (
     <div>
+      {/* Work with {first} — storefront CTA */}
+      {!owner && (
+        <div style={{ ...card, padding: "20px 22px", marginTop: 4 }}>
+          <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: c }}>Work with {first}</div>
+          <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 9 }}>Monthly coaching · <span style={{ color: c }}>{monthlyPrice}/mo</span></div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 999, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
+            <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 999, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
+          </div>
+        </div>
+      )}
       {/* Certifications */}
       <div style={{ marginTop: 30 }}>
         {kick("Certifications")}
@@ -566,23 +606,21 @@ function LvCoachBlocks({ d, light, owner }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 13 }}>
           <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>Reviews</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-            <span style={{ fontFamily: lvSerif, fontSize: 22, letterSpacing: "-0.02em", color: ink }}>{d.rating}</span>
-            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {d.reviewCount} reviews</span>
+            <span style={{ fontFamily: lvSerif, fontSize: 22, letterSpacing: "-0.02em", color: ink }}>{reviewsAvg != null ? reviewsAvg : d.rating}</span>
+            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount} reviews</span>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {d.reviews.map((r, i) => (
+          {reviewItems.map((r, i) => (
             <div key={i} style={{ ...card, padding: "13px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
                 <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink }}>{r.name}</span>
-                <span style={{ fontFamily: lvMono, fontSize: 11, color: c }}>{"★".repeat(r.stars)}</span>
-                <span style={{ marginLeft: "auto", fontFamily: lvMono, fontSize: 9.5, color: hexA(ink, 0.4) }}>{r.time}</span>
+                <span style={{ marginLeft: "auto", fontFamily: lvMono, fontSize: 10, color: c }}>{r.stars10}/10</span>
               </div>
               <p style={{ fontFamily: lvSerif, fontSize: 14, fontStyle: "italic", lineHeight: 1.45, color: hexA(ink, 0.82), margin: "10px 0 0", textWrap: "pretty" }}>“{r.body}”</p>
             </div>
           ))}
-          <button style={{ ...card, padding: "12px", fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink, cursor: "pointer", textAlign: "center" }}>Read all {d.reviewCount} reviews</button>
         </div>
       </div>
     </div>
