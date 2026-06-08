@@ -338,7 +338,7 @@ function mktCoachTier(c) {
   const color = (window.bsTierColor ? window.bsTierColor(String(name).toLowerCase()) : mktRoleColor(c)) || mktRoleColor(c);
   return { name, color, prof };
 }
-function MktCoachCard({ c, onOpen }) {
+function MktCoachCard({ c, onOpen, photo }) {
   const t = useBS();
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
   const { name: tierName, color: tierColor, prof } = mktCoachTier(c);
@@ -346,7 +346,7 @@ function MktCoachCard({ c, onOpen }) {
   return (
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderRadius: 15, overflow: 'hidden', background: `linear-gradient(165deg, ${tierColor}24, ${t.PAPER2} 58%)`, padding: 13, display: 'flex', flexDirection: 'column', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {Facet ? <Facet size={38} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={38} />}
+        {Facet ? <Facet size={38} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={38} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
           <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tierName} · {isNutri ? 'Nutritionist' : 'Trainer'}</div>
@@ -361,13 +361,13 @@ function MktCoachCard({ c, onOpen }) {
   );
 }
 
-function MktRow({ c, onOpen }) {
+function MktRow({ c, onOpen, photo }) {
   const t = useBS();
   const { name: tierName, color: tierColor } = mktCoachTier(c);
   const Facet = window.BSFacetAvatar;
   return (
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 13, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${tierColor}14, ${t.PAPER2} 58%)` }}>
-      {Facet ? <Facet size={46} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={46} />}
+      {Facet ? <Facet size={46} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={46} />}
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
@@ -450,6 +450,18 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
   const trainers = marketplaceCoaches.Trainer || [];
   const nutritionists = marketplaceCoaches.Nutritionist || [];
   const everyone = useMemoBSM2(() => [...trainers, ...nutritionists], [trainers, nutritionists]);
+
+  // Real profile photos for live coaches (those with an account) — shown in the
+  // facet avatar; demo coaches fall back to initials.
+  const [avatarByUser, setAvatarByUser] = useStateBSM2({});
+  useEffectBSM2(() => {
+    const ids = [...new Set((everyone || []).map((c) => c.provider_user_id).filter(Boolean))];
+    if (!ids.length || !(window.ShapeProfiles && window.ShapeProfiles.getUserAvatars)) return;
+    let on = true;
+    window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (on && m) setAvatarByUser(m); }).catch(() => {});
+    return () => { on = false; };
+  }, [everyone]);
+  const coachPhoto = (c) => (c && (c.photo || c.avatar || (c.provider_user_id ? avatarByUser[c.provider_user_id] : null))) || undefined;
 
   const pills = ['All', 'Trainers', 'Nutritionists'];
 
@@ -603,28 +615,43 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
         <>
           <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? 'Everyone' : pill)} title={`${list.length} ${list.length === 1 ? 'coach' : 'coaches'}`} teal={teal} />
           <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {list.map((c) => <MktRow key={c.id} c={c} onOpen={() => setOpen(c)} />)}
+            {list.map((c) => <MktRow key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
             {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No coaches match that — try a different filter.</div> : null}
           </div>
         </>
       ) : (
         <>
-          {/* Coach of the week */}
-          {cotw && cotwProfile ? (
+          {/* Coach of the week — a mini living-profile preview */}
+          {cotw && cotwProfile ? (() => {
+            const ct = mktCoachTier(cotw); const tierColor = ct.color;
+            const isN = getPublicProfileKind(cotw) === 'nutritionist';
+            const Facet = window.BSFacetAvatar;
+            return (
             <div style={{ padding: `0 ${t.padX}px` }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Coach of the week</div>
-              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{cotw.name}</div>
-              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 9, borderRadius: 16, border: `1px solid ${t.RULE}`, overflow: 'hidden', background: `linear-gradient(160deg, ${mktRoleColor(cotw)}26, ${t.PAPER2} 62%)`, padding: 11 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.3, letterSpacing: '-0.01em', color: t.INK }}>“{cotw.bio}”</div>
-                <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <MktAvatar c={cotw} size={32} />
+              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 8, borderRadius: 16, border: `1px solid ${tierColor}40`, overflow: 'hidden', background: `linear-gradient(160deg, ${tierColor}2e, ${t.PAPER2} 60%)`, padding: 14 }}>
+                {/* hero row — facet avatar (real photo when available) + name + tier */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {Facet ? <Facet size={50} c={tierColor} initial={cotw.init || (cotw.name ? cotw.name[0] : '?')} photo={coachPhoto(cotw)} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={cotw} size={50} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cotw.name}</div>
-                    <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(cotw.spec && cotw.spec[0]) || cotwProfile.role} · {mktShortLoc(cotw.loc)}</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cotw.name}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name} · {isN ? 'Nutritionist' : 'Trainer'} · {mktShortLoc(cotw.loc)}</div>
                   </div>
-                  <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: mktRoleColor(cotw), color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>→</span>
+                  <span style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: tierColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 }}>→</span>
                 </div>
-                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
+                {/* quote */}
+                <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK70 }}>“{cotw.bio}”</div>
+                {/* stat row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
+                  {[['★ ' + formatCoachRating10(cotw), 'Rating'], [(cotw.clients || 0) + '+', 'Clients'], [(cotw.years || 1) + 'y', 'Experience']].map(([v, l]) => (
+                    <div key={l} style={{ borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '9px 6px', textAlign: 'center' }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{v}</div>
+                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* tracklist */}
+                <div style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
                 <div style={{ marginTop: 1 }}>
                   {cotwProfile.packages.slice(0, 3).map((p, i) => (
                     <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? 'Monthly' : 'One-time'} · ${p.perks.length} included`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
@@ -632,13 +659,14 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
                 </div>
               </div>
             </div>
-          ) : null}
+            );
+          })() : null}
 
           {/* Featured this week — 2-up grid */}
           <div style={{ marginTop: 26 }}>
             <MktSectionHead kicker="Featured" title="This week" action="See all" onAction={() => setForceList(true)} teal={teal} />
             <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              {featuredWeek.map((c) => <MktCoachCard key={c.id} c={c} onOpen={() => setOpen(c)} />)}
+              {featuredWeek.map((c) => <MktCoachCard key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
             </div>
           </div>
 
