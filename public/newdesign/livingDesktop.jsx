@@ -133,11 +133,11 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
           )}
           {!owner && (coach
             ? <button onClick={() => { if (coachingHref) window.location.href = coachingHref; }} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${dHexA(LV_INK, 0.22)}`, background: "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>View coaching</button>
-            : <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${follow && follow.isFollowing ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: follow && follow.isFollowing ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : "Follow"}</button>)}
+            : (() => { const on = follow && (follow.isFollowing || follow.isPending); return <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: on ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : follow && follow.isPending ? "Requested" : "Follow"}</button>; })())}
         </div>
         {/* followers / following — always public, live links */}
         {follow && (
-          <div style={{ display: "flex", gap: 26, marginTop: 22 }}>
+          <div style={{ display: "flex", gap: 26, marginTop: 22, alignItems: "center" }}>
             <button onClick={() => follow.openList && follow.openList("followers")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.followers}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Followers</span>
@@ -146,6 +146,9 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.following}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Following</span>
             </button>
+            {owner && follow.requests > 0 && (
+              <button onClick={() => follow.openRequests && follow.openRequests()} style={{ borderRadius: 999, border: 0, background: LV_TEAL, color: "#06110e", padding: "8px 14px", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button>
+            )}
           </div>
         )}
       </div>
@@ -362,7 +365,7 @@ function DesktopLocked({ d, follow, onMessage, onFollow, coachingHref }) {
         <button onClick={onMessage} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: 0, background: LV_TEAL, color: "#06110e", fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Message {d.first}</button>
         {coach
           ? <button onClick={() => { if (coachingHref) window.location.href = coachingHref; }} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${dHexA(LV_INK, 0.22)}`, background: "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>View coaching</button>
-          : <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${follow && follow.isFollowing ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: follow && follow.isFollowing ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : "Follow"}</button>}
+          : (() => { const on = follow && (follow.isFollowing || follow.isPending); return <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: on ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : follow && follow.isPending ? "Requested" : "Follow"}</button>; })()}
       </div>
     </section>
   );

@@ -55,6 +55,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Follow requests for private profiles (approve to follow) — app + website
+- **Migration `2026-06-08-follow-requests.sql`** (**run on Supabase**): adds
+  `user_follows.status` ('accepted'|'pending') + `shape_profile_visibility(uid)`. Reworks
+  the RPCs: **public profile → Follow is instant** (accepted); **friends/private → Follow
+  creates a request** (pending) the owner must accept. `get_follow_stats` now counts only
+  accepted + returns **`is_pending`**; `toggle_follow` requests/cancels by privacy;
+  `get_follow_list` lists only accepted; new **`list_follow_requests()`** +
+  **`respond_follow_request(follower, accept)`**.
+- **Mobile** (`BSFollowBlock`, both client Terrain + coach Signal): Follow button is now
+  3-state — **Follow / Requested / Following ✓**. On your own profile a **"N requests"**
+  button opens a sheet to **Accept / Decline** each pending follower. `ShapeFollows`
+  gained `requests()` + `respond()`; cache/`shape:follows` sync extended.
+- **Website** (`MemberProfile.html` + `livingDesktop.jsx`): same — Follow/Requested/
+  Following on the hero + locked card, an owner **"N requests"** chip → accept/decline
+  modal. Applies to **client and coach** profiles.
+
 ### 2026-06-08 — Website public profile = desktop Terrain/Signal (same direction as mobile)
 - Dropped the **desktop** living-identity designs (`chat-design-v2/Shape (13).zip` =
   Terrain/member, `(14).zip` = Signal/coach) into `public/newdesign/`: **`livingShared.jsx`**

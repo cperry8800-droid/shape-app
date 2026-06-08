@@ -6177,8 +6177,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     ? { followers: 40 + (seed % 860), following: 28 + ((seed >> 5) % 320), isFollowing: false }
     : ((uid && window.ShapeFollows?.getCached?.(uid)) || { followers: 0, following: 0, isFollowing: false }));
   const [busy, setBusy] = useStateBSC(false);
-  const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following'
+  const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following' | 'requests'
   const [list, setList] = useStateBSC(null);
+  const [reqCount, setReqCount] = useStateBSC(0); // pending requests (self only)
   React.useEffect(() => {
     if (!uid || !window.ShapeFollows?.stats) return;
     let alive = true;
@@ -6189,19 +6190,41 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     window.addEventListener('shape:follows', onSync);
     return () => { alive = false; window.removeEventListener('shape:follows', onSync); };
   }, [uid]);
+  // On your own profile, surface pending follow requests to accept/decline.
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeFollows?.requests) return;
+    let alive = true;
+    const load = () => window.ShapeFollows.requests().then((r) => { if (alive) setReqCount((r || []).length); }).catch(() => {});
+    load();
+    const onSync = () => load();
+    window.addEventListener('shape:follows', onSync);
+    return () => { alive = false; window.removeEventListener('shape:follows', onSync); };
+  }, [isSelf]);
   const onToggle = async () => {
     if (busy) return;
     if (demo) { setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) })); return; }
     if (!uid || !window.ShapeFollows?.toggle) return;
     setBusy(true);
     const prev = stats;
-    setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) }));
+    // Optimistic: unfollow/cancel-request clear immediately; a new follow waits
+    // for the RPC (it decides accepted vs pending by the target's privacy).
+    if (stats.isFollowing) setStats((s) => ({ ...s, isFollowing: false, followers: Math.max(0, s.followers - 1) }));
+    else if (stats.isPending) setStats((s) => ({ ...s, isPending: false }));
     try { const s = await window.ShapeFollows.toggle(uid); setStats(s); }
     catch (e) { setStats(prev); window.__bsToast?.(e?.message || 'Could not update follow.', 'err'); }
     finally { setBusy(false); }
   };
+  const respondReq = async (followerId, accept) => {
+    setList((cur) => (cur || []).filter((u) => u.userId !== followerId));
+    try { await window.ShapeFollows?.respond?.(followerId, accept); } catch (e) { window.__bsToast?.(e?.message || 'Could not respond.', 'err'); }
+    try { const r = await window.ShapeFollows?.requests?.(); setReqCount((r || []).length); } catch (e) {}
+  };
   const openList = (kind) => {
     setSheet(kind); setList(null);
+    if (kind === 'requests') {
+      window.ShapeFollows?.requests?.().then((r) => setList(r || [])).catch(() => setList([]));
+      return;
+    }
     if (uid) {
       window.ShapeFollows?.list?.(uid, kind).then((r) => setList(r || [])).catch(() => setList([]));
       return;
@@ -6227,35 +6250,52 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         {statBtn(stats.followers, 'Followers', 'followers')}
         {statBtn(stats.following, 'Following', 'following')}
       </div>
-      {!isSelf && (
-        <button onClick={onToggle} disabled={busy} style={{
-          flex: 'none', borderRadius: 999, padding: '8px 18px', cursor: busy ? 'default' : 'pointer',
-          fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-          background: stats.isFollowing ? 'transparent' : c, color: stats.isFollowing ? INK : '#06110e',
-          border: `1px solid ${stats.isFollowing ? bsTHexA(INK, 0.3) : c}`,
-        }}>{stats.isFollowing ? 'Following ✓' : 'Follow'}</button>
+      {isSelf && reqCount > 0 && (
+        <button onClick={() => openList('requests')} style={{
+          flex: 'none', borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
+          fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+          background: c, color: '#06110e', border: 0,
+        }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
       )}
+      {!isSelf && (() => {
+        const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
+        const solid = fs === 'follow';
+        return (
+          <button onClick={onToggle} disabled={busy} style={{
+            flex: 'none', borderRadius: 999, padding: '8px 18px', cursor: busy ? 'default' : 'pointer',
+            fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+            background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
+            border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
+          }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
+        );
+      })()}
       {sheet && createPortal(
         <div onClick={() => setSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: BG, color: INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '70%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.6)', border: `1px solid ${bsTHexA(INK, 0.12)}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{sheet === 'following' ? 'Following' : 'Followers'}</span>
+              <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{sheet === 'requests' ? 'Follow requests' : sheet === 'following' ? 'Following' : 'Followers'}</span>
               <button onClick={() => setSheet(null)} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
             </div>
             {list == null ? (
               <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), padding: '8px 2px' }}>Loading…</div>
             ) : list.length === 0 ? (
-              <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{sheet === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
+              <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{sheet === 'requests' ? 'No pending requests.' : sheet === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
             ) : list.map((u, i) => {
               const tier = bsPostTier({ who: u.name });
               const roleLabel = u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member';
               return (
                 <div key={u.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
                   <BSFacetAvatar size={36} c={bsTierColor(tier)} initial={bsInitials(u.name) || '?'} showRank={false} BG={BG} INK={INK} />
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontFamily: SERIF, fontSize: 15.5, fontWeight: 600, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
                     <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{roleLabel}</div>
                   </div>
+                  {sheet === 'requests' && (
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => respondReq(u.userId, true)} style={{ borderRadius: 999, border: 0, background: TEAL, color: '#06110e', padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
+                      <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
+                    </div>
+                  )}
                 </div>
               );
             })}

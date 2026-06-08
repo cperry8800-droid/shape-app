@@ -3268,12 +3268,12 @@ window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalyt
 // member's follower count).
 const _followCache = {};
 function _emitFollows(uids) { try { window.dispatchEvent(new CustomEvent('shape:follows', { detail: { uids: (uids || []).filter(Boolean) } })); } catch (e) {} }
+function _followShape(r) { return { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following, isPending: !!r?.is_pending }; }
 async function getFollowStats(userId) {
-  if (!supabase || !userId) return { followers: 0, following: 0, isFollowing: false };
+  if (!supabase || !userId) return { followers: 0, following: 0, isFollowing: false, isPending: false };
   const { data, error } = await supabase.rpc('get_follow_stats', { p_user_id: userId });
-  if (error) return _followCache[userId] || { followers: 0, following: 0, isFollowing: false };
-  const r = Array.isArray(data) ? data[0] : data;
-  const out = { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+  if (error) return _followCache[userId] || { followers: 0, following: 0, isFollowing: false, isPending: false };
+  const out = _followShape(Array.isArray(data) ? data[0] : data);
   _followCache[userId] = out;
   return out;
 }
@@ -3281,8 +3281,7 @@ async function toggleFollow(userId) {
   if (!supabase || !userId) throw new Error('Sign in to follow.');
   const { data, error } = await supabase.rpc('toggle_follow', { p_user_id: userId });
   if (error) throw new Error(error.message || 'Could not update follow.');
-  const r = Array.isArray(data) ? data[0] : data;
-  const out = { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+  const out = _followShape(Array.isArray(data) ? data[0] : data);
   _followCache[userId] = out;
   // My own "following" count just changed too — refresh my cached stats so the
   // Me tab / Settings counts stay in sync, then notify both affected users.
@@ -3297,7 +3296,24 @@ async function listFollows(userId, kind) {
   if (error) return [];
   return (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member', role: r.role || 'client' }));
 }
-window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows, getCached: (uid) => (uid && _followCache[uid]) || null };
+// Pending follow requests TO me (people who asked to follow my private profile).
+async function listFollowRequests() {
+  if (!supabase || !state.user?.id) return [];
+  const { data, error } = await supabase.rpc('list_follow_requests');
+  if (error) return [];
+  return (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member', role: r.role || 'client' }));
+}
+// Accept (true) or decline (false) a pending request from followerId.
+async function respondFollowRequest(followerId, accept) {
+  if (!supabase || !followerId) throw new Error('Sign in.');
+  const { error } = await supabase.rpc('respond_follow_request', { p_follower_id: followerId, p_accept: !!accept });
+  if (error) throw new Error(error.message || 'Could not respond.');
+  const myId = state.user && state.user.id;
+  if (myId) { try { await getFollowStats(myId); } catch (e) {} }
+  _emitFollows([myId, followerId]);
+  return true;
+}
+window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows, requests: listFollowRequests, respond: respondFollowRequest, getCached: (uid) => (uid && _followCache[uid]) || null };
 
 // ── Member-created community channels ("run club" style) ─────────────────────
 function channelDisplayName() {
