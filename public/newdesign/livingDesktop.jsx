@@ -547,6 +547,16 @@ function DesktopTabs({ direction, tab, setTab, c }) {
 // ── Profile customization (song · prompts · links · bio) — desktop ────────────
 const DK_PROMPTS = ["Never skip", "Pre-workout fuel", "Currently chasing", "Form check I love", "My non-negotiable", "Rest day looks like", "A win this month", "Training motto"];
 const DK_ACCENTS = ["#34d6c5", "#5ec8e0", "#7bbf5a", "#d8a23a", "#e0644b", "#e0518a", "#8a5cf6"];
+const DK_PIN_KINDS = ["PR", "Workout", "Meal", "Post", "Win"];
+const DK_STAT_OPTIONS = [{ key: "score", label: "Shape Score" }, { key: "tier", label: "Tier" }, { key: "streak", label: "Day streak" }, { key: "since", label: "Member since" }];
+function dkStatsFor(d) {
+  return {
+    score: { label: "Shape Score", value: (Number(d.score) || 0).toLocaleString() },
+    tier: { label: "Tier", value: tierOf(d).name },
+    streak: { label: "Day streak", value: d.streak != null ? d.streak : "—" },
+    since: { label: "Member since", value: d.since || "—" },
+  };
+}
 const DK_LINKS = [
   { key: "instagram", label: "Instagram", pre: "instagram.com/" },
   { key: "tiktok", label: "TikTok", pre: "tiktok.com/@" },
@@ -572,11 +582,32 @@ function ProfileExtras({ d, owner }) {
   const embed = dkSpotifyEmbed(cu.song && cu.song.url);
   const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === "object") ? DK_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
-  const empty = !embed && !prompts.length && !links.length;
+  const pinned = (cu.pinned && cu.pinned.title) ? cu.pinned : null;
+  const statSrc = dkStatsFor(d);
+  const heroStats = (Array.isArray(cu.heroStats) ? cu.heroStats : []).map((k) => statSrc[k] ? { k, ...statSrc[k] } : null).filter(Boolean).slice(0, 3);
+  const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length;
   if (empty && !owner) return null;
   return (
     <div style={{ marginBottom: 22 }}>
       {owner && <button onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 16, padding: "10px 16px", borderRadius: 12, border: `1px dashed ${dHexA(c, 0.5)}`, background: dHexA(c, 0.06), color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
+      {heroStats.length > 0 && (
+        <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+          {heroStats.map((s) => (
+            <div key={s.k} style={{ flex: 1, background: dHexA(c, 0.07), border: `1px solid ${dHexA(c, 0.2)}`, borderRadius: 14, padding: "16px 12px", textAlign: "center" }}>
+              <div style={{ fontFamily: dSerif, fontSize: 28, letterSpacing: "-0.02em", lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 8 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {pinned && (
+        <div style={{ marginBottom: 16, background: dHexA(c, 0.08), border: `1px solid ${dHexA(c, 0.3)}`, borderRadius: 16, padding: "20px 22px" }}>
+          <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: c, fontWeight: 700 }}>★ Pinned · {pinned.kind || "Highlight"}</div>
+          <div style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 9 }}>{pinned.title}</div>
+          {pinned.note && <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.5, color: dHexA(LV_INK, 0.72), margin: "8px 0 0" }}>{pinned.note}</p>}
+          {pinned.metric && <div style={{ display: "inline-flex", marginTop: 13, padding: "7px 14px", borderRadius: 10, background: dHexA(c, 0.12), border: `1px solid ${dHexA(c, 0.25)}`, fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: c }}>{pinned.metric}</div>}
+        </div>
+      )}
       {(embed || prompts.length || links.length) > 0 && (
         <div style={dCard({ padding: "22px 24px" })}>
           {embed && (
@@ -617,6 +648,12 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: DK_PROMPTS[0], a: "" }]);
   const [coverUrl, setCoverUrl] = React.useState((init.cover && init.cover.image) || "");
   const [accent, setAccent] = React.useState(init.accent || "");
+  const [pinKind, setPinKind] = React.useState((init.pinned && init.pinned.kind) || "PR");
+  const [pinTitle, setPinTitle] = React.useState((init.pinned && init.pinned.title) || "");
+  const [pinNote, setPinNote] = React.useState((init.pinned && init.pinned.note) || "");
+  const [pinMetric, setPinMetric] = React.useState((init.pinned && init.pinned.metric) || "");
+  const [heroStats, setHeroStats] = React.useState(Array.isArray(init.heroStats) && init.heroStats.length ? init.heroStats : ["score", "tier", "streak"]);
+  const toggleStat = (k) => setHeroStats((prev) => { if (prev.includes(k)) return prev.length > 1 ? prev.filter((x) => x !== k) : prev; return prev.length >= 3 ? [...prev.slice(1), k] : [...prev, k]; });
   const [coverBusy, setCoverBusy] = React.useState(false);
   const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
@@ -648,6 +685,8 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
+      pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+      heroStats: heroStats.slice(0, 3),
     };
     try {
       const cl = window.shapeDb && window.shapeDb.client;
@@ -681,6 +720,24 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
             {DK_ACCENTS.map((a) => <button key={a} onClick={() => setAccent(a)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${accent === a ? LV_INK : "transparent"}`, background: a, color: "#fff", fontSize: 12 }}>{accent === a ? "✓" : ""}</button>)}
           </div>
           <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Headline stats · pick up to 3</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {DK_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
+              <button key={s.key} onClick={() => toggleStat(s.key)} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? c : dHexA(LV_INK, 0.18)}`, background: on ? dHexA(c, 0.14) : "transparent", color: on ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{on ? "✓ " : ""}{s.label}</button>
+            ); })}
+          </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Pin a highlight</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 9 }}>
+            {DK_PIN_KINDS.map((k) => <button key={k} onClick={() => setPinKind(k)} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${pinKind === k ? c : dHexA(LV_INK, 0.18)}`, background: pinKind === k ? dHexA(c, 0.14) : "transparent", color: pinKind === k ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{k}</button>)}
+          </div>
+          <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
+          <input value={pinNote} onChange={(e) => setPinNote(e.target.value)} maxLength={160} placeholder="A line of context (optional)" style={{ ...field, marginTop: 8 }} />
+          <input value={pinMetric} onChange={(e) => setPinMetric(e.target.value)} maxLength={24} placeholder="Metric (optional) — e.g. 2×BW" style={{ ...field, marginTop: 8 }} />
+          {pinTitle.trim() && <button onClick={() => { setPinTitle(""); setPinNote(""); setPinMetric(""); }} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Clear pin</button>}
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Profile song · Spotify link</span>

@@ -6653,6 +6653,8 @@ function bsSpotifyEmbed(url) {
 }
 const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
 const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
+const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
+const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
 const BS_PROFILE_LINKS = [
   { key: 'instagram', label: 'Instagram', pre: 'instagram.com/' },
   { key: 'tiktok', label: 'TikTok', pre: 'tiktok.com/@' },
@@ -6667,20 +6669,42 @@ function bsLinkHref(key, val) {
   return 'https://' + (pre ? pre + v.replace(/^@/, '') : v);
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
   const cu = custom || {};
   c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
   const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
-  const empty = !embed && !prompts.length && !links.length;
+  const pinned = (cu.pinned && cu.pinned.title) ? cu.pinned : null;
+  const heroStats = (Array.isArray(cu.heroStats) ? cu.heroStats : []).map((k) => stats && stats[k] ? { k, ...stats[k] } : null).filter(Boolean).slice(0, 3);
+  const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length;
   if (empty && !isSelf) return null;
   const Kick = ({ children }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   return (
     <div style={{ marginBottom: 26 }}>
       {isSelf && (
         <button onClick={onCustomize} style={{ width: '100%', marginBottom: empty ? 0 : 16, padding: '11px 14px', borderRadius: 13, border: `1px dashed ${bsTHexA(c, 0.5)}`, background: bsTHexA(c, 0.06), color: c, cursor: 'pointer', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>✎ Customize profile</button>
+      )}
+      {heroStats.length > 0 && (
+        <div style={{ display: 'flex', gap: 9, marginBottom: 16 }}>
+          {heroStats.map((s) => (
+            <div key={s.k} style={{ flex: 1, background: bsTHexA(c, 0.07), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '13px 10px', textAlign: 'center' }}>
+              <div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', lineHeight: 1, color: INK }}>{s.value}</div>
+              <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 6 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {pinned && (
+        <div style={{ marginBottom: 16, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.3)}`, borderRadius: 16, padding: '15px 17px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>★ Pinned · {pinned.kind || 'Highlight'}</span>
+          </div>
+          <div style={{ fontFamily: SERIF, fontSize: 21, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{pinned.title}</div>
+          {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13.5, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '7px 0 0' }}>{pinned.note}</p>}
+          {pinned.metric && <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, marginTop: 12, padding: '6px 12px', borderRadius: 10, background: bsTHexA(c, 0.12), border: `1px solid ${bsTHexA(c, 0.25)}` }}><span style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: c }}>{pinned.metric}</span></div>}
+        </div>
       )}
       {embed && (
         <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
@@ -6721,6 +6745,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
   const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: BS_PROFILE_PROMPTS[0], a: '' }]);
   const [coverUrl, setCoverUrl] = useStateBSC((init.cover && init.cover.image) || '');
   const [accent, setAccent] = useStateBSC(init.accent || '');
+  const [pinKind, setPinKind] = useStateBSC((init.pinned && init.pinned.kind) || 'PR');
+  const [pinTitle, setPinTitle] = useStateBSC((init.pinned && init.pinned.title) || '');
+  const [pinNote, setPinNote] = useStateBSC((init.pinned && init.pinned.note) || '');
+  const [pinMetric, setPinMetric] = useStateBSC((init.pinned && init.pinned.metric) || '');
+  const [heroStats, setHeroStats] = useStateBSC(Array.isArray(init.heroStats) && init.heroStats.length ? init.heroStats : ['score', 'tier', 'streak']);
+  const toggleStat = (k) => setHeroStats((prev) => { if (prev.includes(k)) return prev.length > 1 ? prev.filter((x) => x !== k) : prev; return prev.length >= 3 ? [...prev.slice(1), k] : [...prev, k]; });
   const [coverBusy, setCoverBusy] = useStateBSC(false);
   const coverRef = React.useRef(null);
   const [busy, setBusy] = useStateBSC(false);
@@ -6747,6 +6777,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
+      pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+      heroStats: heroStats.slice(0, 3),
     };
     try { await window.shapeDb?.saveUserGoals?.('profile_custom', doc); } catch (e) {}
     setBusy(false);
@@ -6783,6 +6815,26 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
             ))}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Headline stats · pick up to 3</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+            {BS_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
+              <button key={s.key} onClick={() => toggleStat(s.key)} style={{ padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{on ? '✓ ' : ''}{s.label}</button>
+            ); })}
+          </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Pin a highlight</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
+            {BS_PIN_KINDS.map((k) => (
+              <button key={k} onClick={() => setPinKind(k)} style={{ padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${pinKind === k ? c : bsTHexA(INK, 0.18)}`, background: pinKind === k ? bsTHexA(c, 0.14) : 'transparent', color: pinKind === k ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{k}</button>
+            ))}
+          </div>
+          <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
+          <input value={pinNote} onChange={(e) => setPinNote(e.target.value)} maxLength={160} placeholder="A line of context (optional)" style={{ ...field, marginTop: 8 }} />
+          <input value={pinMetric} onChange={(e) => setPinMetric(e.target.value)} maxLength={24} placeholder="Metric (optional) — e.g. 2×BW" style={{ ...field, marginTop: 8 }} />
+          {pinTitle.trim() && <button onClick={() => { setPinTitle(''); setPinNote(''); setPinMetric(''); }} style={{ marginTop: 8, background: 'transparent', border: 0, color: bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Clear pin</button>}
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Profile song · Spotify link</span>
@@ -7324,7 +7376,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streak }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Kick>Personal activities</Kick>
                 {isSelf && (
@@ -7661,7 +7713,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} />
+            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: 'Tier', value: tierName }, rating: { label: 'Rating', value: rating }, reviews: { label: 'Reviews', value: reviewCount } }} />
             <Kick>Personal activities</Kick>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
