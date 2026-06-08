@@ -32,6 +32,17 @@ function MPRow(p) {
 function MPFollow({ uid, isSelf }) {
   const [s, setS] = React.useState({ followers: 0, following: 0, isFollowing: false });
   const [busy, setBusy] = React.useState(false);
+  const [sheet, setSheet] = React.useState(null); // 'followers' | 'following'
+  const [list, setList] = React.useState(null);
+  const openList = (kind) => {
+    const cl = window.shapeDb && window.shapeDb.client;
+    setSheet(kind); setList(null);
+    if (!cl || !cl.rpc || !uid) { setList([]); return; }
+    cl.rpc("get_follow_list", { p_user_id: uid, p_kind: kind }).then((r) => {
+      const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : [];
+      setList(rows.map((x) => ({ userId: x.user_id, name: x.full_name || "Shape member", role: x.role || "client" })));
+    }).catch(() => setList([]));
+  };
   React.useEffect(() => {
     let on = true;
     const cl = window.shapeDb && window.shapeDb.client;
@@ -57,14 +68,41 @@ function MPFollow({ uid, isSelf }) {
     } catch (e) { setS(prev); alert((e && e.message) || "Sign in to follow."); }
     finally { setBusy(false); }
   };
-  const stat = (n, label) => (
-    <div><span style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: INK, letterSpacing: "-0.02em" }}>{n}</span><span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginLeft: 7 }}>{label}</span></div>
+  const stat = (n, label, kind) => (
+    <button onClick={() => openList(kind)} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
+      <span style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, color: INK, letterSpacing: "-0.02em" }}>{n}</span>
+      <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginLeft: 7 }}>{label}</span>
+    </button>
   );
+  const cwInit = (nm) => String(nm || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   return (
     <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", borderRadius: 16, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "14px 20px" }}>
-      <div style={{ display: "flex", gap: 26 }}>{stat(s.followers, "Followers")}{stat(s.following, "Following")}</div>
+      <div style={{ display: "flex", gap: 26 }}>{stat(s.followers, "Followers", "followers")}{stat(s.following, "Following", "following")}</div>
       {!isSelf && (
         <button onClick={toggle} disabled={busy} style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", borderRadius: 999, padding: "10px 22px", cursor: busy ? "default" : "pointer", background: s.isFollowing ? "transparent" : TEAL, color: s.isFollowing ? INK : "#04201d", border: s.isFollowing ? "1px solid rgba(242,237,228,0.3)" : 0 }}>{s.isFollowing ? "Following ✓" : "Follow"}</button>
+      )}
+      {sheet && (
+        <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px, 100%)", maxHeight: "76vh", overflowY: "auto", background: "#1b1714", color: INK, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL_BRIGHT }}>{sheet === "following" ? "Following" : "Followers"}</span>
+              <button onClick={() => setSheet(null)} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.6)", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            {list == null ? (
+              <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", padding: "8px 0" }}>Loading…</div>
+            ) : list.length === 0 ? (
+              <div style={{ fontFamily: serif, fontSize: 16, fontStyle: "italic", color: "rgba(242,237,228,0.6)", padding: "8px 0 14px" }}>{sheet === "following" ? "Not following anyone yet." : "No followers yet."}</div>
+            ) : list.map((u, i) => (
+              <a key={u.userId || i} href={u.userId ? `MemberProfile.html?u=${u.userId}` : undefined} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "none", textDecoration: "none", color: INK }}>
+                <span style={{ width: 36, height: 36, flex: "none", borderRadius: 999, background: "#3a322a", color: INK, display: "grid", placeItems: "center", fontFamily: serif, fontSize: 14 }}>{cwInit(u.name)}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.name}</div>
+                  <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 2 }}>{u.role === "trainer" ? "Trainer" : u.role === "nutritionist" ? "Nutritionist" : "Member"}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

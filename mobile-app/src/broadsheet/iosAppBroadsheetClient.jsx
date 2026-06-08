@@ -6132,6 +6132,8 @@ const BS_SAMPLE_CHANNELS = [
 ];
 
 // Public profile opened from a chat avatar — works for any member or coach.
+// Name pool for the preview followers/following list (accountless/demo profiles).
+const BS_FOLLOW_DEMO_NAMES = ['Priya Shah', 'Drew Oyelaran', 'Casey Morgan', 'Devon Wells', 'Maya Okafor', 'Sofia Park', 'Jordan Chen', 'Sam Holloway', 'Riley Kim', 'Noah Bennett', 'Eva Lindqvist', 'Marcus Webb', 'Tara Nguyen', 'Owen Brooks', 'Lena Petrova', 'Theo Adeyemi', 'Mia Castellanos', 'Hassan Ali', 'Grace Donnelly', 'Kai Nakamura', 'Ana Sørensen', 'Julian Reyes', 'Nora Whitfield', 'Diego Marín'];
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
@@ -6167,9 +6169,18 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     finally { setBusy(false); }
   };
   const openList = (kind) => {
-    if (!uid) return; // demo people have no real follow list to open
     setSheet(kind); setList(null);
-    window.ShapeFollows?.list?.(uid, kind).then((r) => setList(r || [])).catch(() => setList([]));
+    if (uid) {
+      window.ShapeFollows?.list?.(uid, kind).then((r) => setList(r || [])).catch(() => setList([]));
+      return;
+    }
+    // Accountless/preview profile — derive a viewable list from the public count.
+    const total = kind === 'following' ? stats.following : stats.followers;
+    const n = Math.min(24, Math.max(0, total));
+    const pool = BS_FOLLOW_DEMO_NAMES, off = (seed + (kind === 'following' ? 11 : 3)) % pool.length;
+    const out = [];
+    for (let i = 0; i < n; i++) out.push({ name: pool[(off + i) % pool.length], role: (off + i) % 9 === 0 ? 'trainer' : (off + i) % 13 === 0 ? 'nutritionist' : 'client' });
+    setList(out);
   };
   if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
