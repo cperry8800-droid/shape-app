@@ -7760,7 +7760,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                         <div style={{ padding: '9px 12px', borderRadius: 14, background: TEAL, color: '#031f1c', border: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
                       </div>
                     ) : (
-                      <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                      <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <div style={{ flexShrink: 0 }}>
                           <BSFacetAvatar size={32} c={'#2e6fa0'} initial={(m.who || 'N').trim().charAt(0).toUpperCase()} showRank={false} BG={t.PAPER} INK={'#fff'} />
                         </div>
