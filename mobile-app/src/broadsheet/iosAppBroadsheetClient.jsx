@@ -2089,9 +2089,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         borderBottom: `1px solid ${t.RULE}`,
         background: t.PAPER,
       }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
           {[
-            { label: 'Today', meta: `${dayLog.length} logs`, active: true, onClick: () => setActiveDayLogKey(null) },
             { label: 'Log', meta: 'Activity', accent: t.AMBER, onClick: () => setShowLogActivity(true) },
             { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => setHabitsPage(true) },
             { label: 'Score', meta: todayScore == null ? '+4 pts' : `+${todayScore} pts`, accent: t.ACCENT, onClick: () => goScore?.() },
