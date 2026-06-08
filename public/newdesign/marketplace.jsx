@@ -131,7 +131,9 @@ const SPOTLIGHT = {
 function Spotlight({ tab }) {
   const s = SPOTLIGHT[tab];
   const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
-  const coachUrl = (name) => (tab === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html") + "?coach=" + String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  // Open the coach's full living profile (the Signal design — sigil, tier, stats,
+  // offerings). Derived by name + role when there's no real account behind the card.
+  const coachUrl = (c) => "MemberProfile.html?name=" + encodeURIComponent(typeof c === "string" ? c : c.name) + "&role=" + ((typeof c === "object" && c.tag === "Nutritionist") || tab === "Nutritionist" ? "nutritionist" : "trainer");
   return (
     <section style={{ padding: "12px 72px 24px" }}>
       <MkReveal>
@@ -151,7 +153,7 @@ function Spotlight({ tab }) {
 
           <div className="mk-spot" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20 }}>
             {/* Lead feature */}
-            <a href={coachUrl(s.lead.name)} style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative", textDecoration: "none", cursor: "pointer" }}>
+            <a href={coachUrl(s.lead)} style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative", textDecoration: "none", cursor: "pointer" }}>
               <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75, zIndex: 2 }} />
               <Ph label={`${s.lead.name.split(" ")[0]} · feature`} ratio="auto" tone="dark" style={{ borderRadius: 0, height: "100%", minHeight: 380 }} />
               <div style={{ padding: "34px 34px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -173,7 +175,7 @@ function Spotlight({ tab }) {
             {/* 3 side picks */}
             <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 10 }}>
               {s.side.map((p, i) => (
-                <a key={i} href={coachUrl(p.name)} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+                <a key={i} href={coachUrl(p)} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
                   <Ph label={p.name.split(" ")[0]} ratio="1/1" tone="light" style={{ borderRadius: 4 }} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{p.city}</div>
@@ -279,7 +281,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={(c.tag === "Trainer" ? "TrainerPublic.html" : "NutritionistPublic.html") + "?coach=" + c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>

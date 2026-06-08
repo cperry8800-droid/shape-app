@@ -308,7 +308,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => setTab('home')} />,
-    market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => setTab('home')} onProfile={goSettings} />,
+    market:  <BSMarketplaceScreen initialRole={marketRole} onBack={() => setTab('home')} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,

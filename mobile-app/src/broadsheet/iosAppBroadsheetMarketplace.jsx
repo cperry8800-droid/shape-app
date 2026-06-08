@@ -366,7 +366,7 @@ function MktRow({ c, onOpen }) {
   );
 }
 
-function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
+function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [pill, setPill] = useStateBSM2(initialRole === 'nutritionist' ? 'Nutritionists' : 'All');
@@ -473,7 +473,23 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole }) {
   if (applyRole && window.BSProviderApplicationScreen) {
     return <window.BSProviderApplicationScreen initialRole={applyRole} onBack={() => setApplyRole(null)} />;
   }
-  if (open) return <BSCoachDetailPublic coach={open} onBack={() => setOpen(null)} />;
+  if (open) {
+    // Tapping a coach opens their full living profile (Signal — sigil, tier,
+    // stats, offerings + Buy), the same page members see. Falls back to the
+    // marketplace detail card if the living profile isn't loaded.
+    const Living = window.BSPublicProfile;
+    if (Living) {
+      const kind = getPublicProfileKind(open);
+      const person = {
+        who: open.name, kind: kind === 'nutritionist' ? 'NUTRI' : 'TRAINER',
+        userId: open.provider_user_id || null, city: open.loc || open.city || 'Remote',
+        bio: open.bio || '', init: open.init || (open.name ? open.name[0] : '?'),
+        tier: open.tier || null, public: true,
+      };
+      return <Living person={person} onBack={() => setOpen(null)} onMessage={(p) => { setOpen(null); if (goChat) goChat((p && p.who) || open.name, kind === 'nutritionist' ? 'Nutritionist' : 'Trainer'); }} />;
+    }
+    return <BSCoachDetailPublic coach={open} onBack={() => setOpen(null)} />;
+  }
 
   return (
     <BSPage>
