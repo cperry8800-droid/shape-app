@@ -1,4 +1,4 @@
-export const REQUIRED_PROVIDER_EXPERIENCE_YEARS = 7;
+export const REQUIRED_PROVIDER_EXPERIENCE_YEARS = 5;
 export const DEFAULT_BACKGROUND_CHECK_PROVIDER = 'checkr';
 export const BACKGROUND_CHECK_DETAIL_KEYS = [
   'background_check_provider',

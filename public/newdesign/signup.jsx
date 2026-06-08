@@ -209,7 +209,7 @@ function ProCredentials({ v, set, kind }) {
         <Field label="Years professional experience"><Select value={v.years || "7-10 years"} onChange={e => set({ years: e.target.value })} options={proExperienceOptions} /></Field>
       </div>
       <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.68)", margin: 0, lineHeight: 1.55 }}>
-        Shape requires a minimum of 7 years of professional {isTrainer ? "training or coaching" : "nutrition coaching or clinical"} experience before a provider profile can go live.
+        Shape requires a minimum of 5 years of professional {isTrainer ? "training or coaching" : "nutrition coaching or clinical"} experience before a provider profile can go live.
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <Field label="Liability insurance"><Select value={v.insurance || "Yes"} onChange={e => set({ insurance: e.target.value })} options={["Yes", "No", "In progress"]} /></Field>
@@ -373,7 +373,7 @@ function SignupForm({ role }) {
     }
     const years = Number(String(values.years || "").match(/\d+/)?.[0] || 0);
     if (years < 7) {
-      setError("Shape requires at least 7 years of professional experience.");
+      setError("Shape requires at least 5 years of professional experience.");
       return;
     }
     if (!values.tos || !values.conduct || !values.bgcheck) {

@@ -288,7 +288,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           <BSApplySelect label="Liability insurance" value={values.insurance} onChange={v => set('insurance', v)} options={['Yes', 'No', 'In progress']} />
         </div>
         <div style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: t.RADIUS_SM, padding: 12, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>
-          Shape requires a minimum of 7 years of professional {isTrainer ? 'training or coaching' : 'nutrition coaching or clinical'} experience before a provider profile can go live.
+          Shape requires a minimum of 5 years of professional {isTrainer ? 'training or coaching' : 'nutrition coaching or clinical'} experience before a provider profile can go live.
         </div>
         <BSApplyInput label="Previous platforms" value={values.prev} onChange={v => set('prev', v)} placeholder="Trainerize, MyFitnessPal Pro" />
         <div style={{ display: 'grid', gap: 10 }}>

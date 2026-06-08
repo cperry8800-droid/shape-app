@@ -1,4 +1,4 @@
-export const REQUIRED_PROVIDER_EXPERIENCE_YEARS = 7;
+export const REQUIRED_PROVIDER_EXPERIENCE_YEARS = 5;
 export const DEFAULT_BACKGROUND_CHECK_PROVIDER = 'checkr';
 export const PROVIDER_APPLICATION_FILE_ACCEPT = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp';
 export const PROVIDER_APPLICATION_MAX_FILE_BYTES = 10 * 1024 * 1024;
