@@ -2503,7 +2503,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '12px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
     <BSPage>
-      <div style={{ padding: `50px ${t.padX}px 28px` }}>
+      <div style={{ padding: `60px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT · {(typeName || '').toUpperCase()}</div>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
@@ -2660,7 +2660,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     };
     return (
       <BSPage>
-        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+        <div style={{ padding: `60px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? 'BUILD' : '✦ AI DRAFT'} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
@@ -3568,7 +3568,7 @@ function BSNutriPlans() {
     };
     return (
       <BSPage>
-        <div style={{ padding: `50px ${t.padX}px 28px` }}>
+        <div style={{ padding: `60px ${t.padX}px 28px` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? 'BUILD' : '✦ AI DRAFT'} · {BUILD_LABEL[buildType].toUpperCase()}</div>
             <button onClick={() => setDrafting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
@@ -4180,7 +4180,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
 
   return (
     <BSPage>
-      <div style={{ padding: `50px ${t.padX}px 0` }}>
+      <div style={{ padding: `60px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
@@ -4479,7 +4479,7 @@ function BSGoalEditSheet({ t, accent, accentInk = '#241c08', goal, onSave, onCan
   );
   return (
     <BSPage>
-      <div style={{ padding: `50px ${t.padX}px 28px` }}>
+      <div style={{ padding: `60px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>EDIT PRACTICE GOAL</div>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>CANCEL</button>
@@ -4998,7 +4998,7 @@ function BSProConsoleScreen({ role = 'trainer', embedded = false }) {
     <Wrapper>
       {/* Header — only when standalone, not when embedded inside another page */}
       {!embedded && (
-        <div style={{ padding: `54px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>
+        <div style={{ padding: `64px ${t.padX}px 14px`, borderBottom: `2px solid ${t.INK}` }}>
           <BSEyebrow color={accent}>{isNutri ? 'Nutritionist Console' : 'Trainer Console'}</BSEyebrow>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: t.W.display, letterSpacing: '-0.04em', color: t.INK, marginTop: 4, lineHeight: 1 }}>
             {isNutri ? 'Meal & Focus Hub' : 'Workout & Focus Hub'}

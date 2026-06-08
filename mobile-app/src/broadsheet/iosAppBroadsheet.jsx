@@ -549,7 +549,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       transparent 1px, transparent 7px)`;
   return (
     <div style={{
-      padding: `${compact ? 32 : 54}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
+      padding: `${compact ? 42 : 64}px ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
       borderBottom: noRule ? 0 : (thinRule ? `1px solid ${t.INK}` : (title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`)),
       position: 'relative', overflow: 'hidden',
       backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
@@ -626,7 +626,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, titleSize = 34 }) {
   const t = useBS();
   return (
-    <div style={{ padding: `54px ${t.padX}px 14px` }}>
+    <div style={{ padding: `64px ${t.padX}px 14px` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BSLogo size={16} color={t.INK} />

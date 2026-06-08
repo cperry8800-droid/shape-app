@@ -1104,7 +1104,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   const footBtn = { flex: 1, padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
   return (
     <BSPage>
-      <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onBack} style={headBtn}>← Back</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
         <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
@@ -1396,7 +1396,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
 
   return (
     <BSPage>
-      <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>× Cancel</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log meal</span>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>12:40 PM</span>
@@ -3431,7 +3431,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
 
   return (
     <BSPage>
-      <div style={{ padding: `52px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: `62px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
         <BSMeCorner size={28} />
       </div>
@@ -8170,7 +8170,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
   return (
     <BSPage tabBarHeight={0}>
       {/* Custom header with back chevron — no tab bar on the thread screen */}
-      <div style={{ padding: '54px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+      <div style={{ padding: '64px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
             background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
@@ -10052,7 +10052,7 @@ function BSClientGoals({ onBack }) {
   return (
     <BSPage>
       {/* Header — eyebrow + serif goal title (+ subtitle) + Edit / Back */}
-      <div style={{ padding: `52px ${t.padX}px 0` }}>
+      <div style={{ padding: `62px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headInfo.eyebrow}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -11388,7 +11388,7 @@ Object.assign(window, {
 function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = false }) {
   const t = useBS();
   return (
-    <div style={{ padding: '54px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+    <div style={{ padding: '64px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
           background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
@@ -11993,7 +11993,7 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   const line = { width: '100%', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '8px 2px', fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' };
   return (
     <BSPage>
-      <div style={{ padding: `50px ${t.padX}px 28px` }}>
+      <div style={{ padding: `60px ${t.padX}px 28px` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onCancel} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← CANCEL</button>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: rust }}>{items.length} ITEMS</span>
@@ -12913,7 +12913,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   const DetailBack = ({ title }) => (
     <>
-      <div style={{ padding: `52px ${t.padX}px 2px` }}>
+      <div style={{ padding: `62px ${t.padX}px 2px` }}>
         <button onClick={() => setDetail('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Settings</button>
       </div>
       <div style={{ padding: `12px ${t.padX}px 6px` }}>
@@ -13135,7 +13135,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* ── SETTINGS PAGE ── */}
       {!detail && (<>
-      <div style={{ padding: `52px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
         <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>Edit</button>
       </div>
