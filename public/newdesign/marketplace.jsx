@@ -271,7 +271,16 @@ function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setL
     </section>);
 }
 
+// Coach ladder (Certified·Pro·Elite·Master·Icon) + color, matching the living
+// Signal profile — derived from experience so cards preview the real tier.
+const MK_COACH_LADDER = [["Certified", "#8a93a0"], ["Pro", "#d8a23a"], ["Elite", "#e0463c"], ["Master", "#8fe3e6"], ["Icon", "#34d6c5"]];
+function mkCoachTier(c) {
+  const s = c.sessions || 0;
+  const i = s >= 1500 ? 4 : s >= 1000 ? 3 : s >= 700 ? 2 : s >= 400 ? 1 : 0;
+  return { name: MK_COACH_LADDER[i][0], color: MK_COACH_LADDER[i][1] };
+}
 function CoachCard({ c }) {
+  const tier = mkCoachTier(c);
   const ref = React.useRef(null);
   const onMove = (e) => {
     if (MK_RPR || !ref.current) return;
@@ -281,7 +290,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative" }}>
         <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
@@ -294,7 +303,10 @@ function CoachCard({ c }) {
       </div>
       <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
         <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{c.city}</div>
-        <h3 style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, color: INK, lineHeight: 1.1 }}>{c.name}</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <h3 style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, color: INK, lineHeight: 1.1 }}>{c.name}</h3>
+          <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: tier.color, border: `1px solid ${tier.color}66`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>{tier.name}</span>
+        </div>
         <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
           {c.specialties.slice(0, 2).map((s) =>
