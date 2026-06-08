@@ -6138,14 +6138,18 @@ const BS_FOLLOW_DEMO_NAMES = ['Priya Shah', 'Drew Oyelaran', 'Casey Morgan', 'De
 // full public profile (where the lists live). Reads your own follow stats.
 function BSFollowMini({ onOpen }) {
   const t = useBS();
-  const [s, setS] = useStateBSC(null);
+  const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.() || {}).user?.id || null;
+  const [s, setS] = useStateBSC(() => (uid && window.ShapeFollows?.getCached?.(uid)) || null);
   React.useEffect(() => {
-    const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.() || {}).user?.id;
     if (!uid || !window.ShapeFollows?.stats) return;
     let on = true;
-    window.ShapeFollows.stats(uid).then((r) => { if (on) setS(r); }).catch(() => {});
-    return () => { on = false; };
-  }, []);
+    const load = () => window.ShapeFollows.stats(uid).then((r) => { if (on) setS(r); }).catch(() => {});
+    load();
+    // Live-sync when a follow/unfollow happens anywhere in the session.
+    const onSync = (e) => { const ids = (e && e.detail && e.detail.uids) || []; if (!ids.length || ids.indexOf(uid) !== -1) { const c = window.ShapeFollows?.getCached?.(uid); if (c) setS(c); else load(); } };
+    window.addEventListener('shape:follows', onSync);
+    return () => { on = false; window.removeEventListener('shape:follows', onSync); };
+  }, [uid]);
   const f = s || { followers: 0, following: 0 };
   const stat = (n, l) => (
     <button onClick={onOpen} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
@@ -6169,15 +6173,21 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // preview counts + a front-end follow toggle so it's visible on every profile.
   const demo = !uid;
   const seed = (() => { let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; })();
-  const [stats, setStats] = useStateBSC(demo ? { followers: 40 + (seed % 860), following: 28 + ((seed >> 5) % 320), isFollowing: false } : { followers: 0, following: 0, isFollowing: false });
+  const [stats, setStats] = useStateBSC(demo
+    ? { followers: 40 + (seed % 860), following: 28 + ((seed >> 5) % 320), isFollowing: false }
+    : ((uid && window.ShapeFollows?.getCached?.(uid)) || { followers: 0, following: 0, isFollowing: false }));
   const [busy, setBusy] = useStateBSC(false);
   const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following'
   const [list, setList] = useStateBSC(null);
   React.useEffect(() => {
     if (!uid || !window.ShapeFollows?.stats) return;
     let alive = true;
-    window.ShapeFollows.stats(uid).then((s) => { if (alive) setStats(s); }).catch(() => {});
-    return () => { alive = false; };
+    const load = () => window.ShapeFollows.stats(uid).then((s) => { if (alive) setStats(s); }).catch(() => {});
+    load();
+    // Keep this profile's count synced with the same uid shown elsewhere.
+    const onSync = (e) => { const ids = (e && e.detail && e.detail.uids) || []; if (!ids.length || ids.indexOf(uid) !== -1) { const c = window.ShapeFollows?.getCached?.(uid); if (c) setStats(c); else load(); } };
+    window.addEventListener('shape:follows', onSync);
+    return () => { alive = false; window.removeEventListener('shape:follows', onSync); };
   }, [uid]);
   const onToggle = async () => {
     if (busy) return;

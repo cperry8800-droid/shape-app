@@ -3262,19 +3262,34 @@ window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalyt
 
 // Follower / following graph (public profiles). stats → counts + my state;
 // toggle → follow/unfollow; list → the followers/following names.
+// A shared cache + `shape:follows` event keep every on-screen count in sync —
+// the same uid shows the same number on the Me tab, Settings, and any profile,
+// and a follow/unfollow anywhere live-updates them all (including the other
+// member's follower count).
+const _followCache = {};
+function _emitFollows(uids) { try { window.dispatchEvent(new CustomEvent('shape:follows', { detail: { uids: (uids || []).filter(Boolean) } })); } catch (e) {} }
 async function getFollowStats(userId) {
   if (!supabase || !userId) return { followers: 0, following: 0, isFollowing: false };
   const { data, error } = await supabase.rpc('get_follow_stats', { p_user_id: userId });
-  if (error) return { followers: 0, following: 0, isFollowing: false };
+  if (error) return _followCache[userId] || { followers: 0, following: 0, isFollowing: false };
   const r = Array.isArray(data) ? data[0] : data;
-  return { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+  const out = { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+  _followCache[userId] = out;
+  return out;
 }
 async function toggleFollow(userId) {
   if (!supabase || !userId) throw new Error('Sign in to follow.');
   const { data, error } = await supabase.rpc('toggle_follow', { p_user_id: userId });
   if (error) throw new Error(error.message || 'Could not update follow.');
   const r = Array.isArray(data) ? data[0] : data;
-  return { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+  const out = { followers: Number(r?.followers) || 0, following: Number(r?.following) || 0, isFollowing: !!r?.is_following };
+  _followCache[userId] = out;
+  // My own "following" count just changed too — refresh my cached stats so the
+  // Me tab / Settings counts stay in sync, then notify both affected users.
+  const myId = state.user && state.user.id;
+  if (myId && myId !== userId) { try { await getFollowStats(myId); } catch (e) {} }
+  _emitFollows([userId, myId]);
+  return out;
 }
 async function listFollows(userId, kind) {
   if (!supabase || !userId) return [];
@@ -3282,7 +3297,7 @@ async function listFollows(userId, kind) {
   if (error) return [];
   return (data || []).map((r) => ({ userId: r.user_id, name: r.full_name || 'Shape member', role: r.role || 'client' }));
 }
-window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows };
+window.ShapeFollows = { stats: getFollowStats, toggle: toggleFollow, list: listFollows, getCached: (uid) => (uid && _followCache[uid]) || null };
 
 // ── Member-created community channels ("run club" style) ─────────────────────
 function channelDisplayName() {
