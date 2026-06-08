@@ -126,13 +126,25 @@ function ScoreHero() {
 function ScoreTiers() {
   const [aud, setAud] = useSScore("client");
   const tiers = aud === "coach" ? TIERS_COACH : TIERS;
-  // The teal progress bar should end at the lit (current) tier's node — not a
-  // flat score/15000 fraction. Find the current tier (fallback: highest reached)
-  // and size the bar to that node's column center.
-  const curIdx = tiers.findIndex((t) => t.current);
+  // The teal fill reflects the member's ACTUAL points — interpolated between the
+  // reached tier's node and the next one — so the line position matches the
+  // "{N} to {next}" headline (e.g. 1,284 sits ~43% from Tempo→Form, not on the
+  // Tempo node). Nodes sit at column centers ((i+0.5)/n); the track runs between
+  // the first and last node (not the panel edges), and the fill ends in open
+  // space with a head dot so it never fuses with a bubble.
+  const nCols = tiers.length;
+  const nodeCenterPct = (i) => ((i + 0.5) / nCols) * 100;
+  const trackStart = nodeCenterPct(0);
+  const trackEnd = nodeCenterPct(nCols - 1);
   const reachedIdx = tiers.reduce((m, t, i) => (SCORE_TOTAL >= t.min ? i : m), 0);
-  const markIdx = curIdx >= 0 ? curIdx : reachedIdx;
-  const barPct = ((markIdx + 0.5) / tiers.length) * 100;
+  let barPct;
+  if (reachedIdx >= nCols - 1) {
+    barPct = nodeCenterPct(reachedIdx);
+  } else {
+    const lo = tiers[reachedIdx].min, hi = tiers[reachedIdx + 1].min;
+    const frac = hi > lo ? Math.max(0, Math.min(1, (SCORE_TOTAL - lo) / (hi - lo))) : 0;
+    barPct = nodeCenterPct(reachedIdx) + frac * (nodeCenterPct(reachedIdx + 1) - nodeCenterPct(reachedIdx));
+  }
   return (
     <section style={{ padding: "96px 72px" }}>
       <ScReveal>
@@ -158,9 +170,11 @@ function ScoreTiers() {
             })}
           </div>
           <div style={{ position: "relative", padding: "24px 0 8px" }}>
-            {/* connector lines anchored to the node row's vertical center (top: 58) — sit BEHIND the nodes */}
-            <div style={{ position: "absolute", left: 0, right: 0, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)", zIndex: 0 }} />
-            <div style={{ position: "absolute", left: 0, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", width: `${barPct}%`, zIndex: 0 }} />
+            {/* connector lines anchored to the node row's vertical center (top: 58) — sit BEHIND the nodes; track runs node-to-node (no edge overhang) */}
+            <div style={{ position: "absolute", left: `${trackStart}%`, width: `${trackEnd - trackStart}%`, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />
+            <div style={{ position: "absolute", left: `${trackStart}%`, width: `${Math.max(0, barPct - trackStart)}%`, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />
+            {/* fill head — sits in open space between bubbles, so the line never fuses with a node */}
+            <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: "0 0 0 5px rgba(10,197,168,0.2)", transform: "translate(-50%, -50%)", zIndex: 0 }} />
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative", zIndex: 1 }}>
               {tiers.map((t, i) => {
                 const reached = SCORE_TOTAL >= t.min;
