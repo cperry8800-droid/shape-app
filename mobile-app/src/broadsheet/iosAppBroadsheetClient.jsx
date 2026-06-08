@@ -6641,10 +6641,29 @@ function BSTerrainRidge({ c, teal, ink, arc }) {
   );
 }
 
+// Shared segmented tab bar for the living-identity profiles (Terrain + Signal).
+// Sticky under the hero; the accent follows the profile's tier color. Personal
+// activities is always the first tab so a profile opens on what someone's doing.
+function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
+  const MONO = "'JetBrains Mono', monospace";
+  return (
+    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: '0 0 22px', padding: '8px 0', background: BG }}>
+      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 999, padding: 4 }}>
+        {tabs.map((tb) => { const on = active === tb.key; return (
+          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 6px', borderRadius: 999, border: 0, cursor: 'pointer',
+            background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : bsTHexA(INK, 0.55),
+            fontFamily: MONO, fontSize: 9.5, fontWeight: on ? 800 : 600, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tb.label}</button>
+        ); })}
+      </div>
+    </div>
+  );
+}
+
 function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
   const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
+  const [tab, setTab] = useStateBSC('activity');
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
@@ -6945,6 +6964,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </div>
         ) : (
           <>
+            <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
+              { key: 'activity', label: 'Activity' },
+              { key: 'signals', label: 'Signals' },
+              { key: 'climb', label: 'Climb' },
+            ]} />
+            {tab === 'climb' && (<>
             {/* THE CLIMB — start → now → summit ridgeline (the goal at the top) */}
             <div style={{ marginBottom: 28 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 10 }}>
@@ -6986,7 +7011,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
 
             {(goal || bio) && <div style={{ background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.22)}`, borderRadius: 16, padding: '16px 18px', marginBottom: 26 }}><Kick col={c}>⛰ Why</Kick><div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{goal || bio}</div></div>}
+            </>)}
 
+            {tab === 'signals' && (<>
             <div style={{ marginBottom: 28 }}>
               <Kick>Living signals</Kick>
               <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
@@ -7018,7 +7045,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div style={{ display: 'flex', gap: 9, marginBottom: 28 }}>
               {liftsEff.map(([label, val]) => <div key={label} style={{ flex: 1, ...card, borderRadius: 13, padding: '14px 8px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
+            </>)}
 
+            {tab === 'activity' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Kick>Personal activities</Kick>
@@ -7047,6 +7076,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 ))}
               </div>
             </div>
+            )}
           </>
         )}
       </div>
@@ -7112,6 +7142,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
+  const [tab, setTab] = useStateBSC('activity');
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
@@ -7194,6 +7225,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           <div style={{ ...card, padding: '18px', marginTop: 18, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their profile with friends — connect to see more.` : `${first} keeps their profile private — only name and tier are shown.`}</div></div>
         ) : (
         <>
+          <div style={{ marginTop: 22 }}>
+            <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
+              { key: 'activity', label: 'Activity' },
+              { key: 'about', label: 'About' },
+              { key: 'coaching', label: 'Coaching' },
+            ]} />
+          </div>
+          {tab === 'about' && (<>
           {/* philosophy */}
           <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
             <Kick>{isNutri ? 'Practice philosophy' : 'Coaching philosophy'}</Kick>
@@ -7232,6 +7271,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
           </div>
 
+          </>)}
+
+          {tab === 'coaching' && (<>
           {/* services & prices */}
           <div style={{ marginTop: 28 }}>
             <Kick>{isNutri ? 'Work with ' + first : 'Train with ' + first}</Kick>
@@ -7264,8 +7306,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 12 }}><div style={{ width: 42, height: 42, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${relation[3]} 40% 34%), hsl(${relation[3]} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 16 }}>{relation[2]}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 500 }}>{relation[1]}</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), lineHeight: 1.4, marginTop: 3 }}>{relation[4]}</div></div></div>
           </div>
 
-          {/* field notes */}
-          <div style={{ marginTop: 28 }}>
+          </>)}
+
+          {tab === 'activity' && (
+          /* field notes */
+          <div style={{ marginTop: 8 }}>
             <Kick>Personal activities</Kick>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
@@ -7281,6 +7326,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               ))}
             </div>
           </div>
+          )}
         </>
         )}
       </div>
