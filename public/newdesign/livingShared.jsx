@@ -240,29 +240,37 @@ const lvPortraitURL = (id, s = 360) => !id ? "" : (/^https?:|^data:/.test(String
 
 // Circular masked portrait with a tier-tinted duotone wash + ring.
 // editable → shows an "add/replace" affordance for own-profile.
+function lvShade(hex, f) {
+  const n = parseInt(String(hex).replace('#', '').slice(0, 6), 16);
+  return `rgb(${Math.round(((n >> 16) & 255) * f)}, ${Math.round(((n >> 8) & 255) * f)}, ${Math.round((n & 255) * f)})`;
+}
+// Facet avatar — a rounded-diamond gem with initials/photo inside, tier-coloured.
+// Matches the mobile app's avatar so the facet look is the same everywhere.
 function LvPortrait({ d, size = 96, duotone = false, editable = false, hide = false }) {
   const c = tierOf(d).color;
-  if (hide || !d.portrait) {
-    // No photo → show the member's initials (a clear avatar), like the mobile
-    // facet avatar. A private/locked profile keeps the anonymised crest.
-    const showInitials = !hide && d.initials;
-    return (
-      <div style={{ width: size, height: size, borderRadius: 999, flex: "none", display: "flex", alignItems: "center", justifyContent: "center", background: `radial-gradient(circle at 50% 38%, ${hexA(c, 0.32)}, ${hexA(LV_BG, 0.92)})`, border: `1px solid ${hexA(c, 0.45)}`, position: "relative" }}>
-        {showInitials
-          ? <span style={{ fontFamily: lvSerif, fontSize: size * 0.4, fontWeight: 500, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{d.initials}</span>
-          : <LvCrest d={d} size={size * 0.62} />}
-        {editable && <LvAddBadge c={c} size={size} />}
-      </div>
-    );
-  }
+  const inset = Math.max(2, Math.round(size * 0.06));
+  const hasPhoto = !hide && !!d.portrait;
+  const showInitials = !hide && !hasPhoto && d.initials;
   return (
-    <div style={{ width: size, height: size, borderRadius: 999, flex: "none", position: "relative", padding: 3, background: `conic-gradient(from 210deg, ${c}, ${LV_TEAL}, ${c})` }}>
-      <div style={{ width: "100%", height: "100%", borderRadius: 999, overflow: "hidden", position: "relative", background: LV_BG }}>
-        <img src={lvPortraitURL(d.portrait, Math.round(size * 2))} alt={d.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-        {duotone && <div style={{ position: "absolute", inset: 0, background: hexA(c, 0.42), mixBlendMode: "color" }} />}
-        {duotone && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, transparent 50%, ${hexA(LV_BG, 0.4)})` }} />}
+    <div style={{ width: size, height: size, position: "relative", display: "grid", placeItems: "center", flex: "none" }}>
+      <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, boxShadow: `0 6px 18px ${hexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.3)` }}>
+        <div style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
+        <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: LV_BG, display: "grid", placeItems: "center" }}>
+          {hasPhoto ? (
+            <React.Fragment>
+              <img src={lvPortraitURL(d.portrait, Math.round(size * 2))} alt={d.name || ""} style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
+              {duotone && <div style={{ position: "absolute", inset: 0, background: hexA(c, 0.42), mixBlendMode: "color" }} />}
+            </React.Fragment>
+          ) : (
+            <div style={{ transform: "rotate(-45deg)", display: "grid", placeItems: "center" }}>
+              {showInitials
+                ? <span style={{ fontFamily: lvSerif, fontWeight: 500, fontSize: size * 0.4, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{d.initials}</span>
+                : <LvCrest d={d} size={size * 0.5} />}
+            </div>
+          )}
+        </div>
       </div>
-      {editable && <LvAddBadge c={c} size={size} replace />}
+      {editable && <LvAddBadge c={c} size={size} replace={hasPhoto} />}
     </div>
   );
 }
