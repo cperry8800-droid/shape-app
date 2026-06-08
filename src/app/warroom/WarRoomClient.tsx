@@ -132,6 +132,16 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
   const totalChecklist = checklistWithTicks.reduce((n, s) => n + s.items.length, 0);
   const doneChecklist = totalChecklist - nextSteps.length;
 
+  // Group the open steps by section so the panel reads as tabs, not one long list.
+  const nextBySection = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const s of nextSteps) { if (!map.has(s.section)) map.set(s.section, []); map.get(s.section)!.push(s.label); }
+    return Array.from(map, ([section, items]) => ({ section, items }));
+  }, [nextSteps]);
+  const [stepTab, setStepTab] = useState<string | null>(null);
+  const activeStepSection = stepTab && nextBySection.some((g) => g.section === stepTab) ? stepTab : (nextBySection[0]?.section ?? null);
+  const activeStepItems = nextBySection.find((g) => g.section === activeStepSection)?.items ?? [];
+
   const filteredGroups = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return snap.apiRoutes;
@@ -178,6 +188,74 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>
+
+          {/* North Star — positioning / vision */}
+          <Panel title="North Star — positioning" hint="coach marketplace + social" wide>
+            <div style={{ background: C.panel2, border: `1px solid ${C.accent}`, borderLeft: `4px solid ${C.accent}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.accent, marginBottom: 6 }}>North Star</div>
+              <div style={{ fontSize: 16, color: C.text, lineHeight: 1.5, fontWeight: 600 }}>{snap.architecture.northStar.statement}</div>
+              <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.55, marginTop: 10 }}>{snap.architecture.northStar.positioning}</div>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 10 }}>Fuses all three</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, marginBottom: 20 }}>
+              {snap.architecture.northStar.combine.map((c) => (
+                <div key={c.camp} style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 13px' }}>
+                  <b style={{ fontSize: 13 }}>{c.camp}</b>
+                  <div style={{ fontSize: 10.5, color: C.dim, marginTop: 3, fontStyle: 'italic' }}>today: {c.players}</div>
+                  <div style={{ fontSize: 12, color: C.text, marginTop: 8, lineHeight: 1.5 }}>{c.shapeDoes}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.warn, marginBottom: 8 }}>The wedge</div>
+                <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.55 }}>{snap.architecture.northStar.wedge}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.ok, marginBottom: 8 }}>Why it's defensible</div>
+                {snap.architecture.northStar.moats.map((m) => (
+                  <div key={m} style={{ display: 'flex', gap: 7, fontSize: 12, color: C.dim, lineHeight: 1.4, marginBottom: 4 }}>
+                    <span style={{ color: C.ok, flexShrink: 0 }}>✓</span><span>{m}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 10 }}>Cold-start sequence</div>
+            <div style={{ display: 'flex', alignItems: 'stretch', overflowX: 'auto', paddingBottom: 6 }}>
+              {snap.architecture.northStar.sequence.map((s, i) => (
+                <div key={s.phase} style={{ display: 'flex', alignItems: 'center' }}>
+                  <div style={{ width: 190, flexShrink: 0, background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', minHeight: 88 }}>
+                    <b style={{ fontSize: 12.5 }}>{s.phase}</b>
+                    <div style={{ fontSize: 11.5, color: C.dim, marginTop: 5, lineHeight: 1.45 }}>{s.focus}</div>
+                  </div>
+                  {i < snap.architecture.northStar.sequence.length - 1 && <span style={{ color: C.dim, padding: '0 7px', fontSize: 17 }}>→</span>}
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          {/* Up next — the P1 build queue across every layer */}
+          {(() => {
+            const p1 = snap.architecture.layers.flatMap((l) => l.gaps.filter((g) => g.priority === 'P1').map((g) => ({ ...g, layer: l.layer })));
+            if (p1.length === 0) return null;
+            return (
+              <Panel title="Up next — P1 build queue" hint={`${p1.length} priority items`} wide>
+                {p1.map((g, i) => (
+                  <div key={`${g.layer}-${g.task}`} style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '9px 0', borderTop: i > 0 ? `1px solid ${C.border}` : 0 }}>
+                    <span style={{ fontFamily: 'monospace', color: C.bad, fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span style={{ flexShrink: 0, fontSize: 9.5, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: 96 }}>{g.layer}</span>
+                    <span style={{ flex: 1, fontSize: 13, color: C.text, lineHeight: 1.4 }}>{g.task}</span>
+                    <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: g.status === 'in-progress' ? C.accent : C.dim }}>
+                      {g.status === 'in-progress' ? '● in progress' : '○ not started'}
+                    </span>
+                  </div>
+                ))}
+              </Panel>
+            );
+          })()}
 
           {/* Architecture & flow — the "how Shape works" map */}
           <Panel title="Shape — architecture & flow" hint="how it works · who it serves" wide>
@@ -331,18 +409,30 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             ))}
           </Panel>
 
-          {/* Next steps to go live */}
-          <Panel title="Next steps to go live" hint={`${nextSteps.length} open`}>
+          {/* Next steps to go live — tabbed by section so it's short + scannable */}
+          <Panel title="Next steps to go live" hint={`${nextSteps.length} open · ${nextBySection.length} areas`}>
             {nextSteps.length === 0 ? (
               <div style={{ color: C.ok, fontWeight: 700, padding: '8px 2px' }}>✓ Everything tracked here is done. Run the live smoke test and ship.</div>
             ) : (
-              <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
-                {nextSteps.map((s, i) => (
-                  <li key={i} style={{ fontSize: 13.5 }}>
-                    <span style={{ color: C.dim, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>{s.section}</span><br />{s.label}
-                  </li>
-                ))}
-              </ol>
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 13 }}>
+                  {nextBySection.map((g) => {
+                    const on = g.section === activeStepSection;
+                    return (
+                      <button key={g.section} onClick={() => setStepTab(g.section)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(90,169,255,0.14)' : 'transparent', color: on ? C.text : C.dim, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                        {g.section}
+                        <span style={{ fontSize: 10, fontWeight: 800, color: on ? C.accent : C.dim }}>{g.items.length}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.dim, marginBottom: 8 }}>{activeStepSection}</div>
+                <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.55 }}>
+                  {activeStepItems.map((label, i) => (
+                    <li key={i} style={{ fontSize: 13.5, marginBottom: 6 }}>{label}</li>
+                  ))}
+                </ol>
+              </>
             )}
           </Panel>
 
@@ -443,13 +533,69 @@ function personaColor(p: string): string {
   return C.accent;
 }
 
-// Boxes + arrows view: a horizontal journey ribbon + the layer stack (top→bottom).
+// Company-style hierarchy: a root node that branches top→down into the sections
+// (layers), each section branching down into its pieces — like an org chart /
+// site map. The member journey ribbon sits below as the sequential view.
 function ArchDiagram({ arch }: { arch: WarRoomSnapshot['architecture'] }) {
+  const line = C.border;
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 4 }}>Member journey</div>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 4 }}>How it's built · hierarchy</div>
+      <div style={{ fontSize: 11, color: C.dim, marginBottom: 14 }}>Shape → its sections → the pieces inside each · scroll →</div>
+
+      {/* Root */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', background: C.accent, color: '#04121f', borderRadius: 10, padding: '10px 22px', minWidth: 160 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.02em' }}>SHAPE</div>
+          <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', opacity: 0.8 }}>Coach marketplace + social</div>
+        </div>
+      </div>
+      {/* trunk down to the bus */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}><div style={{ width: 2, height: 22, background: line }} /></div>
+
+      {/* Sections tier — each column has a top "bus" segment + down stub, then the
+          section card, then its pieces as children. Horizontally scrollable. */}
+      <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: 'min-content' }}>
+          {arch.layers.map((l, i) => {
+            const first = i === 0, last = i === arch.layers.length - 1;
+            const p1 = l.gaps.filter((g) => g.priority === 'P1').length;
+            return (
+              <div key={l.layer} style={{ width: 210, flexShrink: 0, padding: '0 7px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/* connector: horizontal bus segment + centered down stub */}
+                <div style={{ position: 'relative', width: '100%', height: 20 }}>
+                  <div style={{ position: 'absolute', top: 0, left: first ? '50%' : 0, right: last ? '50%' : 0, height: 2, background: line }} />
+                  <div style={{ position: 'absolute', top: 0, left: 'calc(50% - 1px)', width: 2, height: 20, background: line }} />
+                </div>
+                {/* section card */}
+                <div style={{ width: '100%', background: C.panel2, border: `1px solid ${line}`, borderTop: `3px solid ${C.accent}`, borderRadius: 10, padding: '10px 11px' }}>
+                  <b style={{ fontSize: 13 }}>{l.layer}</b>
+                  <div style={{ fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{l.serves}</div>
+                  {l.gaps.length > 0 && (
+                    <span title={l.gaps.map((g) => `${g.priority} ${g.task}`).join(' · ')} style={{ display: 'inline-block', marginTop: 7, fontSize: 9, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '1px 7px' }}>{l.gaps.length} to do{p1 ? ` · ${p1}×P1` : ''}</span>
+                  )}
+                </div>
+                {/* stub down to children */}
+                <div style={{ width: 2, height: 12, background: line }} />
+                {/* children (pieces) */}
+                <div style={{ width: '100%', borderLeft: `2px solid ${line}`, paddingLeft: 0 }}>
+                  {l.pieces.map((pc) => (
+                    <div key={pc} style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 5 }}>
+                      <div style={{ width: 12, height: 2, background: line, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${line}`, borderRadius: 7, padding: '3px 8px', lineHeight: 1.25 }}>{pc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Member journey — the sequential flow through the hierarchy */}
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, margin: '22px 0 4px' }}>Member journey</div>
       <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>colour = who it serves · scroll →</div>
-      <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', paddingBottom: 12, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', paddingBottom: 12 }}>
         {arch.flow.map((s, i) => {
           const col = personaColor(s.persona);
           return (
@@ -463,29 +609,6 @@ function ArchDiagram({ arch }: { arch: WarRoomSnapshot['architecture'] }) {
             </div>
           );
         })}
-      </div>
-
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.accent, marginBottom: 4 }}>The stack</div>
-      <div style={{ fontSize: 11, color: C.dim, marginBottom: 12 }}>surfaces people touch ↓ down to the data that powers it</div>
-      <div>
-        {arch.layers.map((l, i) => (
-          <div key={l.layer}>
-            <div style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 13px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-              <b style={{ fontSize: 13, minWidth: 132 }}>{l.layer}</b>
-              <span style={{ fontSize: 9, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{l.serves}</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, flex: 1 }}>
-                {l.pieces.map((pc) => <span key={pc} style={{ fontSize: 10.5, color: C.dim, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 999, padding: '2px 7px' }}>{pc}</span>)}
-              </div>
-              {l.gaps && l.gaps.length > 0 && (() => {
-                const p1 = l.gaps.filter((g) => g.priority === 'P1').length;
-                return (
-                  <span title={l.gaps.map((g) => `${g.priority} ${g.task}`).join(' · ')} style={{ fontSize: 9.5, fontWeight: 800, color: C.warn, background: 'rgba(247,201,72,0.12)', border: `1px solid ${C.warn}`, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap' }}>{l.gaps.length} to do{p1 ? ` · ${p1}×P1` : ''}</span>
-                );
-              })()}
-            </div>
-            {i < arch.layers.length - 1 && <div style={{ textAlign: 'center', color: C.dim, fontSize: 15, lineHeight: '20px' }}>↓</div>}
-          </div>
-        ))}
       </div>
     </div>
   );

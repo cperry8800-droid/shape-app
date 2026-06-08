@@ -45,7 +45,18 @@ export type ArchFlowStep = { n: number; stage: string; persona: string; detail: 
 export type ArchGap = { task: string; status: 'in-progress' | 'not-started'; priority: 'P1' | 'P2' | 'P3' };
 export type ArchLayer = { layer: string; serves: string; purpose: string; pieces: string[]; gaps: ArchGap[] };
 export type ArchMatrixRow = { area: string; member: string; trainer: string; nutritionist: string };
+export type NorthStarCamp = { camp: string; players: string; shapeDoes: string };
+export type NorthStarPhase = { phase: string; focus: string };
+export type NorthStar = {
+  statement: string;
+  positioning: string;
+  combine: NorthStarCamp[];
+  wedge: string;
+  moats: string[];
+  sequence: NorthStarPhase[];
+};
 export type ShapeArchitecture = {
+  northStar: NorthStar;
   summary: string;
   personas: ArchPersona[];
   flow: ArchFlowStep[];
@@ -81,6 +92,28 @@ export type WarRoomSnapshot = {
 
 // The product map. Keep this current — it's the "what Shape is becoming" outline.
 const SHAPE_ARCHITECTURE: ShapeArchitecture = {
+  northStar: {
+    statement: 'The home base coaches build their entire practice on — audience, credibility, clients, and income — and where members live their training life socially.',
+    positioning: 'The first platform to fuse social fitness + coaching software + a creator marketplace into one. Coach-first: coaches arrive with their own clients (instant members); the social loop compounds the network.',
+    combine: [
+      { camp: 'Social fitness', players: 'Strava · IG / TikTok fitness creators', shapeDoes: 'The daily Train → Eat → Score loop IS the feed — profiles, follows, channels, Radio. Not a separate app to post to.' },
+      { camp: 'Coaching software', players: 'Trainerize · TrueCoach · Everfit', shapeDoes: 'Roster, programs / meal plans, adjust, scheduling, client analytics — but public + social, not a private B2B silo.' },
+      { camp: 'Creator marketplace', players: 'Future · Playbook', shapeDoes: 'Discovery marketplace, coaches price themselves + are paid directly, and a coach Shape-Score ladder as earned, portable credibility.' },
+    ],
+    wedge: 'Lead with coaches. No incumbent owns a coach\'s full home base (audience + credibility + clients + payments). Coaches bring existing clients = built-in members; members become the retention engine once coaches seed density.',
+    moats: [
+      'Coach Shape-Score ladder = earned, portable credibility IG can\'t replicate',
+      'Two-sided graph: coaches + their clients + the community around them',
+      'One place for audience + tooling + payments (vs rented IG → exported coaching tool)',
+      'Verified RDs / certs → trust vs social bro-science',
+    ],
+    sequence: [
+      { phase: '1 · Seed coaches', focus: 'Onboard vetted trainers/RDs who import their existing clients (instant members).' },
+      { phase: '2 · Activate the loop', focus: 'Those clients run Train/Eat/Score daily → real content velocity in the feed.' },
+      { phase: '3 · Open discovery', focus: 'Marketplace + community feed pull in new members searching for a coach.' },
+      { phase: '4 · Compound', focus: 'Follows, suggestions, and push retention turn it into a network with its own gravity.' },
+    ],
+  },
   summary:
     'Shape is a members-only ($5/mo) fitness-lifestyle platform. Members hire affordable, vetted coaches and run a daily Train → Eat → Habits loop that feeds a Shape Score and a social feed; coaches program the work, get paid directly, and price themselves. Everything funnels through one membership + one notifications spine.',
   personas: [

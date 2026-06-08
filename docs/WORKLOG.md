@@ -55,6 +55,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — War Room: North Star + Up-next P1 queue + build-order gaps
+- **North Star panel** (top of `/warroom`): the positioning — Shape as a **coach
+  marketplace with a social presence**, fusing the three camps (social fitness · coaching
+  software · creator marketplace), the coach-first **wedge**, the **moats**, and a 4-phase
+  **cold-start sequence**. Data in `SHAPE_ARCHITECTURE.northStar`.
+- **Up next** panel: every **P1** gap across all layers rolled into one ranked queue
+  (layer + status), so the single most important build order is glanceable.
+- Each layer's **"Still to do"** is now `{task, status, priority}` — sorted P1→P3 with a
+  priority chip + `● in progress` / `○ not started`; the diagram bands show `N to do · k×P1`.
+- **Flow diagram → company hierarchy**: a root **SHAPE** node branches top→down into the
+  sections, each branching into its pieces (org-chart / site-map look); the member-journey
+  ribbon sits below as the sequential view.
+- **"Next steps to go live"** is now **tabbed by section** (chips with per-area counts) so
+  only the active area's items show — short + scannable instead of one 38-item list.
+
 ### 2026-06-08 — War Room: "Architecture & flow" map (how Shape works / who it serves)
 - New top panel on `/warroom` summarizing the whole product so direction stays organized:
   **personas** (prospect / member / trainer / nutritionist / admin), the **10-step member
