@@ -6588,7 +6588,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
             {/* base + summit labels (chip-backed so they read cleanly over the terrain) */}
             <div style={{ position: 'absolute', left: 12, bottom: 12, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{arc[0][0]} · start</div>
-            <div style={{ position: 'absolute', right: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'right', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>Summit<br />{summitEff}</div>
+            <div style={{ position: 'absolute', left: 12, top: 12, fontFamily: MONO, fontSize: 8, lineHeight: 1.35, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#e0644b', textAlign: 'left', background: bsTHexA('#0c1110', 0.7), padding: '3px 7px', borderRadius: 5 }}>Summit<br />{summitEff}</div>
             {/* identity strip */}
             <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
