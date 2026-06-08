@@ -10,14 +10,23 @@ const POINTS_TO_NEXT = 716;
 
 const LEDGER = [
   { d: "Apr 18", t: "Session kept · Maya Okafor", p: 14, k: "session" },
+  { d: "Apr 18", t: "Lower push logged", p: 9, k: "workout" },
+  { d: "Apr 18", t: "Macros on target", p: 6, k: "nutrition" },
   { d: "Apr 18", t: "Morning mobility logged", p: 3, k: "habit" },
+  { d: "Apr 17", t: "New PR · Back squat", p: 12, k: "workout" },
   { d: "Apr 17", t: "Protein target hit · 3rd day", p: 5, k: "nutrition" },
   { d: "Apr 17", t: "Session kept · Rae Lindqvist", p: 13, k: "session" },
-  { d: "Apr 16", t: "Sleep ≥ 7h", p: 3, k: "recovery" },
+  { d: "Apr 17", t: "Hydration goal", p: 2, k: "nutrition" },
   { d: "Apr 16", t: "Upper pull logged", p: 9, k: "workout" },
+  { d: "Apr 16", t: "Sleep ≥ 7h", p: 3, k: "recovery" },
+  { d: "Apr 16", t: "Steps ≥ 8,000", p: 2, k: "habit" },
+  { d: "Apr 15", t: "Program day completed", p: 8, k: "workout" },
   { d: "Apr 15", t: "Weekly review submitted", p: 15, k: "milestone" },
-  { d: "Apr 15", t: "Steps ≥ 8,000", p: 2, k: "habit" },
+  { d: "Apr 15", t: "Meal logged · dinner", p: 2, k: "nutrition" },
+  { d: "Apr 15", t: "Habit streak · 7 days", p: 4, k: "habit" },
   { d: "Apr 14", t: "Session kept · Maya Okafor", p: 14, k: "session" },
+  { d: "Apr 14", t: "Intro consult · new client", p: 8, k: "session" },
+  { d: "Apr 14", t: "Tough session · RPE 8+", p: 4, k: "workout" },
 ];
 
 const REWARDS = [
@@ -35,21 +44,21 @@ const HEATMAP = Array.from({ length: 84 }, (_, i) => {
 });
 
 const TIERS = [
-  { name: "Raw",    min: 0,     color: "rgba(242,237,228,0.35)", desc: "Starting level" },
-  { name: "Tempo",  min: 750,   color: "rgba(242,237,228,0.85)", current: true, desc: "2× redemption value" },
-  { name: "Form",   min: 2000,  color: "#e89740",                desc: "Early access drops + streak boosts" },
-  { name: "Peak",   min: 5000,  color: "#0a7463",                desc: "Priority booking + 1 free intro / mo" },
-  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual Shape merch + service credit" },
+  { name: "Raw",    min: 0,     color: "rgba(242,237,228,0.35)", desc: "Starting level", bonus: 0 },
+  { name: "Tempo",  min: 750,   color: "rgba(242,237,228,0.85)", current: true, desc: "2× redemption value", bonus: 500 },
+  { name: "Form",   min: 2000,  color: "#e89740",                desc: "Early access drops + streak boosts", bonus: 1000 },
+  { name: "Peak",   min: 5000,  color: "#0a7463",                desc: "Priority booking + 1 free intro / mo", bonus: 2000 },
+  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual Shape merch + service credit", bonus: 4000 },
 ];
 
 // Coaches climb the same 5 rungs under their own names (scheme J) with the
 // coach color ramp — teal (the logo color) crowns the ladder at Icon.
 const TIERS_COACH = [
-  { name: "Certified", min: 0,     color: "rgba(242,237,228,0.45)", desc: "Verified Shape coach" },
-  { name: "Pro",       min: 750,   color: "#d8a23a", current: true, desc: "2× redemption value" },
-  { name: "Elite",     min: 2000,  color: "#e0463c",                desc: "Featured placement + early drops" },
-  { name: "Master",    min: 5000,  color: "#8fe3e6",                desc: "Priority marketplace + perks" },
-  { name: "Icon",      min: 15000, color: "#0ac5a8",                desc: "Top 1% — annual credit + merch" },
+  { name: "Certified", min: 0,     color: "rgba(242,237,228,0.45)", desc: "Verified Shape coach", bonus: 0 },
+  { name: "Pro",       min: 750,   color: "#d8a23a", current: true, desc: "2× redemption value", bonus: 500 },
+  { name: "Elite",     min: 2000,  color: "#e0463c",                desc: "Featured placement + early drops", bonus: 1000 },
+  { name: "Master",    min: 5000,  color: "#8fe3e6",                desc: "Priority marketplace + perks", bonus: 2000 },
+  { name: "Icon",      min: 15000, color: "#0ac5a8",                desc: "Top 1% — annual credit + merch", bonus: 4000 },
 ];
 
 const SC_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -170,10 +179,22 @@ function ScoreTiers() {
             })}
           </div>
           <div style={{ position: "relative", padding: "24px 0 8px" }}>
-            {/* connector lines anchored to the node row's vertical center (top: 58) — sit BEHIND the nodes; track runs node-to-node (no edge overhang) */}
-            <div style={{ position: "absolute", left: `${trackStart}%`, width: `${trackEnd - trackStart}%`, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />
-            <div style={{ position: "absolute", left: `${trackStart}%`, width: `${Math.max(0, barPct - trackStart)}%`, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />
-            {/* fill head — sits in open space between bubbles, so the line never fuses with a node */}
+            {/* Segmented connector — each segment sits BETWEEN two orbs with a
+                clear gap on both ends, so the bar never touches an orb. */}
+            {Array.from({ length: tiers.length - 1 }).map(function (_, i) {
+              const a = nodeCenterPct(i), b = nodeCenterPct(i + 1);
+              const GAP = 34; // px clearance from each orb (covers the lit orb's halo)
+              const filled = barPct > a + 1;
+              const toPct = Math.min(barPct, b);
+              const fillW = barPct >= b ? `calc(${b - a}% - ${2 * GAP}px)` : `calc(${toPct - a}% - ${GAP}px)`;
+              return (
+                <React.Fragment key={i}>
+                  <div style={{ position: "absolute", left: `calc(${a}% + ${GAP}px)`, width: `calc(${b - a}% - ${2 * GAP}px)`, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />
+                  {filled && <div style={{ position: "absolute", left: `calc(${a}% + ${GAP}px)`, width: fillW, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />}
+                </React.Fragment>
+              );
+            })}
+            {/* current-position marker — sits in open space between orbs */}
             <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: "0 0 0 5px rgba(10,197,168,0.2)", transform: "translate(-50%, -50%)", zIndex: 0 }} />
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative", zIndex: 1 }}>
               {tiers.map((t, i) => {
@@ -186,7 +207,12 @@ function ScoreTiers() {
                       <div style={{ width: current ? 42 : 26, height: current ? 42 : 26, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : INK_DEEP, border: `2.5px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 9px rgba(10,197,168,0.18)` : "none" }} />
                     </div>
                     <div style={{ marginTop: 16, fontFamily: serif, fontSize: 30, letterSpacing: "-0.015em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
-                    <div style={{ marginTop: 7, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 190 }}>{t.desc}</div>
+                    <div style={{ height: 22, marginTop: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {t.bonus > 0
+                        ? <span style={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", color: TEAL_BRIGHT, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", borderRadius: 999, padding: "4px 11px", whiteSpace: "nowrap" }}>+{t.bonus.toLocaleString()} pts bonus</span>
+                        : <span style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.3)" }}>Start</span>}
+                    </div>
+                    <div style={{ marginTop: 9, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 190 }}>{t.desc}</div>
                   </div>
                 );
               })}
@@ -240,18 +266,32 @@ function ScoreActivity() {
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL }}>How you earn</div>
             <h3 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", fontWeight: 400, margin: "10px 0 26px", color: PAPER }}>Points, by action.</h3>
             {[
-              ["Session kept", "with a coach", "12–18"],
-              ["Workout logged", "solo or programmed", "6–10"],
-              ["Protein target hit", "daily goal", "5"],
-              ["Sleep ≥ 7 hours", "wearable-verified", "3"],
-              ["Habit streak", "any logged habit", "2–4"],
-              ["Weekly review", "submitted on time", "15"],
-              ["New PR logged", "any lift or run", "12"],
-            ].map(([k, sub, p], i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "13px 0", borderTop: i ? "1px solid rgba(26,22,18,0.1)" : "none", alignItems: "baseline" }}>
+              ["Sessions", "Session kept", "with a coach", "12–18"],
+              ["Sessions", "Intro consult done", "first call with a coach", "8"],
+              ["Sessions", "Coach feedback actioned", "applied their notes", "6"],
+              ["Workouts", "Workout logged", "solo or programmed", "6–10"],
+              ["Workouts", "New PR logged", "any lift or run", "12"],
+              ["Workouts", "Program day completed", "as prescribed", "8"],
+              ["Workouts", "Tough session · RPE 8+", "left it on the floor", "4"],
+              ["Nutrition", "Protein target hit", "daily goal", "5"],
+              ["Nutrition", "Macros on target", "full day", "6"],
+              ["Nutrition", "Meal logged", "any meal", "2"],
+              ["Nutrition", "Hydration goal", "daily water", "2"],
+              ["Habits", "Habit streak", "any logged habit", "2–4"],
+              ["Habits", "Steps ≥ 8,000", "daily", "2"],
+              ["Habits", "Morning mobility", "logged", "3"],
+              ["Recovery", "Sleep ≥ 7 hours", "wearable-verified", "3"],
+              ["Milestones", "Weekly review", "submitted on time", "15"],
+              ["Milestones", "Tier reached", "bonus on arrival", "500–4k"],
+              ["Milestones", "Referral joined", "friend becomes a member", "50"],
+            ].map(([cat, k, sub, p], i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "12px 0", borderTop: i ? "1px solid rgba(26,22,18,0.1)" : "none", alignItems: "baseline" }}>
                 <div>
-                  <div style={{ fontFamily: sans, fontSize: 14, fontWeight: 600 }}>{k}</div>
-                  <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(26,22,18,0.55)", marginTop: 2 }}>{sub}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#0a7463", background: "rgba(10,116,99,0.12)", borderRadius: 4, padding: "2px 6px" }}>{cat}</span>
+                    <span style={{ fontFamily: sans, fontSize: 14, fontWeight: 600 }}>{k}</span>
+                  </div>
+                  <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(26,22,18,0.55)", marginTop: 3 }}>{sub}</div>
                 </div>
                 <div style={{ fontFamily: mono, fontSize: 13, color: TEAL }}>+{p}</div>
               </div>
