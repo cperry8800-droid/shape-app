@@ -155,7 +155,9 @@ function Spotlight({ tab }) {
             {/* Lead feature */}
             <a href={coachUrl(s.lead)} style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative", textDecoration: "none", cursor: "pointer" }}>
               <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75, zIndex: 2 }} />
-              <Ph label={`${s.lead.name.split(" ")[0]} · feature`} ratio="auto" tone="dark" style={{ borderRadius: 0, height: "100%", minHeight: 380 }} />
+              <div style={{ background: `linear-gradient(165deg, ${mkCoachTier(s.lead).color}45, ${INK} 60%)`, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 380 }}>
+                <MkFacet name={s.lead.name} color={mkCoachTier(s.lead).color} photo={s.lead.photo || s.lead.avatar} size={132} />
+              </div>
               <div style={{ padding: "34px 34px", display: "flex", flexDirection: "column", gap: 12 }}>
                 <span style={{ fontFamily: mono, fontSize: 10, padding: "3px 8px", background: TEAL, color: PAPER, borderRadius: 3, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, alignSelf: "start" }}>{s.lead.tag}</span>
                 <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(26,22,18,0.5)" }}>{s.lead.city} · {s.lead.years} yrs</div>
@@ -176,7 +178,7 @@ function Spotlight({ tab }) {
             <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 10 }}>
               {s.side.map((p, i) => (
                 <a key={i} href={coachUrl(p)} style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 4, padding: 16, display: "grid", gridTemplateColumns: "90px 1fr auto", gap: 14, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
-                  <Ph label={p.name.split(" ")[0]} ratio="1/1" tone="light" style={{ borderRadius: 4 }} />
+                  <div style={{ display: "flex", justifyContent: "center" }}><MkFacet name={p.name} color={mkCoachTier(p).color} photo={p.photo || p.avatar} size={66} /></div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: TEAL }}>{p.city}</div>
                     <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", color: INK, margin: "3px 0 2px", lineHeight: 1.1 }}>{p.name}</div>
@@ -279,6 +281,34 @@ function mkCoachTier(c) {
   const i = s >= 1500 ? 4 : s >= 1000 ? 3 : s >= 700 ? 2 : s >= 400 ? 1 : 0;
   return { name: MK_COACH_LADDER[i][0], color: MK_COACH_LADDER[i][1] };
 }
+// Facet gem avatar — the living Signal profile's avatar (rotated rounded-square,
+// tier gradient, counter-rotated content). Shows a real photo when present.
+function mkShade(hex, f) {
+  const h = String(hex || "#888").replace("#", "");
+  const s = h.length === 3 ? h.split("").map((x) => x + x).join("") : h;
+  const n = parseInt(s, 16);
+  return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`;
+}
+function mkInitials(name) {
+  const p = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return (((p[0] || "")[0] || "") + ((p[1] || "")[0] || "")).toUpperCase() || "?";
+}
+function MkFacet({ name, init, color, photo, size = 56 }) {
+  const inset = Math.max(2, Math.round(size * 0.055));
+  const ini = init || mkInitials(name);
+  return (
+    <div style={{ width: size, height: size, flexShrink: 0, position: "relative", display: "grid", placeItems: "center" }}>
+      <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${mkShade(color, 0.5)})`, boxShadow: `0 5px 16px ${color}55, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+        <div style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
+        <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
+          {photo
+            ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
+            : <span style={{ transform: "rotate(-45deg)", fontFamily: serif, fontWeight: 500, fontSize: size * 0.38, color: "#f2ede4", lineHeight: 1 }}>{ini}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 function CoachCard({ c }) {
   const tier = mkCoachTier(c);
   const ref = React.useRef(null);
@@ -291,8 +321,8 @@ function CoachCard({ c }) {
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
     <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
-      <div style={{ position: "relative" }}>
-        <Ph label={`${c.name.split(' ')[0]}`} ratio="4/3" tone="light" style={{ borderRadius: 0 }} />
+      <div style={{ position: "relative", aspectRatio: "4 / 3", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <MkFacet name={c.name} color={tier.color} photo={c.photo || c.avatar} size={92} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
         <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>★ {(c.rating * 2).toFixed(1)}/10</span>
         {c.isLeadBoosted && (

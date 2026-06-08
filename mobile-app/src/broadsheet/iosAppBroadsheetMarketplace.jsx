@@ -331,6 +331,11 @@ function MktTrackRow({ n, title, meta, right, onClick, first }) {
 
 // Coach's tier on the COACH ladder (Certified·Pro·Elite·Master·Icon) + its color,
 // matching the living Signal profile, so marketplace cards preview the real profile.
+// Two-letter initials (first letter of the first two words) for avatar fallbacks.
+function mktInitials(name) {
+  const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return (((p[0] || '')[0] || '') + ((p[1] || '')[0] || '')).toUpperCase() || '?';
+}
 function mktCoachTier(c) {
   const prof = buildPublicProfile(c);
   const clientTier = String(prof.tier || 'base').toLowerCase();
@@ -346,7 +351,7 @@ function MktCoachCard({ c, onOpen, photo }) {
   return (
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderRadius: 15, overflow: 'hidden', background: `linear-gradient(165deg, ${tierColor}24, ${t.PAPER2} 58%)`, padding: 13, display: 'flex', flexDirection: 'column', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {Facet ? <Facet size={38} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={38} />}
+        {Facet ? <Facet size={38} c={tierColor} initial={mktInitials(c.name)} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={38} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
           <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tierName} · {isNutri ? 'Nutritionist' : 'Trainer'}</div>
@@ -367,7 +372,7 @@ function MktRow({ c, onOpen, photo }) {
   const Facet = window.BSFacetAvatar;
   return (
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 13, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${tierColor}14, ${t.PAPER2} 58%)` }}>
-      {Facet ? <Facet size={46} c={tierColor} initial={c.init || (c.name ? c.name[0] : '?')} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={46} />}
+      {Facet ? <Facet size={46} c={tierColor} initial={mktInitials(c.name)} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={46} />}
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
@@ -632,7 +637,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
               <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 8, borderRadius: 16, border: `1px solid ${tierColor}40`, overflow: 'hidden', background: `linear-gradient(160deg, ${tierColor}2e, ${t.PAPER2} 60%)`, padding: 14 }}>
                 {/* hero row — facet avatar (real photo when available) + name + tier */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {Facet ? <Facet size={50} c={tierColor} initial={cotw.init || (cotw.name ? cotw.name[0] : '?')} photo={coachPhoto(cotw)} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={cotw} size={50} />}
+                  {Facet ? <Facet size={50} c={tierColor} initial={mktInitials(cotw.name)} photo={coachPhoto(cotw)} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={cotw} size={50} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cotw.name}</div>
                     <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name} · {isN ? 'Nutritionist' : 'Trainer'} · {mktShortLoc(cotw.loc)}</div>
