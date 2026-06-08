@@ -3245,6 +3245,15 @@ async function getUserAvatars(ids) {
 }
 window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars };
 
+// Progress hub — the same rollups the website Progress / Train / Nutrition pages
+// read (KPIs, trend series, PRs, volume, macros). Each returns null on no-data so
+// the mobile screen can fall back to its demo shape.
+async function getClientProgress() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/progress`, null, (d) => (d && d.ok ? d : null)); }
+async function getClientAnalytics() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/analytics`, null, (d) => (d && d.has_data ? d : null)); }
+async function getClientTrain() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/train`, null, (d) => (d && d.ok ? d : null)); }
+async function getClientNutrition() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/nutrition`, null, (d) => (d && d.ok ? d : null)); }
+window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
+
 // Follower / following graph (public profiles). stats → counts + my state;
 // toggle → follow/unfollow; list → the followers/following names.
 async function getFollowStats(userId) {

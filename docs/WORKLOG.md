@@ -55,6 +55,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-08 — Progress hub on app (Overall / Training / Nutrition) — website data → app
+- **Mobile `BSClientProgress` rebuilt as a 3-tab hub** mirroring the website's
+  Progress / Train / Nutrition pages, reached from **Me → "Progress & PRs"** (and the
+  score card). Tabs:
+  - **Overall** — KPI grid (bodyweight Δ, body fat, resting HR, sleep), an Insights
+    block (adherence + weekly points), a **trend chart** with 9 series pills (weight /
+    body fat / strength / resting HR / sleep / HRV / volume / protein / hydration), and
+    **personal records**. From `/api/client/progress` + `/api/client/analytics`.
+  - **Training** — KPIs (logged, this week, 7d volume, avg RPE), weekly-focus banner,
+    14-day volume bars, PRs with Δ%, muscle-group split, recent sessions. From
+    `/api/client/train`.
+  - **Nutrition** — today vs target macro bars, days-logged/adherent KPIs, weekly
+    calorie bars, hydration, most-logged foods. From `/api/client/nutrition`.
+- `shapeBackend.js`: `ShapeProgress = { progress, analytics, train, nutrition }`
+  (auth'd `getJsonOrDefault` fetches; null on no-data → demo fallback).
+- No migration (read-only rollup routes already existed for the website). The old
+  Overall-only progress page is retained as `BSClientProgressLegacy` (unreferenced).
+
 ### 2026-06-08 — Chat bubbles carry the sender's tier color (mobile + website)
 - **Mobile** (`BSChatThread`): DM/channel message bubbles are now tinted to the
   sender's **tier color** — incoming = their tier, mine = my tier — for both members

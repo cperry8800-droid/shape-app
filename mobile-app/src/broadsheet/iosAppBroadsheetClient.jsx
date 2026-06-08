@@ -9251,7 +9251,9 @@ function _bsStepBtn(t) {
   return { width: 46, height: 46, borderRadius: 12, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, lineHeight: 1, cursor: 'pointer', flexShrink: 0 };
 }
 
-function BSClientProgress({ onBack }) {
+// Superseded by the 3-tab Progress hub (Overall / Training / Nutrition) below.
+// Kept temporarily as reference; not referenced anywhere.
+function BSClientProgressLegacy({ onBack }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
   const [data, setData] = useStateBSC(null);
@@ -14113,6 +14115,311 @@ async function bsStartPlatformCheckout() {
 
 // About — the marketing "About" page, adapted to the broadsheet (mirrors the
 // website /newdesign/About).
+// ── Progress hub (mirrors the website Progress / Train / Nutrition pages) ─────
+// One screen, three tabs — Overall / Training / Nutrition — fed by the same
+// rollups the website reads (/api/client/progress, /train, /nutrition,
+// /analytics). Live when signed in with data; demo shape otherwise.
+const BSPROG_DEMO = {
+  overall: {
+    kpis: { weightChange: -13, weightLatest: 171, bodyFatLatest: 22.1, bodyFatFirst: 26.4, restingHr: 58, restingHrDelta: -6, sleepAvg: 7.4 },
+    prs: [
+      { move: 'Back squat', best: 265, bestReps: 5, unit: 'lb', bestAt: '2026-04-16' },
+      { move: 'Deadlift', best: 345, bestReps: 2, unit: 'lb', bestAt: '2026-04-14' },
+      { move: 'Bench press', best: 200, bestReps: 3, unit: 'lb', bestAt: '2026-04-09' },
+      { move: 'Overhead press', best: 135, bestReps: 5, unit: 'lb', bestAt: '2026-04-02' },
+    ],
+    series: {
+      weight: [184, 183, 184, 182, 181, 181, 180, 179, 178, 178, 177, 177, 176, 175, 176, 174, 173, 173, 172, 171],
+      bodyFat: [26.4, 26.2, 26, 25.8, 25.6, 25.3, 25.1, 24.8, 24.6, 24.4, 24.1, 23.8, 23.6, 23.3, 23, 22.8, 22.6, 22.4, 22.2, 22.1],
+      strength: [205, 210, 215, 215, 225, 225, 230, 235, 235, 240, 245, 245, 250, 255, 255, 260, 260, 260, 265, 265],
+      restingHr: [64, 63, 64, 62, 62, 61, 61, 60, 61, 60, 59, 59, 60, 59, 58, 59, 58, 58, 57, 58],
+      sleep: [6.4, 6.8, 7, 6.6, 7.2, 7.4, 7.1, 7.5, 7, 7.3, 7.6, 7.2, 7.4, 7.5, 7.2, 7.6, 7.3, 7.5, 7.4, 7.5],
+      hrv: [42, 44, 43, 46, 48, 47, 49, 52, 50, 53, 55, 54, 56, 58, 57, 59, 60, 58, 61, 62],
+      volume: [180, 195, 205, 210, 225, 200, 230, 240, 250, 235, 255, 260, 270, 255, 280, 275, 290, 285, 300, 295],
+      protein: [142, 138, 156, 148, 160, 164, 158, 168, 172, 165, 170, 175, 168, 180, 172, 178, 184, 175, 182, 185],
+      hydration: [2.1, 2.4, 2.2, 2.6, 2.5, 2.7, 2.3, 2.8, 2.6, 2.9, 2.7, 3, 2.8, 3.1, 2.9, 3, 2.8, 3.1, 2.9, 3],
+    },
+  },
+  train: {
+    stats: { completedCount: 42, thisWeekCount: 3, volume7dLb: 9120, avgRpe: 7.6, currentStreak: 14, longestStreak: 22, totalVolumeLb: 38450 },
+    prs: [
+      { lift: 'Back Squat', value: 285, unit: 'lb', prev: 275, deltaPct: 3.6 },
+      { lift: 'Bench Press', value: 205, unit: 'lb', prev: 195, deltaPct: 5.1 },
+      { lift: 'Deadlift', value: 365, unit: 'lb', prev: 350, deltaPct: 4.3 },
+      { lift: 'Overhead Press', value: 135, unit: 'lb', prev: 125, deltaPct: 8 },
+    ],
+    volumeByDay: [2400, 0, 3120, 4100, 0, 3890, 0, 2680, 2860, 0, 4280, 0, 3140, 0],
+    muscleSplit: [
+      { name: 'Quads', pct: 22, color: '#34d6c5' }, { name: 'Back', pct: 21, color: '#e07856' },
+      { name: 'Chest', pct: 17, color: '#f4b860' }, { name: 'Hamstrings', pct: 14, color: '#7ed4ff' },
+      { name: 'Shoulders', pct: 12, color: '#b390f5' }, { name: 'Arms', pct: 9, color: '#f582a0' }, { name: 'Core', pct: 5, color: '#a3e09a' },
+    ],
+    recentSessions: [
+      { title: 'Upper push', durationMin: 48, volumeLb: 3140, avgRpe: 7.5, exercises: 6, prCount: 0, focus: 'Bench, OHP' },
+      { title: 'Lower power', durationMin: 54, volumeLb: 4280, avgRpe: 8.2, exercises: 5, prCount: 1, focus: 'Squat, deadlift' },
+      { title: 'Upper pull', durationMin: 46, volumeLb: 2860, avgRpe: 7.1, exercises: 6, prCount: 0, focus: 'Row, pull-up' },
+    ],
+    weeklyFocus: { block: 'Hypertrophy — Block 3 of 4', week: 'Week 2 of 4', primary: 'Lower strength volume', note: 'Push 185 today, deload next week.', coach: 'Marcus' },
+  },
+  nutri: {
+    today: { calories: 1530, protein: 112, carbs: 158, fat: 42 },
+    targets: { calories: 2200, protein: 175, carbs: 240, fat: 70 },
+    week: [
+      { calories: 2210, logged: true, adherent: true }, { calories: 2340, logged: true, adherent: true }, { calories: 1980, logged: true, adherent: false },
+      { calories: 2410, logged: true, adherent: true }, { calories: null, logged: false, adherent: false }, { calories: 2280, logged: true, adherent: true }, { calories: 1530, logged: true, adherent: false },
+    ],
+    loggedDays7: 6, adherentDays7: 4, currentStreak: 4, longestStreak: 11,
+    topFoods: [
+      { name: 'Greek yogurt', count: 6 }, { name: 'Chicken breast', count: 5 }, { name: 'Brown rice', count: 5 },
+      { name: 'Protein shake', count: 5 }, { name: 'Eggs (2)', count: 4 }, { name: 'Avocado (½)', count: 4 },
+    ],
+    hydration7d: [1.4, 2.6, 2.2, 3.1, 0, 2.8, 1.8],
+  },
+};
+const BSPROG_TREND_TABS = [
+  { k: 'weight', label: 'Weight', unit: 'lb', color: '#34d6c5', fmt: (v) => Math.round(v) },
+  { k: 'bodyFat', label: 'Body fat', unit: '%', color: '#7ed4ff', fmt: (v) => v.toFixed(1) },
+  { k: 'strength', label: 'Strength', unit: 'lb', color: '#e8b14a', fmt: (v) => Math.round(v) },
+  { k: 'restingHr', label: 'Resting HR', unit: 'bpm', color: '#d2693f', fmt: (v) => Math.round(v) },
+  { k: 'sleep', label: 'Sleep', unit: 'h', color: '#a86bc4', fmt: (v) => v.toFixed(1) },
+  { k: 'hrv', label: 'HRV', unit: 'ms', color: '#9be3a8', fmt: (v) => Math.round(v) },
+  { k: 'volume', label: 'Volume', unit: 'min', color: '#f5a0c8', fmt: (v) => Math.round(v) },
+  { k: 'protein', label: 'Protein', unit: 'g', color: '#ffb46b', fmt: (v) => Math.round(v) },
+  { k: 'hydration', label: 'Hydration', unit: 'L', color: '#6ec8ff', fmt: (v) => v.toFixed(1) },
+];
+function bsProgSeriesVals(s) { return (Array.isArray(s) ? s : []).map((x) => (x && typeof x === 'object' ? x.value : x)).filter((v) => Number.isFinite(Number(v))).map(Number); }
+function BSProgChart({ points, color, h = 150 }) {
+  const t = useBS();
+  const vals = bsProgSeriesVals(points);
+  if (vals.length < 2) return <div style={{ padding: '40px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Not enough data yet.</div>;
+  const W = 320, H = h, pad = 14, mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length;
+  const pts = vals.map((v, i) => [pad + (i / (n - 1)) * (W - pad * 2), H - pad - ((v - mn) / span) * (H - pad * 2)]);
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[n - 1][0].toFixed(1)},${H - pad} L${pts[0][0].toFixed(1)},${H - pad} Z`;
+  const gid = `bsprog-${color.replace('#', '')}`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      <defs><linearGradient id={gid} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.26" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
+      {[0, 0.5, 1].map((g) => <line key={g} x1={pad} x2={W - pad} y1={pad + g * (H - pad * 2)} y2={pad + g * (H - pad * 2)} stroke={t.HAIR} strokeWidth="1" />)}
+      <path d={area} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+function BSClientProgress({ onBack, initialTab = 'overall' }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [tab, setTab] = useStateBSC(initialTab);
+  const [prog, setProg] = useStateBSC(null);
+  const [ana, setAna] = useStateBSC(null);
+  const [train, setTrain] = useStateBSC(null);
+  const [nutri, setNutri] = useStateBSC(null);
+  const [trend, setTrend] = useStateBSC('weight');
+  React.useEffect(() => {
+    let on = true;
+    window.ShapeProgress?.progress?.().then((d) => { if (on && d) setProg(d); }).catch(() => {});
+    window.ShapeProgress?.analytics?.().then((d) => { if (on && d) setAna(d); }).catch(() => {});
+    window.ShapeProgress?.train?.().then((d) => { if (on && d) setTrain(d); }).catch(() => {});
+    window.ShapeProgress?.nutrition?.().then((d) => { if (on && d) setNutri(d); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const O = { ...BSPROG_DEMO.overall, ...(prog || {}), series: { ...BSPROG_DEMO.overall.series, ...((prog && prog.series) || {}) }, kpis: { ...BSPROG_DEMO.overall.kpis, ...((prog && prog.kpis) || {}) } };
+  const TR = { ...BSPROG_DEMO.train, ...(train || {}), stats: { ...BSPROG_DEMO.train.stats, ...((train && train.stats) || {}) } };
+  const NU = { ...BSPROG_DEMO.nutri, ...(nutri || {}), targets: { ...BSPROG_DEMO.nutri.targets, ...((nutri && nutri.targets) || {}) }, today: { ...BSPROG_DEMO.nutri.today, ...((nutri && nutri.today) || {}) } };
+
+  const card = { borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent', padding: 14 };
+  const Eyebrow = ({ children }) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 10 }}>{children}</div>;
+  const kpiGrid = (cards) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+      {cards.map((c, i) => (
+        <div key={i} style={card}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>{c.k}</div>
+          <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK70, marginTop: 8 }}>{c.l}</div>
+          {c.sub && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{c.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ---------- OVERALL ----------
+  const kpis = O.kpis || {};
+  const wc = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v)) + ' lb';
+  const activeTrend = BSPROG_TREND_TABS.find((x) => x.k === trend) || BSPROG_TREND_TABS[0];
+  const trendVals = bsProgSeriesVals(O.series[activeTrend.k]);
+  const latest = trendVals.length ? trendVals[trendVals.length - 1] : null;
+  const first = trendVals.length ? trendVals[0] : null;
+  const delta = latest != null && first != null ? latest - first : null;
+  const overallView = (
+    <div>
+      {kpiGrid([
+        { k: wc(kpis.weightChange), l: 'Bodyweight change', sub: kpis.weightLatest != null ? `now ${Math.round(kpis.weightLatest)} lb` : null },
+        { k: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', l: 'Body fat', sub: kpis.bodyFatFirst != null ? `from ${kpis.bodyFatFirst.toFixed(1)}%` : null },
+        { k: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', l: 'Resting HR', sub: kpis.restingHrDelta != null ? `${kpis.restingHrDelta > 0 ? '+' : kpis.restingHrDelta < 0 ? '−' : ''}${Math.abs(kpis.restingHrDelta)} vs prior wk` : null },
+        { k: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', l: 'Sleep', sub: '30-day avg' },
+      ])}
+      {ana && ana.kpis && (
+        <div style={{ ...card, marginBottom: 18 }}>
+          <Eyebrow>Insights · this week</Eyebrow>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {[[`${ana.kpis.workout_adherence_pct}%`, 'Workout adherence'], [`${ana.kpis.macro_adherence_pct}%`, 'Macro adherence'], [ana.kpis.avg_sleep_label, 'Avg sleep'], [`${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}`, 'Weekly points']].map((m, i) => (
+              <div key={i}><div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{m[0]}</div><div style={{ fontFamily: t.BODY, fontSize: 10.5, color: t.INK50, marginTop: 5 }}>{m[1]}</div></div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Trends</Eyebrow>
+        <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 12 }}>
+          {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${on ? activeTrend.color : t.RULE}`, background: on ? `${x.color}1f` : 'transparent', color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{x.label}</button>; })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+          <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{activeTrend.label}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginLeft: 6 }}>{activeTrend.unit}</span></div>
+          {latest != null && <div style={{ textAlign: 'right' }}><span style={{ fontFamily: t.DISPLAY, fontSize: 22, color: activeTrend.color, letterSpacing: '-0.02em' }}>{activeTrend.fmt(latest)}</span><div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2 }}>{delta == null ? '' : `${delta > 0 ? '+' : delta < 0 ? '−' : ''}${activeTrend.fmt(Math.abs(delta))} since start`}</div></div>}
+        </div>
+        <BSProgChart points={trendVals} color={activeTrend.color} />
+      </div>
+      <div style={card}>
+        <Eyebrow>Personal records · from your sets</Eyebrow>
+        {(O.prs || []).map((p, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{p.move}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, letterSpacing: '-0.01em' }}>{Math.round(p.best)} {p.unit}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>{p.bestReps != null ? '× ' + p.bestReps : ''}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ---------- TRAINING ----------
+  const ts = TR.stats || {};
+  const volDays = (TR.volumeByDay || []).map((d) => (d && typeof d === 'object' ? d.v : d)).map(Number);
+  const maxVol = Math.max(1, ...volDays);
+  const trainingView = (
+    <div>
+      {kpiGrid([
+        { k: String(ts.completedCount ?? 0), l: 'Workouts logged' },
+        { k: String(ts.thisWeekCount ?? 0), l: 'This week' },
+        { k: ((ts.volume7dLb ?? 0) / 1000).toFixed(1) + 'k', l: 'Volume 7d (lb)' },
+        { k: ts.avgRpe != null ? String(ts.avgRpe) : '—', l: 'Avg RPE' },
+      ])}
+      {TR.weeklyFocus && (
+        <div style={{ ...card, marginBottom: 18, borderColor: `${teal}44`, background: `${teal}10` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: teal, marginBottom: 6 }}>THIS WEEK · {String(TR.weeklyFocus.week || '').toUpperCase()}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginBottom: 6 }}>{TR.weeklyFocus.primary}</div>
+          <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{TR.weeklyFocus.note}</div>
+        </div>
+      )}
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Volume trend · 14 days</Eyebrow>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 110 }}>
+          {volDays.map((v, i) => { const hgt = v ? Math.max(6, (v / maxVol) * 100) : 3; const today = i === volDays.length - 1; return <div key={i} style={{ flex: 1, height: `${hgt}%`, minHeight: 3, borderRadius: 3, background: v ? (today ? teal : `${teal}88`) : t.HAIR }} />; })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+          {[['Streak', `${ts.currentStreak ?? 0}d`], ['Total vol', `${((ts.totalVolumeLb || 0) / 1000).toFixed(1)}k`], ['Avg RPE', String(ts.avgRpe ?? '—')]].map((m, i) => (
+            <div key={i}><div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m[0]}</div><div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, marginTop: 3 }}>{m[1]}</div></div>
+          ))}
+        </div>
+      </div>
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Personal records</Eyebrow>
+        {(TR.prs || []).map((p, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div><div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{p.lift}</div><div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2 }}>was {p.prev}{p.unit}</div></div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{p.value}<span style={{ fontSize: 10, color: t.INK50 }}>{p.unit}</span></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: teal, border: `1px solid ${teal}66`, borderRadius: 999, padding: '3px 8px' }}>+{Number(p.deltaPct).toFixed(1)}%</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Muscle split · 14 days</Eyebrow>
+        <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', marginBottom: 14 }}>
+          {(TR.muscleSplit || []).map((m, i) => <div key={i} style={{ width: m.pct + '%', background: m.color }} />)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+          {(TR.muscleSplit || []).map((m, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: m.color, flexShrink: 0 }} /><span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{m.name}</span><span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginLeft: 'auto' }}>{m.pct}%</span></div>
+          ))}
+        </div>
+      </div>
+      <div style={card}>
+        <Eyebrow>Recent sessions</Eyebrow>
+        {(TR.recentSessions || []).map((s, i) => (
+          <div key={i} style={{ padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{s.title}</span>{s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: teal, border: `1px solid ${teal}66`, borderRadius: 3, padding: '1px 5px' }}>PR ×{s.prCount}</span>}</div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{(s.volumeLb / 1000).toFixed(1)}k lb</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ---------- NUTRITION ----------
+  const today = NU.today || {}, targets = NU.targets || {};
+  const macroBar = (label, color, cur, tgt) => { const pct = tgt ? Math.min(100, Math.round((cur / tgt) * 100)) : 0; return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}><span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK }}>{label}</span><span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{cur != null ? Math.round(cur) : '—'}{tgt ? ` / ${Math.round(tgt)}` : ''}</span></div>
+      <div style={{ height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 999 }} /></div>
+    </div>
+  ); };
+  const wk = NU.week || []; const maxCal = Math.max(1, ...wk.map((d) => d.calories || 0), targets.calories || 0);
+  const maxHyd = Math.max(1, ...(NU.hydration7d || []), 3);
+  const nutritionView = (
+    <div>
+      {kpiGrid([
+        { k: today.calories ? today.calories.toLocaleString() : '—', l: 'Calories today', sub: targets.calories ? `of ${targets.calories.toLocaleString()}` : null },
+        { k: today.protein != null ? today.protein + 'g' : '—', l: 'Protein', sub: targets.protein ? `of ${targets.protein}g` : null },
+        { k: `${NU.loggedDays7 || 0}/7`, l: 'Days logged', sub: 'this week' },
+        { k: `${NU.adherentDays7 || 0}/7`, l: 'Adherent days', sub: 'macros hit' },
+      ])}
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Today vs target</Eyebrow>
+        {macroBar('Calories', teal, today.calories, targets.calories)}
+        {macroBar('Protein', '#e8b14a', today.protein, targets.protein)}
+        {macroBar('Carbs', '#7ed4ff', today.carbs, targets.carbs)}
+        {macroBar('Fat', '#f582a0', today.fat, targets.fat)}
+      </div>
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Calories · this week</Eyebrow>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+          {wk.map((d, i) => { const hgt = d.calories ? Math.max(6, (d.calories / maxCal) * 100) : 3; return <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, justifyContent: 'flex-end', height: '100%' }}><div style={{ width: '100%', height: `${hgt}%`, minHeight: 3, borderRadius: 3, background: d.logged ? (d.adherent ? teal : `${teal}66`) : t.HAIR }} /><span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i] || ''}</span></div>; })}
+        </div>
+      </div>
+      <div style={{ ...card, marginBottom: 18 }}>
+        <Eyebrow>Hydration · 7 days (L)</Eyebrow>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 70 }}>
+          {(NU.hydration7d || []).map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(4, (v / maxHyd) * 100)}%`, minHeight: 3, borderRadius: 3, background: v ? '#6ec8ff' : t.HAIR }} />)}
+        </div>
+      </div>
+      <div style={card}>
+        <Eyebrow>Most-logged foods</Eyebrow>
+        {(NU.topFoods || []).map((f, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <span style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK }}>{f.name}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{f.count}× {f.avgKcal ? `· ~${f.avgKcal} kcal` : ''}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const TABS = [['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Strength · body · recovery" kicker="Your progress" title={<>Progress.</>} />
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {TABS.map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 999, cursor: 'pointer', border: on ? 0 : `1px solid ${t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>; })}
+        </div>
+      </div>
+      <div style={{ padding: `18px ${t.padX}px 28px` }}>
+        {tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView}
+      </div>
+      <BSFooter right="Progress" />
+    </BSPage>
+  );
+}
+
 function BSAboutPage({ onBack }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
