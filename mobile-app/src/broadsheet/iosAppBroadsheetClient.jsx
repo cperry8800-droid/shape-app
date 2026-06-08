@@ -7144,6 +7144,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [offerTab, setOfferTab] = useStateBSC('All');
+  // Real published catalogue (coach_plans) for this coach, keyed by their user id.
+  const [salePlans, setSalePlans] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!person.userId || !window.ShapeCoachPlans?.salePlansByUser) { setSalePlans([]); return; }
+    let on = true;
+    window.ShapeCoachPlans.salePlansByUser(person.userId).then((r) => { if (on) setSalePlans(r || []); }).catch(() => { if (on) setSalePlans([]); });
+    return () => { on = false; };
+  }, [person.userId]);
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
@@ -7170,7 +7178,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // Offerings, categorised so the Coaching tab can sub-tab them (like the website
   // catalogue): trainers → Workouts / Programs / Coaching; nutritionists →
   // Meals / Diets / Coaching. Each row: [cat, kind, name, sub, price].
-  const offerings = isNutri
+  const demoOfferings = isNutri
     ? [
         ['Meals', 'Meal plan', 'Custom meal plan', '2 weeks, built to your macros', '$60'],
         ['Meals', 'Meal plan', 'Single-week reset', 'A 7-day plan + grocery list', '$35'],
@@ -7187,6 +7195,21 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         ['Coaching', 'Coaching', 'Monthly coaching', 'Full programming + daily chat', '$180/mo'],
         ['Coaching', 'Consult', 'Intro call', '15 min — see if we’re a fit', 'Free'],
       ];
+  // When the coach has real published plans (coach_plans), build the catalogue
+  // from them; otherwise fall back to the demo offerings.
+  const offerBucket = (cat) => {
+    const cc = String(cat || '').toLowerCase();
+    if (isNutri) return /meal/.test(cc) ? 'Meals' : /diet|cut|recomp|nutrition/.test(cc) ? 'Diets' : 'Coaching';
+    return /workout|single|session|form/.test(cc) ? 'Workouts' : /program|block|strength|hypertrophy|peak/.test(cc) ? 'Programs' : 'Coaching';
+  };
+  const realOfferings = (salePlans || []).map((pl) => [
+    offerBucket(pl.category),
+    String(pl.category || (pl.kind === 'meal_plan' ? 'meal plan' : 'program')).replace(/_/g, ' '),
+    pl.name,
+    pl.meta || '',
+    pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : 'Listed',
+  ]);
+  const offerings = realOfferings.length ? realOfferings : demoOfferings;
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
   const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
   const rating = isNutri ? '4.95' : '4.97', reviewCount = isNutri ? 198 : 284;

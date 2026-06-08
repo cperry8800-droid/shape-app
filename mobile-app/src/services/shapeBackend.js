@@ -3176,6 +3176,14 @@ async function listSalePlans(providerRole, providerId) {
   if (error) return [];
   return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program') }));
 }
+// Same as listSalePlans but keyed by the coach's auth user id (the Signal
+// public profile only has the user id, not a marketplace provider-row id).
+async function listSalePlansByUser(userId) {
+  if (!supabase || !userId) return [];
+  const { data, error } = await supabase.rpc('get_coach_sale_plans_by_user', { p_user_id: userId });
+  if (error) return [];
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program') }));
+}
 async function listPurchasedPlans() {
   if (!supabase || !state.user?.id) return [];
   const { data, error } = await supabase.rpc('get_my_purchased_plans');
@@ -3197,7 +3205,7 @@ async function buyCoachPlan({ plan, providerRole, providerId } = {}) {
   if (!res.ok || !d.url) throw new Error(d.error || 'Could not start checkout.');
   return d.url;
 }
-window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, purchased: listPurchasedPlans, buy: buyCoachPlan };
+window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, salePlansByUser: listSalePlansByUser, purchased: listPurchasedPlans, buy: buyCoachPlan };
 
 // Weigh-ins — the live body-comp series (client_weigh_ins). One row per day
 // (upsert), owned by the client; a linked coach reads them via get_client_goals.
