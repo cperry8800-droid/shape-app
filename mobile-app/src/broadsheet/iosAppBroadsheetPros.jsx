@@ -1044,6 +1044,43 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
     return () => { cancelled = true; };
   }, []);
 
+  // Real schedule — the coach's own calendar events for the visible week
+  // (ShapeCalendar). Keyed by YYYY-MM-DD; used when signed in + has events, else demo.
+  const _pad2 = (n) => String(n).padStart(2, '0');
+  const _ds = (d) => `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
+  const [realByDate, setRealByDate] = useStateBSP(null);
+  React.useEffect(() => {
+    if (!window.ShapeCalendar?.list) return undefined;
+    let on = true;
+    const wk = bsProWeek().dates;
+    const tagFor = (kind) => {
+      const k = String(kind || '').toUpperCase();
+      if (k === 'CONSULT' || k === 'CON') return ['CONS', t.RUST];
+      if (k === 'CHECKIN' || k === 'CHK') return ['CHK', t.GREEN];
+      if (k === 'REVIEW') return ['ASYN', t.BLUE];
+      if (k === 'PLAN' || k === 'PROGRAM' || k === 'PRGM') return ['PRGM', t.AMBER];
+      if (k === 'ADMIN' || k === 'ADM') return ['ADM', t.INK50];
+      return ['LIVE', t.RUST];
+    };
+    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]) }).then((r) => {
+      if (!on) return;
+      const evs = (r && Array.isArray(r.events)) ? r.events : [];
+      const byDate = {};
+      evs.slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))).forEach((ev) => {
+        if (!ev.date) return;
+        const [tg, tc] = tagFor(ev.kind);
+        (byDate[ev.date] = byDate[ev.date] || []).push({
+          time: ev.time || '—', tag: tg, tagColor: tc,
+          title: ev.title || 'Session',
+          sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
+          state: ev.status === 'done' ? 'done' : undefined,
+        });
+      });
+      Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
+      setRealByDate(byDate);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, []);
   // Per-day bookings dataset. May 14 (today) is the full roster; other days lighter.
   const TRAINER_BOOKINGS = {
     20: [
@@ -1087,7 +1124,10 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   const selDate = dates[selIdx];
   const isToday = selIdx === todayIdx;
   const dataDay = dataByIdx[selIdx];
-  const bookings = TRAINER_BOOKINGS[dataDay] || [];
+  // Live when the coach has any real calendar events this week (empty days show
+  // empty); demo roster in preview / before any sessions are booked.
+  const hasReal = realByDate && Object.values(realByDate).some((l) => l && l.length);
+  const bookings = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (TRAINER_BOOKINGS[dataDay] || []);
 
   // Per-day lead. selDay 14 = today's narrative.
   const TRAINER_LEAD = {
@@ -1146,7 +1186,9 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         goCalendar={goCalendar}
         selDay={selDay}
         onSelectDay={setSelDay}
-        dots={dataByIdx.map(dd => ({
+        dots={hasReal
+          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
+          : dataByIdx.map(dd => ({
           20: [t.RUST, t.RUST, t.BLUE],
           21: [t.RUST, t.RUST, t.RUST],
           22: [t.AMBER, t.GREEN],
@@ -3323,6 +3365,41 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       { time: '09:00', tag: 'INTK', tagColor: t.GREEN, title: 'Open hours', sub: 'Drop-in consults', last: true },
     ],
   };
+  // Real schedule from the nutritionist's own calendar (ShapeCalendar).
+  const _pad2 = (n) => String(n).padStart(2, '0');
+  const _ds = (d) => `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
+  const [realByDate, setRealByDate] = useStateBSP(null);
+  React.useEffect(() => {
+    if (!window.ShapeCalendar?.list) return undefined;
+    let on = true;
+    const wk = bsProWeek().dates;
+    const tagFor = (kind) => {
+      const k = String(kind || '').toUpperCase();
+      if (k === 'CHECKIN' || k === 'CHK') return ['CHK', t.GREEN];
+      if (k === 'REVIEW') return ['F/U', t.BLUE];
+      if (k === 'PLAN' || k === 'PROGRAM' || k === 'PRGM') return ['PLAN', t.AMBER];
+      if (k === 'ADMIN' || k === 'ADM') return ['ADM', t.INK50];
+      return ['CONS', t.RUST];
+    };
+    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]) }).then((r) => {
+      if (!on) return;
+      const evs = (r && Array.isArray(r.events)) ? r.events : [];
+      const byDate = {};
+      evs.slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))).forEach((ev) => {
+        if (!ev.date) return;
+        const [tg, tc] = tagFor(ev.kind);
+        (byDate[ev.date] = byDate[ev.date] || []).push({
+          time: ev.time || '—', tag: tg, tagColor: tc,
+          title: ev.title || 'Consult',
+          sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
+          state: ev.status === 'done' ? 'done' : undefined,
+        });
+      });
+      Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
+      setRealByDate(byDate);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, []);
   const { todayIdx, dates } = bsProWeek();
   const dataFor = (off) => off === 0 ? 22 : off > 0 ? [23, 24, 21][Math.min(off - 1, 2)] : [20, 25, 26][Math.min(-off - 1, 2)];
   const dataByIdx = dates.map((_, i) => dataFor(i - todayIdx));
@@ -3330,7 +3407,8 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
   const selDate = dates[selIdx];
   const isToday = selIdx === todayIdx;
   const dataDay = dataByIdx[selIdx];
-  const schedule = NUTRI_SCHEDULE[dataDay] || [];
+  const hasReal = realByDate && Object.values(realByDate).some((l) => l && l.length);
+  const schedule = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (NUTRI_SCHEDULE[dataDay] || []);
 
   // Per-day lead narrative.
   const NUTRI_LEAD = {
@@ -3390,7 +3468,9 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         goCalendar={goCalendar}
         selDay={selDay}
         onSelectDay={setSelDay}
-        dots={dataByIdx.map(dd => ({
+        dots={hasReal
+          ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
+          : dataByIdx.map(dd => ({
           20: [t.BLUE, t.BLUE],
           21: [t.GREEN, t.BLUE, t.BLUE],
           22: [t.BLUE],
