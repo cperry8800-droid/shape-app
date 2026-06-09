@@ -6558,6 +6558,40 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
 // Is this a directly-playable video file (vs. an external watch link)?
 function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
 function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
+function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
+// Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
+// shared by the member (Terrain) and coach (Signal) profile feeds so both render
+// the same rich types.
+function bsMapActivityPosts(data) {
+  const KMAP = { note: 'Note', article: 'Article', photo: 'Photo', video: 'Video', workout: 'Workout', link: 'Link' };
+  const GENERIC = { Photo: 1, Video: 1, Link: 1, Note: 1, Workout: 1, Article: 1 };
+  return (Array.isArray(data) ? data : []).map((p) => {
+    const kind = p.kind || (p.video ? 'video' : p.link ? 'link' : p.photo ? 'photo' : 'note');
+    const rawTitle = String(p.status || '').trim();
+    const t = (rawTitle && !GENERIC[rawTitle]) ? rawTitle : '';
+    return { k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false };
+  });
+}
+// The body of an activity card (title · body · photo · inline video / video+link
+// cards · workout stats · metric) — shared by both profile feeds.
+function BSActivityBody({ it, c, INK, card }) {
+  const tt = useBS();
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const TEAL = tt.isLight ? '#0a8f87' : '#34d6c5';
+  return (
+    <>
+      {it.t && <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9, color: INK }}>{it.t}</div>}
+      {it.b && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{it.b}</p>}
+      {it.photo && <img src={it.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: it.t || it.b ? 10 : 6 }} />}
+      {it.video && (bsIsDirectVideoUrl(it.video)
+        ? <video src={it.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: it.t || it.b ? 10 : 6, background: '#000' }} />
+        : <a href={it.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', ...card, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: bsTHexA(c, 0.18), color: c, display: 'grid', placeItems: 'center', fontSize: 12 }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: SANS, fontSize: 13, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5) }}>{bsLinkHost(it.video)} ↗</span></span></a>)}
+      {it.link && <a href={it.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', ...card, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: bsTHexA(c, 0.18), color: c, display: 'grid', placeItems: 'center', fontSize: 13 }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: SANS, fontWeight: 600, fontSize: 13, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.link.title || bsLinkHost(it.link.url)}</span><span style={{ display: 'block', fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5) }}>{bsLinkHost(it.link.url)} ↗</span></span></a>}
+      {it.stats && it.stats.length > 0 && <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>{it.stats.map((s, si) => <div key={si} style={{ flex: 1, ...card, borderRadius: 11, padding: '9px 6px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.02em', color: INK }}>{s.v}</div><div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 3 }}>{s.l}</div></div>)}</div>}
+      {it.metric && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}><div style={{ flex: 1, height: 1, background: bsTHexA(INK, 0.12) }} /><span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{it.metric[0]}</span><span style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: it.hot ? TEAL : INK }}>{it.metric[1]}</span></div>}
+    </>
+  );
+}
 
 // "Log activity" composer — a Substack-style multi-type publisher on your own
 // Terrain profile. Pick a type (Note / Photo / Video / Workout / Link), fill it
@@ -6575,6 +6609,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
   const [woA, setWoA] = useStateBSC(''), [woB, setWoB] = useStateBSC(''), [woC, setWoC] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
   const [upBusy, setUpBusy] = useStateBSC(false);
+  const [pub, setPub] = useStateBSC(true); // Public (feed + profile) vs Just me (profile only)
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
 
   const TYPES = [
@@ -6614,7 +6649,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
     if (!canPost) return;
     setBusy(true);
     try {
-      const base = { channel: 'COMMUNITY', privacy: 'public' };
+      const base = { channel: 'COMMUNITY', privacy: pub ? 'public' : 'private' };
       let payload;
       if (kind === 'note') payload = { ...base, title: title.trim() || 'Note', note: body.trim(), metrics: { kind: 'note' } };
       else if (kind === 'photo') payload = { ...base, title: title.trim() || 'Photo', note: body.trim(), photoUrl, metrics: { kind: 'photo' } };
@@ -6707,7 +6742,20 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
           </div>
         </div>
 
-        <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 16, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
+        {/* Visibility — Public (feed + profile) vs Just me (profile only) */}
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <span style={label}>Visibility</span>
+            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5), marginTop: -2 }}>{pub ? 'Shows on your profile + the community feed' : 'Shows on your profile only — not in the feed'}</div>
+          </div>
+          <div style={{ display: 'flex', flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
+            {[['Public', true], ['Just me', false]].map(([lab, val]) => { const on = pub === val; return (
+              <button key={lab} onClick={() => setPub(val)} style={{ padding: '8px 13px', border: 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{lab}</button>
+            ); })}
+          </div>
+        </div>
+
+        <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 14, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
           <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? 'Publishing…' : 'Publish →'}</button>
         </div>
       </div>
@@ -7129,24 +7177,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const feedAuthorId = isSelf ? (person.userId || myId) : (person.userId || null);
   const [photoPosts, setPhotoPosts] = useStateBSC([]);
   const [showLog, setShowLog] = useStateBSC(false);
-  const agoShort = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
   // Profile activity feed — every "log activity" post the member published
-  // (note / photo / video / workout / link), newest first. Maps the rich types
-  // off community_posts.metrics (kind/video/link/workoutStats).
+  // (note / photo / video / workout / link), newest first.
   const loadPhotoPosts = React.useCallback(() => {
     if (!feedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
-    const KMAP = { note: 'Note', article: 'Article', photo: 'Photo', video: 'Video', workout: 'Workout', link: 'Link' };
-    const GENERIC = { Photo: 1, Video: 1, Link: 1, Note: 1, Workout: 1, Article: 1 };
     window.ShapeCommunity.listByAuthor(feedAuthorId, { withPhotoOnly: false })
-      .then((r) => {
-        const items = (r?.data || []).map((p) => {
-          const kind = p.kind || (p.video ? 'video' : p.link ? 'link' : p.photo ? 'photo' : 'note');
-          const rawTitle = String(p.status || '').trim();
-          const t = (rawTitle && !GENERIC[rawTitle]) ? rawTitle : '';
-          return { k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: agoShort(p.created_at), hot: false };
-        });
-        setPhotoPosts(items);
-      })
+      .then((r) => setPhotoPosts(bsMapActivityPosts(r?.data)))
       .catch(() => {});
   }, [feedAuthorId]);
   React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts]);
@@ -7486,15 +7522,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                     <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
                     <div style={{ ...card, padding: '13px 15px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
-                      {it.t && <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{it.t}</div>}
-                      {it.b && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{it.b}</p>}
-                      {it.photo && <img src={it.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: it.t || it.b ? 10 : 6 }} />}
-                      {it.video && (bsIsDirectVideoUrl(it.video)
-                        ? <video src={it.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: it.t || it.b ? 10 : 6, background: '#000' }} />
-                        : <a href={it.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', ...card, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: bsTHexA(c, 0.18), color: c, display: 'grid', placeItems: 'center', fontSize: 12 }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: SANS, fontSize: 13, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5) }}>{bsLinkHost(it.video)} ↗</span></span></a>)}
-                      {it.link && <a href={it.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', ...card, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: bsTHexA(c, 0.18), color: c, display: 'grid', placeItems: 'center', fontSize: 13 }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: SANS, fontWeight: 600, fontSize: 13, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.link.title || bsLinkHost(it.link.url)}</span><span style={{ display: 'block', fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5) }}>{bsLinkHost(it.link.url)} ↗</span></span></a>}
-                      {it.stats && it.stats.length > 0 && <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>{it.stats.map((s, si) => <div key={si} style={{ flex: 1, ...card, borderRadius: 11, padding: '9px 6px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.02em', color: INK }}>{s.v}</div><div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 3 }}>{s.l}</div></div>)}</div>}
-                      {it.metric && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}><div style={{ flex: 1, height: 1, background: bsTHexA(INK, 0.12) }} /><span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{it.metric[0]}</span><span style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: it.hot ? TEAL : INK }}>{it.metric[1]}</span></div>}
+                      <BSActivityBody it={it} c={c} INK={INK} card={card} />
                     </div>
                   </div>
                 ))}
@@ -7602,6 +7630,19 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const [custom, setCustom] = useStateBSC(null);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [ringLive, setRingLive] = useStateBSC(null);
+  const [showLog, setShowLog] = useStateBSC(false);
+  const [coachPosts, setCoachPosts] = useStateBSC([]);
+  const sigMyId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
+  const sigFeedAuthorId = isSelf ? (person.userId || sigMyId) : (person.userId || null);
+  // Coach's published activity feed (note/photo/video/workout/link) — same
+  // "log activity" composer + rich rendering as the member profile.
+  const loadCoachPosts = React.useCallback(() => {
+    if (!sigFeedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
+    window.ShapeCommunity.listByAuthor(sigFeedAuthorId, { withPhotoOnly: false })
+      .then((r) => setCoachPosts(bsMapActivityPosts(r?.data)))
+      .catch(() => {});
+  }, [sigFeedAuthorId]);
+  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts]);
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
@@ -7921,16 +7962,22 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           /* field notes */
           <div style={{ marginTop: 8 }}>
             <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: 'Tier', value: tierName }, rating: { label: 'Rating', value: rating }, reviews: { label: 'Reviews', value: reviewCount } }} />
-            <Kick>Personal activities</Kick>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <Kick>Personal activities</Kick>
+              {isSelf && (
+                <button onClick={() => setShowLog(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(c, 0.12), border: `1px solid ${bsTHexA(c, 0.45)}`, color: c, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  ＋ Log activity
+                </button>
+              )}
+            </div>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
-              {feed.map(([k, t2, b, time], i) => (
+              {[...coachPosts, ...feed.map(([k, t2, b, time]) => ({ k, t: t2, b, time }))].map((it, i) => (
                 <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
                   <div style={{ position: 'absolute', left: -22, top: 16, width: 9, height: 9, borderRadius: 999, background: c, boxShadow: `0 0 0 3px ${BG}, 0 0 10px ${bsTHexA(c, 0.6)}` }} />
                   <div style={{ ...card, padding: '13px 15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{time}</span></div>
-                    <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{t2}</div>
-                    <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0' }}>{b}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
+                    <BSActivityBody it={it} c={c} INK={INK} card={card} />
                   </div>
                 </div>
               ))}
@@ -7942,6 +7989,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       </div>
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -11049,8 +11097,8 @@ function BSClientGoals({ onBack }) {
   const headInfo = tab === 'overall'
     ? { eyebrow: `Your goal${byLabel ? ` · By ${byLabel}` : ''}`, title: overall.title, subtitle: '' }
     : tab === 'training'
-    ? { eyebrow: `Training goal${trainingMeta.coach ? ` · ${trainingMeta.coach}` : ''}`, title: trainingMeta.title, subtitle: trainingMeta.subtitle }
-    : { eyebrow: `Nutrition goal${nutritionMeta.coach ? ` · ${nutritionMeta.coach}` : ''}`, title: nutritionMeta.title, subtitle: nutritionMeta.subtitle };
+    ? { eyebrow: 'Training goal', title: trainingMeta.title, subtitle: trainingMeta.subtitle }
+    : { eyebrow: 'Nutrition goal', title: nutritionMeta.title, subtitle: nutritionMeta.subtitle };
   const hWords = String(headInfo.title || 'Goal').trim().split(/\s+/);
   const hLast = hWords.length ? hWords.pop() : '';
   const hHead = hWords.join(' ');

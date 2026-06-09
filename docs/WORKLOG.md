@@ -64,6 +64,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Log activity on ALL profiles + visibility toggle + goal-header cleanup
+- **Goal page eyebrow:** removed the coach-name suffix (`· Jordan C…` / `· Dr. May…`)
+  from the Training / Nutrition goal headers — now just "Training goal" / "Nutrition goal".
+- **"Log activity" now on the coach (Signal) profile too**, not just the member
+  (Terrain) profile. Extracted shared `bsMapActivityPosts` + a `BSActivityBody`
+  component so both profile feeds load the coach/member's real posts and render every
+  rich type identically (note · photo · inline video / video+link cards · workout stats).
+  The coach's Personal-activities section gained the **＋ Log activity** button + the
+  composer; the demo field-notes remain as a fallback tail.
+- **Visibility toggle on the composer** (`BSLogActivitySheet`): **Public** (profile +
+  community feed) vs **Just me** (profile only — `privacy:'private'`, kept out of the
+  shared feed). Defaults to Public.
+
 ### 2026-06-09 — Profile "Log activity" composer (Substack-style multi-type publishing)
 - The member Terrain profile's **Personal activities** button changed from **+ Photo**
   to **＋ Log activity**, opening a new **`BSLogActivitySheet`** composer (portal into
