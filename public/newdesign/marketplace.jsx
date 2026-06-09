@@ -337,7 +337,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer") + ((c.photo || c.avatar) ? "&avatar=" + encodeURIComponent(c.photo || c.avatar) : "")} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={c.ownerId ? ("MemberProfile.html?u=" + encodeURIComponent(c.ownerId)) : ("MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer") + ((c.photo || c.avatar) ? "&avatar=" + encodeURIComponent(c.photo || c.avatar) : ""))} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative", aspectRatio: "4 / 3", overflow: "hidden", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {(c.cover || c.coverImage) && (<>
           <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${c.cover || c.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
@@ -377,7 +377,59 @@ function CoachCard({ c }) {
     </a>);
 }
 
+// ── Real coach accounts ─────────────────────────────────────────
+// Resolve live coaches from the trainers/nutritionists tables (same source the
+// mobile app uses) and their actual saved profile photo via get_public_profile,
+// so a real coach shows their real face instead of a stock card image.
+function mapLiveCoach(row, tab) {
+  const isNutri = tab === "Nutritionist";
+  const rate = Math.max(1, Math.round(Number((isNutri ? (row.meal_plan_price || row.price) : (row.session_price || row.price)) || 0))) || 100;
+  const yrs = parseInt(String(row.experience || "").replace(/[^0-9]/g, ""), 10) || 5;
+  const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+  const services = Array.isArray(row.services) ? row.services.filter(Boolean) : [];
+  const specs = (isNutri ? [...tags, ...services] : tags).slice(0, 3);
+  const fmt = (() => { const f = String(row.format || "").toLowerCase(); if (/hybrid/.test(f)) return "Hybrid"; if (/remote|online|virtual/.test(f)) return "Remote"; if (/person|studio|gym/.test(f)) return "In-person"; return row.location ? "In-person" : "Remote"; })();
+  return {
+    name: row.name || (isNutri ? "Shape Nutritionist" : "Shape Trainer"),
+    role: row.specialty || row.category || (isNutri ? "Nutrition Coaching" : "Personal Training"),
+    city: row.location || "Remote",
+    rate, rating: Number(row.rating || 4.8),
+    sessions: Number(row.subscribers || 0) || Math.max(120, yrs * 55),
+    tag: isNutri ? "Nutritionist" : "Trainer",
+    specialties: specs.length ? specs : [isNutri ? "Nutrition" : "Strength"],
+    cert: row.credential || "Certified", years: yrs, format: fmt,
+    category: "All Categories",
+    ownerId: row.owner_id || null,
+    photo: "", live: true,
+  };
+}
+function useLiveCoaches(tab) {
+  const [live, setLive] = useS([]);
+  useE(() => {
+    const cl = (typeof window !== "undefined" && window.shapeDb && window.shapeDb.client) || null;
+    if (!cl) return undefined;
+    let on = true;
+    const table = tab === "Nutritionist" ? "nutritionists" : "trainers";
+    cl.from(table).select("*").then(async ({ data, error }) => {
+      if (!on || error || !Array.isArray(data) || !data.length) { if (on) setLive([]); return; }
+      const coaches = data.map((row) => mapLiveCoach(row, tab));
+      await Promise.all(coaches.map(async (c) => {
+        if (!c.ownerId) return;
+        try {
+          const r = await cl.rpc("get_public_profile", { p_user_id: c.ownerId });
+          const row = Array.isArray(r && r.data) ? r.data[0] : (r && r.data);
+          if (row && row.avatar) c.photo = row.avatar;
+        } catch (e) { /* keep initials */ }
+      }));
+      if (on) setLive(coaches);
+    }, () => { if (on) setLive([]); });
+    return () => { on = false; };
+  }, [tab]);
+  return live;
+}
+
 function Grid({ tab }) {
+  const liveCoaches = useLiveCoaches(tab);
   const [cat, setCat] = useS("All Categories");
   const [format, setFormat] = useS("All formats");
   const [loc, setLoc] = useS("Anywhere");
@@ -389,14 +441,21 @@ function Grid({ tab }) {
   React.useEffect(() => { setCat("All Categories"); setFormat("All formats"); setLoc("Anywhere"); setQuery(""); }, [tab]);
 
   const list = useM(() => {
-    let arr = COACHES_FULL.filter((c) => {
+    // Real coaches first, then the curated demo directory (minus any whose name
+    // a real account already covers, so there are no duplicates).
+    const liveNames = new Set((liveCoaches || []).map((c) => c.name.toLowerCase()));
+    const merged = [...(liveCoaches || []), ...COACHES_FULL.filter((c) => !liveNames.has(c.name.toLowerCase()))];
+    let arr = merged.filter((c) => {
       if (c.tag !== tab) return false;
-      if (cat !== "All Categories" && c.category !== cat) return false;
-      if (tab === "Trainer" && format !== "All formats" && c.format !== format) return false;
-      if (loc !== "Anywhere") {
-        if (loc === "Remote-friendly" || loc === "Remote only") {
-          if (c.format !== "Remote" && c.format !== "Hybrid") return false;
-        } else if (c.city !== loc) return false;
+      // Live coaches only filter by tab + search (their category metadata is thin).
+      if (!c.live) {
+        if (cat !== "All Categories" && c.category !== cat) return false;
+        if (tab === "Trainer" && format !== "All formats" && c.format !== format) return false;
+        if (loc !== "Anywhere") {
+          if (loc === "Remote-friendly" || loc === "Remote only") {
+            if (c.format !== "Remote" && c.format !== "Hybrid") return false;
+          } else if (c.city !== loc) return false;
+        }
       }
       if (query && !`${c.name} ${c.role} ${c.specialties.join(" ")} ${c.city}`.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
@@ -424,7 +483,7 @@ function Grid({ tab }) {
       });
     }
     return arr;
-  }, [tab, cat, format, loc, query, sort, activeBoost]);
+  }, [tab, cat, format, loc, query, sort, activeBoost, liveCoaches]);
 
   return (
     <>
