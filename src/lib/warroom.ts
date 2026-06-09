@@ -653,12 +653,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Day-log detail sheet redesign: tag-tinted header + rounded badge, 3 rounded metric tiles, frosted backdrop blur, rounded pill buttons; workout items show an Exercises preview (moves + scheme + load). Tag pills modernized to soft tinted rounded badges (Day Log + Habits)', status: 'done' },
         { label: 'Meal preview shows a real food photo: meal.photo → coach-uploaded media image → inferred stock food photo (halftone fallback). Cards "Show on home" dropdown: hidden scrollbar + no close on internal scroll', status: 'done' },
         { label: 'Find-a-coach bars (Train/Eat) filled in role color (trainer rust / nutritionist gold), compact, thicker border; tier name removed from the Settings identity avatar', status: 'done' },
+        { label: 'Me tab is PROFILE-FIRST: opens as your living Terrain profile (masthead = logo + Vol·No + ME / Profile.) with the Shape Score card + tappable goal card in the header; Stats tab embeds the FULL progress page (Overall/Training/Nutrition, live ShapeProgress, forced-dark via BSContext); Signals + Climb wired live (streak, trajectory, momentum, disciplines, lifts, score). Tier unified across avatars/profile/score/Settings (one client-score source — live signed-in, Tempo/1284 preview)', status: 'done' },
+        { label: 'Settings consolidated into ONE screen (BSSettings): merged the old Me-page hub in — Account · Preferences · Nutrition · Training · Health integrations · Notifications · Privacy · Membership & billing · More (Goals/Habits/Library/Progress/Score/Store/Leaderboard/Sessions) · Appearance/Radio/Light-fx/Ticker · About · Account actions. Cards are divider rows (no boxes); identity card kept as the summary', status: 'done' },
       ],
     },
     {
       section: 'Code health (behavior-preserving)',
       items: [
         { label: 'Dead code removed (~860 lines mobile + website orphans), verified zero call-sites', status: 'done' },
+        { label: 'Me/Settings restructure sweep: removed ~1,070 dead lines from iosAppBroadsheetClient (BSMeSettingsHub superseded by merged BSSettings, BSClientProgressLegacy, BSEditSheet, BSFeedActivityCard, BSProfilePrivacy, BSTerrainContours/Ridge) — all verified zero non-def references repo-wide', status: 'done' },
         { label: 'Dead-code audit: removed 8 orphaned components + addPlanToGrocery + unused state (~660 lines, tree-shaken so bundle unchanged); consolidated meal-note uploads into one helper', status: 'done' },
         { label: 'Shared API helpers: request-auth (22 routes), time, stripe loadStripe, coach-roster clients twin', status: 'done' },
         { label: 'Mobile data-layer de-dup: getJsonOrDefault, providerTable, COMMUNITY_POST_SELECT', status: 'done' },

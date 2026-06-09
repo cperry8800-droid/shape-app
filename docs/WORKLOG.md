@@ -87,6 +87,31 @@ changelog whenever something ships.
   `listSalePlansByUser` map `detail`.
 - War Room: registered under "Marketplace & coach profiles".
 
+### 2026-06-09 — Mobile Me page restructure + Settings merge + dead-code sweep
+- **Me tab is PROFILE-FIRST.** Opens as your living **Terrain profile** (standard
+  masthead: SHAPE logo + `Vol. 1 · No. 1` + **ME / Profile.**), no back button (root
+  tab). Header carries a tappable **goal card** (→ Goal page) above the **Shape Score
+  card**; edit pencil → customizer, **gear** → Settings.
+- **Stats tab = the full progress page** — embeds `BSClientProgress` (Overall/Training/
+  Nutrition) via a new `embedded` mode (no chrome) that **forces a dark palette through
+  `BSContext.Provider`** so it reads right on the dark profile even in light app theme.
+  A "Your progress" KPI grid (live `ShapeProgress` + demo merge) sits on top.
+- **Living Signals + Climb wired live** (self): day streak, bodyweight trajectory +
+  delta, weekly momentum, disciplines, key lifts, and the Climb's Shape-Score aspect.
+- **Tier unified everywhere** — avatars, profile, score card, climb, Settings read ONE
+  client-score source (`_bsUseLiveScore(SHAPE_SCORE_PROFILES.client)` + `bsMyTier()`
+  same fallback): live signed-in, **Tempo/1284** in preview. Fixes the Base-vs-Tempo split.
+- **Settings is ONE screen** (`BSSettings`): folded the old Me-page hub in (Account ·
+  Preferences · Nutrition · Training · Integrations · Notifications · Privacy ·
+  Membership & billing · More links · Appearance/Radio/Light-fx/Ticker · About · Account
+  actions). Section cards are **divider rows** (no boxes); identity card = the summary.
+- **Chat masthead** gained the logo + `Vol. 1 · No. 1` line. Follow-list + Cards
+  dropdown scrollbars hidden.
+- **Dead-code sweep:** removed **~1,070 unreferenced lines** from
+  `iosAppBroadsheetClient.jsx` (`BSMeSettingsHub`, `BSClientProgressLegacy`,
+  `BSEditSheet`, `BSFeedActivityCard`, `BSProfilePrivacy`, `BSTerrainContours`,
+  `BSTerrainRidge`) — verified zero non-def references repo-wide. Parse + build + tsc clean.
+
 ### 2026-06-09 — Live "doing now" activity dot, home re-layout, photos & avatars
 - **Live activity dot (persistent).** Migration **`2026-06-09-user-activity.sql`**
   (**run on Supabase**): `user_activity` table (owner-write, authenticated-read,
