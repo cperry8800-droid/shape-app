@@ -3462,6 +3462,12 @@ function bsMealSchedLabel(meal) { return bsFmt12(bsMealSchedTime(meal)); }
 // (was a generated halftone placeholder).
 function bsMealPhoto(meal) {
   if (meal && (meal.photo || meal.image)) return meal.photo || meal.image;
+  // A coach-uploaded image (from the meal/recipe builder's MEDIA section, stored
+  // in detail.media) — use the first photo as the hero when present.
+  if (meal && Array.isArray(meal.media)) {
+    const img = meal.media.find((m) => m && m.url && (m.type === 'image' || !m.type));
+    if (img) return img.url;
+  }
   const s = `${(meal && meal.title) || ''} ${(meal && meal.sub) || ''} ${(meal && meal.hero) || ''} ${(meal && meal.tag) || ''}`.toLowerCase();
   const pick = (id) => `https://images.unsplash.com/photo-${id}?w=720&h=400&fit=crop&q=72&auto=format`;
   if (/oat|egg|toast|pancake|breakfast|yogurt|granola|smoothie/.test(s)) return pick('1484723091739-30a097e8f929');
