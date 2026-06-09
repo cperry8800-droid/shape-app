@@ -6076,12 +6076,15 @@ function bsDemoFollowCounts(name) {
   let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
   return { followers: 40 + (n % 860), following: 28 + ((n >> 5) % 320) };
 }
-// Compact followers/following counts for the Me identity card — tap → opens the
-// full public profile (where the lists live). Reads your own follow stats.
+// Compact followers/following counts for the Me identity card (Settings) — each
+// count opens the SAME live followers/following list sheet the profile uses (with
+// photos + tap-through to each person's public profile). Reads your own follow stats.
 function BSFollowMini({ onOpen }) {
   const t = useBS();
   const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.() || {}).user?.id || null;
   const [s, setS] = useStateBSC(() => (uid && window.ShapeFollows?.getCached?.(uid)) || null);
+  const [sheet, setSheet] = useStateBSC(null);       // 'followers' | 'following'
+  const [viewPerson, setViewPerson] = useStateBSC(null); // tapped a person → push their profile
   React.useEffect(() => {
     if (!uid || !window.ShapeFollows?.stats) return;
     let on = true;
@@ -6095,13 +6098,23 @@ function BSFollowMini({ onOpen }) {
   // No account (signed-out preview) → show the same name-derived demo counts the
   // profile shows for "you", so the two never disagree.
   const f = s || (uid ? { followers: 0, following: 0 } : bsDemoFollowCounts(bsMyName()));
-  const stat = (n, l) => (
-    <button onClick={onOpen} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+  const stat = (n, l, kind) => (
+    <button onClick={() => setSheet(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.01em' }}>{n}</span>
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginLeft: 6 }}>{l}</span>
     </button>
   );
-  return <div style={{ display: 'flex', gap: 18, marginTop: 12 }}>{stat(f.followers, 'Followers')}{stat(f.following, 'Following')}</div>;
+  return (
+    <div style={{ display: 'flex', gap: 18, marginTop: 12 }}>
+      {stat(f.followers, 'Followers', 'followers')}
+      {stat(f.following, 'Following', 'following')}
+      {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={bsMyName()} c={t.ACCENT} INK={t.INK} BG={t.PAPER} onClose={() => setSheet(null)} onOpenProfile={(p) => { setSheet(null); setViewPerson(p); }} />}
+      {viewPerson && createPortal(
+        <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)} />,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
+    </div>
+  );
 }
 
 // "Who to follow" — suggested members, shown in the Chat page (Friends tab).
@@ -6156,6 +6169,91 @@ function BSFollowSuggestions({ onOpenProfile }) {
   );
 }
 
+// Full-page followers / following (or requests) list sheet — shared by the profile
+// block AND the Settings mini, so they open the SAME live list everywhere. Shows real
+// profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
+// each person is a live link to their public profile (onOpenProfile).
+function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', onClose, onOpenProfile }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
+  const [list, setList] = useStateBSC(null);
+  const [avatars, setAvatars] = useStateBSC({});
+  React.useEffect(() => {
+    let alive = true;
+    setList(null); setAvatars({});
+    const finish = (arr) => {
+      if (!alive) return;
+      const safe = Array.isArray(arr) ? arr : [];
+      setList(safe);
+      const ids = safe.map((u) => u.userId).filter(Boolean);
+      if (ids.length && window.ShapeProfiles?.getUserAvatars) {
+        window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (alive && m) setAvatars(m); }).catch(() => {});
+      }
+    };
+    if (kind === 'requests') {
+      window.ShapeFollows?.requests?.().then(finish).catch(() => finish([]));
+    } else if (uid) {
+      window.ShapeFollows?.list?.(uid, kind).then(finish).catch(() => finish([]));
+    } else {
+      // Accountless/preview — derive a viewable list from the public demo count.
+      const counts = bsDemoFollowCounts(name);
+      const total = kind === 'following' ? counts.following : counts.followers;
+      const n = Math.min(24, Math.max(0, total));
+      let seed = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) seed = (seed * 31 + s.charCodeAt(i)) >>> 0;
+      const pool = BS_FOLLOW_DEMO_NAMES, off = (seed + (kind === 'following' ? 11 : 3)) % pool.length, out = [];
+      for (let i = 0; i < n; i++) out.push({ name: pool[(off + i) % pool.length], role: (off + i) % 9 === 0 ? 'trainer' : (off + i) % 13 === 0 ? 'nutritionist' : 'client' });
+      finish(out);
+    }
+    return () => { alive = false; };
+  }, [kind, uid, name]);
+  const respondReq = async (followerId, accept) => {
+    setList((cur) => (cur || []).filter((u) => u.userId !== followerId));
+    try { await window.ShapeFollows?.respond?.(followerId, accept); } catch (e) { window.__bsToast?.(e?.message || 'Could not respond.', 'err'); }
+  };
+  const openPerson = (u, photo) => {
+    if (!onOpenProfile) return;
+    onClose && onClose();
+    onOpenProfile({ who: u.name, init: bsInitials(u.name) || '?', kind: u.role === 'trainer' ? 'TRAINER' : u.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', userId: u.userId || null, photo: photo || null, public: true });
+  };
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, position: 'sticky', top: 0, background: BG, paddingBottom: 8, zIndex: 1 }}>
+          <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        {list == null ? (
+          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), padding: '8px 2px' }}>Loading…</div>
+        ) : list.length === 0 ? (
+          <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{kind === 'requests' ? 'No pending requests.' : kind === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
+        ) : list.map((u, i) => {
+          const tier = bsPostTier({ who: u.name });
+          const roleLabel = u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member';
+          const photo = u.userId ? avatars[u.userId] : bsDemoFace(u.name);
+          return (
+            <div key={u.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
+              <button onClick={() => openPerson(u, photo)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+                <BSFacetAvatar size={36} c={bsTierColor(tier)} initial={bsInitials(u.name) || '?'} name={u.name} photo={photo} showRank={false} BG={BG} INK={INK} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: SERIF, fontSize: 15.5, fontWeight: 600, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{roleLabel}</div>
+                </div>
+              </button>
+              {kind === 'requests' && (
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => respondReq(u.userId, true)} style={{ borderRadius: 999, border: 0, background: TEAL, color: '#06110e', padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
+                  <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return surface ? createPortal(sheet, surface) : sheet;
+}
+
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
@@ -6168,13 +6266,11 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // Accountless demo/community people (no uid) still show a block with derived
   // preview counts + a front-end follow toggle so it's visible on every profile.
   const demo = !uid;
-  const seed = (() => { let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; })();
   const [stats, setStats] = useStateBSC(demo
     ? { ...bsDemoFollowCounts(name), isFollowing: false }
     : ((uid && window.ShapeFollows?.getCached?.(uid)) || { followers: 0, following: 0, isFollowing: false }));
   const [busy, setBusy] = useStateBSC(false);
   const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following' | 'requests'
-  const [list, setList] = useStateBSC(null);
   const [reqCount, setReqCount] = useStateBSC(0); // pending requests (self only)
   React.useEffect(() => {
     if (!uid || !window.ShapeFollows?.stats) return;
@@ -6210,29 +6306,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     catch (e) { setStats(prev); window.__bsToast?.(e?.message || 'Could not update follow.', 'err'); }
     finally { setBusy(false); }
   };
-  const respondReq = async (followerId, accept) => {
-    setList((cur) => (cur || []).filter((u) => u.userId !== followerId));
-    try { await window.ShapeFollows?.respond?.(followerId, accept); } catch (e) { window.__bsToast?.(e?.message || 'Could not respond.', 'err'); }
-    try { const r = await window.ShapeFollows?.requests?.(); setReqCount((r || []).length); } catch (e) {}
-  };
-  const openList = (kind) => {
-    setSheet(kind); setList(null);
-    if (kind === 'requests') {
-      window.ShapeFollows?.requests?.().then((r) => setList(r || [])).catch(() => setList([]));
-      return;
-    }
-    if (uid) {
-      window.ShapeFollows?.list?.(uid, kind).then((r) => setList(r || [])).catch(() => setList([]));
-      return;
-    }
-    // Accountless/preview profile — derive a viewable list from the public count.
-    const total = kind === 'following' ? stats.following : stats.followers;
-    const n = Math.min(24, Math.max(0, total));
-    const pool = BS_FOLLOW_DEMO_NAMES, off = (seed + (kind === 'following' ? 11 : 3)) % pool.length;
-    const out = [];
-    for (let i = 0; i < n; i++) out.push({ name: pool[(off + i) % pool.length], role: (off + i) % 9 === 0 ? 'trainer' : (off + i) % 13 === 0 ? 'nutritionist' : 'client' });
-    setList(out);
-  };
+  const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
     <button onClick={() => openList(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
@@ -6265,38 +6339,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
         );
       })()}
-      {sheet && createPortal(
-        <div onClick={() => setSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, position: 'sticky', top: 0, background: BG, paddingBottom: 8, zIndex: 1 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{sheet === 'requests' ? 'Follow requests' : sheet === 'following' ? 'Following' : 'Followers'}</span>
-              <button onClick={() => setSheet(null)} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
-            </div>
-            {list == null ? (
-              <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), padding: '8px 2px' }}>Loading…</div>
-            ) : list.length === 0 ? (
-              <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{sheet === 'requests' ? 'No pending requests.' : sheet === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
-            ) : list.map((u, i) => {
-              const tier = bsPostTier({ who: u.name });
-              const roleLabel = u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member';
-              return (
-                <div key={u.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
-                  <BSFacetAvatar size={36} c={bsTierColor(tier)} initial={bsInitials(u.name) || '?'} showRank={false} BG={BG} INK={INK} />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontFamily: SERIF, fontSize: 15.5, fontWeight: 600, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
-                    <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{roleLabel}</div>
-                  </div>
-                  {sheet === 'requests' && (
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => respondReq(u.userId, true)} style={{ borderRadius: 999, border: 0, background: TEAL, color: '#06110e', padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
-                      <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>, document.getElementById('bs-phone-surface') || document.body)}
+      {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
     </div>
   );
 }
@@ -7040,6 +7083,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
+  const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
@@ -7376,6 +7420,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
     : 'https://www.strava.com';
   const avPhoto = photo || (live && live.avatar);
+  if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
@@ -7419,7 +7464,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       )}
       {/* Followers / following — above the hero box, below the title */}
       <div style={{ padding: '8px 18px 0' }}>
-        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} />
+        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} onOpenProfile={setFollowProfile} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
@@ -7967,7 +8012,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </div>
         )}
 
-        <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} /></div>
+        <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} onOpenProfile={setReviewerProfile} /></div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>

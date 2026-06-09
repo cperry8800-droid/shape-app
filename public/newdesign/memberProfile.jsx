@@ -34,13 +34,23 @@ function MPFollow({ uid, isSelf }) {
   const [busy, setBusy] = React.useState(false);
   const [sheet, setSheet] = React.useState(null); // 'followers' | 'following'
   const [list, setList] = React.useState(null);
+  const [avatars, setAvatars] = React.useState({}); // userId -> profile photo url
   const openList = (kind) => {
     const cl = window.shapeDb && window.shapeDb.client;
-    setSheet(kind); setList(null);
+    setSheet(kind); setList(null); setAvatars({});
     if (!cl || !cl.rpc || !uid) { setList([]); return; }
     cl.rpc("get_follow_list", { p_user_id: uid, p_kind: kind }).then((r) => {
       const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : [];
-      setList(rows.map((x) => ({ userId: x.user_id, name: x.full_name || "Shape member", role: x.role || "client" })));
+      const mapped = rows.map((x) => ({ userId: x.user_id, name: x.full_name || "Shape member", role: x.role || "client" }));
+      setList(mapped);
+      // Batch profile photos (visibility-gated via get_public_profile.avatar).
+      const ids = mapped.map((u) => u.userId).filter(Boolean);
+      ids.forEach((id) => {
+        cl.rpc("get_public_profile", { p_user_id: id }).then((res) => {
+          const row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data);
+          if (row && row.avatar) setAvatars((m) => ({ ...m, [id]: row.avatar }));
+        }).catch(() => {});
+      });
     }).catch(() => setList([]));
   };
   React.useEffect(() => {
@@ -94,7 +104,9 @@ function MPFollow({ uid, isSelf }) {
               <div style={{ fontFamily: serif, fontSize: 16, fontStyle: "italic", color: "rgba(242,237,228,0.6)", padding: "8px 0 14px" }}>{sheet === "following" ? "Not following anyone yet." : "No followers yet."}</div>
             ) : list.map((u, i) => (
               <a key={u.userId || i} href={u.userId ? `MemberProfile.html?u=${u.userId}` : undefined} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "none", textDecoration: "none", color: INK }}>
-                <span style={{ width: 36, height: 36, flex: "none", borderRadius: 999, background: "#3a322a", color: INK, display: "grid", placeItems: "center", fontFamily: serif, fontSize: 14 }}>{cwInit(u.name)}</span>
+                {u.userId && avatars[u.userId]
+                  ? <img src={avatars[u.userId]} alt="" style={{ width: 36, height: 36, flex: "none", borderRadius: 999, objectFit: "cover", background: "#3a322a" }} />
+                  : <span style={{ width: 36, height: 36, flex: "none", borderRadius: 999, background: "#3a322a", color: INK, display: "grid", placeItems: "center", fontFamily: serif, fontSize: 14 }}>{cwInit(u.name)}</span>}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.name}</div>
                   <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 2 }}>{u.role === "trainer" ? "Trainer" : u.role === "nutritionist" ? "Nutritionist" : "Member"}</div>
