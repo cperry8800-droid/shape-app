@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { BS_CLIENT_WEEK_DEMO } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS } from './bsClientWeekDemo.js';
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + Week/Month calendar screen.
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
@@ -553,10 +553,10 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
         ))}
       </div>
 
-      {/* Grid — rounded day cells */}
+      {/* Grid — clean, compact day cells */}
       <div style={{ padding: `0 ${t.padX}px` }}>
         {weeks.map((row, ri) => (
-          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 5 }}>
+          <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
             {row.map((d, ci) => {
               if (d == null) return <div key={ci} />;
               const isToday = d === visualToday;
@@ -565,21 +565,21 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
               const dotsAccents = dayEv.slice(0, 4).map(e => e.accent);
               return (
                 <button key={ci} onClick={() => setSelDay(d)} style={{
-                  borderRadius: 12,
-                  border: isSel ? `1.5px solid ${teal}` : `1px solid ${t.HAIR}`,
+                  borderRadius: 11,
+                  border: isSel ? `1.5px solid ${teal}` : isToday ? `1px solid ${teal}88` : `1px solid ${t.HAIR}`,
                   background: isSel ? `${teal}1c` : t.PAPER2,
-                  color: t.INK,
-                  aspectRatio: '1 / 1', padding: '6px 7px 5px', textAlign: 'left', cursor: 'pointer',
-                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 4,
+                  color: t.INK, boxSizing: 'border-box', overflow: 'hidden',
+                  aspectRatio: '1 / 1', padding: '5px 5px 4px', textAlign: 'left', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 3,
                   fontFamily: t.DISPLAY,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: t.W.display, fontSize: 15, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isToday ? teal : t.INK }}>{d}</span>
-                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, letterSpacing: '0.05em' }}>{dayEv.length}</span>}
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2 }}>
+                    <span style={{ fontWeight: t.W.display, fontSize: 14, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isToday ? teal : t.INK }}>{d}</span>
+                    {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50, letterSpacing: '0.02em' }}>{dayEv.length}</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', minHeight: 6 }}>
+                  <div style={{ display: 'flex', gap: 2.5, height: 5, overflow: 'hidden' }}>
                     {dotsAccents.map((c, k) => (
-                      <span key={k} style={{ width: 5, height: 5, borderRadius: 999, background: c, display: 'inline-block' }} />
+                      <span key={k} style={{ width: 4.5, height: 4.5, borderRadius: 999, background: c, display: 'inline-block', flex: '0 0 auto' }} />
                     ))}
                   </div>
                 </button>
@@ -625,29 +625,37 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                 — Nothing logged —
               </div>
             ) : (
-              <div style={{ padding: `2px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {dayEv.map((e, i) => (
+              <div style={{ padding: `0 ${t.padX}px 18px` }}>
+                {dayEv.map((e, i) => {
+                  const done = e.state === 'done';
+                  return (
                   <button key={i} onClick={() => sheet && sheet.open(<BSEventSheet event={e} role={role} live={live} onChanged={onChanged} onClose={() => sheet.close()} />)} style={{
-                    width: '100%', padding: '12px 13px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: t.PAPER2,
+                    width: '100%', padding: '13px 0', background: 'transparent', border: 0,
+                    borderBottom: i === dayEv.length - 1 ? 0 : `1px solid ${t.HAIR}`,
                     textAlign: 'left', cursor: 'pointer',
-                    display: 'grid', gridTemplateColumns: '5px 60px 1fr auto', alignItems: 'center', gap: 12,
+                    display: 'grid', gridTemplateColumns: '50px 1fr auto', alignItems: 'center', gap: 11,
                   }}>
-                    <span style={{ alignSelf: 'stretch', width: 5, borderRadius: 999, background: e.accent }} />
-                    <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK, letterSpacing: '0.03em' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: done ? t.INK50 : t.INK, letterSpacing: '0.02em', fontVariantNumeric: 'tabular-nums' }}>
                       {bsCalTimeLabel(e)}
-                      <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 600, letterSpacing: '0.1em', marginTop: 2 }}>{e.dur ? `${e.dur}m` : ''}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 600, letterSpacing: '0.08em', marginTop: 3 }}>{e.dur ? `${e.dur} MIN` : ''}</div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={{ background: e.accent, color: e.kind === 'REST' ? t.PAPER : (e.accent === t.AMBER ? t.INK : t.PAPER), padding: '2px 6px', borderRadius: 5, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.15em' }}>{e.kind}</span>
-                        {e.state === 'done' && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.18em', fontWeight: 700 }}>· DONE</span>}
+                    <div style={{ minWidth: 0, display: 'flex', alignItems: 'stretch', gap: 11 }}>
+                      <span style={{ width: 3, alignSelf: 'stretch', minHeight: 30, borderRadius: 999, background: e.accent, flex: '0 0 auto' }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', color: e.accent, textTransform: 'uppercase' }}>{e.kind}</span>
+                          {done && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.16em', fontWeight: 700 }}>✓ DONE</span>}
+                          {e.state === 'now' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: teal, letterSpacing: '0.16em', fontWeight: 800 }}>● NOW</span>}
+                          {e.state === 'next' && <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK70, letterSpacing: '0.16em', fontWeight: 700 }}>UP NEXT</span>}
+                        </div>
+                        <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: done ? t.INK50 : t.INK, lineHeight: 1.12, textDecoration: done ? 'line-through' : 'none' }}>{e.title}</div>
+                        {e.sub && <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK50, marginTop: 2, letterSpacing: '-0.005em' }}>{e.sub}</div>}
                       </div>
-                      <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>{e.title}</div>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50, marginTop: 2 }}>{e.sub}</div>
                     </div>
-                    <span style={{ fontFamily: t.MONO, fontSize: 14, color: t.INK50 }}>›</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 15, color: t.INK30 }}>›</span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -738,21 +746,32 @@ function secondaryBtn(t) {
 
 function BSEventWorkoutBody({ event, role }) {
   const t = useBSCal();
-  const moves = [
-    { n: '01', m: 'Pull-up',        s: '4 × 6–8 · 3:00', l: '+42 LB' },
-    { n: '02', m: 'Barbell row',    s: '4 × 8 · 2:00',    l: '155 LB' },
-    { n: '03', m: 'Chest-sup. row', s: '3 × 10 · 1:30',   l: '60 LB'  },
-    { n: '04', m: 'Face pull',      s: '3 × 15 · 1:00',   l: '35 LB'  },
-    { n: '05', m: 'Incline curl',   s: '3 × 12 · 1:00',   l: '27.5 LB'},
-    { n: '06', m: 'Farmer carry',   s: '3 × 40 m · 1:00', l: '80 LB'  },
-  ];
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // Pull the REAL session for this event by title (shared week → BS_CLIENT_WORKOUTS),
+  // so a Z2 run shows run segments — not barbell rows. Falls back gracefully when
+  // there's no authored detail (e.g. a live server event).
+  const detail = (event.title && typeof BS_CLIENT_WORKOUTS !== 'undefined' && BS_CLIENT_WORKOUTS[event.title]) || null;
+  const cardio = !!(detail && detail.cardio);
+  const metaParts = detail && detail.meta ? detail.meta.split('·').map(s => s.trim()) : [];
+  const findPart = (re) => metaParts.find(p => re.test(p)) || '';
+  const kcal = (findPart(/kcal/i).match(/\d+/) || [])[0] || '';
+  const rpe = (findPart(/rpe/i).match(/\d+(?:\.\d+)?/) || [])[0] || '';
+  const zone = cardio ? (metaParts.find(p => /zone|easy|aerobic|tempo|steady/i.test(p)) || '') : '';
+  const dist = cardio ? ((metaParts.find(p => /\d\s*k\b|km/i.test(p)) || '').replace(/~/g, '')) : '';
+  const moves = detail
+    ? detail.moves.map((m, j) => ({ n: String(j + 1).padStart(2, '0'), m: m.name, s: m.scheme || '—', l: cardio ? '' : (m.load || '—') }))
+    : null;
+  const durLabel = event.dur ? `${event.dur}m` : (metaParts[0] || '—');
+  const stats = cardio
+    ? [['DUR', durLabel], ['DIST', dist || '—'], ['ZONE', zone || 'Z2'], ['KCAL', kcal || '—']]
+    : [['DUR', durLabel], ['MOVES', moves ? String(moves.length) : '—'], ['RPE', rpe || '8'], ['KCAL', kcal || '—']];
+
   return (
     <>
       {/* Stat row — rounded card */}
       <div style={{ padding: `16px ${t.padX}px 6px` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {[['DUR', `${event.dur}m`], ['MOVES', '6'], ['RPE', '8'], ['VOL', '1900LB']].map(([l, v], i) => (
+          {stats.map(([l, v], i) => (
             <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
               <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 19, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
@@ -760,25 +779,46 @@ function BSEventWorkoutBody({ event, role }) {
           ))}
         </div>
       </div>
-      {/* The card — rounded list */}
-      <div style={{ padding: `12px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> The card</div>
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
-          {moves.map((r, i) => (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
-              borderBottom: i === moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
-              </div>
-              <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{r.l}</div>
-            </div>
-          ))}
+
+      {/* Coach's cue */}
+      {detail && detail.note && (
+        <div style={{ padding: `10px ${t.padX}px 0` }}>
+          <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: `${event.accent}10`, borderLeft: `3px solid ${event.accent}`, padding: '11px 13px' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 5 }}>Coach’s cue</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.005em' }}>{detail.note}</div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* The card / the session */}
+      {moves ? (
+        <>
+          <div style={{ padding: `14px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> {cardio ? 'The session' : 'The card'}</div>
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+              {moves.map((r, i) => (
+                <div key={i} style={{
+                  display: 'grid', gridTemplateColumns: cardio ? '24px 1fr' : '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
+                  borderBottom: i === moves.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+                }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
+                  <div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{r.m}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 2, letterSpacing: '0.06em' }}>{r.s}</div>
+                  </div>
+                  {!cardio && <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 12, color: t.INK, fontWeight: 700, letterSpacing: '-0.01em' }}>{r.l}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ padding: `14px ${t.padX}px 4px` }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.005em' }}>
+            {event.sub ? `${event.sub} — ` : ''}open the Train tab for the full session card.
+          </div>
+        </div>
+      )}
       {/* Padding for sticky footer */}
       <div style={{ height: 12 }} />
     </>
@@ -787,32 +827,79 @@ function BSEventWorkoutBody({ event, role }) {
 
 function BSEventMealBody({ event }) {
   const t = useBSCal();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  // Read what the event tells us (sub e.g. "620 kcal · 48P") and derive the rest so
+  // the macros stay consistent with THIS meal's title — never a contradictory plate.
+  const sub = event.sub || '';
+  const kcalN = (() => { const m = sub.match(/(\d+)\s*kcal/i); return m ? Number(m[1]) : null; })();
+  const proN  = (() => { const m = sub.match(/(\d+)\s*P\b/i);  return m ? Number(m[1]) : null; })();
+  let carbN = null, fatN = null;
+  if (kcalN != null && proN != null) {
+    const rem = Math.max(0, kcalN - proN * 4);
+    fatN = Math.round((rem * 0.35) / 9);
+    carbN = Math.round((rem * 0.65) / 4);
+  }
+  const macros = [
+    ['KCAL', kcalN != null ? String(kcalN) : '—'],
+    ['PRO',  proN != null ? `${proN}g` : '—'],
+    ['CARB', carbN != null ? `${carbN}g` : '—'],
+    ['FAT',  fatN != null ? `${fatN}g` : '—'],
+  ];
+  const pCal = (proN || 0) * 4, cCal = (carbN || 0) * 4, fCal = (fatN || 0) * 9;
+  const totCal = pCal + cCal + fCal;
+  const splitOk = totCal > 0 && carbN != null;
+  // "On the plate" — components from the title (no invented quantities).
+  const plate = String(event.title || '')
+    .split(/\s*(?:,|\+|&|\bwith\b|\band\b|\/)\s*/i)
+    .map(s => s.trim()).filter(Boolean).slice(0, 6);
+
   return (
     <>
-      <div style={{ padding: `18px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {[['KCAL', '620'], ['PRO', '48g'], ['CARB', '72g'], ['FAT', '14g']].map(([l, v], i) => (
-          <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.RULE}` : 0, paddingLeft: i > 0 ? 10 : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 20, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
-          </div>
-        ))}
+      {/* Macro card — rounded */}
+      <div style={{ padding: `16px ${t.padX}px 6px` }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {macros.map(([l, v], i) => (
+            <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 19, color: t.INK, marginTop: 4, letterSpacing: '-0.03em' }}>{v}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div style={{ padding: `12px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>▍ Ingredients</div>
-      <div style={{ padding: `0 ${t.padX}px 16px`, borderTop: `2px solid ${t.INK}` }}>
-        {[
-          ['Chicken breast', '180 g'],
-          ['Jasmine rice',   '120 g cooked'],
-          ['Tahini',         '1 tbsp'],
-          ['Mixed greens',   '1 cup'],
-          ['Lemon, salt',    'to taste'],
-        ].map(([k, v], i, a) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: `${t.rowY}px 0`, borderBottom: i === a.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, letterSpacing: '-0.01em' }}>{k}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, letterSpacing: '0.1em' }}>{v}</span>
+
+      {/* Macro split bar (by calories) */}
+      {splitOk && (
+        <div style={{ padding: `8px ${t.padX}px 2px` }}>
+          <div style={{ display: 'flex', height: 8, borderRadius: 999, overflow: 'hidden', border: `1px solid ${t.HAIR}` }}>
+            <span style={{ width: `${(pCal / totCal) * 100}%`, background: teal }} />
+            <span style={{ width: `${(cCal / totCal) * 100}%`, background: t.AMBER }} />
+            <span style={{ width: `${(fCal / totCal) * 100}%`, background: t.RUST }} />
           </div>
-        ))}
-      </div>
-      <div style={{ height: 6 }} />
+          <div style={{ display: 'flex', gap: 14, marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+            <span><span style={{ color: teal }}>●</span> {Math.round(pCal / totCal * 100)}% Pro</span>
+            <span><span style={{ color: t.AMBER }}>●</span> {Math.round(cCal / totCal * 100)}% Carb</span>
+            <span><span style={{ color: t.RUST }}>●</span> {Math.round(fCal / totCal * 100)}% Fat</span>
+          </div>
+        </div>
+      )}
+
+      {/* On the plate */}
+      {plate.length > 0 && (
+        <>
+          <div style={{ padding: `14px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> On the plate</div>
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+              {plate.map((p, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr', alignItems: 'center', padding: `${t.rowY + 2}px 0`, borderBottom: i === plate.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em', textTransform: 'capitalize' }}>{p}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+      <div style={{ height: 12 }} />
     </>
   );
 }
