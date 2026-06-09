@@ -506,19 +506,19 @@ function BSNowPlaying({ onOpen }) {
       }} />
 
       <div style={{ position: 'relative', zIndex: 2, padding: `10px ${t.padX}px 10px` }}>
-        {/* Eyebrow */}
+        {/* Eyebrow — single line (nowrap + tighter tracking so it fits the inset box) */}
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase',
-          fontWeight: 900, color: t.INK70,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'nowrap',
+          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontWeight: 900, color: t.INK70, whiteSpace: 'nowrap',
         }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: t.ACCENT }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: '#d83a2c', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-            ▍ Shape Radio
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: t.ACCENT, flex: 'none' }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: '#d83a2c', animation: 'bs-blink 1.2s ease-in-out infinite', flex: 'none' }} />
+            Shape Radio
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: t.INK70 }}>{r.LIVE.listeners.toLocaleString()} listening now</span>
-            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.16em' }}>Open →</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none', minWidth: 0 }}>
+            <span style={{ color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.LIVE.listeners.toLocaleString()} listening</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
           </span>
         </div>
 
@@ -600,19 +600,19 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
       background: t.PAPER, color: t.INK, opacity: 0.92,
     }}>
       <div style={{ padding: `10px ${t.padX}px 10px` }}>
-        {/* Eyebrow — static (no blinking dot, no pulsing rings) */}
+        {/* Eyebrow — single line (nowrap + tighter tracking so it fits the inset box) */}
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase',
-          fontWeight: 700, color: t.INK50,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'nowrap',
+          fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase',
+          fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap',
         }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, border: `1px solid ${t.INK50}`, background: 'transparent' }} />
-            ▍ Shape Radio · Muted
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+            <span style={{ width: 6, height: 6, borderRadius: 3, border: `1px solid ${t.INK50}`, background: 'transparent', flex: 'none' }} />
+            Shape Radio · Muted
           </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <span>{r.LIVE.listeners.toLocaleString()} listening now</span>
-            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.16em' }}>Open →</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+            <span>{r.LIVE.listeners.toLocaleString()} listening</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
           </span>
         </div>
 

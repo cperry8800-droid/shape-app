@@ -7471,15 +7471,46 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 </div>
               </div>
             </div>
+            {/* Shape Score band — merged into the header (points + to-next + the four
+                composite bars). The tier, climb % and next level already live above. */}
+            {meMode && isSelf && (() => {
+              const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
+              const pts = score != null ? score : 1284;
+              let si = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) si = k;
+              const nextT = TH[si + 1] || null;
+              const toNextPts = nextT ? nextT[1] - pts : 0;
+              const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+              return (
+                <div style={{ padding: '0 14px 14px' }}>
+                  <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: '11px 12px', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</span>
+                        <span style={{ fontFamily: SERIF, fontSize: 22, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, lineHeight: 0.9 }}>{pts.toLocaleString()}<span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginLeft: 3 }}>pts</span></span>
+                      </div>
+                      <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{nextT ? `${toNextPts.toLocaleString()} to ${nextT[0]}` : 'Top of the ladder'}</span>
+                    </div>
+                    <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {cats.map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                          <div style={{ width: 70, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
+                          <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
+                          <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           );
         })()}
       </div>
 
-      {meMode && (
+      {meMode && isSelf && (
         <div style={{ padding: '14px 18px 0' }}>
-          {isSelf && <BSMeGoalCard c={c} onOpen={onOpenGoals} />}
-          <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={onOpenScore} />
+          <BSMeGoalCard c={c} onOpen={onOpenGoals} />
         </div>
       )}
 
