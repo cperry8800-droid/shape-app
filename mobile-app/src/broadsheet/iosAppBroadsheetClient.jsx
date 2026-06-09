@@ -12397,19 +12397,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         </div>
       )}
 
-      {purchasesLocked && (
-        <div style={{ padding: `12px ${t.padX}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 14, border: `1px solid ${t.AMBER}55`, background: `${t.AMBER}14`, padding: '12px 14px' }}>
-            <span style={{ fontSize: 18, lineHeight: 1, filter: 'grayscale(1)' }}>🔒</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Browse freely — join to redeem</div>
-              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>You still earn points. Become a member to spend them on gear, credits & rewards.</div>
-            </div>
-            <button onClick={bsStartPlatformCheckout} style={{ flexShrink: 0, padding: '9px 13px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{memberGate.signedIn ? 'Join · $5/mo' : 'Join'}</button>
-          </div>
-        </div>
-      )}
-
       {!!notice && (
         <div style={{ padding: `12px ${t.padX}px 0` }}>
           <div style={{ borderRadius: 14, border: `1px solid ${t.ACCENT}55`, background: `${t.ACCENT}14`, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{notice}</div>
