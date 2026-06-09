@@ -6985,15 +6985,28 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
-  const points = live && Number.isFinite(live.points) ? live.points : null;
-  const tierKey = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
+  // For your OWN profile, the tier + points come from the live Shape Score cache
+  // (window.ShapeScore) — the same source the header/Me avatars use — so the tier
+  // name, gem color, climb levels, and score card all match the avatar everywhere.
+  const myScore = (isSelf && typeof window !== 'undefined' && window.ShapeScore) || null;
+  const points = (myScore && Number.isFinite(Number(myScore.points))) ? Number(myScore.points)
+    : (live && Number.isFinite(live.points) ? live.points : null);
+  const tierKey = (myScore && myScore.tier) ? String(myScore.tier).toLowerCase()
+    : (points != null ? bsTierForPoints(points) : (isSelf ? bsMyTier().toLowerCase() : (person.tier || bsPostTier(person))));
   const c = bsTierColor(tierKey);
   const name = person.who || 'Member';
   const first = name.split(' ')[0];
   const city = person.city || 'Shape community';
   const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const pronouns = (!isPrivate && live && live.pronouns) || '';
-  const score = points != null ? points : 1284;
+  // When there's no live points (signed-out demo), seed the displayed score from
+  // the tier so the number agrees with the tier name + avatar (no Base-with-1284).
+  const score = points != null ? points : (() => {
+    const TH = [0, 750, 2000, 5000, 15000], NM = ['base', 'tempo', 'form', 'peak', 'legend'];
+    const i = Math.max(0, NM.indexOf(String(tierKey).toLowerCase()));
+    const f = TH[i], nx = TH[i + 1] || (f + 2000);
+    return Math.round(f + (nx - f) * 0.45);
+  })();
   const goal = (!isPrivate && ((live && live.goal) || person.goal)) || null;
   const bio = (!isPrivate && ((custom && custom.bio) || (live && live.bio) || person.bio)) || null;
   const tierName = String(tierKey).charAt(0).toUpperCase() + String(tierKey).slice(1);
@@ -7261,7 +7274,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const _HLTH = [0, 750, 2000, 5000, 15000];
   const _hlIdx = Math.max(0, _HLNM.findIndex((nm) => nm.toLowerCase() === String(tierName).toLowerCase()));
   const _hlTop = _hlIdx >= _HLNM.length - 1;
-  const _hlPts = points != null ? points : null;
+  const _hlPts = score;
   let heroPct, nextLevel;
   if (_hlTop) { heroPct = 1; nextLevel = null; }
   else if (_hlPts != null) { const f = _HLTH[_hlIdx], nx = _HLTH[_hlIdx + 1]; heroPct = Math.max(0.04, Math.min(0.97, (_hlPts - f) / Math.max(1, nx - f))); nextLevel = _HLNM[_hlIdx + 1]; }
@@ -7405,7 +7418,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             ]} />
             {tab === 'stats' && (
               <div style={{ marginBottom: 22 }}>
-                <BSScoreCardDark points={points} tierKey={tierKey} tierName={tierName} c={c} onOpen={isSelf ? onOpenProgress : undefined} />
+                <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={isSelf ? onOpenProgress : undefined} />
                 {isSelf && <BSMeGoalCard c={c} />}
                 {isSelf && <BSMeKpis onOpen={onOpenProgress} embedded />}
                 {!isSelf && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
