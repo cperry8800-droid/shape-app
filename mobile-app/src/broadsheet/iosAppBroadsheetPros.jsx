@@ -3861,8 +3861,9 @@ function BSNutriPlans() {
 // SHARED PRO ME
 // ═══════════════════════════════════════════════════════════
 // Coach soundtrack library — save Spotify/Apple playlists once and assign them
-// to workouts / meal plans. Custom imports + assignments persist to
-// localStorage (no backend yet); demo playlists seed the list.
+// to workouts / meal plans. Imports + assignments sync via ShapeSoundtracks
+// (coach_soundtracks, web↔mobile), with a localStorage fallback when signed out;
+// demo playlists seed the list before the coach saves their own.
 function bsReadJSON(k, d) { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } }
 function bsWriteJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 const BS_SOUNDTRACKS_DEMO = [

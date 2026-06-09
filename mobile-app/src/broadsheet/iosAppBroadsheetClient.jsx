@@ -1914,7 +1914,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       label: 'Consult',
       description: `Preview the scheduled consult details and confirm attendance. Notes can be attached after the call.`,
       metrics: [['PROVIDER', row.sub || 'Scheduled'], ['TYPE', 'Video'], ['STATUS', 'Upcoming']],
-      note: 'This will connect to booking and video session records once the live backend flow is enabled.',
+      note: 'Join the video call from here at the scheduled time. Notes can be attached after the call.',
     };
     return {
       label: 'Daily item',
