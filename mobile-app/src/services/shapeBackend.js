@@ -3614,10 +3614,13 @@ window.ShapeUnread = {
 // ── Live presence — "N online now". Everyone with the app open joins one
 //    Supabase Realtime presence channel keyed by user id; the count is the
 //    number of distinct present users (genuinely live, updates on join/leave).
-const _presence = { channel: null, count: 0, ids: new Set(), visible: true, listeners: new Set() };
+const _presence = { channel: null, count: 0, ids: new Set(), activity: new Map(), myActivity: null, visible: true, listeners: new Set() };
 function _presenceEmit() {
   _presence.listeners.forEach(fn => { try { fn(_presence.count); } catch (e) {} });
   try { window.dispatchEvent(new Event('shape:presence')); } catch (e) {}
+}
+function _presencePayload() {
+  return { online_at: new Date().toISOString(), activity: _presence.myActivity || null };
 }
 function startPresence() {
   if (_presence.channel || !supabase || !state.user?.id) return;
@@ -3625,12 +3628,31 @@ function startPresence() {
   try { if (window.ShapeOnlineVisible === false) _presence.visible = false; } catch (e) {}
   const ch = supabase.channel('online-users', { config: { presence: { key: state.user.id } } });
   ch.on('presence', { event: 'sync' }, () => {
-    try { const st = ch.presenceState() || {}; _presence.ids = new Set(Object.keys(st).map(String)); _presence.count = _presence.ids.size; } catch (e) { _presence.ids = new Set(); _presence.count = 0; }
+    try {
+      const st = ch.presenceState() || {};
+      _presence.ids = new Set(Object.keys(st).map(String));
+      _presence.count = _presence.ids.size;
+      // Build uid → current activity ('workout' | 'cooking') from the tracked metas.
+      const act = new Map();
+      for (const key of Object.keys(st)) { const metas = st[key] || []; const a = metas[metas.length - 1] && metas[metas.length - 1].activity; if (a) act.set(String(key), a); }
+      _presence.activity = act;
+    } catch (e) { _presence.ids = new Set(); _presence.count = 0; _presence.activity = new Map(); }
     _presenceEmit();
   }).subscribe(async (status) => {
-    if (status === 'SUBSCRIBED' && _presence.visible) { try { await ch.track({ online_at: new Date().toISOString() }); } catch (e) {} }
+    if (status === 'SUBSCRIBED' && _presence.visible) { try { await ch.track(_presencePayload()); } catch (e) {} }
   });
   _presence.channel = ch;
+}
+// Set what I'm doing right now ('workout' | 'cooking' | null) — re-broadcast so
+// my avatar's corner dot lights up for everyone (teal = workout, amber = cooking).
+function setPresenceActivity(kind) {
+  const k = (kind === 'workout' || kind === 'cooking') ? kind : null;
+  if (_presence.myActivity === k) return;
+  _presence.myActivity = k;
+  try { window.ShapeMyActivity = k; } catch (e) {}
+  const ch = _presence.channel;
+  if (ch && _presence.visible) { try { ch.track(_presencePayload()); } catch (e) {} }
+  _presenceEmit();
 }
 // Toggle whether I broadcast my presence (others see me online). Off → untrack;
 // I still receive others' presence (so I can see who's online) but don't appear.
@@ -3639,7 +3661,7 @@ function setPresenceVisible(v) {
   try { window.ShapeOnlineVisible = !!v; } catch (e) {}
   const ch = _presence.channel;
   if (!ch) { if (v) startPresence(); return; }
-  try { if (v) ch.track({ online_at: new Date().toISOString() }); else ch.untrack(); } catch (e) {}
+  try { if (v) ch.track(_presencePayload()); else ch.untrack(); } catch (e) {}
 }
 window.ShapePresence = {
   start: startPresence,
@@ -3647,6 +3669,9 @@ window.ShapePresence = {
   ids: () => Array.from(_presence.ids),
   isOnline: (uid) => !!uid && _presence.ids.has(String(uid)),
   setVisible: setPresenceVisible,
+  setActivity: setPresenceActivity,
+  activityOf: (uid) => (uid ? (_presence.activity.get(String(uid)) || null) : null),
+  myActivity: () => _presence.myActivity,
   onChange: (cb) => { _presence.listeners.add(cb); return () => _presence.listeners.delete(cb); },
 };
 

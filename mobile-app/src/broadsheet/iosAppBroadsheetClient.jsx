@@ -62,6 +62,19 @@ function bsAmLive() {
 function bsIsUserOnline(uid) {
   try { return !!(uid && window.ShapePresence && window.ShapePresence.isOnline && window.ShapePresence.isOnline(uid)); } catch (e) { return false; }
 }
+// What is a member doing right now? 'workout' | 'cooking' | null — drives the
+// corner activity dot (teal = in a workout, amber = cooking). Live via presence.
+function bsUserActivity(uid) {
+  try { return (uid && window.ShapePresence && window.ShapePresence.activityOf && window.ShapePresence.activityOf(uid)) || undefined; } catch (e) { return undefined; }
+}
+// My own current activity (so my avatars' dot reflects what I'm doing).
+function bsMyActivity() {
+  try { return (window.ShapePresence && window.ShapePresence.myActivity && window.ShapePresence.myActivity()) || undefined; } catch (e) { return undefined; }
+}
+// Broadcast that I started/stopped a live activity. Pass null to clear.
+function bsSetMyActivity(kind) {
+  try { window.ShapePresence && window.ShapePresence.setActivity && window.ShapePresence.setActivity(kind || null); } catch (e) {}
+}
 // Re-render hook: bumps whenever the online presence set changes.
 function useBSPresence() {
   const [v, setV] = useStateBSC(0);
@@ -79,7 +92,7 @@ function useBSPresence() {
 // a window event (handled in BSClientAppInner), so a page needn't thread an
 // onProfile prop. Drop it into a page's back-button row, right-aligned.
 function BSMeCorner({ size = 30 }) {
-  return <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
+  return <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
@@ -1219,6 +1232,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
     { name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
   ]);
   const toggle = (i) => setIngs(arr => arr.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
+  // Broadcast "cooking" presence while the meal logger is open (amber dot).
+  React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
 
   // Voice note for the coach — either dictate (speech → text appended to the
   // note) or record an audio memo that rides along with the log. Web
@@ -1977,7 +1992,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
       />
@@ -3098,20 +3113,20 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
       />
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
           Filled in the TRAINER role color (rust) so it reads as a coach lane at a glance. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 11, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '8px 12px', borderRadius: 11, border: '1px solid #a8442e', background: 'linear-gradient(135deg, #c0533b, #9a3c28)', boxShadow: '0 2px 10px rgba(192,83,59,0.25)', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 8, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 10, border: '1px solid #a8442e', background: 'linear-gradient(135deg, #c0533b, #9a3c28)', boxShadow: '0 2px 10px rgba(192,83,59,0.25)', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: '#fff' }}>Find a trainer</span>
-          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted coaches</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: '#fff' }}>Find a trainer</span>
+          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted coaches</span>
         </div>
-        <span style={{ color: '#fff', fontSize: 15, flexShrink: 0, fontWeight: 700 }}>→</span>
+        <span style={{ color: '#fff', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -3998,7 +4013,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   );
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
@@ -5440,20 +5455,20 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <BSPageHeader
         kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
       />
 
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
           Filled in the NUTRITIONIST role color (gold) so it reads as the nutrition lane. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 11, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '8px 12px', borderRadius: 11, border: '1px solid #8a6322', background: 'linear-gradient(135deg, #b8862f, #8a6322)', boxShadow: '0 2px 10px rgba(160,122,46,0.25)', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 8, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 10, border: '1px solid #8a6322', background: 'linear-gradient(135deg, #b8862f, #8a6322)', boxShadow: '0 2px 10px rgba(160,122,46,0.25)', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: '#fff' }}>Find a nutritionist</span>
-          <span style={{ marginLeft: 8, fontFamily: t.MONO, fontSize: 8, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted RDs</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: '#fff' }}>Find a nutritionist</span>
+          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted RDs</span>
         </div>
-        <span style={{ color: '#fff', fontSize: 15, flexShrink: 0, fontWeight: 700 }}>→</span>
+        <span style={{ color: '#fff', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
@@ -7215,7 +7230,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+              <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
             </div>
           : <BSMeCorner size={30} />}
       </div>
@@ -7251,7 +7266,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
             <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `${here.y - 64}px` }}>
-              <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+              <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
@@ -7677,7 +7692,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                   <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </>
               : <BSMeCorner size={30} />}
           </div>
@@ -7689,7 +7704,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} rings={sigilRings} progress={sigilToNext} c={c} teal={TEAL} ink={INK} size={240} />
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
-            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
         {/* progress readout + the three contribution rings, legend */}
@@ -8382,7 +8397,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div key={p.id || i} style={{ display: 'flex', flexDirection: 'column', alignItems: right ? 'flex-end' : 'flex-start' }}>
         {p.pinned && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', color: TEALB, marginBottom: 6 }}><PinIcon filled size={13} /> Pinned</div>}
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11, maxWidth: '90%' }}>
-          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
+          <BSFacetAvatar size={38} c={tc} initial={avInit} photo={isMe ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : (p.userId ? (avatarByUser[p.userId] || undefined) : (p.photo || bsDemoFace(p.who)))} live={isMe ? bsAmLive() : bsIsUserOnline(p.userId)} activity={isMe ? bsMyActivity() : bsUserActivity(p.userId)} showRank={false} onClick={linkable ? () => setOpenProfile({ ...p, kind: akind, tier, photo: (p.userId ? avatarByUser[p.userId] : (p.photo || bsDemoFace(p.who))) }) : undefined} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
               <button onClick={() => linkable && setOpenProfile({ ...p, kind: akind, tier, photo: avatarByUser[p.userId] || p.photo })} style={{ background: 'transparent', border: 0, padding: 0, cursor: linkable ? 'pointer' : 'default', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk }}>{p.who}</button>
@@ -8585,7 +8600,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'messages' ? 'Friends' : 'Your team'}
             </h1>
           </div>
-          <BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />
+          <BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
         </div>
       </div>
 
@@ -9211,6 +9226,7 @@ function bsLongPress(onTrigger) {
 
 function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
   const t = useBS();
+  useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
   const [threadAvatars, setThreadAvatars] = useStateBSC({}); // userId → profile photo
@@ -9338,9 +9354,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
             <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
               <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
                 {!me ? (
-                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
+                  <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} activity={bsUserActivity(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
                 ) : (
-                  <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
               {!me && thread.group && (
@@ -11652,7 +11668,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     <BSPage>
       <BSPageHeader
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />}
+        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
       />
 
       <div style={{ padding: `2px ${t.padX}px 0` }}><BSFollowMini onOpen={() => setShowPublicProfile(true)} /></div>
@@ -12929,6 +12945,8 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
   const [setStartedAt, setSetStartedAt] = useStateBSC(null);
   const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(null);
+  // Broadcast "workout" presence while a live session is open (teal dot).
+  React.useEffect(() => { bsSetMyActivity('workout'); return () => bsSetMyActivity(null); }, []);
   const [setLogs, setSetLogs] = useStateBSC([]);
   const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
@@ -13528,7 +13546,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} showRank={false} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />} />
       {/* Header */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
