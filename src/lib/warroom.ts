@@ -136,7 +136,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     { n: 10, stage: 'Coach side (parallel)', persona: 'Trainer / Nutritionist', detail: 'Apply → approved → roster → build/adjust programs & plans → message clients & co-coaches (Care Team) → payouts.' },
   ],
   layers: [
-    { layer: 'Surfaces', serves: 'Everyone', purpose: 'Where Shape is used.', pieces: ['Mobile broadsheet (/m, Capacitor)', 'Website (marketing + /newdesign)', 'Coach apps (trainer + nutritionist shells)', 'Web dashboard'], gaps: [
+    { layer: 'Surfaces', serves: 'Everyone', purpose: 'Where Shape is used.', pieces: ['Mobile broadsheet (/m, Capacitor)', 'Website — public/newdesign/* (canonical pages: marketing · profiles · store · coaches)', 'Coach apps (trainer + nutritionist shells)', 'Web dashboard + API (src/ Next.js: /dashboard + /api/*)'], gaps: [
       { task: 'iOS App Store build (push plugin + APNs entitlements)', status: 'not-started', priority: 'P1' },
       { task: 'Android signed release', status: 'not-started', priority: 'P2' },
       { task: 'Native mic + camera plugins (WebView fallback today)', status: 'not-started', priority: 'P3' },
@@ -749,6 +749,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: "'Show when I'm online' opt-out toggle on mobile Settings + website Me — shared client_settings.onlineVisible", status: 'done' },
         { label: 'Website chat popup uses the facet avatar incl. your own avatar next to your messages; support tab (Nora) shows an avatar', status: 'done' },
         { label: "Member photos carry into feed/chat/profile avatars app-wide; avatar always visible (even private) — picture or initials", status: 'done' },
+        { label: 'Followers / following lists are a shared sheet on every profile type (mobile BSFollowListSheet + website MemberProfile.html): each row shows the person\'s real profile photo (batched via get_public_profile.avatar / ShapeProfiles.getUserAvatars; demo faces for accountless people) AND is a live link to their public profile (BSPublicProfile / MemberProfile.html?u=). Settings identity counts open the same sheet directly (parity with the profile)', status: 'done' },
         { label: 'Preview mode: demo/seed people show stock faces (app + website) so prospects see avatars on bubbles + profiles', status: 'done' },
         { label: 'Client Terrain profile ported from design handoff: ascent-card hero (facet you-are-here) + THE CLIMB section (start→now→summit)', status: 'done' },
         { label: "THE CLIMB Start/Now/Target + % wired to your real body-comp goal + weigh-ins on your own profile (demo arc for others)", status: 'done' },
