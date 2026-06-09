@@ -15729,7 +15729,17 @@ function BSProgChart({ points, color, h = 150 }) {
   );
 }
 function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
-  const t = useBS();
+  const tBase = useBS();
+  // Embedded inside the Me profile (an always-dark surface): force a dark palette
+  // so it reads correctly even when the app theme is light. Provided via context
+  // so every sub-component's useBS() gets the dark theme too.
+  const t = (embedded && tBase.isLight) ? {
+    ...tBase, isLight: false,
+    INK: '#f2ede4', INK70: 'rgba(242,237,228,0.7)', INK50: 'rgba(242,237,228,0.5)', INK30: 'rgba(242,237,228,0.3)',
+    PAPER: '#100d0a', PAPER2: 'rgba(242,237,228,0.05)', PAPER3: 'rgba(242,237,228,0.08)',
+    HAIR: 'rgba(242,237,228,0.1)', RULE: 'rgba(242,237,228,0.18)', SURFACE_BORDER: 'rgba(242,237,228,0.14)',
+    ACCENT: '#34d6c5', RUST: '#e07856', AMBER: '#f4b860', BLUE: '#7ed4ff', GREEN: '#7ee0a0',
+  } : tBase;
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [tab, setTab] = useStateBSC(initialTab);
   const [prog, setProg] = useStateBSC(null);
@@ -15933,13 +15943,16 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   );
   const tabBody = tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView;
   // Embedded (inside the Me profile's Stats tab): no page chrome / header / footer.
+  // Provide the (dark) theme so every descendant useBS() renders on the dark surface.
   if (embedded) {
-    return (
+    const Provider = (typeof window !== 'undefined' && window.BSContext && window.BSContext.Provider);
+    const body = (
       <div>
         {tabRow}
         <div style={{ marginTop: 16 }}>{tabBody}</div>
       </div>
     );
+    return Provider ? <Provider value={t}>{body}</Provider> : body;
   }
   return (
     <BSPage>
