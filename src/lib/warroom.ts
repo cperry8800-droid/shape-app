@@ -153,7 +153,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: [
-      { task: 'Feed activity "proof cards" (Strava-style splits / stats) still demo — the presence rail itself is now live (get_active_now → real people mid-workout/cooking)', status: 'not-started', priority: 'P2' },
+      { task: 'Feed activity "proof cards" now LIVE: the COMMUNITY feed builds Strava-style cards from real community posts that are workouts/runs (bsActivityFromPost — composer workoutStats + sensor statA/B/C + GPS route), with the author\'s live tier + avatar; demo cards are the signed-out / no-activity-yet fallback (empty state when signed in with none). Remaining: richer per-discipline stat parsing + website parity if a demo stream is ever added', status: 'in-progress', priority: 'P3' },
       { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [

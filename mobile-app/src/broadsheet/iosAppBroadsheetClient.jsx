@@ -6604,6 +6604,51 @@ function bsMapActivityPosts(data) {
     return { k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false };
   });
 }
+// Build a Strava-style activity "proof card" model from a real community post —
+// the rich Log-activity *workout* posts (metrics.workoutStats) and sensor-imported
+// workouts (Strava/Whoop/Garmin → statA/B/C + GPS route). Returns null for plain
+// notes/photos (those live in the channel feeds), so the COMMUNITY feed shows real
+// logged activity instead of the demo cards once people are posting.
+function bsActivityFromPost(p) {
+  if (!p) return null;
+  const ws = Array.isArray(p.workoutStats) ? p.workoutStats.filter(Boolean) : null;
+  const hasSensor = !!(p.statA || p.statB || p.statC);
+  const route = !!p.route;
+  const at = String(p.workout || p.kind || '').toLowerCase();
+  const isRun = route || /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at);
+  const isActivity = (ws && ws.length) || hasSensor || route || p.kind === 'workout' || !!p.source_provider;
+  if (!isActivity) return null;
+  // 3-up stat row: prefer the composer's workoutStats, else the sensor stats.
+  let statsRow = null;
+  if (ws && ws.length) {
+    statsRow = ws.slice(0, 3).map((s) => [String(s.label || s.k || s.key || '').trim(), String(s.value != null ? s.value : (s.v != null ? s.v : '')).trim()]).filter((r) => r[1]);
+  } else if (hasSensor) {
+    const L = Array.isArray(p.labels) ? p.labels : [];
+    statsRow = [[L[0] || 'Stat', p.statA], [L[1] || '', p.statB], [L[2] || '', p.statC]].filter((r) => r[1]);
+  }
+  if (!statsRow || !statsRow.length) statsRow = [['Activity', String(p.status || p.workout || 'Workout')]];
+  const title = (() => {
+    const s = String(p.status || '').trim();
+    if (s && !/^(workout|photo|video|link|note|article)$/i.test(s)) return s;
+    return isRun ? 'Logged a run' : 'Logged a workout';
+  })();
+  return {
+    real: true,
+    key: p.id ? `post-${p.id}` : `act-${p.author_id || ''}-${p.created_at || ''}`,
+    userId: p.author_id || null,
+    who: p.name || 'Shape member',
+    role: p.role || 'Client',
+    typeLabel: isRun ? 'Run' : 'Workout',
+    title,
+    body: p.note || '',
+    ago: bsAgoShort(p.created_at) || p.time || '',
+    city: p.sourceProviderLabel ? `via ${p.sourceProviderLabel}` : '',
+    statsRow,
+    route,
+    kudos: typeof p.likes === 'number' ? p.likes : 0,
+    replies: Array.isArray(p.comments) ? p.comments.length : 0,
+  };
+}
 // The body of an activity card (title · body · photo · inline video / video+link
 // cards · workout stats · metric) — shared by both profile feeds.
 function BSActivityBody({ it, c, INK, card }) {
@@ -8420,6 +8465,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
   const [posts, setPosts] = useStateBSC(SAMPLE);
   const [postsLive, setPostsLive] = useStateBSC(false);
+  // Real Strava-style activity "proof cards" for the COMMUNITY feed (built from the
+  // same community posts that are workouts / sensor-imported sessions). Demo cards
+  // are the signed-out / no-activity-yet fallback.
+  const [activityFeed, setActivityFeed] = useStateBSC([]);
   React.useEffect(() => {
     let active = true;
     (async () => {
@@ -8427,9 +8476,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         const res = await window.ShapeCommunity?.listPosts?.();
         if (active && Array.isArray(res?.data) && res.data.length) {
           const mapped = res.data.map(mapPost).filter(p => p.body);
-          setPosts(mapped); setPostsLive(true);
+          const acts = res.data.map(bsActivityFromPost).filter(Boolean);
+          setPosts(mapped); setPostsLive(true); setActivityFeed(acts);
           // Batch the authors' all-time points → real tier per user for the bubbles.
-          const ids = [...new Set([myUserId, ...mapped.map(p => p.userId)].filter(Boolean))];
+          const ids = [...new Set([myUserId, ...mapped.map(p => p.userId), ...acts.map(a => a.userId)].filter(Boolean))];
           if (ids.length && window.ShapeProfiles?.getUserPoints) {
             window.ShapeProfiles.getUserPoints(ids).then(pointsMap => {
               if (!active || !pointsMap) return;
@@ -8631,30 +8681,34 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   ];
   const ActivityCard = ({ a }) => {
     // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
-    // tier name + color to it; members keep the client ramp.
+    // tier name + color to it; members keep the client ramp. Real posts resolve the
+    // author's live tier (batched points → tier), with a stable name-hash fallback.
     const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
-    const tierDisplay = isCoachAuthor ? bsCoachTier(a.tier) : String(a.tier);
-    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(a.tier);
-    const key = `${a.who}|${a.ago}`;
+    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : a.tier;
+    const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
+    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
+    const key = a.key || `${a.who}|${a.ago}`;
     const liked = !!actLikes[key];
     const comments = actComments[key] || [];
     const cmtOpen = actCmtOpen === key;
-    const typeLabel = a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout';
-    const title = a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? `${a.distance} long run` : a.title;
-    const cheer = a.kind === 'pr' ? 'Spot' : a.kind === 'run' ? 'Match' : 'Respect';
-    const stats = a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
+    const typeLabel = a.real ? a.typeLabel : (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout');
+    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? `${a.distance} long run` : a.title);
+    const cheer = a.real ? 'Cheer' : (a.kind === 'pr' ? 'Spot' : a.kind === 'run' ? 'Match' : 'Respect');
+    const stats = a.real ? a.statsRow
+      : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
-    const showRoute = a.kind === 'run';
+    const showRoute = a.real ? !!a.route : a.kind === 'run';
     const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
-    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: a.tier, init: bsInitials(a.who), city: a.city, public: true, photo: bsDemoFace(a.who) });
+    const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
+    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
     return (
       <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 2, background: tc }} />
         <div style={{ padding: '10px 13px 11px' }}>
           {/* author + activity type */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who) || '?'} photo={bsDemoFace(a.who)} showRank={false} onClick={openCardProfile} />
+            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
@@ -9088,13 +9142,27 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Community feed is a Strava-style activity stream — just workouts.
-                  Illustrative for now; wire to real workout/run/PR logs later. */}
+              {/* Community feed is a Strava-style activity stream of real logged
+                  workouts/runs (bsActivityFromPost over the live community posts).
+                  Signed-out / no-activity-yet falls back to the demo cards so the
+                  preview still shows a full feel. */}
               {/* Call ActivityCard as a function (not <ActivityCard/>) so it
                   inlines into this render — rendering it as an element remounts
                   the card every keystroke (new fn identity), dropping the
                   comment input's focus/keyboard. */}
-              {COMMUNITY_ACTIVITIES.map((a, i) => <React.Fragment key={`act-${i}`}>{ActivityCard({ a })}</React.Fragment>)}
+              {(() => {
+                const realMode = loggedIn && postsLive;
+                const cards = realMode ? activityFeed : COMMUNITY_ACTIVITIES;
+                if (realMode && !cards.length) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '40px 24px', color: muted }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, color: cardInk, letterSpacing: '-0.02em' }}>No activity yet</div>
+                      <div style={{ fontFamily: t.BODY, fontSize: 13, marginTop: 6, lineHeight: 1.4 }}>Log a workout or run — or connect Strava/Whoop in Settings — and it shows up here for the community.</div>
+                    </div>
+                  );
+                }
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}>{ActivityCard({ a })}</React.Fragment>);
+              })()}
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
