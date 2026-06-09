@@ -955,19 +955,6 @@ function BSRadioScreen({ onBack }) {
           />
         ))}
 
-        {/* RECENT TRACKS */}
-        <DarkSection title="On the air" meta="Last 16 minutes" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
-        {r.LIVE.tracks.map((track, i) => (
-          <DarkTrackRow
-            key={i}
-            time={track.t}
-            title={track.a}
-            sub={`${track.b} · ${track.bpm} BPM`}
-            live={i === r.trackIdx}
-            last={i === r.LIVE.tracks.length - 1}
-            t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
-          />
-        ))}
 
         {false && (
         <React.Fragment>
@@ -981,14 +968,6 @@ function BSRadioScreen({ onBack }) {
         </React.Fragment>
         )}
 
-        <div style={{
-          padding: `14px ${t.padX}px 20px`,
-          display: 'flex', justifyContent: 'space-between',
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50,
-        }}>
-          <span>The Shape Daily</span>
-          <span>Music</span>
-        </div>
       </div>
 
       <style>{`
