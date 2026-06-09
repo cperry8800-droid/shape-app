@@ -6069,6 +6069,13 @@ const BS_SAMPLE_CHANNELS = [
 // Public profile opened from a chat avatar — works for any member or coach.
 // Name pool for the preview followers/following list (accountless/demo profiles).
 const BS_FOLLOW_DEMO_NAMES = ['Priya Shah', 'Drew Oyelaran', 'Casey Morgan', 'Devon Wells', 'Maya Okafor', 'Sofia Park', 'Jordan Chen', 'Sam Holloway', 'Riley Kim', 'Noah Bennett', 'Eva Lindqvist', 'Marcus Webb', 'Tara Nguyen', 'Owen Brooks', 'Lena Petrova', 'Theo Adeyemi', 'Mia Castellanos', 'Hassan Ali', 'Grace Donnelly', 'Kai Nakamura', 'Ana Sørensen', 'Julian Reyes', 'Nora Whitfield', 'Diego Marín'];
+// Deterministic preview follower/following counts from a name — so an accountless
+// demo person (incl. the signed-out "you") shows the SAME numbers on their profile
+// and in the Settings card.
+function bsDemoFollowCounts(name) {
+  let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
+  return { followers: 40 + (n % 860), following: 28 + ((n >> 5) % 320) };
+}
 // Compact followers/following counts for the Me identity card — tap → opens the
 // full public profile (where the lists live). Reads your own follow stats.
 function BSFollowMini({ onOpen }) {
@@ -6085,7 +6092,9 @@ function BSFollowMini({ onOpen }) {
     window.addEventListener('shape:follows', onSync);
     return () => { on = false; window.removeEventListener('shape:follows', onSync); };
   }, [uid]);
-  const f = s || { followers: 0, following: 0 };
+  // No account (signed-out preview) → show the same name-derived demo counts the
+  // profile shows for "you", so the two never disagree.
+  const f = s || (uid ? { followers: 0, following: 0 } : bsDemoFollowCounts(bsMyName()));
   const stat = (n, l) => (
     <button onClick={onOpen} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.01em' }}>{n}</span>
@@ -6160,8 +6169,8 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // preview counts + a front-end follow toggle so it's visible on every profile.
   const demo = !uid;
   const seed = (() => { let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; })();
-  const [stats, setStats] = useStateBSC((demo && !isSelf)
-    ? { followers: 40 + (seed % 860), following: 28 + ((seed >> 5) % 320), isFollowing: false }
+  const [stats, setStats] = useStateBSC(demo
+    ? { ...bsDemoFollowCounts(name), isFollowing: false }
     : ((uid && window.ShapeFollows?.getCached?.(uid)) || { followers: 0, following: 0, isFollowing: false }));
   const [busy, setBusy] = useStateBSC(false);
   const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following' | 'requests'
