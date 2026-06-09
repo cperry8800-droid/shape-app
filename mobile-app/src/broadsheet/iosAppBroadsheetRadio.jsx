@@ -1091,16 +1091,17 @@ function BSShapeSetsScreen({ onBack }) {
             <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></h1>
           </div>
 
-          {/* HERO card — centered in the remaining space (title now lives in the header) */}
+          {/* HERO — centered in the remaining space; no box, just the content over
+              the Club Shape backdrop (title lives in the page header above). */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: `8px ${t.padX}px` }}>
-            <Glass style={{ textAlign: 'center', padding: '30px 22px', width: '100%' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginBottom: 16 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
-                Live from Club Shape
+            <div style={{ textAlign: 'center', width: '100%' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 18 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM }}>Live from <span style={{ fontStyle: 'italic', color: TEAL }}>Club Shape</span></span>
               </div>
               <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>A virtual concert series broadcast straight from <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.</p>
               <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Coming soon</div>
-            </Glass>
+            </div>
           </div>
         </div>
       </div>
