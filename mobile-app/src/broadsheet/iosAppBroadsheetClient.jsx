@@ -12108,7 +12108,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
       <BSSection title="Reward tiers" meta="5 tiers" />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {tiers.map((tier, i) => {
           const tc = bsTierColor(tier.name);
           const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
@@ -12132,7 +12131,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
-        </div>
       </div>
 
       {/* Rewards header — "Spend your points" centered, teal, and tappable
@@ -12143,7 +12141,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         <span style={{ justifySelf: 'end', fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{available.toLocaleString()} available</span>
       </div>
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {rewards.map(([title, sub, cost], i) => (
           <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
             display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
@@ -12157,12 +12154,10 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
           </div>
         ))}
-        </div>
       </div>
 
       <BSSection title="Point values" kicker={`${profile.roleLabel || 'Member'} activity`} meta={`${activities.length} ways`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {activities.map((a, i) => (
           <div key={a.name} style={{
             display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
@@ -12179,12 +12174,10 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
           </div>
         ))}
-        </div>
       </div>
 
       <BSSection title="Recent points" kicker="Ledger" />
       <div style={{ padding: `0 ${t.padX}px 8px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {ledger.map(([day, pts, label], i) => (
           <div key={`${day}-${label}`} style={{
             display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
@@ -12195,7 +12188,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
             <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, textAlign: 'right', color: t.GREEN }}>{pts}</div>
           </div>
         ))}
-        </div>
       </div>
 
       <BSFooter right="Rewards" />
@@ -12401,7 +12393,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
       <BSSection title="Catalog" kicker={cat} meta={`${visible.length} items`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {visible.map((p, i) => {
           const canAfford = !p.locked && p.cost <= balance;
           const busy = busyId === p.id;
@@ -12433,12 +12424,10 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           );
         })}
-        </div>
       </div>
 
       <BSSection title="Unlocked" kicker="Codes" />
       <div style={{ padding: `0 ${t.padX}px 8px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
         {unlocked.length === 0 ? (
           <div style={{ padding: '18px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>No codes yet — redeem above</div>
         ) : unlocked.map(([code, name, when, cost], i) => (
@@ -12455,7 +12444,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           </div>
         ))}
-        </div>
       </div>
 
       <BSFooter right="Store" />
