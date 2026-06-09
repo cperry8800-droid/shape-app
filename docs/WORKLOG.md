@@ -64,6 +64,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Followers/following lists: tap-through profiles + photos (all profile types)
+- **Mobile** (`iosAppBroadsheetClient.jsx`): the followers/following list rows are now
+  **live links to each person's public profile** on every profile surface.
+  - `BSTerrainProfile` (client Me / member) got a `followProfile` sub-view state +
+    early return → `BSPublicProfile`; `BSSignalCoachProfile` (coach) reuses its existing
+    `reviewerProfile`. Both pass `onOpenProfile` into `BSFollowBlock`.
+  - `BSFollowMini` (Settings identity card): the **Followers / Following counts now open
+    the same live `BSFollowListSheet` directly** (full parity with the profile), and
+    tapping a person opens their public profile (portaled over `#bs-phone-surface`).
+  - `BSFollowListSheet` (shared) batches **profile photos** via
+    `ShapeProfiles.getUserAvatars` (demo Unsplash faces for accountless people) and renders
+    each row as a button → `onOpenProfile`. Accept/decline kept for the requests kind.
+- **Website** (`MemberProfile.html`, + dead-but-consistent `memberProfile.jsx`): the
+  followers/following/requests list rows now show **real profile photos**, batched via
+  `get_public_profile.avatar` (initials fallback). Rows already deep-linked to
+  `MemberProfile.html?u=<userId>`.
+
 ### 2026-06-09 — Shape Sets page (mobile) + Train deck follows coach Adjust + Goal plans/targets live + feed proof cards
 - **Shape Sets (mobile Radio → editorial "about Shape Radio" page).** New `BSShapeSetsScreen`
   in `iosAppBroadsheetRadio.jsx`, reached from a **"Shape Sets · About →"** row at the top of
