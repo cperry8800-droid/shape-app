@@ -6565,7 +6565,13 @@ function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isN
 function bsMapActivityPosts(data) {
   const KMAP = { note: 'Note', article: 'Article', photo: 'Photo', video: 'Video', workout: 'Workout', link: 'Link' };
   const GENERIC = { Photo: 1, Video: 1, Link: 1, Note: 1, Workout: 1, Article: 1 };
-  return (Array.isArray(data) ? data : []).map((p) => {
+  return (Array.isArray(data) ? data : [])
+    // Profile "Personal activities" = only posts deliberately published via the Log
+    // activity composer (they carry an explicit metrics.kind) OR rich media — NOT
+    // plain community-feed/chat text posts (those have no kind and would otherwise
+    // default to "Note" and leak onto the profile).
+    .filter((p) => p && (p.kind || p.photo || p.video || p.link || (Array.isArray(p.workoutStats) && p.workoutStats.length)))
+    .map((p) => {
     const kind = p.kind || (p.video ? 'video' : p.link ? 'link' : p.photo ? 'photo' : 'note');
     const rawTitle = String(p.status || '').trim();
     const t = (rawTitle && !GENERIC[rawTitle]) ? rawTitle : '';
@@ -13380,6 +13386,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
+  const [showRadio, setShowRadio] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
@@ -13901,6 +13908,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showStore) {
     return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   }
+  if (showRadio) {
+    return <BSRadioScreen onBack={() => setShowRadio(false)} />;
+  }
   if (showProgress) {
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
   }
@@ -13943,12 +13953,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { k: 'preferred_times', l: 'Preferred times', options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
   ].map((r) => ({ l: r.l, r: trainingPrefs[r.k] || 'Not set', action: () => openPrefEdit('training', r.k, r.l, { placeholder: r.placeholder, options: r.options }) }));
   const moreRows = [
+    { l: 'Public profile', r: 'View', action: () => setShowPublicProfile(true) },
     { l: 'Goals', r: 'Track', action: () => setShowGoals(true) },
     { l: 'Habits', r: 'Daily', action: () => setShowHabits(true) },
     { l: 'Library', r: 'Saved', action: () => setShowLibrary(true) },
     { l: 'Progress & stats', r: 'View', action: () => setShowProgress(true) },
     { l: 'Shape Score', r: 'Standing', action: () => setShowScore(true) },
     { l: 'Shape Store', r: 'Redeem', action: () => setShowStore(true) },
+    { l: 'Shape Radio', r: 'Listen', action: () => setShowRadio(true) },
     { l: 'Leaderboard', r: 'Rank', action: () => setShowLeaderboard(true) },
     { l: 'Sessions', r: 'Booked', action: () => setShowSessions(true) },
   ];
