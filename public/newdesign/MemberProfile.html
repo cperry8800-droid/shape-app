@@ -136,9 +136,15 @@ function LiveProfilePage() {
   };
   const followBack = async (u) => {
     const c = cl(); if (!c || !c.rpc || !u.userId) return;
-    const now = !(backState[u.userId] === "following" || (followingSet && followingSet.has(u.userId)));
-    setBackState((m) => Object.assign({}, m, { [u.userId]: now ? "following" : "" }));
-    try { await c.rpc("toggle_follow", { p_user_id: u.userId }); } catch (e) { setBackState((m) => Object.assign({}, m, { [u.userId]: now ? "" : "following" })); }
+    const cur = (u.userId in backState) ? backState[u.userId] : ((followingSet && followingSet.has(u.userId)) ? "following" : "");
+    if (cur === "following" || cur === "requested") { // unfollow / cancel request
+      setBackState((m) => Object.assign({}, m, { [u.userId]: "" }));
+      try { await c.rpc("toggle_follow", { p_user_id: u.userId }); } catch (e) { setBackState((m) => Object.assign({}, m, { [u.userId]: cur })); }
+      return;
+    }
+    // New follow — their privacy decides accepted (following) vs pending (requested).
+    try { const r = await c.rpc("toggle_follow", { p_user_id: u.userId }); const d = Array.isArray(r && r.data) ? r.data[0] : (r && r.data); setBackState((m) => Object.assign({}, m, { [u.userId]: (d && d.is_pending) ? "requested" : "following" })); }
+    catch (e) {}
   };
   const respondReq = async (followerId, accept) => {
     const c = cl(); setList((cur) => (cur || []).filter((u) => u.userId !== followerId));
@@ -203,7 +209,7 @@ function LiveProfilePage() {
   const isCoachRow = (u) => u.role === "trainer" || u.role === "nutritionist";
   const sheetVisible = (list || []).filter((u) => group === "all" ? true : group === "coaches" ? isCoachRow(u) : !isCoachRow(u));
   const showFollowBack = sheet === "followers" && st.isSelf;
-  const alreadyBack = (u) => backState[u.userId] === "following" || !!(followingSet && u.userId && followingSet.has(u.userId));
+  const backStatus = (u) => (u.userId in backState) ? backState[u.userId] : ((followingSet && u.userId && followingSet.has(u.userId)) ? "following" : "");
   const sheetTab = (key, label) => {
     const on = group === key;
     return (<button key={key} onClick={() => setGroup(key)} style={{ flex: 1, borderRadius: 999, border: 0, cursor: "pointer", padding: "7px 6px", background: on ? "rgba(46,224,196,0.16)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: on ? 700 : 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</button>);
@@ -240,7 +246,7 @@ function LiveProfilePage() {
                 </div>
               </div>
             ))) : (sheetVisible.length === 0 ? <div style={{ fontFamily: "Fraunces,serif", fontSize: 16, fontStyle: "italic", color: "rgba(242,237,228,0.6)", padding: "8px 0 14px" }}>{group === "coaches" ? "No coaches here yet." : group === "members" ? ("No " + memberTabLabel.toLowerCase() + " here yet.") : sheet === "following" ? "Not following anyone yet." : "No followers yet."}</div> : sheetVisible.map((u, i) => {
-              const back = alreadyBack(u);
+              const bst = backStatus(u);
               return (
               <div key={u.userId || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
                 <a href={u.userId ? `MemberProfile.html?u=${u.userId}` : undefined} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, textDecoration: "none", color: "#f2ede4" }}>
@@ -253,7 +259,7 @@ function LiveProfilePage() {
                   </div>
                 </a>
                 {showFollowBack && u.userId && (
-                  <button onClick={(e) => { e.preventDefault(); followBack(u); }} style={{ flexShrink: 0, borderRadius: 999, cursor: "pointer", padding: "6px 12px", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", background: back ? "transparent" : "#1ec0a8", color: back ? "rgba(242,237,228,0.55)" : "#06110e", border: back ? "1px solid rgba(242,237,228,0.25)" : "0" }}>{back ? "Following ✓" : "Follow back"}</button>
+                  <button onClick={(e) => { e.preventDefault(); followBack(u); }} style={{ flexShrink: 0, borderRadius: 999, cursor: "pointer", padding: "4px 9px", fontFamily: "'JetBrains Mono',monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", background: bst ? "transparent" : "#1ec0a8", color: bst ? "rgba(242,237,228,0.55)" : "#06110e", border: bst ? "1px solid rgba(242,237,228,0.25)" : "0" }}>{bst === "following" ? "Following ✓" : bst === "requested" ? "Requested" : "Follow back"}</button>
                 )}
               </div>
               );

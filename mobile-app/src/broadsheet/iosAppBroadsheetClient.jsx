@@ -6078,6 +6078,13 @@ function bsDemoFollowCounts(name) {
   // and JS `% 320` keeps that sign, which produced negative "following" counts.
   return { followers: 40 + (n % 860), following: 28 + ((n >>> 5) % 320) };
 }
+// Stable per-name "is this demo person private?" — so following a private demo
+// person shows "Requested" (mirrors the real privacy-aware follow), and a public
+// one shows "Following ✓". Independent hash from the follow-counts hash.
+function bsDemoIsPrivate(name) {
+  let h = 0; const s = String(name || ''); for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) >>> 0;
+  return h % 4 === 0;
+}
 // Compact followers/following counts for the Me identity card (Settings) — each
 // count opens the SAME live followers/following list sheet the profile uses (with
 // photos + tap-through to each person's public profile). Reads your own follow stats.
@@ -6227,21 +6234,31 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
     onClose && onClose();
     onOpenProfile({ who: u.name, init: bsInitials(u.name) || '?', kind: u.role === 'trainer' ? 'TRAINER' : u.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', userId: u.userId || null, photo: photo || null, public: true });
   };
-  // Do I already follow this follower back? Real accounts cross-reference my
-  // following set; demo people use a stable per-name split so it looks real.
-  const alreadyBack = (u) => {
+  // Follow-back status for a follower row: '' (not following → show Follow back),
+  // 'following' (public follow), or 'requested' (their profile is private — the
+  // follow is pending their approval). After a tap, backState wins; otherwise we
+  // read my following set (real) / a stable demo split.
+  const backStatus = (u) => {
     const key = u.userId || u.name;
-    if (backState[key] === 'following') return true;
-    if (u.userId) return !!(followingSet && followingSet.has(u.userId));
+    if (key in backState) return backState[key]; // '' | 'following' | 'requested'
+    if (u.userId) return (followingSet && followingSet.has(u.userId)) ? 'following' : '';
     let h = 0; const s = String(u.name || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-    return h % 3 === 0;
+    return h % 3 === 0 ? 'following' : '';
   };
   const followBack = async (u) => {
     const key = u.userId || u.name;
-    const now = !(backState[key] === 'following' || (u.userId ? (followingSet && followingSet.has(u.userId)) : false));
-    setBackState((m) => ({ ...m, [key]: now ? 'following' : '' }));
+    const cur = backStatus(u);
+    if (cur === 'following' || cur === 'requested') { // unfollow / cancel request
+      setBackState((m) => ({ ...m, [key]: '' }));
+      if (u.userId && window.ShapeFollows?.toggle) { try { await window.ShapeFollows.toggle(u.userId); } catch (e) { setBackState((m) => ({ ...m, [key]: cur })); window.__bsToast?.(e?.message || 'Could not update follow.', 'err'); } }
+      return;
+    }
+    // New follow — privacy decides accepted vs pending.
     if (u.userId && window.ShapeFollows?.toggle) {
-      try { await window.ShapeFollows.toggle(u.userId); } catch (e) { setBackState((m) => ({ ...m, [key]: now ? '' : 'following' })); window.__bsToast?.(e?.message || 'Could not follow.', 'err'); }
+      try { const s = await window.ShapeFollows.toggle(u.userId); setBackState((m) => ({ ...m, [key]: s && s.isPending ? 'requested' : 'following' })); }
+      catch (e) { window.__bsToast?.(e?.message || 'Could not follow.', 'err'); }
+    } else {
+      setBackState((m) => ({ ...m, [key]: bsDemoIsPrivate(u.name) ? 'requested' : 'following' }));
     }
   };
   const showFollowBack = self && kind === 'followers';
@@ -6274,7 +6291,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
           const tier = bsPostTier({ who: u.name });
           const roleLabel = u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member';
           const photo = u.userId ? avatars[u.userId] : bsDemoFace(u.name);
-          const back = alreadyBack(u);
+          const bst = backStatus(u); // '' | 'following' | 'requested'
           return (
             <div key={u.userId || u.name || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
               <button onClick={() => openPerson(u, photo)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
@@ -6290,7 +6307,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
                   <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
                 </div>
               ) : showFollowBack ? (
-                <button onClick={() => followBack(u)} style={{ flexShrink: 0, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', background: back ? 'transparent' : TEAL, color: back ? bsTHexA(INK, 0.55) : '#06110e', border: `1px solid ${back ? bsTHexA(INK, 0.25) : TEAL}` }}>{back ? 'Following ✓' : 'Follow back'}</button>
+                <button onClick={() => followBack(u)} style={{ flexShrink: 0, borderRadius: 999, padding: '4px 9px', cursor: 'pointer', fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', background: bst ? 'transparent' : TEAL, color: bst ? bsTHexA(INK, 0.55) : '#06110e', border: `1px solid ${bst ? bsTHexA(INK, 0.25) : TEAL}` }}>{bst === 'following' ? 'Following ✓' : bst === 'requested' ? 'Requested' : 'Follow back'}</button>
               ) : null}
             </div>
           );
@@ -6342,7 +6359,16 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   }, [isSelf]);
   const onToggle = async () => {
     if (busy) return;
-    if (demo) { setStats((s) => ({ ...s, isFollowing: !s.isFollowing, followers: Math.max(0, s.followers + (s.isFollowing ? -1 : 1)) })); return; }
+    if (demo) {
+      // Mirror the real privacy-aware follow: a private demo profile → Requested
+      // (pending), a public one → Following ✓ (and bumps the follower count).
+      setStats((s) => {
+        if (s.isFollowing) return { ...s, isFollowing: false, followers: Math.max(0, s.followers - 1) };
+        if (s.isPending) return { ...s, isPending: false };
+        return bsDemoIsPrivate(name) ? { ...s, isPending: true } : { ...s, isFollowing: true, followers: s.followers + 1 };
+      });
+      return;
+    }
     if (!uid || !window.ShapeFollows?.toggle) return;
     setBusy(true);
     const prev = stats;
