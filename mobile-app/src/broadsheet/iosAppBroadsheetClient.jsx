@@ -14281,7 +14281,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div>
           <BSEyebrow color={t.ACCENT}>Appearance</BSEyebrow>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Theme &amp; texture</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{`${({light:'Cream',white:'White',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{`${({light:'Cream',white:'White',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood',sage:'Sage',forest:'Forest',slate:'Slate',plum:'Plum'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? 'Close ▾' : 'Customize ▸'}</span>
@@ -14310,7 +14310,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
         {appearTab === 'paper' && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood']].map(([k,l]) => (
+          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']].map(([k,l]) => (
             <Pill key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Pill>
           ))}
         </div>

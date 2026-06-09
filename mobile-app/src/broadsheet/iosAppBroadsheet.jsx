@@ -52,9 +52,13 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
     manila:    { paper: '#d9c089', paper2: '#cfb47a', paper3: '#c2a466', ink: '#221806', inkRGB: '34,24,6',     light: true  },
     blueprint: { paper: '#0a2a52', paper2: '#0f3461', paper3: '#163f72', ink: '#dbe7ff', inkRGB: '219,231,255', light: false },
     carbon:    { paper: '#000000', paper2: '#1c1f24', paper3: '#2a2e35', ink: '#c9cfd6', inkRGB: '201,207,214', light: false },
-    steel:     { paper: '#a9aeb4', paper2: '#9da2a9', paper3: '#8c9199', ink: '#15181c', inkRGB: '21,24,28',    light: true,  metallic: true },
+    steel:     { paper: '#c2c7cd', paper2: '#b4b9bf', paper3: '#a3a9b0', ink: '#15181c', inkRGB: '21,24,28',    light: true,  metallic: true },
     bone:      { paper: '#ece4d3', paper2: '#e2d8c2', paper3: '#d4c8ad', ink: '#1a160e', inkRGB: '26,22,14',    light: true  },
     oxblood:   { paper: '#3a1418', paper2: '#481a1f', paper3: '#5a2128', ink: '#f0dfd2', inkRGB: '240,223,210', light: false },
+    sage:      { paper: '#d4d9c6', paper2: '#c8cdb6', paper3: '#b7bda3', ink: '#1b2015', inkRGB: '27,32,21',    light: true  },
+    forest:    { paper: '#0f231a', paper2: '#163021', paper3: '#1e3d2a', ink: '#e3efe2', inkRGB: '227,239,226', light: false },
+    slate:     { paper: '#212834', paper2: '#2b3340', paper3: '#36404e', ink: '#dce4ef', inkRGB: '220,228,239', light: false },
+    plum:      { paper: '#251630', paper2: '#311e40', paper3: '#3e2752', ink: '#ebdff2', inkRGB: '235,223,242', light: false },
   };
   const P = PAPERS[paperMode] || PAPERS.dark;
   const isLight = P.light;
@@ -1217,11 +1221,15 @@ function BSPhone({ children }) {
         ? (t.paperMode === 'manila' ? '#3d2d12'
           : t.paperMode === 'steel' ? '#2a2d33'
           : t.paperMode === 'bone' ? '#2a2418'
+          : t.paperMode === 'sage' ? '#1e2415'
           : '#1a1612')
         : (t.paperMode === 'teal' ? '#021f1a'
           : t.paperMode === 'blueprint' ? '#04132b'
           : t.paperMode === 'carbon' ? '#000000'
           : t.paperMode === 'oxblood' ? '#1a0608'
+          : t.paperMode === 'forest' ? '#06140e'
+          : t.paperMode === 'slate' ? '#0a0e14'
+          : t.paperMode === 'plum' ? '#120819'
           : '#0a0907'),
       boxShadow: '0 30px 80px rgba(0,0,0,0.35), inset 0 0 0 2px rgba(255,255,255,0.04)',
       position: 'relative',

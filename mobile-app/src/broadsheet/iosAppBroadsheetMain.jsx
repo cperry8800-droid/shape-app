@@ -1330,7 +1330,7 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
 
       <Section label="Paper">
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood']].map(([k,l]) => (
+          {[['light','Cream'],['white','White'],['dark','Black'],['teal','Teal'],['manila','Manila'],['blueprint','Blueprint'],['carbon','Carbon'],['steel','Steel'],['bone','Bone'],['oxblood','Oxblood'],['sage','Sage'],['forest','Forest'],['slate','Slate'],['plum','Plum']].map(([k,l]) => (
             <Btn key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}>{l}</Btn>
           ))}
         </div>
