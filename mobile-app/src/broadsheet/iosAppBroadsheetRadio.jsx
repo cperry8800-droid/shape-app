@@ -1009,16 +1009,16 @@ function DarkSection({ title, meta, cream, cream50, rule, t }) {
 function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, right, t, cream, cream50, rule, accent }) {
   const ink = t.isLight ? t.INK : cream, ink50 = t.isLight ? t.INK50 : cream50;
   return (
-    <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
+    <button onClick={onClick} style={{ borderRadius: 0, boxSizing: 'border-box',
       width: '100%', display: 'flex', alignItems: 'center', gap: 12,
       padding: `14px ${t.padX}px`, cursor: 'pointer', textAlign: 'left',
-      background: active ? (t.isLight ? `${accent}12` : 'rgba(244,237,224,0.06)') : 'transparent',
+      background: active ? `${accent}10` : 'transparent',
       color: ink, border: 0, borderBottom: `1px solid ${rule}`,
       borderLeft: active ? `3px solid ${accent}` : '3px solid transparent',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: eyebrowColor }}>{eyebrow}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: ink, marginTop: 4, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: ink, marginTop: 4, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink50, marginTop: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
       </div>
       <div style={{ flexShrink: 0 }}>{right}</div>
