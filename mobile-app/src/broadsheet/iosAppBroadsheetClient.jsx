@@ -10758,11 +10758,6 @@ function BSGoalsOverall({ overall, onLog, consistency = null }) {
           </div>
         </div>
       </div>
-
-      {/* Log weigh-in CTA */}
-      <div style={{ padding: `18px ${t.padX}px 8px` }}>
-        <button onClick={onLog} style={{ width: '100%', padding: '15px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Log weigh-in →</button>
-      </div>
     </>
   );
 }
