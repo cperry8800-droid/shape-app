@@ -153,7 +153,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: [
-      { task: 'Presence rail + activity proof cards are demo', status: 'not-started', priority: 'P2' },
+      { task: 'Feed activity "proof cards" (Strava-style splits / stats) still demo — the presence rail itself is now live (get_active_now → real people mid-workout/cooking)', status: 'not-started', priority: 'P2' },
       { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
@@ -164,7 +164,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Garmin Health API approval (access-request form down)', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Data & infra', serves: 'System', purpose: 'Source of truth + enforcement.', pieces: ['Supabase (Auth, Postgres, RLS, SECURITY DEFINER RPCs, Storage)', 'Next.js API routes', 'Edge proxy membership gate', 'War Room'], gaps: [
-      { task: 'Per-person live presence/activity (count only today)', status: 'not-started', priority: 'P3' },
+      { task: 'Per-person live presence done — get_active_now (SECURITY DEFINER) returns who is mid-workout/cooking now with name·role·points·avatar, powering the rail + the avatar activity dots; the historical activity-card feed is still demo', status: 'not-started', priority: 'P3' },
       { task: 'is_member() RPC to collapse membership checks', status: 'not-started', priority: 'P3' },
     ] },
   ],
@@ -636,6 +636,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach reads a client’s shared goals (share-gated): mobile full-profile + website client page + /shared-overview', status: 'done' },
         { label: 'Live weigh-ins: client_weigh_ins table + ShapeWeighIns.list/log (one row/day upsert); Log weigh-in writes to the table when signed in', status: 'done' },
         { label: 'get_client_goals merges the live weigh-in series into overall.weighIns + latest into overall.now; coach sees the weight trend chart (mobile + website)', status: 'done' },
+        { label: 'Overall dashboard data wired: stat grid (current/to-go/weekly pace/on-track) + milestones (start→25/50/75%→target, auto-✓) + the weight trend all derive from the real weigh-in series; consistency heatmap from live ShapeProgress.train.volumeByDay (demo fallback)', status: 'done' },
+        { label: 'Website goal page ported to match mobile (Overall body-comp dashboard added) AND unified to user_goals(client_goals) — same key mobile uses + the one get_client_goals reads, so a goal set on either surface shows on both and to coaches (reads client_goals, falls back to legacy client, migrates flat goals[])', status: 'done' },
+        { label: 'Still demo on the Overall tab: the "Your plans" cards + "This week · targets that move it" (not yet wired to the assigned program / weekly activity)', status: 'pending' },
         { label: 'Migrations applied on Supabase: 2026-06-13-client-goals-coach-read.sql + 2026-06-13-client-weigh-ins.sql', status: 'manual' },
       ],
     },
@@ -741,7 +744,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Profile privacy selector Public / Friends / Private — enforced server-side (get_public_profile can_view; friends = shared DM)', status: 'done' },
         { label: 'Real per-user online presence (Supabase Realtime online-users) on mobile + website; pulsing live ring when online', status: 'done' },
         { label: "Live \"doing now\" activity dot: avatar corner dot = active right now — teal = in a workout, amber = cooking (decoupled from the online ring). DB-backed (user_activity table + realtime, 6h expiry) so the workout dot persists across screens / app backgrounding and clears only on End/Finish; ShapePresence.setActivity/activityOf. Migration 2026-06-09-user-activity.sql", status: 'done' },
-        { label: 'Facet avatar guarantees photo OR 2 initials (never a blank/placeholder gem): initials render under the photo + onError fallback. Mobile BSFacetAvatar + website LvPortrait', status: 'done' },
+        { label: 'Facet avatar guarantees photo OR 2 initials (never a blank/placeholder gem) — now a CENTRALIZED rule: BSFacetAvatar derives initials from a name prop when none passed; both surfaces ignore blank/stale photo values (bsValidPhoto / portraitOk: empty, "null", bodyless data: URIs → fall back to initials). Website LvPortrait derives initials from d.name when d.initials absent (was a generic crest). Holds for demo + live. Mobile BSFacetAvatar + website LvPortrait (?v=14)', status: 'done' },
+        { label: 'Presence rail ("Training now") is LIVE: get_active_now (SECURITY DEFINER, granted anon+authenticated) returns real people mid-workout/cooking with name·role·points(→tier)·avatar; ShapePresence.activeNow powers the rail (excludes self, demo fallback in preview, refreshes on shape:presence + 45s poll). Migration 2026-06-09-get-active-now.sql', status: 'done' },
         { label: "'Show when I'm online' opt-out toggle on mobile Settings + website Me — shared client_settings.onlineVisible", status: 'done' },
         { label: 'Website chat popup uses the facet avatar incl. your own avatar next to your messages; support tab (Nora) shows an avatar', status: 'done' },
         { label: "Member photos carry into feed/chat/profile avatars app-wide; avatar always visible (even private) — picture or initials", status: 'done' },
