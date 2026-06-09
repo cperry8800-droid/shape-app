@@ -143,7 +143,10 @@ function Spotlight({ tab }) {
   const activeBoost = useActiveLeadBoost(tab === "Trainer" ? "trainer" : "nutritionist");
   // Open the coach's full living profile (the Signal design — sigil, tier, stats,
   // offerings). Derived by name + role when there's no real account behind the card.
-  const coachUrl = (c) => "MemberProfile.html?name=" + encodeURIComponent(typeof c === "string" ? c : c.name) + "&role=" + ((typeof c === "object" && c.tag === "Nutritionist") || tab === "Nutritionist" ? "nutritionist" : "trainer");
+  const coachUrl = (c) => {
+    const photo = (typeof c === "object" && (c.photo || c.avatar)) || "";
+    return "MemberProfile.html?name=" + encodeURIComponent(typeof c === "string" ? c : c.name) + "&role=" + ((typeof c === "object" && c.tag === "Nutritionist") || tab === "Nutritionist" ? "nutritionist" : "trainer") + (photo ? "&avatar=" + encodeURIComponent(photo) : "");
+  };
   return (
     <section style={{ padding: "12px 72px 24px" }}>
       <MkReveal>
@@ -334,7 +337,7 @@ function CoachCard({ c }) {
   };
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
-    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+    <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer") + ((c.photo || c.avatar) ? "&avatar=" + encodeURIComponent(c.photo || c.avatar) : "")} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
       <div style={{ position: "relative", aspectRatio: "4 / 3", overflow: "hidden", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {(c.cover || c.coverImage) && (<>
           <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${c.cover || c.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />

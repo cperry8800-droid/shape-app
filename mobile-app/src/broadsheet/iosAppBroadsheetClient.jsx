@@ -3147,7 +3147,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
           Filled in the TRAINER role color (rust) so it reads as a coach lane at a glance. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 10, border: '1px solid #a8442e', background: 'linear-gradient(135deg, #c0533b, #9a3c28)', boxShadow: '0 2px 10px rgba(192,83,59,0.25)', cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #e07a5f', background: 'linear-gradient(135deg, #c0533b, #9a3c28)', boxShadow: '0 2px 10px rgba(192,83,59,0.25)', cursor: 'pointer', textAlign: 'left' }}>
         <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
         </div>
@@ -5513,7 +5513,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
           Filled in the NUTRITIONIST role color (gold) so it reads as the nutrition lane. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 10, border: '1px solid #8a6322', background: 'linear-gradient(135deg, #b8862f, #8a6322)', boxShadow: '0 2px 10px rgba(160,122,46,0.25)', cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #e0b65c', background: 'linear-gradient(135deg, #b8862f, #8a6322)', boxShadow: '0 2px 10px rgba(160,122,46,0.25)', cursor: 'pointer', textAlign: 'left' }}>
         <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
         </div>
