@@ -7420,8 +7420,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ marginBottom: 22 }}>
                 <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={isSelf ? onOpenProgress : undefined} />
                 {isSelf && <BSMeGoalCard c={c} />}
-                {isSelf && <BSMeKpis onOpen={onOpenProgress} embedded />}
-                {!isSelf && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
+                {isSelf
+                  ? <div style={{ marginTop: 16 }}><BSClientProgress embedded /></div>
+                  : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
             {tab === 'climb' && (<>
@@ -15699,7 +15700,7 @@ function BSProgChart({ points, color, h = 150 }) {
     </svg>
   );
 }
-function BSClientProgress({ onBack, initialTab = 'overall' }) {
+function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [tab, setTab] = useStateBSC(initialTab);
@@ -15897,17 +15898,26 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   );
 
   const TABS = [['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']];
+  const tabRow = (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {TABS.map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 999, cursor: 'pointer', border: on ? 0 : `1px solid ${t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>; })}
+    </div>
+  );
+  const tabBody = tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView;
+  // Embedded (inside the Me profile's Stats tab): no page chrome / header / footer.
+  if (embedded) {
+    return (
+      <div>
+        {tabRow}
+        <div style={{ marginTop: 16 }}>{tabBody}</div>
+      </div>
+    );
+  }
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow="Strength · body · recovery" kicker="Your progress" title={<>Progress.</>} />
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {TABS.map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 999, cursor: 'pointer', border: on ? 0 : `1px solid ${t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>; })}
-        </div>
-      </div>
-      <div style={{ padding: `18px ${t.padX}px 28px` }}>
-        {tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView}
-      </div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>{tabRow}</div>
+      <div style={{ padding: `18px ${t.padX}px 28px` }}>{tabBody}</div>
       <BSFooter right="Progress" />
     </BSPage>
   );
