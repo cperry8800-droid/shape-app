@@ -64,6 +64,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Profile "Log activity" composer (Substack-style multi-type publishing)
+- The member Terrain profile's **Personal activities** button changed from **+ Photo**
+  to **＋ Log activity**, opening a new **`BSLogActivitySheet`** composer (portal into
+  `#bs-phone-surface`, tier-accented). Pick a type and publish to your public feed +
+  profile:
+  - **Note / article** — headline + multi-line body.
+  - **Photo** — image upload (community-photos bucket) + caption.
+  - **Video** — file upload (`ShapeCoachMedia` → public `coach-media/<uid>/`, video mimes)
+    *or* paste a watch link (YouTube/Vimeo). Direct files render inline `<video>`; links
+    render a play-card.
+  - **Workout** — type chips (Strength/Run/Ride/Conditioning/Mobility) + Duration / Dist·Vol /
+    Effort stat fields → a 3-up stat row on the card.
+  - **Link** — website/article URL (+ optional title/desc) → a tappable link card (host ↗).
+- **Wiring:** each type maps to `ShapeCommunity.createPost` with the rich payload stashed in
+  `community_posts.metrics` (`kind`, `video_url`, `link`, `workoutStats`) — **no migration**.
+  `communityPostFromRow` now exposes `kind/video/link/workoutStats`; the profile feed loads
+  **all** of the author's posts (was photo-only) and renders each type (photo, inline video,
+  video/link cards, workout stats, notes). Posting refreshes the feed.
+
 ### 2026-06-09 — App-wide paper-theme sweep (all 11 papers read correctly)
 - Audited every broadsheet file for colors that don't follow the paper theme
   (`t.INK/PAPER*/RULE/ACCENT`). The app overwhelmingly already adapts; the

@@ -6555,6 +6555,167 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
   );
 }
 // Editor bottom sheet — bio override, profile song, prompts, social links.
+// Is this a directly-playable video file (vs. an external watch link)?
+function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
+function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
+
+// "Log activity" composer — a Substack-style multi-type publisher on your own
+// Terrain profile. Pick a type (Note / Photo / Video / Workout / Link), fill it
+// in, and it publishes to your public feed + profile via ShapeCommunity.createPost.
+function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const TEAL = c;
+  const [kind, setKind] = useStateBSC('note');
+  const [title, setTitle] = useStateBSC('');
+  const [body, setBody] = useStateBSC('');
+  const [photoUrl, setPhotoUrl] = useStateBSC('');
+  const [videoUrl, setVideoUrl] = useStateBSC('');
+  const [linkUrl, setLinkUrl] = useStateBSC('');
+  const [woType, setWoType] = useStateBSC('Strength');
+  const [woA, setWoA] = useStateBSC(''), [woB, setWoB] = useStateBSC(''), [woC, setWoC] = useStateBSC('');
+  const [busy, setBusy] = useStateBSC(false);
+  const [upBusy, setUpBusy] = useStateBSC(false);
+  const photoRef = React.useRef(null), videoRef = React.useRef(null);
+
+  const TYPES = [
+    { k: 'note', label: 'Note', icon: '✎' },
+    { k: 'photo', label: 'Photo', icon: '◳' },
+    { k: 'video', label: 'Video', icon: '▷' },
+    { k: 'workout', label: 'Workout', icon: '⊿' },
+    { k: 'link', label: 'Link', icon: '↗' },
+  ];
+  const field = { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 13, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
+  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginBottom: 8, display: 'block' };
+  const uploadBtn = { width: '100%', padding: '13px', borderRadius: 13, border: `1px dashed ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.03), color: INK, cursor: upBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' };
+  const removeBtn = { position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: 999, border: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 15, cursor: 'pointer', lineHeight: '24px', padding: 0 };
+
+  const onFile = async (e, setUrl, asVideo) => {
+    const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
+    if (!file) return; setUpBusy(true);
+    try {
+      let url;
+      if (asVideo) { const r = await window.ShapeCoachMedia?.upload?.(file); url = r?.url; }
+      else { url = await window.ShapeCommunity?.uploadPhoto?.(file); }
+      if (!url) throw new Error('Upload failed.');
+      setUrl(url);
+    } catch (err) { window.__bsToast?.(err?.message || 'Upload failed.', 'err'); }
+    finally { setUpBusy(false); }
+  };
+
+  const canPost = !busy && !upBusy && (
+    kind === 'note' ? !!(title.trim() || body.trim())
+    : kind === 'photo' ? !!photoUrl
+    : kind === 'video' ? !!videoUrl.trim()
+    : kind === 'workout' ? !!(title.trim() || woA.trim() || woB.trim() || woC.trim())
+    : !!linkUrl.trim()
+  );
+
+  const submit = async () => {
+    if (!canPost) return;
+    setBusy(true);
+    try {
+      const base = { channel: 'COMMUNITY', privacy: 'public' };
+      let payload;
+      if (kind === 'note') payload = { ...base, title: title.trim() || 'Note', note: body.trim(), metrics: { kind: 'note' } };
+      else if (kind === 'photo') payload = { ...base, title: title.trim() || 'Photo', note: body.trim(), photoUrl, metrics: { kind: 'photo' } };
+      else if (kind === 'video') payload = { ...base, title: title.trim() || 'Video', note: body.trim(), metrics: { kind: 'video', video_url: videoUrl.trim() } };
+      else if (kind === 'workout') {
+        const stats = [['Duration', woA], ['Distance', woB], ['Effort', woC]].map(([l, v]) => ({ l, v: String(v || '').trim() })).filter((s) => s.v);
+        payload = { ...base, title: title.trim() || woType, note: body.trim(), activityType: woType.toLowerCase(), metrics: { kind: 'workout', workoutStats: stats } };
+      } else {
+        let u = linkUrl.trim(); if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        const host = bsLinkHost(u);
+        payload = { ...base, title: title.trim() || host || 'Link', note: body.trim(), metrics: { kind: 'link', link: { url: u, title: title.trim() || host, desc: body.trim() } } };
+      }
+      await window.ShapeCommunity?.createPost?.(payload);
+      window.__bsToast?.('Published to your profile', 'ok');
+      onPosted && onPosted();
+      onClose && onClose();
+    } catch (err) { window.__bsToast?.(err?.message || 'Could not publish.', 'err'); setBusy(false); }
+  };
+
+  const chip = (on) => ({ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? INK : bsTHexA(INK, 0.7), fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' });
+
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 230, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '18px 18px calc(16px + env(safe-area-inset-bottom, 0px))', maxHeight: '92%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Publish</div>
+            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>Log <span style={{ fontStyle: 'italic', color: TEAL }}>activity.</span></div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', padding: 4 }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 7, marginBottom: 18, flexWrap: 'wrap' }}>
+          {TYPES.map((ty) => { const on = kind === ty.k; return (
+            <button key={ty.k} onClick={() => setKind(ty.k)} style={{ ...chip(on), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: on ? TEAL : bsTHexA(INK, 0.5) }}>{ty.icon}</span>{ty.label}
+            </button>
+          ); })}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <span style={label}>{kind === 'link' ? 'Link title (optional)' : kind === 'workout' ? 'Session name' : 'Headline'}</span>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === 'workout' ? 'Upper Pull — Peak' : kind === 'link' ? 'What is this?' : 'Give it a title…'} style={field} />
+          </div>
+
+          {kind === 'photo' && (
+            <div>
+              <span style={label}>Photo</span>
+              <input ref={photoRef} type="file" accept="image/*" onChange={(e) => onFile(e, setPhotoUrl, false)} style={{ display: 'none' }} />
+              {photoUrl
+                ? <div style={{ position: 'relative' }}><img src={photoUrl} alt="" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover', borderRadius: 13 }} /><button onClick={() => setPhotoUrl('')} style={removeBtn}>×</button></div>
+                : <button onClick={() => photoRef.current && photoRef.current.click()} disabled={upBusy} style={uploadBtn}>{upBusy ? 'Uploading…' : '＋ Choose photo'}</button>}
+            </div>
+          )}
+
+          {kind === 'video' && (
+            <div>
+              <span style={label}>Video</span>
+              <input ref={videoRef} type="file" accept="video/*" onChange={(e) => onFile(e, setVideoUrl, true)} style={{ display: 'none' }} />
+              {videoUrl
+                ? (bsIsDirectVideoUrl(videoUrl)
+                    ? <div style={{ position: 'relative' }}><video src={videoUrl} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 280, borderRadius: 13, background: '#000' }} /><button onClick={() => setVideoUrl('')} style={removeBtn}>×</button></div>
+                    : <div style={{ ...field, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{videoUrl}</span><button onClick={() => setVideoUrl('')} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), cursor: 'pointer', fontSize: 16 }}>×</button></div>)
+                : <>
+                    <button onClick={() => videoRef.current && videoRef.current.click()} disabled={upBusy} style={uploadBtn}>{upBusy ? 'Uploading…' : '＋ Upload video'}</button>
+                    <div style={{ marginTop: 10 }}><span style={label}>…or paste a video link</span><input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="https://youtube.com/…" style={field} /></div>
+                  </>}
+            </div>
+          )}
+
+          {kind === 'workout' && (
+            <>
+              <div><span style={label}>Type</span><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{['Strength', 'Run', 'Ride', 'Conditioning', 'Mobility'].map((w) => <button key={w} onClick={() => setWoType(w)} style={{ ...chip(woType === w), fontSize: 9.5, padding: '7px 12px' }}>{w}</button>)}</div></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <div><span style={label}>Duration</span><input value={woA} onChange={(e) => setWoA(e.target.value)} placeholder="52 min" style={field} /></div>
+                <div><span style={label}>Dist / Vol</span><input value={woB} onChange={(e) => setWoB(e.target.value)} placeholder="5 km" style={field} /></div>
+                <div><span style={label}>Effort</span><input value={woC} onChange={(e) => setWoC(e.target.value)} placeholder="RPE 8" style={field} /></div>
+              </div>
+            </>
+          )}
+
+          {kind === 'link' && (
+            <div><span style={label}>Website / article URL</span><input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" style={field} inputMode="url" autoCapitalize="none" /></div>
+          )}
+
+          <div>
+            <span style={label}>{kind === 'workout' ? 'How it went' : kind === 'link' ? 'Why it matters' : 'Write something'}</span>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={kind === 'note' ? 5 : 3} placeholder={kind === 'note' ? 'Share an update, a thought, a lesson…' : 'Add a note (optional)…'} style={{ ...field, resize: 'vertical', minHeight: kind === 'note' ? 120 : 64, lineHeight: 1.5 }} />
+          </div>
+        </div>
+
+        <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 16, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
+          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? 'Publishing…' : 'Publish →'}</button>
+        </div>
+      </div>
+    </div>,
+    (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+  );
+}
+
 function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
@@ -6967,31 +7128,28 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
   const feedAuthorId = isSelf ? (person.userId || myId) : (person.userId || null);
   const [photoPosts, setPhotoPosts] = useStateBSC([]);
-  const [photoBusy, setPhotoBusy] = useStateBSC(false);
-  const photoInputRef = React.useRef(null);
+  const [showLog, setShowLog] = useStateBSC(false);
   const agoShort = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); };
+  // Profile activity feed — every "log activity" post the member published
+  // (note / photo / video / workout / link), newest first. Maps the rich types
+  // off community_posts.metrics (kind/video/link/workoutStats).
   const loadPhotoPosts = React.useCallback(() => {
     if (!feedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
-    window.ShapeCommunity.listByAuthor(feedAuthorId, { withPhotoOnly: true })
-      .then((r) => { const items = (r?.data || []).map((p) => ({ k: 'Photo', t: p.note || '', b: '', photo: p.photo, time: agoShort(p.created_at), hot: false })); setPhotoPosts(items); })
+    const KMAP = { note: 'Note', article: 'Article', photo: 'Photo', video: 'Video', workout: 'Workout', link: 'Link' };
+    const GENERIC = { Photo: 1, Video: 1, Link: 1, Note: 1, Workout: 1, Article: 1 };
+    window.ShapeCommunity.listByAuthor(feedAuthorId, { withPhotoOnly: false })
+      .then((r) => {
+        const items = (r?.data || []).map((p) => {
+          const kind = p.kind || (p.video ? 'video' : p.link ? 'link' : p.photo ? 'photo' : 'note');
+          const rawTitle = String(p.status || '').trim();
+          const t = (rawTitle && !GENERIC[rawTitle]) ? rawTitle : '';
+          return { k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: agoShort(p.created_at), hot: false };
+        });
+        setPhotoPosts(items);
+      })
       .catch(() => {});
   }, [feedAuthorId]);
   React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts]);
-  const addProfilePhoto = () => { try { photoInputRef.current && photoInputRef.current.click(); } catch (e) {} };
-  const onProfilePhotoFile = async (e) => {
-    const file = e?.target?.files?.[0];
-    if (e?.target) e.target.value = '';
-    if (!file) return;
-    setPhotoBusy(true);
-    try {
-      const url = await window.ShapeCommunity?.uploadPhoto?.(file);
-      if (!url) throw new Error('Upload failed.');
-      await window.ShapeCommunity?.createPost?.({ title: 'Photo', note: '', channel: 'COMMUNITY', privacy: 'public', photoUrl: url });
-      setPhotoPosts((prev) => [{ k: 'Photo', t: '', b: '', photo: url, time: 'now', hot: false }, ...prev]);
-      window.__bsToast?.('Photo added', 'ok');
-    } catch (err) { window.__bsToast?.(err?.message || 'Could not add photo.', 'err'); }
-    finally { setPhotoBusy(false); }
-  };
   const feedEff = (() => {
     const base = (isSelf && realFeed && realFeed.length) ? realFeed : feed;
     return photoPosts.length ? [...photoPosts, ...base] : base;
@@ -7316,12 +7474,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Kick>Personal activities</Kick>
                 {isSelf && (
-                  <>
-                    <input ref={photoInputRef} type="file" accept="image/*" onChange={onProfilePhotoFile} style={{ display: 'none' }} />
-                    <button onClick={() => !photoBusy && addProfilePhoto()} disabled={photoBusy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.45)}`, color: TEAL, borderRadius: 999, padding: '6px 12px', cursor: photoBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                      {photoBusy ? 'Uploading…' : '+ Photo'}
-                    </button>
-                  </>
+                  <button onClick={() => setShowLog(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.45)}`, color: TEAL, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                    ＋ Log activity
+                  </button>
                 )}
               </div>
               <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
@@ -7332,8 +7487,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                     <div style={{ ...card, padding: '13px 15px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
                       {it.t && <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 9 }}>{it.t}</div>}
-                      {it.b && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0' }}>{it.b}</p>}
+                      {it.b && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.72), margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{it.b}</p>}
                       {it.photo && <img src={it.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: it.t || it.b ? 10 : 6 }} />}
+                      {it.video && (bsIsDirectVideoUrl(it.video)
+                        ? <video src={it.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: it.t || it.b ? 10 : 6, background: '#000' }} />
+                        : <a href={it.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', ...card, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: bsTHexA(c, 0.18), color: c, display: 'grid', placeItems: 'center', fontSize: 12 }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: SANS, fontSize: 13, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5) }}>{bsLinkHost(it.video)} ↗</span></span></a>)}
+                      {it.link && <a href={it.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', ...card, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: bsTHexA(c, 0.18), color: c, display: 'grid', placeItems: 'center', fontSize: 13 }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: SANS, fontWeight: 600, fontSize: 13, color: INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.link.title || bsLinkHost(it.link.url)}</span><span style={{ display: 'block', fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.5) }}>{bsLinkHost(it.link.url)} ↗</span></span></a>}
+                      {it.stats && it.stats.length > 0 && <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>{it.stats.map((s, si) => <div key={si} style={{ flex: 1, ...card, borderRadius: 11, padding: '9px 6px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.02em', color: INK }}>{s.v}</div><div style={{ fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 3 }}>{s.l}</div></div>)}</div>}
                       {it.metric && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}><div style={{ flex: 1, height: 1, background: bsTHexA(INK, 0.12) }} /><span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{it.metric[0]}</span><span style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: it.hot ? TEAL : INK }}>{it.metric[1]}</span></div>}
                     </div>
                   </div>
@@ -7348,6 +7508,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {meMode && <div style={{ height: 92, flex: '0 0 auto' }} />}
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
 
       {/* dock — Message others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
