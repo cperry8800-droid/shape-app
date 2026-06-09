@@ -369,6 +369,16 @@ function BSShapeRadioLogo({ cream, accent }) {
   );
 }
 
+// Shape Radio wordmark — picks the right PNG for the surface. On dark paper the
+// original white logo; on light paper a recolored variant where the white parts
+// (SHAPE + the second play-triangle) read as ink/black while the play triangle +
+// RADIO stay teal — the two-tone treatment the brand uses on light backgrounds.
+function BSRadioWordmark({ width = 'min(86%, 330px)', style = {} }) {
+  const t = useBS();
+  const file = t.isLight ? 'shape-radio-logo-lt.png?v=1' : 'shape-radio-logo.png?v=2';
+  return <img src={`${import.meta.env.BASE_URL}${file}`} alt="Shape Radio" style={{ width, height: 'auto', display: 'block', ...style }} />;
+}
+
 // Sweeping diagonal "stage light" — used as a subtle background streak
 function BSStageLight({ color, opacity = 0.18, paused = false }) {
   const t = useBS();
@@ -435,7 +445,7 @@ function BSRadioPrompt() {
       )}
 
       {/* Shape Radio wordmark — fixed header near the top (transparent PNG, no box) */}
-      <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png?v=2`} alt="Shape Radio" style={{ position: 'absolute', zIndex: 3, top: 'max(70px, calc(env(safe-area-inset-top, 0px) + 56px))', left: t.padX, width: 'min(74%, 268px)', height: 'auto', display: 'block', pointerEvents: 'none' }} />
+      <BSRadioWordmark width="min(74%, 268px)" style={{ position: 'absolute', zIndex: 3, top: 'max(70px, calc(env(safe-area-inset-top, 0px) + 56px))', left: t.padX, pointerEvents: 'none' }} />
 
       {/* Scrollable upper region — hero + choices */}
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="bs-scroll">
@@ -632,7 +642,7 @@ function BSNowPlaying({ onOpen }) {
                     fontSize: 18,
                     fontWeight: 900,
                     lineHeight: 1,
-                    textShadow: active ? 'none' : '0 1px 3px rgba(0,0,0,0.38)',
+                    textShadow: active || t.isLight ? 'none' : '0 1px 3px rgba(0,0,0,0.38)',
                     opacity: active ? 1 : 0.95,
                   }}
                 >{item.key === 'like' ? '+' : '-'}</button>
@@ -958,21 +968,7 @@ function BSRadioScreen({ onBack }) {
           textAlign: 'center',
           whiteSpace: 'nowrap',
         }}>
-          {t.isLight
-            ? (() => {
-                // On light paper, split the single PNG so "SHAPE" reads in ink (black)
-                // while the play-triangle + "RADIO" stay teal. The 46% clip falls in
-                // the whitespace gap between the "E" and the triangle (measured 42.7–50%).
-                const _src = `url(${import.meta.env.BASE_URL}shape-radio-logo.png?v=2)`;
-                const _maskBase = { position: 'absolute', inset: 0, WebkitMaskImage: _src, maskImage: _src, WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' };
-                return (
-                  <div role="img" aria-label="Shape Radio" style={{ position: 'relative', width: 'min(86%, 330px)', aspectRatio: '1647 / 116', display: 'block', margin: '0 auto' }}>
-                    <span aria-hidden style={{ ..._maskBase, background: t.INK, clipPath: 'inset(0 54% 0 0)' }} />
-                    <span aria-hidden style={{ ..._maskBase, background: '#0a8f87', clipPath: 'inset(0 0 0 46%)' }} />
-                  </div>
-                );
-              })()
-            : <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png?v=2`} alt="Shape Radio" style={{ width: 'min(86%, 330px)', height: 'auto', display: 'block', margin: '0 auto' }} />}
+          <BSRadioWordmark width="min(86%, 330px)" style={{ margin: '0 auto' }} />
         </div>
       </div>
 

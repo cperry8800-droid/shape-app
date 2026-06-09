@@ -6339,11 +6339,18 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
   // right now" flag: `activity` 'workout' → teal dot, 'cooking' → amber dot. When
   // no `activity`/`online` is passed the dot falls back to `live` so existing
   // callers keep their presence dot.
+  const t = useBS();
   const COOK = '#d8a23a';
   const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
   const showDot = activity ? true : (online === undefined ? live : online);
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
+  // The gem's inner window is dark on dark papers (keeps the established look) but
+  // on a LIGHT paper a black gem reads as a blob and dark initials vanish — so on
+  // light papers the window fills with a darkened tier tint + light initials, so
+  // the avatar always reads as a tier-coloured jewel with legible initials.
+  const innerBg = t.isLight ? bsShade(c, 0.6) : '#0f0c0a';
+  const initInk = t.isLight ? '#fbf7ef' : INK;
   return (
     <div onClick={onClick} style={{ width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
@@ -6353,8 +6360,8 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
         {/* portrait window (rotated square clip → rounded diamond). Initials sit
             underneath the photo so a missing/broken image falls back to them —
             it's always a real photo or 2 initials, never a blank/placeholder gem. */}
-        <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: '#0f0c0a', display: 'grid', placeItems: 'center' }}>
-          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>
+        <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: innerBg, display: 'grid', placeItems: 'center' }}>
+          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: initInk, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>
           {photo && <img src={photo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
         </div>
       </div>
@@ -10954,7 +10961,9 @@ function BSClientGoals({ onBack }) {
 // tier), tier name, total points, and the 4 category strata. Public (everyone
 // sees their score); tap opens the full progress hub when self.
 function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
-  const INK = '#f2ede4', TEAL = '#34d6c5';
+  const t = useBS();
+  // Follow the paper theme so the card reads on light papers too (was fixed cream).
+  const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
   const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
   const pts = points != null ? points : 1284;
@@ -10998,7 +11007,9 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
 // Featured goal card on the Me profile (self only) — your top body-comp goal
 // from user_goals('client_goals'). Personal numbers stay off the public profile.
 function BSMeGoalCard({ c, onOpen }) {
-  const INK = '#f2ede4', TEAL = '#34d6c5';
+  const t = useBS();
+  // Follow the paper theme so the goal text reads on light papers too.
+  const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
   const [g, setG] = useStateBSC(null);
   React.useEffect(() => {

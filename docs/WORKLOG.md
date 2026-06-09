@@ -64,6 +64,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Light-paper sweep: radio two-tone logo + Me-page reads on cream
+- **Shape Radio wordmark, light papers** (`iosAppBroadsheetRadio.jsx`): baked a
+  recolored **`shape-radio-logo-lt.png`** (white parts → ink/black: SHAPE + the
+  second play-triangle; teal stays: the play triangle + RADIO) — the two-tone
+  treatment from the uploaded `black and teal triangles.png`. New `BSRadioWordmark`
+  helper picks the dark (white) or light (recolored) PNG by `t.isLight`; used by the
+  radio screen header **and** the prompt header (was a bare white PNG, invisible on a
+  light-paper prompt). Vote-button text-shadow dropped on light papers.
+- **Me page (Terrain profile) on cream paper** (`iosAppBroadsheetClient.jsx`) — text
+  + avatar were disappearing because dark-designed pieces hardcoded cream/black:
+  - **`BSFacetAvatar`**: the gem's inner window was a fixed near-black (`#0f0c0a`) with
+    `INK` initials → a black blob with invisible initials on light paper. Now on light
+    papers the window fills with a **darkened tier tint** + **light initials** (a tier
+    jewel that reads on any paper); dark papers keep the original look untouched.
+  - **`BSScoreCardDark`** + **`BSMeGoalCard`**: both hardcoded `INK = '#f2ede4'`, so the
+    score number/labels and the goal headline were cream-on-cream. Now read `t.INK` +
+    a light/dark-aware teal. The rest of the profile already used theme `INK/BG/TEAL`.
+
 ### 2026-06-09 — Calendar month view: divider-row day list + cleaner grid + real preview data
 - **`iosAppBroadsheetCalendar.jsx`** — three fixes to the month view + its event
   preview sheets (`BSEventSheet` bodies):
