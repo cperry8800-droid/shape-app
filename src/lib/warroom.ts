@@ -773,6 +773,12 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach tier ladder (Certified · Pro · Elite · Master · Icon) separate from clients — mobile + website', status: 'done' },
         { label: 'Website Shape Score page: Members / Coaches tab swaps the ladder; logged-in coaches see the coach ladder', status: 'done' },
         { label: 'Score tier nodes: progress connector bar layered behind the opaque tier discs (no line cutting across circles)', status: 'done' },
+        { label: 'Mobile Shape Score hero unified to the tier thresholds: ring %, the in-hero climb graph (current tier → now → next tier), and "To {nextTier}" all derive from the same current/next thresholds + live scoreTotal (was score/goal, which diverged). Condensed; the Me-page climb dropped its Shape Score aspect (it lives here now)', status: 'done' },
+        { label: 'Shape Score page tabbed: Tiers (default) / Rewards / Points / Ledger under the hero (flat rows); Store opens via a header "STORE" button mirroring the store page\'s "SCORE"', status: 'done' },
+        { label: 'Point values are role-specific: client list (14 ways) vs coach lists (trainer & nutritionist share the same 12 point amounts, role-specific activity names). App (profile.activities via _bsUseLiveScore) + website (client score.jsx list + per-role coach earn-list on Trainer/NutritionistScore)', status: 'done' },
+        { label: 'Recent-points ledger live across profiles: /api/client/score → recent (real score_ledger) on mobile (all roles via _bsUseLiveScore) + website client score.jsx; coach pages use a derived metric breakdown (no event ledger by design)', status: 'done' },
+        { label: 'Store balance box fully live for all profiles: profile wrapped in _bsUseLiveScore so tier + available are live for coaches too; lifetime earned computed live (balance + Σ redemption cost_points) instead of static', status: 'done' },
+        { label: 'Store catalogue role-correct (app + website): clients see Merch + Training + Nutrition + Perks; coaches see Merch + Coach Tools (Lead Boost). Was showing every product to every role. Mobile lead-boost redemption → /api/lead-boosts (ShapeStore.redeemLeadBoost)', status: 'done' },
       ],
     },
   ];

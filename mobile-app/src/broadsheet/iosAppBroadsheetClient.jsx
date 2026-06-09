@@ -12069,7 +12069,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     ['Annual membership credit', '$200 toward next year', '3,500 pts'],
   ];
   // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
-  const [scoreTab, setScoreTab] = useStateBSC('rewards');
+  const [scoreTab, setScoreTab] = useStateBSC('tiers');
 
   return (
     <BSPage>
@@ -12166,45 +12166,37 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         );
       })()}
 
-      <BSSection title="Reward tiers" meta="5 tiers" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {tiers.map((tier, i) => {
-          const tc = bsTierColor(tier.name);
-          const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
-          return (
-            <div key={tier.name} style={{
-              display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12,
-              padding: '13px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            }}>
-              <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 999, background: tc, flexShrink: 0 }} />
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: tc, letterSpacing: '-0.015em' }}>{tier.name}</span>
-                  {current ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· you</span> : null}
-                </div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Tabs under Reward tiers — Rewards / Point values / Recent points, each in a
-          defined square box. */}
+      {/* Tabs: Tiers (first) / Rewards / Points / Ledger — each renders in the box below. */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 0`, display: 'flex', gap: 6 }}>
-        {[['rewards', 'Rewards'], ['points', 'Point values'], ['ledger', 'Recent points']].map(([k, label]) => {
+        {[['tiers', 'Tiers'], ['rewards', 'Rewards'], ['points', 'Points'], ['ledger', 'Ledger']].map(([k, label]) => {
           const on = scoreTab === k;
           return (
-            <button key={k} onClick={() => setScoreTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 6, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
+            <button key={k} onClick={() => setScoreTab(k)} style={{ flex: 1, padding: '9px 4px', borderRadius: 6, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
           );
         })}
       </div>
       <div style={{ padding: `10px ${t.padX}px 8px` }}>
         <div className="bs-hide-scroll" style={{ maxHeight: 320, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {scoreTab === 'tiers' && tiers.map((tier, i) => {
+            const tc = bsTierColor(tier.name);
+            const current = String(profile.tier || '').toLowerCase() === tier.name.toLowerCase();
+            return (
+              <div key={tier.name} style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12, padding: '13px 0', borderBottom: i === tiers.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>PTS</div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.08em', color: t.INK, fontWeight: 700 }}>{tier.range}</div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 999, background: tc, flexShrink: 0 }} />
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: tc, letterSpacing: '-0.015em' }}>{tier.name}</span>
+                    {current ? <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc }}>· you</span> : null}
+                  </div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tier.perk}</div>
+                </div>
+              </div>
+            );
+          })}
           {scoreTab === 'rewards' && rewards.map(([title, sub, cost], i) => (
             <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
               display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
