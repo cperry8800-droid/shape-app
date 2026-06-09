@@ -6316,19 +6316,18 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
         <div style={{ position: 'sticky', top: 0, background: BG, zIndex: 1, marginBottom: 12 }}>
           {/* Masthead — matches the app's other pages: logo + Vol·No line on the
-              left, your avatar + close on the right (no top hairline). */}
+              left, the profile owner's avatar on the right (no top hairline). */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BSFacetAvatar size={30} c={c} initial={bsInitials(name) || bsMyInitials() || '?'} name={name} photo={ownerPhoto || (self ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)} showRank={false} BG={BG} INK={INK} />
-              <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
-            </div>
+            <BSFacetAvatar size={30} c={c} initial={bsInitials(name) || bsMyInitials() || '?'} name={name} photo={ownerPhoto || (self ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)} showRank={false} BG={BG} INK={INK} />
           </div>
-          <div style={{ marginTop: 12, paddingBottom: 8 }}>
+          {/* Title row — × close sits on this line, right-aligned */}
+          <div style={{ marginTop: 12, paddingBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
+            <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
           </div>
           {kind !== 'requests' && (
             <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 999, padding: 4 }}>
@@ -7638,8 +7637,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         </div>
       )}
       {/* Identity heading — tier/streak + name + handle·goal + follows, above the
-          hero box. No avatar up here: the facet avatar rides the hero's climb. */}
-      <div style={{ padding: '10px 18px 0' }}>
+          hero box. No avatar up here: the facet avatar rides the hero's climb.
+          A faint hairline + air separates it from the page masthead above. */}
+      <div style={{ margin: '16px 18px 0', paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
           photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)}
           userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} />
