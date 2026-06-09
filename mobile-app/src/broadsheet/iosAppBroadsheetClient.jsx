@@ -6553,8 +6553,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
     catch (err) { window.__bsToast?.(err?.message || 'Could not upload cover.', 'err'); }
     finally { setCoverBusy(false); }
   };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 13px', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, background: bsTHexA(INK, 0.03), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
-  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginBottom: 7, display: 'block' };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
+  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, fontWeight: 700, marginBottom: 9, display: 'block' };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: BS_PROFILE_PROMPTS[prev.length % BS_PROFILE_PROMPTS.length], a: '' }]);
   const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
@@ -6578,7 +6578,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
   };
   return createPortal(
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 220, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px 18px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '88%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: `20px 18px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '90%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div><div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>Your profile</div><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em', marginTop: 3 }}>Customize.</div></div>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 20, cursor: 'pointer', padding: 4 }}>×</button>
@@ -6589,7 +6589,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
-          <div style={{ position: 'relative', height: 110, borderRadius: 12, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.16)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
+          <div style={{ position: 'relative', height: 130, borderRadius: 16, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
             {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: 'none' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -6637,14 +6637,18 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Prompts</span>
+          <div style={{ marginTop: -3, marginBottom: 10, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.45) }}>Pick a question, write a short answer — they show on your profile so people get a feel for you.</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {prompts.map((p, i) => (
-              <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 12, padding: 11 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                  <select value={p.q} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '8px 10px', fontSize: 12.5, flex: 1 }}>
-                    {BS_PROFILE_PROMPTS.map((q) => <option key={q} value={q}>{q}</option>)}
-                  </select>
-                  <button onClick={() => removePrompt(i)} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 30, height: 30, cursor: 'pointer', flexShrink: 0 }}>×</button>
+              <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 14, padding: 12, background: bsTHexA(INK, 0.025) }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 9 }}>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <select value={p.q} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: c, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
+                      {BS_PROFILE_PROMPTS.map((q) => <option key={q} value={q} style={{ color: '#111', fontFamily: SANS }}>{q}</option>)}
+                    </select>
+                    <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: c, fontSize: 10 }}>▾</span>
+                  </div>
+                  <button onClick={() => removePrompt(i)} aria-label="Remove prompt" style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.16)}`, borderRadius: 999, color: bsTHexA(INK, 0.6), width: 32, height: 32, cursor: 'pointer', flexShrink: 0, fontSize: 16, lineHeight: 1 }}>×</button>
                 </div>
                 <input value={p.a} onChange={(e) => setPrompt(i, 'a', e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
               </div>
@@ -6663,7 +6667,9 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
             ))}
           </div>
         </div>
-        <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? 'Saving…' : 'Save profile'}</button>
+        <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
+          <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 50, borderRadius: 16, background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
+        </div>
       </div>
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
