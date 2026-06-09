@@ -3204,16 +3204,17 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       />
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
-          Filled in the TRAINER role color (rust) so it reads as a coach lane at a glance. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #c06a52', background: 'linear-gradient(135deg, #a34732, #833322)', boxShadow: '0 2px 10px rgba(192,83,59,0.16)', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          Soft rust TINT (the app's tinted-chip language) instead of a solid filled bar —
+          the role color rides the border/icon/eyebrow, the title stays theme ink. */}
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 11, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: '#fff' }}>Find a trainer</span>
-          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted coaches</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a trainer</span>
+          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#c0533b', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted coaches</span>
         </div>
-        <span style={{ color: '#fff', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
+        <span style={{ color: '#c0533b', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
 
       <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} />
@@ -5582,16 +5583,17 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       />
 
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
-          Filled in the NUTRITIONIST role color (gold) so it reads as the nutrition lane. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #c2a052', background: 'linear-gradient(135deg, #9c7228, #75541d)', boxShadow: '0 2px 10px rgba(160,122,46,0.16)', cursor: 'pointer', textAlign: 'left' }}>
-        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          Soft gold TINT (the app's tinted-chip language) instead of a solid filled bar —
+          the role color rides the border/icon/eyebrow, the title stays theme ink. */}
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 11, border: `1px solid ${bsTHexA('#a07a2e', 0.5)}`, background: bsTHexA('#a07a2e', 0.1), cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#a07a2e', 0.16), border: `1px solid ${bsTHexA('#a07a2e', 0.45)}`, color: '#b8923f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: '#fff' }}>Find a nutritionist</span>
-          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: 'rgba(255,255,255,0.72)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Vetted RDs</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK }}>Find a nutritionist</span>
+          <span style={{ marginLeft: 7, fontFamily: t.MONO, fontSize: 7.5, color: '#b8923f', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Vetted RDs</span>
         </div>
-        <span style={{ color: '#fff', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
+        <span style={{ color: '#b8923f', fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
       </button>
 
       <BSNutritionTopTabs active="eat" onChange={setView} />
