@@ -912,20 +912,6 @@ function BSRadioScreen({ onBack }) {
 
       {/* Below-fold panel — tracks paper mode */}
       <div style={{ background: isLight ? t.PAPER : 'rgba(5,7,7,0.92)' }}>
-        {/* SHAPE SETS — link to the editorial about-Shape-Radio / Club Shape page */}
-        <button onClick={() => setShowSets(true)} style={{
-          width: '100%', textAlign: 'left', cursor: 'pointer', border: 0,
-          borderBottom: `1px solid ${RULE_DK}`, background: 'transparent', color: CREAM,
-          display: 'flex', alignItems: 'center', gap: 12, padding: `15px ${t.padX}px`,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>Live from Club Shape</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, marginTop: 4, lineHeight: 1.1 }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600 }}>What Shape Radio is · concert series · coach playlists</div>
-          </div>
-          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>About →</span>
-        </button>
-
         {/* CHANNEL */}
         <DarkSection title="Channel" meta="Live channel" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         {false && (
@@ -954,6 +940,20 @@ function BSRadioScreen({ onBack }) {
             t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
           />
         ))}
+
+        {/* SHAPE SETS — link to the editorial about-Shape-Radio / Club Shape page */}
+        <button onClick={() => setShowSets(true)} style={{
+          width: '100%', textAlign: 'left', cursor: 'pointer', border: 0,
+          borderTop: `1px solid ${RULE_DK}`, background: 'transparent', color: CREAM,
+          display: 'flex', alignItems: 'center', gap: 12, padding: `15px ${t.padX}px`,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>Live from Club Shape</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, marginTop: 4, lineHeight: 1.1 }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600 }}>What Shape Radio is · concert series · coach playlists</div>
+          </div>
+          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>About →</span>
+        </button>
 
 
         {false && (
