@@ -542,7 +542,7 @@ function BSWordmark({ size = 18, color, full = false, vertical = false, align = 
 }
 
 // Masthead — newspaper-style header with vol/no, optional title block
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, titleSize = 36, compact = false }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
   const t = useBS();
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
@@ -582,8 +582,8 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
             position: 'absolute', inset: 0, pointerEvents: 'none',
             background: `radial-gradient(ellipse 80% 90% at 50% 50%, transparent 35%, rgba(${inkRgb},0.05) 100%)`,
           }} />
-          {/* Top hairline — single thin rule (suppressed when noRule, e.g. the feed) */}
-          {!noRule && <div aria-hidden style={{
+          {/* Top hairline — single thin rule (suppressed when noRule/noTopRule, e.g. the feed + home) */}
+          {!noRule && !noTopRule && <div aria-hidden style={{
             position: 'absolute', left: 0, right: 0, top: compact ? 23 : 44, height: 1,
             background: `rgba(${inkRgb},0.5)`,
           }} />}

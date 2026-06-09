@@ -2059,6 +2059,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
+        noTopRule
       />
 
       <BSTicker items={(() => {
@@ -6383,9 +6384,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
-    <button onClick={() => openList(kind)} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+    <button onClick={() => openList(kind)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', lineHeight: 1 }}>
       <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
-      <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>{label}</span>
+      <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
     </button>
   );
   return (
@@ -6394,7 +6395,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       {statBtn(stats.following, 'Following', 'following')}
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
-          flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer',
+          flex: 'none', display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
           fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
@@ -6404,7 +6405,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         const solid = fs === 'follow';
         return (
           <button onClick={onToggle} disabled={busy} style={{
-            flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer',
+            flex: 'none', display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
             fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
             border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
