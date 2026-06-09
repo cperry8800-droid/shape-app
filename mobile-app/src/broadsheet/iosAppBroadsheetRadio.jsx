@@ -1012,7 +1012,7 @@ function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, r
     <button onClick={onClick} style={{ borderRadius: 0, boxSizing: 'border-box',
       width: '100%', display: 'flex', alignItems: 'center', gap: 12,
       padding: `14px ${t.padX}px`, cursor: 'pointer', textAlign: 'left',
-      background: 'transparent',
+      background: active ? `${accent}10` : 'transparent',
       color: ink, border: 0, borderBottom: `1px solid ${rule}`,
       borderLeft: active ? `3px solid ${accent}` : '3px solid transparent',
     }}>
