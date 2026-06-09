@@ -12945,7 +12945,11 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
   const [setStartedAt, setSetStartedAt] = useStateBSC(null);
   const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(null);
   // Broadcast "workout" presence while a live session is open (teal dot).
-  React.useEffect(() => { bsSetMyActivity('workout'); return () => bsSetMyActivity(null); }, []);
+  // Mark "in a workout" when the session starts. Do NOT clear on unmount — the
+  // workout persists across screen changes / app backgrounding (DB-backed) and is
+  // only cleared when she actually ends it (✕ End or Finish below).
+  React.useEffect(() => { bsSetMyActivity('workout'); }, []);
+  const endWorkout = () => { bsSetMyActivity(null); onBack(); };
   const [setLogs, setSetLogs] = useStateBSC([]);
   const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
@@ -13057,6 +13061,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
     } catch (error) {
       window.__bsToast?.(error?.message || 'Workout log saved locally only', 'warn');
     }
+    bsSetMyActivity(null);
     onBack();
   };
 
@@ -13076,7 +13081,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
     <BSPage>
       {/* Header — End / Live timer / set count */}
       <div style={{ padding: `46px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ End</button>
+        <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>✕ End</button>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
           <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block' }} /> Live · {fmt(elapsedSec)}
         </span>
