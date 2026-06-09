@@ -14827,15 +14827,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         const cornerLabel = hasSub ? renewsLabel : (signedIn ? 'Membership inactive' : 'Not a member');
         const btnLabel = hasSub ? 'Manage →' : (signedIn ? 'Activate membership →' : 'Join now →');
         return (
-          <div style={{ padding: `4px ${t.padX}px 18px` }}>
-            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 16, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: 14 }}>
+          <div style={{ padding: `4px ${t.padX}px 14px` }}>
+            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 14, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: '10px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
                 <BSEyebrow color={t.AMBER}>Your plan</BSEyebrow>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
               </div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', marginTop: 5 }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? 'Member.' : 'Membership.'}</span></div>
-              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.45 }}>{hasSub ? `${priceLabel} · Radio included · Community access · Marketplace access` : 'Become a Shape member to join the community'}</div>
-              <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ marginTop: 11, padding: '8px 15px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{btnLabel}</button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 3 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? 'Member.' : 'Membership.'}</span></div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{hasSub ? `${priceLabel} · Radio · Community · Marketplace` : 'Become a member to join the community'}</div>
+                </div>
+                <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{btnLabel}</button>
+              </div>
             </div>
           </div>
         );
