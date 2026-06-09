@@ -1085,12 +1085,13 @@ function BSShapeSetsScreen({ onBack }) {
     </div>
   );
   return (
-    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflow: 'auto', paddingBottom: 80 + 28, fontFamily: t.DISPLAY, color: CREAM, scrollbarWidth: 'none', msOverflowStyle: 'none', backgroundColor: '#0a0d0c' }}>
-      {/* Fixed Club Shape backdrop + darkening scrim */}
-      <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 0, background: `url('${BG}') center 28% / cover no-repeat`, pointerEvents: 'none' }} />
-      <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'linear-gradient(180deg, rgba(8,10,9,0.62), rgba(8,10,9,0.78) 55%, rgba(8,10,9,0.9))', pointerEvents: 'none' }} />
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', backgroundColor: '#0a0d0c' }}>
+      {/* Club Shape backdrop + darkening scrim — absolute (NOT fixed) so they stay
+          inside the phone frame instead of covering the whole desktop preview. */}
+      <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: `url('${BG}') center 28% / cover no-repeat`, pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: 'linear-gradient(180deg, rgba(8,10,9,0.62), rgba(8,10,9,0.78) 55%, rgba(8,10,9,0.9))', pointerEvents: 'none' }} />
 
-      <div style={{ position: 'relative', zIndex: 1 }}>
+      <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflow: 'auto', zIndex: 1, paddingBottom: 80 + 28, fontFamily: t.DISPLAY, color: CREAM, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {/* HEADER */}
         <div style={{ padding: `50px ${t.padX}px 14px` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1102,7 +1103,7 @@ function BSShapeSetsScreen({ onBack }) {
           </div>
         </div>
 
-        {/* HERO — Shape Sets */}
+        {/* HERO — Shape Sets (the only section) */}
         <div style={{ padding: `8px ${t.padX}px 0` }}>
           <Glass style={{ textAlign: 'center', padding: '26px 20px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginBottom: 12 }}>
@@ -1113,59 +1114,6 @@ function BSShapeSetsScreen({ onBack }) {
             <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '16px auto 0', maxWidth: 360, lineHeight: 1.5 }}>A virtual concert series broadcast straight from <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.</p>
             <div style={{ marginTop: 22, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Coming soon</div>
           </Glass>
-        </div>
-
-        {/* What Shape Radio is */}
-        <div style={{ padding: `14px ${t.padX}px 0` }}>
-          <Glass>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>What it is</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.05, color: CREAM }}>Residents <span style={{ fontStyle: 'italic', color: TEAL }}>who train</span>.<br />Sets <span style={{ fontStyle: 'italic', color: TEAL }}>that land</span>.</div>
-            <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 13.5, color: CREAM70, margin: '14px 0 0', lineHeight: 1.5 }}>Ad-free workout mixes, curated stations by BPM, and live DJ sets from residents who lift. Plus: your coach can attach a Spotify or Apple Music playlist to any workout or meal — it plays on the card, in your kitchen, or on the treadmill. Send good ones to friends. Included with every Shape membership.</p>
-          </Glass>
-        </div>
-
-        {/* Coach playlists */}
-        <div style={{ padding: `22px ${t.padX}px 0` }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>New · Coach playlists</div>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Your coach picks the <span style={{ fontStyle: 'italic', color: TEAL }}>soundtrack</span>.</div>
-          <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 13.5, color: CREAM70, margin: '12px 0 0', lineHeight: 1.5 }}>Trainers and nutritionists can attach a Spotify or Apple Music playlist to any workout, meal, or prep session — with a note on why they picked it. Plays right on the card. Heart the good ones. Pass them to friends. One tap, no app switching.</p>
-        </div>
-
-        <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {examples.map((e, i) => (
-            <Glass key={i} style={{ padding: 0, borderRadius: 14 }}>
-              <div style={{ padding: '14px 16px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(0,0,0,0.4)', padding: '4px 9px', borderRadius: 999, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.9)' }}><span style={{ width: 6, height: 6, borderRadius: 999, background: e.provider === 'Apple Music' ? '#fa233b' : '#1DB954' }} />{e.provider.toUpperCase()}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: CREAM50 }}>{e.ctx}</span>
-              </div>
-              <div style={{ padding: '14px 16px 0' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.35, color: CREAM }}><span style={{ fontFamily: t.DISPLAY, fontSize: 26, color: e.accent, lineHeight: 0, verticalAlign: '-0.12em', marginRight: 2 }}>“</span>{e.note}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 14 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 999, background: e.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontSize: 12, color: '#0a0d0c', fontWeight: 700 }}>{e.from[0]}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: 'rgba(255,255,255,0.85)' }}>{e.from.toUpperCase()} · {e.role.toUpperCase()}</div>
-                </div>
-              </div>
-              <div style={{ marginTop: 14, background: 'rgba(0,0,0,0.22)', padding: '12px 16px', borderTop: `1px solid ${RULE_DK}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: CREAM, letterSpacing: '-0.01em' }}>{e.title}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: CREAM50, letterSpacing: '0.05em', marginTop: 2 }}>{e.meta}</div>
-                </div>
-                <div style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 999, background: '#fff', color: '#0a0d0c', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>▶</div>
-              </div>
-            </Glass>
-          ))}
-        </div>
-
-        {/* Social loop */}
-        <div style={{ padding: `14px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 14, border: `1px solid ${TEAL}33`, background: `${TEAL}10`, padding: '16px 18px' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>And · Social loop</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 18, letterSpacing: '-0.018em', lineHeight: 1.25, color: CREAM }}>Good playlists travel. Pass them to lifting partners, running buddies, or community groups — Shape tracks the chain back to the coach.</div>
-          </div>
-        </div>
-
-        <div style={{ padding: `22px ${t.padX}px 20px`, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50 }}>
-          <span>The Shape Daily</span><span>Shape Sets</span>
         </div>
       </div>
       <style>{`@keyframes bs-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
