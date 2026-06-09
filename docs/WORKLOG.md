@@ -64,6 +64,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Website goal page ⇄ mobile parity (Overall dashboard ported) + storage unified
+- **Mobile redesign ported to the website** (`public/newdesign/ClientGoal.html`). The site
+  goal page was a flat goal-card list (Training/Nutrition tabs only); mobile had the richer,
+  more motivating **Overall body-comp dashboard**. Brought the web up to match, leading with
+  one clear progress story then progressively revealing the rest:
+  - **New Overall tab** (first, teal): body-comp **hero** (down-so-far + % there +
+    start→now→target line), a **4-up stat grid** (Current / To go / Weekly pace / On track —
+    derived from the real weigh-in series), a **weight trend** chart, **Milestones** (real
+    trajectory start→25/50/75%→target, auto-✓ as you reach each), the **Driving it · Your
+    plans** section, **This week · Targets that move it**, a **consistency heatmap** (live
+    `ShapeProgress.train.volumeByDay` when present, demo fallback), and **Your why**.
+  - **Training (rust) / Nutrition (gold)** tabs keep the goal cards + score calculator +
+    momentum, now tinted to the tab accent. Removed the now-redundant standalone "Log
+    weigh-in" CTA on mobile (the Trend-section inline action remains).
+  - **Storage unified to `user_goals('client_goals')`** — the same key mobile uses and the
+    one `get_client_goals` reads for **coach visibility**. Reads `client_goals` first, falls
+    back to the legacy `client` doc, and migrates a legacy flat `goals[]` into Training. So a
+    goal set on either surface now shows on both *and* to the client's coaches. No migration.
+
 ### 2026-06-09 — Coach Me page is profile-first (parity with client) + consolidated coach settings
 - **Coach Me tab = the living Signal profile** (profile-first), mirroring the client's
   Terrain Me page. `BSSignalCoachProfile` gained `meMode` + `onOpenSettings`: a "ME /
