@@ -582,6 +582,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
   const [dragType, setDragType] = useStateBSC(null);
   const [overType, setOverType] = useStateBSC(null);
   const cardsBtnRef = React.useRef(null);
+  const cardsMenuRef = React.useRef(null);
   const openCardsMenu = () => {
     const el = cardsBtnRef.current;
     if (el && el.getBoundingClientRect) {
@@ -601,7 +602,9 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
   // otherwise detach from the button, and the page would feel "stuck".
   React.useEffect(() => {
     if (!menuOpen) return undefined;
-    const close = () => setMenuOpen(false);
+    // Close on PAGE scroll (the absolute menu would detach from the button), but
+    // NOT when scrolling inside the menu itself.
+    const close = (e) => { const m = cardsMenuRef.current; if (m && e && e.target && m.contains(e.target)) return; setMenuOpen(false); };
     window.addEventListener('scroll', close, true);
     window.addEventListener('wheel', close, { passive: true });
     window.addEventListener('touchmove', close, { passive: true });
@@ -706,7 +709,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
           {menuOpen && menuPos && createPortal(
             <>
               <div onClick={() => setMenuOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 9998 }} />
-              <div style={{
+              <div ref={cardsMenuRef} className="bs-scroll" style={{
                 position: 'absolute', top: menuPos.top, right: menuPos.right, zIndex: 9999, width: 210,
                 maxHeight: menuPos.maxH, overflowY: 'auto',
                 background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12,
@@ -2536,7 +2539,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             position: 'absolute',
             inset: 0,
             zIndex: 90,
-            background: 'rgba(0,0,0,0.42)',
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(3px)',
+            WebkitBackdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -2550,10 +2555,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               width: '100%',
               maxWidth: 460,
               border: `1px solid ${t.RULE}`,
-              borderRadius: 18,
+              borderRadius: 20,
               background: t.PAPER,
               color: t.INK,
-              boxShadow: '0 18px 60px rgba(0,0,0,0.35)',
+              boxShadow: '0 24px 70px rgba(0,0,0,0.45)',
               overflow: 'auto',
               maxHeight: '80%',
               WebkitOverflowScrolling: 'touch',
@@ -2622,6 +2627,32 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   </div>
                 ))}
               </div>
+              {activeDayLog.tag === 'TRN' && (() => {
+                const wk = bsClientWorkoutForDay(selIdx);
+                const moves = (wk && wk.detail && wk.detail.moves) || [];
+                if (!moves.length) return null;
+                const tc = activeDayLog.tagColor || t.ACCENT;
+                return (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, fontWeight: 800 }}>Exercises</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{moves.length} moves</span>
+                    </div>
+                    <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
+                      {moves.map((m, i) => (
+                        <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i > 0 ? `1px solid ${t.HAIR}` : 0 }}>
+                          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: tc, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</div>
+                            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em' }}>{String(m.scheme || '').split(' · ')[0]}</div>
+                          </div>
+                          {m.load && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: tc, background: `${tc}16`, border: `1px solid ${tc}3a`, borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>{m.load}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 13, background: `${activeDayLog.tagColor || t.ACCENT}14`, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}3a`, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>
                 {activeDayLogDetails.note}
               </div>
@@ -3426,6 +3457,23 @@ function bsMealSchedTime(meal) {
 }
 function bsMealSchedLabel(meal) { return bsFmt12(bsMealSchedTime(meal)); }
 
+// A real food photo for a meal — the meal's own `photo` when set, else a stock
+// image inferred from the title/ingredients so previews always show a picture
+// (was a generated halftone placeholder).
+function bsMealPhoto(meal) {
+  if (meal && (meal.photo || meal.image)) return meal.photo || meal.image;
+  const s = `${(meal && meal.title) || ''} ${(meal && meal.sub) || ''} ${(meal && meal.hero) || ''} ${(meal && meal.tag) || ''}`.toLowerCase();
+  const pick = (id) => `https://images.unsplash.com/photo-${id}?w=720&h=400&fit=crop&q=72&auto=format`;
+  if (/oat|egg|toast|pancake|breakfast|yogurt|granola|smoothie/.test(s)) return pick('1484723091739-30a097e8f929');
+  if (/salmon|fish|tuna|cod/.test(s)) return pick('1467003909585-2f8a72700288');
+  if (/steak|beef|burger|sirloin/.test(s)) return pick('1546964124-0cce460f38ef');
+  if (/wrap|sandwich|burrito|taco/.test(s)) return pick('1528735602780-2552fd46c7af');
+  if (/chicken|turkey|poultry/.test(s)) return pick('1532550907401-a500c9a57435');
+  if (/salad|veg|bowl|greens|broccoli|kale/.test(s)) return pick('1512621776951-a57141f2eefd');
+  if (/rice|stir|noodle|pasta|grain|quinoa/.test(s)) return pick('1603133872878-684f208fb84b');
+  return pick('1490645935967-10de6ba17061');
+}
+
 function BSMealPreview({ meal, onBack, onLog }) {
   const t = useBS();
   _bsScrollTopOnMount();
@@ -3460,10 +3508,17 @@ function BSMealPreview({ meal, onBack, onLog }) {
         <BSMeCorner size={28} />
       </div>
 
-      {/* Hero halftone — rounded */}
+      {/* Hero photo — rounded (falls back to a halftone if the image fails) */}
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}` }}>
+        <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}`, height: 150, background: `${meal.tagColor || t.AMBER}22` }}>
           <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
+          <img
+            src={bsMealPhoto(meal)}
+            alt={meal.title || 'Meal'}
+            loading="lazy"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          />
         </div>
       </div>
 
