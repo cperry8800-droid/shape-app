@@ -6441,7 +6441,14 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
+  // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
+  // right now" flag: `activity` 'workout' → teal dot, 'cooking' → amber dot. When
+  // no `activity`/`online` is passed the dot falls back to `live` so existing
+  // callers keep their presence dot.
+  const COOK = '#d8a23a';
+  const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
+  const showDot = activity ? true : (online === undefined ? live : online);
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
@@ -6460,8 +6467,8 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
       {editable && (
         <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BG}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
       )}
-      {!editable && live && (
-        <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BG, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BG}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: FTEAL }} /></span>
+      {!editable && showDot && (
+        <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BG, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BG}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: dotColor }} /></span>
       )}
       {!editable && showRank && tierLabel && (
         <div style={{ position: 'absolute', left: '50%', whiteSpace: 'nowrap', pointerEvents: 'none', ...(tierPos === 'top' ? { top: 0, transform: 'translate(-50%,-105%)' } : { bottom: 0, transform: 'translate(-50%,72%)' }) }}>
@@ -8548,17 +8555,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // app has a live online *count* but not per-person current-activity, so this
   // is demo data wired through the real tier-color helpers; swap `TRAINING_NOW`
   // for a live presence feed when the backend exposes who's-doing-what.
+  // Everyone here is ONLINE NOW (pulsing ring = `live`). The corner DOT marks who's
+  // ACTIVE right now: activity 'workout' → teal dot, 'cooking' → amber dot. People
+  // without an activity are just online (no dot).
   const TRAINING_NOW = [
-    { name: 'Priya Shah',    tier: 'peak',   live: true,  photo: '1544005313-94ddf0286df2' },
-    { name: 'Drew Oyelaran', tier: 'legend', live: true,  photo: '1499996860823-5214fcc65f8f' },
-    { name: 'Casey Morgan',  tier: 'form',   live: true,  photo: '1507003211169-0a1dd7228f2d' },
-    { name: 'Devon Wells',   tier: 'tempo',  live: true,  photo: '1500648767791-00dcc994a43e' },
-    { name: 'Maya Okafor',   tier: 'legend', live: true,  role: 'trainer', photo: '1438761681033-6461ffad8d80' },
-    { name: 'Sofia Park',    tier: 'base',   live: true,  photo: '1487412720507-e7ab37603c6f' },
-    { name: 'Leo Marchetti', tier: 'form',   live: true,  photo: '1502685104226-ee32379fefbe' },
-    { name: 'Aisha Bello',   tier: 'peak',   live: true,  role: 'nutritionist', photo: '1534528741775-53994a69daeb' },
-    { name: 'Noah Kim',      tier: 'tempo',  live: true,  photo: '1506794778202-cad84cf45f1d' },
-    { name: 'Elena Rossi',   tier: 'legend',              photo: '1524504388940-b1c1722653e1' },
+    { name: 'Priya Shah',    tier: 'peak',   live: true, activity: 'workout', photo: '1544005313-94ddf0286df2' },
+    { name: 'Drew Oyelaran', tier: 'legend', live: true,                      photo: '1499996860823-5214fcc65f8f' },
+    { name: 'Casey Morgan',  tier: 'form',   live: true, activity: 'workout', photo: '1507003211169-0a1dd7228f2d' },
+    { name: 'Devon Wells',   tier: 'tempo',  live: true,                      photo: '1500648767791-00dcc994a43e' },
+    { name: 'Maya Okafor',   tier: 'legend', live: true, activity: 'workout', role: 'trainer', photo: '1438761681033-6461ffad8d80' },
+    { name: 'Sofia Park',    tier: 'base',   live: true, activity: 'cooking', photo: '1487412720507-e7ab37603c6f' },
+    { name: 'Leo Marchetti', tier: 'form',   live: true, activity: 'workout', photo: '1502685104226-ee32379fefbe' },
+    { name: 'Aisha Bello',   tier: 'peak',   live: true, activity: 'cooking', role: 'nutritionist', photo: '1534528741775-53994a69daeb' },
+    { name: 'Noah Kim',      tier: 'tempo',  live: true,                      photo: '1506794778202-cad84cf45f1d' },
+    { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: '1524504388940-b1c1722653e1' },
   ];
   const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
   const liftingNow = online > 0 ? online : 2104;
@@ -8583,7 +8593,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div style={{ padding: `8px ${t.padX}px 6px` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} lifting now · near you</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} online now · near you</span>
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '13px 12px 8px' }}>
             {TRAINING_NOW.map((p, i) => {
@@ -8592,12 +8602,21 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               return (
                 <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, photo: bsUnsplash(p.photo) || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} showRank={false} live={!!p.live} BG={t.PAPER} INK={'#fff'} />
+                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
                   </div>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>
               );
             })}
+          </div>
+          {/* dot legend: what the corner dot means */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '2px 2px 0', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#34d6c5' }} /> In a workout
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#d8a23a' }} /> Cooking
+            </span>
           </div>
       </div>
 

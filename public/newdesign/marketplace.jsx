@@ -44,22 +44,27 @@ function useActiveLeadBoost(role) {
 // reads as real people (the facet gem shows the photo, else 2 initials). Stable
 // Unsplash IDs, cropped to the face.
 const mkFace = (id) => `https://images.unsplash.com/photo-${id}?w=200&h=200&fit=crop&crop=faces&q=72&auto=format`;
+// Coach-chosen background image sitting behind the avatar (the "cover"). Rendered
+// darkened + tinted toward the tier color so the gem still pops and the page stays
+// cohesive. A few demo coaches carry one; real coaches set theirs in the profile
+// customizer (profile_custom.cover.image).
+const mkBg = (id) => `https://images.unsplash.com/photo-${id}?w=640&h=480&fit=crop&q=68&auto=format`;
 
 const COACHES_FULL = [
   // Trainers
-  { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rate: 120, rating: 4.97, sessions: 1284, tag: "Trainer", specialties: ["Strength", "Hypertrophy"], cert: "NASM-CPT", years: 9, format: "In-person", category: "Strength & Resistance", photo: mkFace("1438761681033-6461ffad8d80") },
+  { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rate: 120, rating: 4.97, sessions: 1284, tag: "Trainer", specialties: ["Strength", "Hypertrophy"], cert: "NASM-CPT", years: 9, format: "In-person", category: "Strength & Resistance", photo: mkFace("1438761681033-6461ffad8d80"), cover: mkBg("1534438327276-14e5300c3a48") },
   { name: "Leo Martins", role: "Powerlifting", city: "Lisbon", rate: 105, rating: 4.86, sessions: 1120, tag: "Trainer", specialties: ["Powerlifting", "Strength"], cert: "NSCA-CSCS", years: 8, format: "In-person", category: "Strength & Resistance", photo: mkFace("1502685104226-ee32379fefbe") },
   { name: "Anya Volkov", role: "Barbell Foundations", city: "Berlin", rate: 98, rating: 4.91, sessions: 680, tag: "Trainer", specialties: ["Strength", "Technique"], cert: "NSCA-CSCS", years: 6, format: "Hybrid", category: "Strength & Resistance" },
 
-  { name: "Diego Alvarez", role: "Endurance · Marathon", city: "Austin, TX", rate: 95, rating: 4.92, sessions: 912, tag: "Trainer", specialties: ["Running", "VO2"], cert: "ACE-CPT", years: 7, format: "Hybrid", category: "Cardio & Endurance", photo: mkFace("1499996860823-5214fcc65f8f") },
+  { name: "Diego Alvarez", role: "Endurance · Marathon", city: "Austin, TX", rate: 95, rating: 4.92, sessions: 912, tag: "Trainer", specialties: ["Running", "VO2"], cert: "ACE-CPT", years: 7, format: "Hybrid", category: "Cardio & Endurance", photo: mkFace("1499996860823-5214fcc65f8f"), cover: mkBg("1461896836934-ffe607ba8211") },
   { name: "Kenji Watanabe", role: "Triathlon Coaching", city: "San Francisco", rate: 150, rating: 4.91, sessions: 590, tag: "Trainer", specialties: ["Triathlon", "Swimming"], cert: "USAT-L2", years: 14, format: "Hybrid", category: "Cardio & Endurance" },
   { name: "Hana Reyes", role: "Cycling & VO2", city: "Girona", rate: 110, rating: 4.88, sessions: 720, tag: "Trainer", specialties: ["Cycling", "Endurance"], cert: "USA-C-L2", years: 9, format: "Remote", category: "Cardio & Endurance" },
 
   { name: "Jordan Park", role: "Mobility · PT Recovery", city: "Los Angeles", rate: 110, rating: 4.89, sessions: 1510, tag: "Trainer", specialties: ["Mobility", "Post-op"], cert: "NSCA-CSCS", years: 8, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("1506794778202-cad84cf45f1d") },
-  { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn, NY", rate: 90, rating: 4.93, sessions: 1680, tag: "Trainer", specialties: ["Yoga", "Breath"], cert: "RYT-500", years: 9, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("1544005313-94ddf0286df2") },
+  { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn, NY", rate: 90, rating: 4.93, sessions: 1680, tag: "Trainer", specialties: ["Yoga", "Breath"], cert: "RYT-500", years: 9, format: "In-person", category: "Mobility, Recovery & Rehab", photo: mkFace("1544005313-94ddf0286df2"), cover: mkBg("1545205597-3d9d02c29597") },
   { name: "Sam Oduya", role: "Rehab & Return-to-Sport", city: "Atlanta", rate: 125, rating: 4.94, sessions: 540, tag: "Trainer", specialties: ["Rehab", "PT"], cert: "DPT · CSCS", years: 11, format: "In-person", category: "Mobility, Recovery & Rehab" },
 
-  { name: "Tomás Reyes", role: "CrossFit · Olympic Lifts", city: "Miami", rate: 130, rating: 4.88, sessions: 2010, tag: "Trainer", specialties: ["CrossFit", "Olympic"], cert: "CF-L3", years: 12, format: "In-person", category: "Functional & Hybrid", photo: mkFace("1507003211169-0a1dd7228f2d") },
+  { name: "Tomás Reyes", role: "CrossFit · Olympic Lifts", city: "Miami", rate: 130, rating: 4.88, sessions: 2010, tag: "Trainer", specialties: ["CrossFit", "Olympic"], cert: "CF-L3", years: 12, format: "In-person", category: "Functional & Hybrid", photo: mkFace("1507003211169-0a1dd7228f2d"), cover: mkBg("1571019613454-1cb2f99b2d8b") },
   { name: "Isla Park", role: "Hybrid Athlete", city: "Austin, TX", rate: 115, rating: 4.90, sessions: 640, tag: "Trainer", specialties: ["Hybrid", "Hyrox"], cert: "NSCA-CSCS", years: 7, format: "Hybrid", category: "Functional & Hybrid" },
 
   { name: "Marcus Hale", role: "Classic Bodybuilding", city: "Las Vegas", rate: 140, rating: 4.87, sessions: 980, tag: "Trainer", specialties: ["Hypertrophy", "Prep"], cert: "NASM · PN-1", years: 13, format: "In-person", category: "Bodybuilding" },
@@ -87,9 +92,9 @@ const COACHES_FULL = [
   { name: "Rafa Moreno", role: "Hyrox Strength & Run Carry-over", city: "Madrid", rate: 105, rating: 4.89, sessions: 440, tag: "Trainer", specialties: ["Hyrox", "Conditioning"], cert: "Hyrox-CT", years: 6, format: "In-person", category: "Hyrox" },
 
   // Nutritionists
-  { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rate: 140, rating: 5.00, sessions: 640, tag: "Nutritionist", specialties: ["Hydration", "Metabolic"], cert: "RD · RDN", years: 11, format: "Remote", category: "Sports Performance & Hydration", photo: mkFace("1487412720507-e7ab37603c6f") },
+  { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rate: 140, rating: 5.00, sessions: 640, tag: "Nutritionist", specialties: ["Hydration", "Metabolic"], cert: "RD · RDN", years: 11, format: "Remote", category: "Sports Performance & Hydration", photo: mkFace("1487412720507-e7ab37603c6f"), cover: mkBg("1490645935967-10de6ba17061") },
   { name: "Claire Donovan", role: "Performance Nutrition", city: "London", rate: 130, rating: 4.93, sessions: 520, tag: "Nutritionist", specialties: ["Athlete fueling"], cert: "AfN-RNutr", years: 9, format: "Remote", category: "Performance Nutrition", photo: mkFace("1573497019940-1c28c88b4f3e") },
-  { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rate: 160, rating: 4.98, sessions: 420, tag: "Nutritionist", specialties: ["Auto-immune", "Gut"], cert: "AfN-RNutr", years: 13, format: "Remote", category: "Medical & Condition-Specific", photo: mkFace("1524504388940-b1c1722653e1") },
+  { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rate: 160, rating: 4.98, sessions: 420, tag: "Nutritionist", specialties: ["Auto-immune", "Gut"], cert: "AfN-RNutr", years: 13, format: "Remote", category: "Medical & Condition-Specific", photo: mkFace("1524504388940-b1c1722653e1"), cover: mkBg("1512621776951-a57141f2eefd") },
   { name: "David Mehta", role: "Medical Nutrition Therapy", city: "Toronto", rate: 150, rating: 4.95, sessions: 380, tag: "Nutritionist", specialties: ["Diabetes", "Cardiac"], cert: "RD", years: 14, format: "Remote", category: "Medical & Condition-Specific" },
   { name: "Ben Caldwell", role: "Muscle Gain & Bulking", city: "Sydney", rate: 110, rating: 4.87, sessions: 690, tag: "Nutritionist", specialties: ["Bulking", "Recomp"], cert: "APD", years: 7, format: "Remote", category: "Muscle Gain / Bulking", photo: mkFace("1521119989659-a83eee488004") },
   { name: "Nadia Chen", role: "Gut Health & Functional", city: "Toronto", rate: 125, rating: 4.95, sessions: 730, tag: "Nutritionist", specialties: ["GI health", "Functional"], cert: "RDN", years: 6, format: "Remote", category: "Gut Health & Functional Nutrition", photo: mkFace("1534528741775-53994a69daeb") },
@@ -115,7 +120,7 @@ const LOCATIONS = {
 const SPOTLIGHT = {
   Trainer: {
     kicker: "Spotlight · this week",
-    lead: { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rating: 4.97, sessions: 1284, years: 9, rate: 120, tag: "Top 1% strength", note: "Rebuilt her programming around tempo work — clients hitting PRs 30% faster on average. Books the last Friday of the month free for 2nd-opinion intros.", photo: mkFace("1438761681033-6461ffad8d80") },
+    lead: { name: "Maya Okafor", role: "Strength & Hypertrophy", city: "Brooklyn, NY", rating: 4.97, sessions: 1284, years: 9, rate: 120, tag: "Top 1% strength", note: "Rebuilt her programming around tempo work — clients hitting PRs 30% faster on average. Books the last Friday of the month free for 2nd-opinion intros.", photo: mkFace("1438761681033-6461ffad8d80"), cover: mkBg("1534438327276-14e5300c3a48") },
     side: [
       { name: "Tomás Reyes", role: "CrossFit · Olympic", city: "Miami", rating: 4.88, rate: 130, note: "Olympic lifts with clean fundamentals.", photo: mkFace("1507003211169-0a1dd7228f2d") },
       { name: "Priya Natarajan", role: "Yoga & Mobility", city: "Brooklyn", rating: 4.93, rate: 90, note: "Rehab-adjacent mobility. Waitlist open.", photo: mkFace("1544005313-94ddf0286df2") },
@@ -124,7 +129,7 @@ const SPOTLIGHT = {
   },
   Nutritionist: {
     kicker: "Spotlight · this week",
-    lead: { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rating: 5.00, sessions: 640, years: 11, rate: 140, tag: "5-star, 640+ sessions", note: "Built fueling plans for 3 Olympic endurance athletes. Specializes in plans that survive real life — travel, kids, shift work.", photo: mkFace("1487412720507-e7ab37603c6f") },
+    lead: { name: "Rae Lindqvist", role: "Sports Performance & Hydration", city: "Stockholm", rating: 5.00, sessions: 640, years: 11, rate: 140, tag: "5-star, 640+ sessions", note: "Built fueling plans for 3 Olympic endurance athletes. Specializes in plans that survive real life — travel, kids, shift work.", photo: mkFace("1487412720507-e7ab37603c6f"), cover: mkBg("1490645935967-10de6ba17061") },
     side: [
       { name: "Sofia Marchetti", role: "Clinical Nutrition", city: "London", rating: 4.98, rate: 160, note: "Auto-immune & gut specialist.", photo: mkFace("1524504388940-b1c1722653e1") },
       { name: "Nadia Chen", role: "Gut Health & Functional", city: "Toronto", rating: 4.95, rate: 125, note: "Plant-forward GI protocols.", photo: mkFace("1534528741775-53994a69daeb") },
@@ -160,7 +165,11 @@ function Spotlight({ tab }) {
             {/* Lead feature */}
             <a href={coachUrl(s.lead)} style={{ background: INK, color: PAPER, borderRadius: 6, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 1fr", position: "relative", textDecoration: "none", cursor: "pointer" }}>
               <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75, zIndex: 2 }} />
-              <div style={{ background: `linear-gradient(165deg, ${mkCoachTier(s.lead).color}45, ${INK} 60%)`, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 380 }}>
+              <div style={{ position: "relative", overflow: "hidden", background: `linear-gradient(165deg, ${mkCoachTier(s.lead).color}45, ${INK} 60%)`, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 380 }}>
+                {(s.lead.cover || s.lead.coverImage) && (<>
+                  <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${s.lead.cover || s.lead.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                  <div aria-hidden style={{ position: "absolute", inset: 0, background: `linear-gradient(165deg, ${mkCoachTier(s.lead).color}82, rgba(11,14,12,0.8) 76%)` }} />
+                </>)}
                 <MkFacet name={s.lead.name} color={mkCoachTier(s.lead).color} photo={s.lead.photo || s.lead.avatar} size={132} />
               </div>
               <div style={{ padding: "34px 34px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -326,7 +335,11 @@ function CoachCard({ c }) {
   const onLeave = () => { if (ref.current) ref.current.style.transform = ""; };
   return (
     <a ref={ref} onMouseMove={onMove} onMouseLeave={onLeave} href={"MemberProfile.html?name=" + encodeURIComponent(c.name) + "&role=" + (c.tag === "Nutritionist" ? "nutritionist" : "trainer")} style={{ background: `linear-gradient(160deg, ${tier.color}1c, rgba(11,14,12,0.62) 52%)`, border: `1px solid ${tier.color}3a`, borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column", transition: "transform .12s ease-out, border-color .15s", willChange: "transform", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
-      <div style={{ position: "relative", aspectRatio: "4 / 3", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "relative", aspectRatio: "4 / 3", overflow: "hidden", background: `linear-gradient(160deg, ${tier.color}40, rgba(11,14,12,0.5) 62%)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {(c.cover || c.coverImage) && (<>
+          <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url('${c.cover || c.coverImage}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+          <div aria-hidden style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${tier.color}80, rgba(11,14,12,0.82) 78%)` }} />
+        </>)}
         <MkFacet name={c.name} color={tier.color} photo={c.photo || c.avatar} size={92} />
         <span style={{ position: "absolute", top: 10, left: 10, fontFamily: mono, fontSize: 9, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: TEAL, borderRadius: 3, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600 }}>{c.format}</span>
         <span style={{ position: "absolute", top: 10, right: 10, fontFamily: mono, fontSize: 10, padding: "3px 7px", background: "rgba(11,14,12,0.85)", color: INK, borderRadius: 3 }}>★ {(c.rating * 2).toFixed(1)}/10</span>
