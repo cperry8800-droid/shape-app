@@ -14421,7 +14421,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '11px 6px', borderRadius: 11, border: `1.5px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
-            <button onClick={() => setShowPublicProfile(true)} style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>View public profile →</button>
           </div>
         ) : (
           (() => {
