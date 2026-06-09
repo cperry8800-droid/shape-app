@@ -983,10 +983,13 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const onSettingsEvt = () => setShowSettings(true);
     const onAvail = () => { setShowSettings(false); setShowCalendar(true); };
     const onSound = () => { setShowSettings(false); setShowSoundtracks(true); };
+    // shape:openProfile is what every self-avatar tap fires (same as the client) —
+    // open Settings in one tap, so the coach flow matches the client/preview flow.
     window.addEventListener('shape:openProSettings', onSettingsEvt);
+    window.addEventListener('shape:openProfile', onSettingsEvt);
     window.addEventListener('shape:proAvailability', onAvail);
     window.addEventListener('shape:proSoundtracks', onSound);
-    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
+    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
   if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
@@ -3225,10 +3228,13 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const onSettingsEvt = () => setShowSettings(true);
     const onAvail = () => { setShowSettings(false); setShowCalendar(true); };
     const onSound = () => { setShowSettings(false); setShowSoundtracks(true); };
+    // shape:openProfile is what every self-avatar tap fires (same as the client) —
+    // open Settings in one tap, so the coach flow matches the client/preview flow.
     window.addEventListener('shape:openProSettings', onSettingsEvt);
+    window.addEventListener('shape:openProfile', onSettingsEvt);
     window.addEventListener('shape:proAvailability', onAvail);
     window.addEventListener('shape:proSoundtracks', onSound);
-    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
+    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
   if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
