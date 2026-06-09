@@ -23,7 +23,7 @@ const {
 // with the account's real name instead of a hardcoded "A".
 function bsMyName() {
   const p = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile) || {};
-  return (p.full_name && String(p.full_name).trim()) || 'Alex Rivera';
+  return (p.full_name && String(p.full_name).trim()) || 'Quinn Harper';
 }
 // Up-to-two-letter initials from a display name (drops a leading "# " for channels).
 function bsInitials(name) {
@@ -11969,7 +11969,7 @@ function BSClientMe(props) {
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
   const uid = (auth.user && auth.user.id) || null;
-  const name = (auth.profile && auth.profile.full_name) || 'Alex Rivera';
+  const name = (auth.profile && auth.profile.full_name) || 'Quinn Harper';
   const photo = bsMyPhoto() || null;
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
   if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
@@ -14291,7 +14291,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const _myName = bsMyName();
   const [identity, setIdentity] = useStateBSC({
     name: _myName,
-    handle: _myName === 'Alex Rivera' ? '@alex.rivera' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, ''),
+    handle: _myName === 'Quinn Harper' ? '@quinn.harper' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, ''),
     initials: '', // optional custom avatar initials (max 2); blank = derive from name
     location: 'Brooklyn, NY',
     bio: 'Cutting for summer. 14-week streak. Logging the wins and the pizza.',

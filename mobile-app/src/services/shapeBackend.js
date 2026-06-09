@@ -62,8 +62,8 @@ function demoProfile(overrides = {}) {
   const role = normalizeRole(overrides.role);
   return {
     id: 'demo-user',
-    email: overrides.email || 'alex@rivera.co',
-    full_name: overrides.fullName || 'Alex Rivera',
+    email: overrides.email || 'quinn@harper.co',
+    full_name: overrides.fullName || 'Quinn Harper',
     role,
     roles: normalizeRoles(overrides.roles, role),
     shape_radio_enabled: true,
