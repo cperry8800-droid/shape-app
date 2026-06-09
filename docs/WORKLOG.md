@@ -74,6 +74,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Search v3: beyond people (channels · recipes · workouts · coach plans) + chat-script cache stamp
+- **Universal search now matches more than people** (All filter only; Members/
+  Coaches chips stay people-only): **Channels** (live `ShapeChannels.list`,
+  tap → opens the channel thread directly via a `channel` payload on
+  `shape:openConversation` + a new deep-link branch in the chat `openRequest`
+  effect), **Recipes** (`SHAPE_KITCHEN_RECIPES`, tap → the kitchen recipe detail
+  in-place), **Workouts** (`BS_CLIENT_WORKOUTS`, tap → the workout preview;
+  Start hands off to `shape:startWorkout`), and **Coach plans**
+  (`ShapeMarketPlans.list`, tap → the coach's Signal profile). Mono glyph tiles
+  (# ◇ ▣ ✦), max 4 rows per section; "no results" only when every section is empty.
+- **Website chat cache fix**: ~82 pages loaded `chatWidget.jsx` /
+  `clientChatThreads.jsx` / `globalChatButton.js` with **no `?v=` tag**, so prior
+  copy changes (e.g. Nora's "Shape's Concierge" line) stuck on the browser-cached
+  version. Every reference now carries `?v=20260609` (newdesign + root marketing
+  pages) — bump these on future chat-script edits.
+
 ### 2026-06-09 — Search v2: handles/goals, inline Follow+Message, people-you-may-know, coached-by link
 - **Migration `2026-06-09-universal-search.sql` updated** (idempotent — **re-run on
   Supabase**): `search_shape_people` now also matches **@handle** (leading `@`

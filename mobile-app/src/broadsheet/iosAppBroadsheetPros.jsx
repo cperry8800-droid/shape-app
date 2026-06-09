@@ -926,13 +926,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
-  // Inline ✉ on a search row → jump to the real 1:1 thread in the Chat tab.
+  // Inline ✉ on a search row → the real 1:1 thread; a channel result → that
+  // channel's thread. Both land in the Chat tab.
   useEffectBSP(() => {
     const open = (e) => {
       const d = (e && e.detail) || {};
-      if (!d.conversationId) return;
+      if (!d.conversationId && !d.channel) return;
       setShowSearch(false);
-      setChatRequest({ conversationId: d.conversationId, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -3240,13 +3241,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
-  // Inline ✉ on a search row → jump to the real 1:1 thread in the Chat tab.
+  // Inline ✉ on a search row → the real 1:1 thread; a channel result → that
+  // channel's thread. Both land in the Chat tab.
   useEffectBSP(() => {
     const open = (e) => {
       const d = (e && e.detail) || {};
-      if (!d.conversationId) return;
+      if (!d.conversationId && !d.channel) return;
       setShowSearch(false);
-      setChatRequest({ conversationId: d.conversationId, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
