@@ -7434,6 +7434,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {meMode && (
         <div style={{ padding: '14px 18px 0' }}>
+          {isSelf && <BSMeGoalCard c={c} />}
           <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={onOpenProgress} />
         </div>
       )}
@@ -7457,7 +7458,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ marginBottom: 22 }}>
                 {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
                 {isSelf
-                  ? <><BSMeGoalCard c={c} /><div style={{ marginTop: 16 }}><BSClientProgress embedded /></div></>
+                  ? <><BSMeKpis embedded /><div style={{ marginTop: 16 }}><BSClientProgress embedded /></div></>
                   : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
@@ -11565,10 +11566,9 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
   ];
   return (
     <div style={{ padding: embedded ? '6px 0 2px' : '8px 18px 4px' }}>
-      <button onClick={onOpen} style={{ width: '100%', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', background: 'transparent', border: 0, cursor: 'pointer', padding: '0 0 10px' }}>
+      <div style={{ padding: '0 0 10px' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA('#f2ede4', 0.5), fontWeight: 700 }}>Your progress</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Full stats →</span>
-      </button>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {cards.map((s) => (
           <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${bsTHexA('#f2ede4', 0.12)}`, background: bsTHexA('#f2ede4', 0.04), padding: '10px 9px' }}>
