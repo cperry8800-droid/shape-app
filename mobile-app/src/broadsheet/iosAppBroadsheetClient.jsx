@@ -7163,14 +7163,14 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // On your OWN profile the climb is wired to real data, and you can choose what
   // it tracks: body weight (goal + weigh-ins), Shape Score (→ next tier), or day
   // streak. Others always see the body-weight climb (derived/demo).
+  // Shape Score climb lives on the Shape Score page now (not a climb aspect here).
   const CLIMB_SOURCES = [
     { key: 'weight', label: 'Body weight' },
     { key: 'bodyfat', label: 'Body fat' },
     { key: 'strength', label: 'Strength' },
-    { key: 'score', label: 'Shape Score' },
     { key: 'streak', label: 'Day streak' },
   ];
-  const CLIMB_DEFAULT_SHOWN = ['weight', 'strength', 'score'];
+  const CLIMB_DEFAULT_SHOWN = ['weight', 'strength'];
   const [realGoal, setRealGoal] = useStateBSC(null);
   const [climbSource, setClimbSource] = useStateBSC('weight');
   // Which aspects appear as tabs in the climb box (owner-customizable).
@@ -12093,6 +12093,43 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                   <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.35 }}>Your composite of training, nutrition, recovery, and consistency.</div>
                 </div>
               </div>
+              {/* The climb — current tier → now → next tier (moved here from the Me page) */}
+              {(() => {
+                const parseNum = (s) => Number(String(s).replace(/[^0-9]/g, '')) || 0;
+                const ti = tiers.findIndex(x => String(x.name).toLowerCase() === String(tier).toLowerCase());
+                const curThr = ti >= 0 ? parseNum(tiers[ti].range) : 0;
+                const nextThr = (ti >= 0 && tiers[ti + 1]) ? parseNum(tiers[ti + 1].range) : (scoreTotal + (pointsToNext || 0));
+                const span = nextThr - curThr;
+                const gp = span > 0 ? Math.max(0.05, Math.min(0.95, (scoreTotal - curThr) / span)) : 0.95;
+                const W = 320, H = 88;
+                const ys = [H - 12, (H - 12) + (16 - (H - 12)) * gp, 16];
+                const xs = [22, W / 2, W - 22];
+                const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 12}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+                const arc = [[tier, `${curThr.toLocaleString()} pts`, 'start'], ['Now', `${scoreTotal.toLocaleString()} pts`, 'now'], [topTier ? 'Top' : nextTier, topTier ? '' : `${nextThr.toLocaleString()} pts`, 'target']];
+                return (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+                    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+                      <defs><linearGradient id="bsScoreClimb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={`${tc}4d`} /><stop offset="100%" stopColor={`${tc}00`} /></linearGradient></defs>
+                      <path d={`${rg} L ${xs[2]} ${H} L ${xs[0]} ${H} Z`} fill="url(#bsScoreClimb)" />
+                      <path d={rg} fill="none" stroke={bsTHexA(t.INK, 0.25)} strokeWidth="1.5" strokeDasharray="3 4" />
+                      {arc.map((a, i) => { const liveDot = a[2] === 'now', target = a[2] === 'target'; return (
+                        <g key={i}>
+                          <circle cx={xs[i]} cy={ys[i]} r={liveDot ? 6 : 4.5} fill={liveDot ? teal : target ? 'none' : tc} stroke={target ? tc : 'none'} strokeWidth={target ? 2 : 0} />
+                          {liveDot && <circle cx={xs[i]} cy={ys[i]} r={11} fill="none" stroke={teal} strokeWidth="1" opacity="0.5" />}
+                        </g>
+                      ); })}
+                    </svg>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                      {arc.map((a, i) => (
+                        <div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
+                          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: a[2] === 'now' ? teal : t.INK50, fontWeight: 700 }}>{a[0]}</div>
+                          <div style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK70, marginTop: 3 }}>{a[1]}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: 11, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
                 {stats.map(([label, value], i) => (
                   <div key={label} style={{ textAlign: 'center', borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
