@@ -74,6 +74,14 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Quinn Harper demo headshot wired
+- The uploaded demo headshot (`public/Demo account headshot AI.png`) is now
+  **`public/demo-avatar.png`** + **`mobile-app/public/demo-avatar.png`** (served at
+  `/m/demo-avatar.png`). `bsMyPhoto()`'s signed-out branch returns it directly
+  (was a hash-picked Unsplash stock face), so every "you" avatar in the demo/
+  preview — headers, Me page, settings, follow sheet — shows Quinn's real photo.
+  Signed-in accounts unchanged (own photo, else initials).
+
 ### 2026-06-09 — Nora website parity (concierge profile) + demo "you" renamed to Quinn Harper
 - **Website Nora now matches mobile** (`chatWidget.jsx`): tapping her avatar in the
   Help tab opens a **staff concierge card** instead of the generic member preview —

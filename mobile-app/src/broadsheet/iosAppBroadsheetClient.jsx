@@ -47,14 +47,15 @@ function bsMyInitials() {
   return c || bsInitials(bsMyName()) || 'A';
 }
 // My avatar photo: the real saved profile photo when signed in. In the
-// signed-out demo/preview, the demo identity gets a stable stock face so the
-// avatars demonstrate the photo treatment. A signed-in account with no photo
-// stays on initials — never a stranger's face.
+// signed-out demo/preview, the demo identity (Quinn Harper) gets the dedicated
+// demo headshot (`demo-avatar.png`, served at /m/) so the avatars demonstrate
+// the photo treatment. A signed-in account with no photo stays on initials —
+// never a stranger's face.
 function bsMyPhoto() {
   const real = bsValidPhoto(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo);
   if (real) return real;
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  return signedIn ? null : bsDemoFace(bsMyName());
+  return signedIn ? null : `${import.meta.env.BASE_URL}demo-avatar.png`;
 }
 // My current Shape Score tier (cached on window.ShapeScore from /api/client/score)
 // and its color. Avatars across the app fill with my tier color — Base/steel until
