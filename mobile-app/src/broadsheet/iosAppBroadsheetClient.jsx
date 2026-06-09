@@ -6464,7 +6464,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
-          flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer',
+          flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
           fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
@@ -6474,7 +6474,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         const solid = fs === 'follow';
         return (
           <button onClick={onToggle} disabled={busy} style={{
-            flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer',
+            flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
             fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
             border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
