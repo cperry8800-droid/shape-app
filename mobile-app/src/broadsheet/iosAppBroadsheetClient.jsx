@@ -7441,11 +7441,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 never slides onto the identity strip below */}
             <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 20px))`, top: `${here.y - 50}px` }}>
               <BSFacetAvatar size={40} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
-              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(BG, 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>You · {heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
-            <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA(BG, 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
-            <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA(BG, 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
+            <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: SANS, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.01em', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 9px', borderRadius: 999 }}>{curLevel} · now</div>
+            <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 42, fontFamily: SANS, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA(BG, 0.8), border: `1px solid ${bsTHexA(bsTierColor(String(nextLevel || curLevel).toLowerCase()), 0.4)}`, padding: '3px 10px', borderRadius: 999 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
@@ -12204,7 +12204,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         })}
       </div>
       <div style={{ padding: `10px ${t.padX}px 8px` }}>
-        <div className="bs-hide-scroll" style={{ border: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderRadius: 4, background: t.PAPER2, padding: '2px 14px', maxHeight: 320, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div className="bs-hide-scroll" style={{ maxHeight: 320, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {scoreTab === 'rewards' && rewards.map(([title, sub, cost], i) => (
             <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
               display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
