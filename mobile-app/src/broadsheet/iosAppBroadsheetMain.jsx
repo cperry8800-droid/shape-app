@@ -461,8 +461,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         </div>
 
         <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', paddingTop: 6 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.32em', color: t.INK50, textTransform: 'uppercase' }}>★ Featured</div>
-          <div style={{ marginTop: 8, paddingTop: 12, paddingBottom: 12, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}` }}>
+          <div style={{ paddingBottom: 12, borderBottom: `1px solid ${t.INK}` }}>
             <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${t.INK}` }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 15, width: '100%', lineHeight: 1 }}>
                 <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
