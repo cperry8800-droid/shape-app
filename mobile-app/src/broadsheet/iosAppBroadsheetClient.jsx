@@ -6308,7 +6308,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
                   <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
                 </div>
               ) : showFollowBack ? (
-                <button onClick={() => followBack(u)} style={{ flexShrink: 0, borderRadius: 999, padding: '4px 9px', cursor: 'pointer', fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', background: bst ? 'transparent' : TEAL, color: bst ? bsTHexA(INK, 0.55) : '#06110e', border: `1px solid ${bst ? bsTHexA(INK, 0.25) : TEAL}` }}>{bst === 'following' ? 'Following ✓' : bst === 'requested' ? 'Requested' : 'Follow back'}</button>
+                <button onClick={() => followBack(u)} style={{ flexShrink: 0, borderRadius: 8, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', background: bst ? 'transparent' : TEAL, color: bst ? bsTHexA(INK, 0.55) : '#06110e', border: `1px solid ${bst ? bsTHexA(INK, 0.25) : TEAL}` }}>{bst === 'following' ? 'Following ✓' : bst === 'requested' ? 'Requested' : 'Follow back'}</button>
               ) : null}
             </div>
           );
