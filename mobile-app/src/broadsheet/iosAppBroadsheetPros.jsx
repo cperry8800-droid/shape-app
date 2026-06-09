@@ -926,6 +926,18 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
+  // Inline ✉ on a search row → jump to the real 1:1 thread in the Chat tab.
+  useEffectBSP(() => {
+    const open = (e) => {
+      const d = (e && e.detail) || {};
+      if (!d.conversationId) return;
+      setShowSearch(false);
+      setChatRequest({ conversationId: d.conversationId, coach: d.name || null, nonce: Date.now() });
+      setTab('chat');
+    };
+    window.addEventListener('shape:openConversation', open);
+    return () => window.removeEventListener('shape:openConversation', open);
+  }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
     const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
@@ -3227,6 +3239,18 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const open = () => setShowSearch(true);
     window.addEventListener('shape:openSearch', open);
     return () => window.removeEventListener('shape:openSearch', open);
+  }, []);
+  // Inline ✉ on a search row → jump to the real 1:1 thread in the Chat tab.
+  useEffectBSP(() => {
+    const open = (e) => {
+      const d = (e && e.detail) || {};
+      if (!d.conversationId) return;
+      setShowSearch(false);
+      setChatRequest({ conversationId: d.conversationId, coach: d.name || null, nonce: Date.now() });
+      setTab('chat');
+    };
+    window.addEventListener('shape:openConversation', open);
+    return () => window.removeEventListener('shape:openConversation', open);
   }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {

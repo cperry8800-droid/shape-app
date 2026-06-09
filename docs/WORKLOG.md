@@ -74,6 +74,30 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Search v2: handles/goals, inline Follow+Message, people-you-may-know, coached-by link
+- **Migration `2026-06-09-universal-search.sql` updated** (idempotent — **re-run on
+  Supabase**): `search_shape_people` now also matches **@handle** (leading `@`
+  stripped) and **bio + goal keywords** (skipped for private-visibility profiles).
+- **Inline row actions** (`BSSearchFollowBtn`/`BSSearchMsgBtn`): every real-account
+  result row carries a **Follow / Requested / Following** pill (live `ShapeFollows`
+  state + toggle) and a **✉ Message** button — creates/finds the real 1:1
+  (`get_or_create_member_conversation`) and jumps straight to the thread via a new
+  **`shape:openConversation`** event (handled in the client shell + both coach
+  shells → `chatRequest.conversationId`). Demo people keep the plain chevron.
+- **"People you may know"** — the empty state's suggestions now come from the
+  follow graph (`get_follow_suggestions`: mutuals + follows-you, avatar-enriched),
+  with "N mutual / Follows you" sublines; falls back to "On Shape" (any accounts)
+  then the demo cast.
+- **Recents = recently *viewed***: `BSPublicProfile` records every non-self profile
+  view (from chat, feed, follows, search) into `shape.recentSearch`; the section is
+  now labeled "Recent" and live-syncs via a `shape:recentSearch` event.
+- **"Coached by" chip → live link** (member Terrain hero): tapping the coach opens
+  their **Signal public profile** — resolved to the coach's real account when
+  possible (new `ShapeCoachLookup.ownerOf` provider→owner lookup), derived profile
+  otherwise. Also fixed a dormant bug: the live-coach capture treated the
+  `{stored,data}` thread response as an array, so the real coach name never
+  replaced the demo "Maya Okafor".
+
 ### 2026-06-09 — Universal search: find anyone on Shape (⌕ in every header)
 - **Migration `2026-06-09-universal-search.sql`** (**run on Supabase**): SECURITY
   DEFINER `search_shape_people(p_q, p_limit)` — name search over every `profiles`
