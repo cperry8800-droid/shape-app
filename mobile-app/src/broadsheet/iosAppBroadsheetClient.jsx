@@ -14494,7 +14494,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} tierLabel={settingsScore.tier ? String(settingsScore.tier).charAt(0).toUpperCase() + String(settingsScore.tier).slice(1) : ''} live={bsAmLive()} BG={t.PAPER} />
+              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} showRank={false} live={bsAmLive()} BG={t.PAPER} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
