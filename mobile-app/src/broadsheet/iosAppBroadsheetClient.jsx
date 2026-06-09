@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -299,13 +299,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
 
-  // Inline ✉ on a search row → jump to the real 1:1 thread in the Chat tab.
+  // Inline ✉ on a search row → the real 1:1 thread; a channel result → that
+  // channel's thread. Both land in the Chat tab.
   React.useEffect(() => {
     const open = (e) => {
       const d = (e && e.detail) || {};
-      if (!d.conversationId) return;
+      if (!d.conversationId && !d.channel) return;
       setShowSearch(false);
-      setChatRequest({ conversationId: d.conversationId, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -8620,6 +8621,33 @@ function BSUniversalSearch({ onClose }) {
     return () => { dead = true; clearTimeout(id); };
   }, [q]);
 
+  // Beyond people — channels, Shape Kitchen recipes, workouts, and coach plans
+  // also match the query (sections under the people results on the All filter).
+  const [chAll, setChAll] = useStateBSC([]);
+  const [plansAll, setPlansAll] = useStateBSC([]);
+  const [viewRecipe, setViewRecipe] = useStateBSC(null);
+  const [viewWorkout, setViewWorkout] = useStateBSC(null);
+  React.useEffect(() => {
+    let dead = false;
+    if (signedIn && window.ShapeChannels?.list) {
+      window.ShapeChannels.list().then(r => {
+        const list = (r && r.data) || [];
+        if (!dead) setChAll(list.map(c => ({ id: c.id, name: c.name, blurb: c.description || '', memberCount: c.memberCount || (Array.isArray(c.members) ? c.members.length : 0) })));
+      }).catch(() => {});
+    }
+    if (window.ShapeMarketPlans?.list) {
+      window.ShapeMarketPlans.list().then(r => { if (!dead && Array.isArray(r)) setPlansAll(r); }).catch(() => {});
+    }
+    return () => { dead = true; };
+  }, []);
+  const needle = q.trim().replace(/^[@#]/, '').toLowerCase();
+  const recipesAll = React.useMemo(() => (Array.isArray(SHAPE_KITCHEN_RECIPES) ? SHAPE_KITCHEN_RECIPES : []), []);
+  const workoutsAll = React.useMemo(() => Object.entries(BS_CLIENT_WORKOUTS || {}).map(([title, detail]) => ({ title, detail })), []);
+  const chHits = needle ? chAll.filter(c => (c.name + ' ' + c.blurb).toLowerCase().includes(needle)).slice(0, 4) : [];
+  const recHits = needle ? recipesAll.filter(r => String(r.title || '').toLowerCase().includes(needle)).slice(0, 4) : [];
+  const wkHits = needle ? workoutsAll.filter(w => (w.title + ' ' + ((w.detail && w.detail.meta) || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
+  const planHits = needle ? plansAll.filter(p => (p.name + ' ' + (p.meta || '') + ' ' + (p.coachName || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
+
   const isCoachRole = (r) => r === 'trainer' || r === 'nutritionist';
   const matchesFilter = (p) => filter === 'all' ? true : (filter === 'coaches' ? isCoachRole(p.role) : !isCoachRole(p.role));
   const open = (p) => {
@@ -8637,6 +8665,16 @@ function BSUniversalSearch({ onClose }) {
   if (viewPerson) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
       <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)} />
+    </div>
+  );
+  if (viewRecipe) return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
+      <BSShapeKitchenRecipe recipe={viewRecipe} onBack={() => setViewRecipe(null)} onAddGrocery={() => {}} groceryAdded={false} />
+    </div>
+  );
+  if (viewWorkout) return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
+      <BSHomeWorkoutPreview workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} }} />
     </div>
   );
 
@@ -8663,9 +8701,25 @@ function BSUniversalSearch({ onClose }) {
     );
   };
 
+  // Non-people result row — mono glyph tile + title + sub (channels / recipes /
+  // workouts / coach plans).
+  const TileRow = ({ glyph, color, title, sub, onClick, first }) => (
+    <div style={{ borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
+      <button onClick={onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${color}55`, background: `${color}14`, color, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, fontWeight: 800 }}>{glyph}</span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+          <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span>
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
+      </button>
+    </div>
+  );
+
   const list = (rows || []).filter(matchesFilter);
   const sugg = suggested.filter(matchesFilter);
   const recs = recents.filter(matchesFilter);
+  const moreHits = filter === 'all' ? (chHits.length + recHits.length + wkHits.length + planHits.length) : 0;
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
@@ -8687,15 +8741,43 @@ function BSUniversalSearch({ onClose }) {
         {q.trim() ? (
           busy && !rows ? (
             <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
-          ) : list.length === 0 ? (
+          ) : (list.length === 0 && moreHits === 0) ? (
             <div style={{ padding: '18px 0' }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No one on Shape matches “{q.trim()}”.</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Nothing on Shape matches “{q.trim()}”.</div>
               <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Browse coaches on the marketplace →</button>
             </div>
           ) : (
             <>
-              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{list.length} {list.length === 1 ? 'person' : 'people'}</div>
-              {list.map(Row)}
+              {list.length > 0 && (
+                <>
+                  <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{list.length} {list.length === 1 ? 'person' : 'people'}</div>
+                  {list.map(Row)}
+                </>
+              )}
+              {filter === 'all' && chHits.length > 0 && (
+                <>
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Channels</div>
+                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${c.memberCount || 0} member${c.memberCount === 1 ? '' : 's'}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+                </>
+              )}
+              {filter === 'all' && recHits.length > 0 && (
+                <>
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Recipes · Shape Kitchen</div>
+                  {recHits.map((r, i) => <TileRow key={'rc' + (r.id || r.title)} first={i === 0} glyph="◇" color={teal} title={r.title} sub={`${r.kcal ? r.kcal + ' kcal' : 'Recipe'}${r.macros && r.macros.p ? ' · ' + r.macros.p + 'P' : ''}${r.time ? ' · ' + r.time : ''}`} onClick={() => setViewRecipe(r)} />)}
+                </>
+              )}
+              {filter === 'all' && wkHits.length > 0 && (
+                <>
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Workouts</div>
+                  {wkHits.map((w, i) => <TileRow key={'wk' + w.title} first={i === 0} glyph="▣" color={t.RUST} title={w.title} sub={(w.detail && w.detail.meta) || 'Session'} onClick={() => setViewWorkout(w)} />)}
+                </>
+              )}
+              {filter === 'all' && planHits.length > 0 && (
+                <>
+                  <div style={{ ...eyebrow, padding: '16px 0 2px' }}>Coach plans</div>
+                  {planHits.map((p, i) => <TileRow key={'pl' + p.id} first={i === 0} glyph="✦" color={'#a07a2e'} title={p.name} sub={`${p.coachName}${p.price ? ' · ' + p.price : ''}`} onClick={() => setViewPerson({ who: p.coachName, kind: p.providerRole === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: p.ownerId || undefined, init: bsInitials(p.coachName), public: true })} />)}
+                </>
+              )}
             </>
           )
         ) : (
@@ -8872,6 +8954,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     // client profile): open that thread directly by id.
     if (openRequest.conversationId) {
       setOpenChat({ n: name || 'Client', s: openRequest.role || 'Direct message', c: '#0a8f87', i: (name || 'C').charAt(0), conversation_id: openRequest.conversationId, dm: true, messages: [] });
+      return;
+    }
+    // Deep-link to a channel (e.g. from universal search): open it directly,
+    // loading its messages exactly like a Channels-tab tap.
+    if (openRequest.channel && openRequest.channel.id != null) {
+      setTab('channels');
+      openChannelNow(openRequest.channel);
       return;
     }
     setTab('teams');
