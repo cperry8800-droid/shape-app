@@ -6160,7 +6160,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // preview counts + a front-end follow toggle so it's visible on every profile.
   const demo = !uid;
   const seed = (() => { let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0; return n; })();
-  const [stats, setStats] = useStateBSC(demo
+  const [stats, setStats] = useStateBSC((demo && !isSelf)
     ? { followers: 40 + (seed % 860), following: 28 + ((seed >> 5) % 320), isFollowing: false }
     : ((uid && window.ShapeFollows?.getCached?.(uid)) || { followers: 0, following: 0, isFollowing: false }));
   const [busy, setBusy] = useStateBSC(false);
@@ -7445,7 +7445,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 never slides onto the identity strip below */}
             <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 20px))`, top: `${here.y - 50}px` }}>
               <BSFacetAvatar size={40} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
-              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>You · {heroPctLabel}%</div>
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>{heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
             <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: SANS, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.01em', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 9px', borderRadius: 999 }}>{curLevel} · now</div>
