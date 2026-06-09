@@ -975,7 +975,11 @@ function BSTabBar({ tabs, active, onChange }) {
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
       height: 72, padding: '6px 20px calc(10px + env(safe-area-inset-bottom, 0px))',
-      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.03), ${t.PAPER} 78%)`,
+      // Match the page's full background (PAPER_BG carries metallic/textured sheen
+      // on papers like Steel) so the bar reads as part of the same paper, with a
+      // faint theme-derived top fade for separation. Adapts to every paper.
+      background: `linear-gradient(180deg, rgba(${t.inkRGB},0.05), transparent 26%), ${t.PAPER_BG}`,
+      backgroundColor: t.PAPER,
       color: t.INK,
       borderTop: `1px solid ${t.SURFACE_BORDER}`,
       display: 'grid', gridTemplateColumns: `repeat(${tabs.length}, 1fr)`, gap: 10,
