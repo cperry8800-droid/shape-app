@@ -46,6 +46,7 @@ const CW_DEMO_FACES = ["1544005313-94ddf0286df2", "1499996860823-5214fcc65f8f", 
 function cwDemoFace(name) {
   const n = String(name || "").trim();
   if (!n || n === "You" || n.charAt(0) === "#") return null;
+  if (n === "Nora") return "/nora-avatar.png"; // Shape's concierge — real avatar, not a stock face
   let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
   return `https://images.unsplash.com/photo-${CW_DEMO_FACES[h % CW_DEMO_FACES.length]}?w=160&h=160&fit=crop&crop=faces&q=72&auto=format`;
 }

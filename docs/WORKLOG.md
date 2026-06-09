@@ -74,6 +74,34 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Nora has a real avatar (mobile + website)
+- The uploaded Nora photo (`public/NORA 1.png`, the android-concierge render) is now
+  **`public/nora-avatar.png`** (web-safe name) + a copy at
+  **`mobile-app/public/nora-avatar.png`** (served at `/m/nora-avatar.png`).
+- **Mobile**: nothing to wire — `BS_NORA_AVATAR` already pointed at
+  `${BASE_URL}nora-avatar.png`, so her Support-chat bubbles + staff profile light up
+  with the photo (was the "N" initial fallback).
+- **Website** (`chatWidget.jsx`): `cwDemoFace('Nora')` now returns `/nora-avatar.png`
+  instead of a hash-picked Unsplash stock face — covers the Help-tab bubbles, the
+  thread row, and the tap-through profile preview. Bumped the two versioned
+  `chatWidget.jsx?v=` refs (`MemberProfile.html`, `index-explorations.html`).
+
+### 2026-06-09 — Eat meal-list header: real weekday + "Meal list" kicker
+- The Eat tab's meals section header (`BSTrackHeader`) now reads **"Meal list"**
+  (was "Tracklist") with the title **"Today's meals" / "{Weekday}'s meals"**
+  (e.g. "Tuesday's meals" — was the cryptic "T 18 meals").
+- Fixed the stale **`day === 4`** "today" check (left over from when the demo
+  hardcoded today) → `day === bsWeekdayIdx()`, matching the Train page's pattern,
+  so "Today's meals" follows the real current weekday. The swap-meal coach
+  message uses the same label ("· Tuesday" instead of "· T 18").
+
+### 2026-06-09 — Home "Weekly totals" label + lockfile sync
+- Home page running-tally section eyebrow renamed **"Week totals" → "Weekly totals"**
+  (`iosAppBroadsheetClient.jsx`).
+- `mobile-app/package-lock.json` synced with the `@capacitor/browser` +
+  `@capacitor/push-notifications` deps declared in `package.json` on 06-08 (lockfile
+  had never been regenerated).
+
 ### 2026-06-09 — Followers/following lists: tap-through profiles + photos (all profile types)
 - **Mobile** (`iosAppBroadsheetClient.jsx`): the followers/following list rows are now
   **live links to each person's public profile** on every profile surface.
