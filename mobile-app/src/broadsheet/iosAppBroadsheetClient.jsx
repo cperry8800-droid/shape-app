@@ -12474,26 +12474,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         })}
       </div>
 
-      <BSSection title="Unlocked" kicker="Codes" />
-      <div style={{ padding: `0 ${t.padX}px 8px` }}>
-        {unlocked.length === 0 ? (
-          <div style={{ padding: '18px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>No codes yet — redeem above</div>
-        ) : unlocked.map(([code, name, when, cost], i) => (
-          <div key={code} style={{
-            padding: '13px 0', borderBottom: i === unlocked.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            display: 'grid', gridTemplateColumns: '1fr 72px', gap: 10,
-          }}>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: t.ACCENT }}>{code}</div>
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{name}</div>
-            </div>
-            <div style={{ textAlign: 'right', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
-              {cost} pts{when ? <><br/>{when}</> : null}
-            </div>
-          </div>
-        ))}
-      </div>
-
       <BSFooter right="Store" />
       {shipFor && <BSShipSheet t={t} item={shipFor} busy={busyId === shipFor.id} onClose={() => !busyId && setShipFor(null)} onSubmit={(addr) => doRedeem(shipFor, addr)} />}
     </BSPage>
