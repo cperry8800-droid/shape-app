@@ -12077,6 +12077,10 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         onBack={onBack}
         eyebrow="Your standing"
         title={<>Shape<br/><span style={{ fontStyle: 'italic', color: bsTierColor(tier) }}>Score.</span></>}
+        trailing={<button onClick={onOpenStore} style={{ borderRadius: t.RADIUS_SM,
+          border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
+          padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer',
+        }}>Store</button>}
       />
 
       {/* Composite hero — ring + tier + climb + this-week. The ring %, the climb
@@ -12161,17 +12165,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           </div>
         );
       })()}
-
-      {/* Shape Store — spend your points (condensed, below the hero) */}
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onOpenStore} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: bsTHexA(t.INK, 0.05), color: t.INK, cursor: 'pointer', textAlign: 'left' }}>
-          <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, background: bsTHexA(t.INK, 0.08), color: t.ACCENT, display: 'grid', placeItems: 'center' }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
-          </span>
-          <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Spend your points</span>
-          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>Store →</span>
-        </button>
-      </div>
 
       <BSSection title="Reward tiers" meta="5 tiers" />
       <div style={{ padding: `0 ${t.padX}px` }}>
