@@ -64,6 +64,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Third post visibility ('profile') + settings icon-boxes removed
+- **New "Profile" visibility** on the Log-activity composer (both member + coach
+  profiles): **Public** (profile + feed) · **Profile** (visible to everyone on your
+  profile, but NOT in the community feed) · **Just me** (private).
+  - **Migration `2026-06-09-community-profile-visibility.sql`** (**run on Supabase**):
+    widens the `community_posts.privacy` CHECK to allow `'profile'`, and updates the
+    read RLS policy + `can_view_community_post()` so `'profile'` reads like `'public'`
+    (anyone can view → renders on the profile). The feed exclusion is done in code.
+  - **Feed queries exclude `profile` + `private`**: mobile `listCommunityPosts` and the
+    website `GET /api/community/feed` now `.in('privacy', ['public','community'])`.
+  - `privacyToDb` / website `normalizePrivacy` accept `'profile'`; `communityPostFromRow`
+    labels it `Profile`. The 3-state toggle in `BSLogActivitySheet` is shared, so it
+    applies to every profile type.
+- **Settings icon boxes removed** (client `BSSettings` `HubCard`): the rounded-square
+  icon chips next to each row are gone — rows are now title + summary + chevron (the
+  accent color moved onto the title so "Account actions" stays rust). Removed the now-
+  dead `Icon` component. Coach settings (`BSProMe`) already used numbered rows (no boxes).
+
 ### 2026-06-09 — Log activity on ALL profiles + visibility toggle + goal-header cleanup
 - **Goal page eyebrow:** removed the coach-name suffix (`· Jordan C…` / `· Dr. May…`)
   from the Training / Nutrition goal headers — now just "Training goal" / "Nutrition goal".

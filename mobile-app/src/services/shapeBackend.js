@@ -1752,7 +1752,7 @@ function communityPostFromRow(row) {
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
     time: row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',
-    privacy: privacy === 'public' ? 'Public' : privacy === 'private' ? 'Private' : 'Community',
+    privacy: privacy === 'public' ? 'Public' : privacy === 'private' ? 'Private' : privacy === 'profile' ? 'Profile' : 'Community',
     workout: row.activity_type || 'Workout',
     status: row.status || row.title,
     statA: stats.statA,
@@ -2095,7 +2095,7 @@ async function saveWorkoutSessionLog({
 
 function privacyToDb(value) {
   const clean = String(value || '').toLowerCase();
-  if (clean === 'public' || clean === 'private') return clean;
+  if (clean === 'public' || clean === 'private' || clean === 'profile') return clean;
   return 'community';
 }
 
@@ -2105,6 +2105,8 @@ async function listCommunityPosts() {
   const { data, error } = await supabase
     .from('community_posts')
     .select(COMMUNITY_POST_SELECT)
+    // 'profile' (profile-only) and 'private' posts never appear in the feed.
+    .in('privacy', ['public', 'community'])
     .order('created_at', { ascending: false })
     .limit(50);
 

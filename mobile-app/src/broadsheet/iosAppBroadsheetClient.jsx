@@ -6609,7 +6609,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
   const [woA, setWoA] = useStateBSC(''), [woB, setWoB] = useStateBSC(''), [woC, setWoC] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
   const [upBusy, setUpBusy] = useStateBSC(false);
-  const [pub, setPub] = useStateBSC(true); // Public (feed + profile) vs Just me (profile only)
+  // Visibility: 'public' (profile + feed) · 'profile' (profile only, everyone) · 'private' (just me)
+  const [vis, setVis] = useStateBSC('public');
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
 
   const TYPES = [
@@ -6649,7 +6650,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
     if (!canPost) return;
     setBusy(true);
     try {
-      const base = { channel: 'COMMUNITY', privacy: pub ? 'public' : 'private' };
+      const base = { channel: 'COMMUNITY', privacy: vis };
       let payload;
       if (kind === 'note') payload = { ...base, title: title.trim() || 'Note', note: body.trim(), metrics: { kind: 'note' } };
       else if (kind === 'photo') payload = { ...base, title: title.trim() || 'Photo', note: body.trim(), photoUrl, metrics: { kind: 'photo' } };
@@ -6742,16 +6743,16 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
           </div>
         </div>
 
-        {/* Visibility — Public (feed + profile) vs Just me (profile only) */}
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <span style={label}>Visibility</span>
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5), marginTop: -2 }}>{pub ? 'Shows on your profile + the community feed' : 'Shows on your profile only — not in the feed'}</div>
-          </div>
-          <div style={{ display: 'flex', flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
-            {[['Public', true], ['Just me', false]].map(([lab, val]) => { const on = pub === val; return (
-              <button key={lab} onClick={() => setPub(val)} style={{ padding: '8px 13px', border: 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{lab}</button>
+        {/* Visibility — Public (profile + feed) · Profile (profile only, everyone) · Just me (private) */}
+        <div style={{ marginTop: 16 }}>
+          <span style={label}>Visibility</span>
+          <div style={{ display: 'flex', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
+            {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].map(([val, lab], i) => { const on = vis === val; return (
+              <button key={val} onClick={() => setVis(val)} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{lab}</button>
             ); })}
+          </div>
+          <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5) }}>
+            {vis === 'public' ? 'Shows on your profile + the community feed' : vis === 'profile' ? 'Shows on your profile to everyone — not in the feed' : 'Only you can see this'}
           </div>
         </div>
 
@@ -13761,39 +13762,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   );
 
   // Line icons for the section cards.
-  const Icon = ({ name, color }) => {
-    const c = color || t.INK;
-    const paths = {
-      user: <><circle cx="12" cy="8" r="3.4" /><path d="M5.5 19c.8-3.3 3.4-5 6.5-5s5.7 1.7 6.5 5" /></>,
-      bell: <><path d="M6 9a6 6 0 1 1 12 0c0 4 1.2 5.5 2 6.5H4c.8-1 2-2.5 2-6.5Z" /><path d="M10 19a2 2 0 0 0 4 0" /></>,
-      lock: <><rect x="5" y="10.5" width="14" height="9" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></>,
-      sliders: <><path d="M4 7h16M4 12h16M4 17h16" /><circle cx="9" cy="7" r="2" fill={c} stroke="none" /><circle cx="15" cy="12" r="2" fill={c} stroke="none" /><circle cx="8" cy="17" r="2" fill={c} stroke="none" /></>,
-      link: <><path d="M9 15l6-6" /><path d="M11 6.5l1-1a3.5 3.5 0 0 1 5 5l-1 1" /><path d="M13 17.5l-1 1a3.5 3.5 0 0 1-5-5l1-1" /></>,
-      life: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.2" /><path d="M14.3 9.7 17 7M9.7 9.7 7 7M14.3 14.3 17 17M9.7 14.3 7 17" /></>,
-      shield: <><path d="M12 3.5 19 6v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6Z" /><path d="m9 12 2 2 4-4" /></>,
-      leaf: <><path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 16-9 0 9-4 16-9 16Z" /><path d="M4 20c4-5 7-8 12-10" /></>,
-      dumbbell: <><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></>,
-      card: <><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></>,
-      compass: <><circle cx="12" cy="12" r="9" /><path d="m15 9-2 5-4 1 2-5 4-1Z" /></>,
-    };
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        {paths[name] || paths.user}
-      </svg>
-    );
-  };
-
   const HubCard = ({ icon, title, summary, onClick, accent, last }) => (
     <button onClick={onClick} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 13,
       padding: '13px 2px', cursor: 'pointer', textAlign: 'left',
       border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, background: 'transparent',
     }}>
-      <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} color={accent || t.INK} />
-      </span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{title}</span>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: accent || t.INK, letterSpacing: '-0.02em' }}>{title}</span>
         {summary ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
       </span>
       <span style={{ flexShrink: 0, color: t.INK50, fontSize: 20, fontFamily: t.DISPLAY, lineHeight: 1 }}>›</span>

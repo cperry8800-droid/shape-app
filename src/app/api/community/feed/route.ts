@@ -5,9 +5,9 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function normalizePrivacy(input: unknown): 'public' | 'community' | 'private' {
+function normalizePrivacy(input: unknown): 'public' | 'community' | 'private' | 'profile' {
   const value = String(input ?? '').toLowerCase();
-  if (value === 'public' || value === 'private') return value;
+  if (value === 'public' || value === 'private' || value === 'profile') return value;
   return 'community';
 }
 
@@ -31,6 +31,8 @@ export async function GET(request: Request) {
   const { data: posts, error } = await client
     .from('community_posts')
     .select('*, likes:community_likes(user_id), comments:community_comments(id, user_id, author_name, body, created_at)')
+    // 'profile' (profile-only) and 'private' posts never appear in the feed.
+    .in('privacy', ['public', 'community'])
     .order('created_at', { ascending: false })
     .limit(50);
 
