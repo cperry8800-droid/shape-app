@@ -29,7 +29,17 @@ changelog whenever something ships.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
   - Parse-check a JSX file before building:
     `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
-- **Website** is Next.js at the repo root (`src/`). Typecheck: `npx tsc --noEmit`.
+- **Website = `public/newdesign/`.** This is the canonical, live website surface
+  we build on — **always edit the pages here** (`*.html` + their `*.jsx` babel
+  blocks/companions), not anywhere else. Each `*.html` is the live page; many are
+  **self-contained** (inline `<script type="text/babel">`) and pull in shared
+  `living*.jsx` / `chatWidget.jsx` / `pageShell.jsx` via `?v=N` tags — **bump the
+  `?v=` when you change a referenced `.jsx`** so the cache busts. A few legacy
+  `*.jsx` files (e.g. `memberProfile.jsx`) are **orphaned/dead** (nothing loads
+  them) — confirm a file is actually referenced before relying on an edit there.
+  The Next.js app at the repo root (`src/`) is **API routes + the gated
+  `/dashboard`** (typecheck: `npx tsc --noEmit`); the public/marketing/profile/
+  store/coach pages all live in `public/newdesign/`.
 - **Git / deploy:** develop on `claude/sleepy-feynman-RtyIr`. Per change: commit →
   push → open PR → squash-merge → re-sync the branch to `main`
   (`git fetch origin main && checkout main && reset --hard origin/main && checkout <branch> && reset --hard origin/main && push --force-with-lease`).
