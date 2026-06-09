@@ -6938,7 +6938,7 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
   );
 }
 
-function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {}, onOpenScore = () => {} }) {
   const tTheme = useBS();
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). TEAL accent is constant.
@@ -7387,7 +7387,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {meMode && (
         <div style={{ padding: '14px 18px 0' }}>
           {isSelf && <BSMeGoalCard c={c} onOpen={onOpenGoals} />}
-          <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={onOpenProgress} />
+          <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={onOpenScore} />
         </div>
       )}
 
@@ -7619,7 +7619,7 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
   );
 }
 
-function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {} }) {
+function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
@@ -7869,7 +7869,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
         {/* hero stat */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
-          <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score</div></div>
+          <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
         </div>
@@ -8040,11 +8040,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 // respects privacy — only reachable when the post isn't marked private.)
 // Member (client) profiles use the Terrain design; coaches use the Signal
 // design; both are immersive living-identity pages (above).
-function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {} }) {
+function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
-    return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} />;
+    return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
-  return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} />;
+  return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
 }
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
@@ -11341,6 +11341,9 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
 function BSClientMe(props) {
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
+  const [showScore, setShowScore] = useStateBSC(false);
+  const [showStore, setShowStore] = useStateBSC(false);
+  const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
   const uid = (auth.user && auth.user.id) || null;
   const name = (auth.profile && auth.profile.full_name) || 'Alex Rivera';
@@ -11348,6 +11351,8 @@ function BSClientMe(props) {
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
   if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
   if (showGoals) return <BSClientGoals onBack={() => setShowGoals(false)} />;
+  if (showScore) return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
+  if (showStore) return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   return (
     <BSTerrainProfile
       person={person}
@@ -11357,6 +11362,7 @@ function BSClientMe(props) {
       onOpenSettings={() => { try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }}
       onOpenProgress={() => setShowProgress(true)}
       onOpenGoals={() => setShowGoals(true)}
+      onOpenScore={() => setShowScore(true)}
     />
   );
 }
