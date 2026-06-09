@@ -923,20 +923,14 @@ function BSRadioScreen({ onBack }) {
         {false && (
         <DarkSection title="Channels" meta={onLive ? 'Live · always on' : 'Coach · sent to you'} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         )}
-        {/* Live station row — styled to match the Shape Sets row (full-width, teal
-            tint, left teal bar + bottom hairline, same typography). */}
-        <button onClick={() => r.setChannel('live')} style={{
-          width: '100%', boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer',
-          background: `${TEAL}10`, color: CREAM, border: 0, borderBottom: `1px solid ${RULE_DK}`, borderLeft: `3px solid ${TEAL}`,
-          display: 'flex', alignItems: 'center', gap: 12, padding: `14px ${t.padX}px`,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>Live · 24/7</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, marginTop: 4, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.LIVE.show}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`Live station · ${r.LIVE.bpm} BPM · ${r.LIVE.listeners.toLocaleString()} listening now`}</div>
-          </div>
-          <BSEQ bars={5} color={TEAL} height={28} gap={2} paused={r.paused || !onLive} />
-        </button>
+        <DarkChannelRow
+          active={onLive} onClick={() => r.setChannel('live')}
+          eyebrow="LIVE · 24/7" eyebrowColor={TEAL}
+          title={r.LIVE.show}
+          meta={`Live station - ${r.LIVE.bpm} BPM - ${r.LIVE.listeners.toLocaleString()} listening now`}
+          right={<BSEQ bars={5} color={TEAL} height={28} gap={2} paused={r.paused || !onLive} />}
+          t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
+        />
         {false && r.PLAYLISTS && r.PLAYLISTS.map(p => (
           <DarkChannelRow
             key={p.id}
