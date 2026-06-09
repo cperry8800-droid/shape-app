@@ -10572,19 +10572,46 @@ function BSGoalsOverall({ overall, onLog, consistency = null }) {
   const byD = overall.by ? new Date(overall.by) : null;
   const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
   const series = bsGoalSeries(overall);
+  // Weekly pace from the real weigh-in series (per-week change when dated, else
+  // per-weigh-in delta); on-track = pace heading toward the target.
+  const wPace = (() => {
+    const wi = bsGoalWeighIns(overall);
+    if (wi.length < 2) return null;
+    const a = wi[0], b = wi[wi.length - 1];
+    const da = new Date(a.d), db = new Date(b.d);
+    const dk = Number(b.kg) - Number(a.kg);
+    if (!isNaN(da) && !isNaN(db) && db > da) { const wks = Math.max(1, (db - da) / (7 * 86400000)); return Math.round((dk / wks) * 10) / 10; }
+    return Math.round((dk / Math.max(1, wi.length - 1)) * 10) / 10;
+  })();
+  const onTrack = wPace == null ? null : (range > 0 ? wPace < 0 : range < 0 ? wPace > 0 : Math.abs(wPace) < 0.2);
   const stats = [
     { l: 'Current', c: teal,    v: now.toLocaleString(), u: unit, sub: 'Latest weigh-in' },
     { l: 'To go',   c: t.RUST,  v: toGo.toLocaleString(), u: unit, sub: `of ${range} ${unit}` },
-    { l: 'Weekly pace', c: t.AMBER, v: '-0.4', u: unit, sub: '4-wk average' },
-    { l: 'On track', c: t.GREEN, v: 'Yes', u: '', sub: '9 wks to spare' },
+    { l: 'Weekly pace', c: t.AMBER, v: wPace != null ? wPace.toLocaleString() : '—', u: wPace != null ? unit : '', sub: 'per week' },
+    { l: 'On track', c: t.GREEN, v: onTrack == null ? '—' : onTrack ? 'Yes' : 'Off', u: '', sub: byLabel ? `goal ${byLabel}` : 'toward goal' },
   ];
-  const milestones = [
-    { done: true, t: 'Baseline set', sub: '80.4 kg · plans live', when: 'Feb' },
-    { done: true, t: 'First kilo down', sub: '79.4 kg · habits sticking', when: 'Mar' },
-    { n: '03', t: 'Halfway · 78.2 kg', sub: 'on pace · ~3 weeks out', when: 'Next', next: true },
-    { n: '04', t: 'Hold bench at 90 kg', sub: 'strength through the cut', when: 'Ongoing' },
-    { n: '05', t: `Goal · ${target.toLocaleString()} ${unit}`, sub: 'lean & strong', when: byLabel || 'Goal' },
-  ];
+  // Milestones derived from the real goal trajectory (start → quarter points →
+  // target); each marked done once your latest weigh-in has reached it.
+  const milestones = (() => {
+    if (!(range !== 0 && Number.isFinite(start) && Number.isFinite(target))) {
+      return [{ n: '01', t: 'Set a goal', sub: 'add start + target', when: 'Start', next: true }];
+    }
+    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    const reached = (w) => range > 0 ? now <= w + 0.05 : now >= w - 0.05;
+    const defs = [
+      { w: start, t: 'Baseline set', sub: 'plans live' },
+      { w: start - range * 0.25, t: '25% there', sub: 'habits sticking' },
+      { w: start - range * 0.5, t: 'Halfway', sub: 'on pace' },
+      { w: start - range * 0.75, t: '75% there', sub: 'closing in' },
+      { w: target, t: 'Goal', sub: 'lean & strong' },
+    ];
+    let nextMarked = false;
+    return defs.map((m, i) => {
+      const done = reached(m.w);
+      const isNext = !done && !nextMarked; if (isNext) nextMarked = true;
+      return { done, next: isNext, n: String(i + 1).padStart(2, '0'), t: `${m.t} · ${fmt(m.w)}`, sub: m.sub, when: i === 0 ? (overall.startMonth || 'Start') : i === defs.length - 1 ? (byLabel || 'Goal') : (isNext ? 'Next' : '') };
+    });
+  })();
   const plans = [
     { role: 'Training', c: t.AMBER, t: '12-wk lean strength', sub: 'Jordan · 4×/wk' },
     { role: 'Nutrition', c: t.RUST, t: 'Protein-led cut', sub: 'Dr. Maya · 1,890 kcal' },
