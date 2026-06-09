@@ -14561,13 +14561,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     );
   };
 
-  const HubCard = ({ icon, title, summary, onClick, accent }) => (
+  const HubCard = ({ icon, title, summary, onClick, accent, last }) => (
     <button onClick={onClick} style={{
-      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-      padding: '11px 12px', borderRadius: 14, cursor: 'pointer', textAlign: 'left',
-      border: `1px solid ${t.RULE}`, background: t.PAPER2,
+      width: '100%', display: 'flex', alignItems: 'center', gap: 13,
+      padding: '13px 2px', cursor: 'pointer', textAlign: 'left',
+      border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, background: 'transparent',
     }}>
-      <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon name={icon} color={accent || t.INK} />
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
@@ -15313,9 +15313,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* SECTION CARDS — drill into a focused pane */}
       <SectionHead title="More" meta={`${settingCards.length} sections`} />
-      <div style={{ padding: `8px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {settingCards.map(c => (
-          <HubCard key={c.title} icon={c.icon} title={c.title} summary={c.summary} accent={c.accent} onClick={() => setDetail(c.detail)} />
+      <div style={{ padding: `4px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column' }}>
+        {settingCards.map((c, i) => (
+          <HubCard key={c.title} icon={c.icon} title={c.title} summary={c.summary} accent={c.accent} last={i === settingCards.length - 1} onClick={() => setDetail(c.detail)} />
         ))}
       </div>
 
