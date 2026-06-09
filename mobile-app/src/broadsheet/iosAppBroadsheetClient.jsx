@@ -6971,7 +6971,7 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
   );
 }
 
-function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, extra = null }) {
   const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
@@ -7284,13 +7284,19 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {/* back + your-avatar/settings corner (top-right, matches the rest of the app) */}
       <div style={{ padding: '48px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+        {meMode
+          ? <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>You</div>
+          : <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>}
         {isSelf
           ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+              {meMode
+                ? <button onClick={onOpenSettings} aria-label="Settings" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+                  </button>
+                : <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />}
             </div>
           : <BSMeCorner size={30} />}
       </div>
@@ -7507,6 +7513,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </>
         )}
       </div>
+
+      {extra}
+      {meMode && <div style={{ height: 92, flex: '0 0 auto' }} />}
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
 
@@ -11358,7 +11367,87 @@ function BSClientGoals({ onBack }) {
   );
 }
 
-function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, goRadio = () => {}, goChat = () => {}, tweaks = {}, setTweak = () => {} }) {
+// Inline training/nutrition KPI summary on the Me profile — a compact strip of
+// real numbers (ShapeProgress) with demo fallback; taps into the full progress
+// hub. Keeps Me about "you + your numbers" without the full hub inline.
+function BSMeKpis({ onOpen = () => {} }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [d, setD] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!window.ShapeProgress) return undefined;
+    let on = true;
+    Promise.all([
+      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
+      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
+      window.ShapeProgress.nutrition ? window.ShapeProgress.nutrition().catch(() => null) : null,
+    ]).then(([prog, train, nutr]) => { if (on) setD({ prog, train, nutr }); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  const prog = d && d.prog, train = d && d.train, nutr = d && d.nutr;
+  const wkΔ = num(prog && prog.kpis && (prog.kpis.weightDelta != null ? prog.kpis.weightDelta : prog.kpis.bodyweightDelta));
+  const bf = num(prog && prog.kpis && (prog.kpis.bodyFat != null ? prog.kpis.bodyFat : prog.kpis.bodyfat));
+  const sleep = num(prog && prog.kpis && prog.kpis.sleepAvg);
+  const sessions = num(train && train.stats && (train.stats.thisWeekCount != null ? train.stats.thisWeekCount : train.stats.thisWeek));
+  const prs = num(train && train.stats && (train.stats.prCount != null ? train.stats.prCount : train.stats.prs));
+  const vol = num(train && train.stats && (train.stats.volume7d != null ? train.stats.volume7d : train.stats.weekVolume));
+  const protein = num(nutr && (nutr.today && nutr.today.protein != null ? nutr.today.protein : (nutr.macros && nutr.macros.protein)));
+  const adherence = num(nutr && nutr.stats && (nutr.stats.adherencePct != null ? nutr.stats.adherencePct : nutr.stats.adherent));
+  const cards = [
+    { l: 'Sessions / wk', v: sessions != null ? String(sessions) : '4', c: t.RUST },
+    { l: 'PRs', v: prs != null ? String(prs) : '3', c: t.RUST },
+    { l: '7d volume', v: vol != null ? `${Math.round(vol)}k` : '42k', c: t.RUST },
+    { l: 'Protein', v: protein != null ? `${Math.round(protein)}g` : '168g', c: teal },
+    { l: 'Adherence', v: adherence != null ? `${Math.round(adherence)}%` : '92%', c: teal },
+    { l: 'Weight Δ', v: wkΔ != null ? `${wkΔ > 0 ? '+' : ''}${wkΔ}` : '−3.4', c: '#8a5cf6' },
+    { l: 'Body fat', v: bf != null ? `${bf}%` : '17%', c: '#8a5cf6' },
+    { l: 'Sleep', v: sleep != null ? `${sleep}h` : '7.4h', c: '#8a5cf6' },
+  ];
+  return (
+    <div style={{ padding: `8px 18px 4px` }}>
+      <button onClick={onOpen} style={{ width: '100%', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', background: 'transparent', border: 0, cursor: 'pointer', padding: '0 0 10px' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA('#f2ede4', 0.5), fontWeight: 700 }}>Your progress</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Full stats →</span>
+      </button>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {cards.map((s) => (
+          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${bsTHexA('#f2ede4', 0.12)}`, background: bsTHexA('#f2ede4', 0.04), padding: '10px 9px' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em', color: '#f2ede4', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
+            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.c, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.l}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The Me tab is now PROFILE-FIRST: your living Terrain profile + an inline
+// progress/stats summary. A gear opens the full settings hub (BSMeSettingsHub),
+// which still holds every account/preference/utility link with wiring intact.
+function BSClientMe(props) {
+  const [view, setView] = useStateBSC('profile'); // 'profile' | 'hub'
+  const [showProgress, setShowProgress] = useStateBSC(false);
+  const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
+  const uid = (auth.user && auth.user.id) || null;
+  const name = (auth.profile && auth.profile.full_name) || 'Alex Rivera';
+  const photo = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null;
+  const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
+  if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
+  if (view === 'hub') return <BSMeSettingsHub {...props} onBack={() => setView('profile')} />;
+  return (
+    <BSTerrainProfile
+      person={person}
+      isSelf
+      meMode
+      onBack={() => {}}
+      onOpenSettings={() => setView('hub')}
+      extra={<BSMeKpis onOpen={() => setShowProgress(true)} />}
+    />
+  );
+}
+
+function BSMeSettingsHub({ onProfile, onLogout, onIntegrations = () => {}, goMarket = () => {}, goRadio = () => {}, goChat = () => {}, tweaks = {}, setTweak = () => {}, onBack = null }) {
   const t = useBS();
   // Live coaches — the member's actual linked coaches (DM threads), demo fallback.
   const [teamCoaches, setTeamCoaches] = useStateBSC(null);
@@ -11739,12 +11828,14 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
 
   return (
     <BSPage>
+      {onBack && (
+        <button onClick={onBack} style={{ margin: `46px ${t.padX}px -50px`, alignSelf: 'flex-start', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Me</button>
+      )}
       <BSPageHeader
+        kicker="Settings"
         title={<>{firstName}<br/><span style={{ color: t.ACCENT }}>{lastName}.</span></>}
         trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
       />
-
-      <div style={{ padding: `2px ${t.padX}px 0` }}><BSFollowMini onOpen={() => setShowPublicProfile(true)} /></div>
 
       {/* SHAPE SCORE — tappable card: ring + category bars */}
       {(() => {
