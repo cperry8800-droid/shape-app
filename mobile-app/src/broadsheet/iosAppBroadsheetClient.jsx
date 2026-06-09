@@ -1854,6 +1854,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     if (d0 > today0) return 0;
     return [46, 38, 52, 24, 48, 31, 40][selIdx] != null ? [46, 38, 52, 24, 48, 31, 40][selIdx] : 40;
   })();
+  // Habits for the selected day — live from the user's habits (mirrored into
+  // tweaks) when present, demo set otherwise. `done` reflects that specific day.
+  const selDayHabits = (() => {
+    const dec = (typeof window !== 'undefined' && window._bsDecodeHabits) ? window._bsDecodeHabits(tweaks.habits) : [];
+    const ptsOf = (h) => (typeof window !== 'undefined' && window._bsHabitPts) ? window._bsHabitPts(h) : (h.pts || 5);
+    if (dec && dec.length) {
+      const dd = weekDates[selIdx];
+      const sel = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
+      return dec.map(h => ({ name: h.name, type: h.type, pts: ptsOf(h), done: (h.history || []).includes(sel) }));
+    }
+    const demo = (typeof window !== 'undefined' && window._BS_HABIT_DEMO_ROWS) || [];
+    return demo.map(h => ({ name: h.name, type: h.type, pts: h.pts, done: (h.pattern || [])[selIdx] > 0 }));
+  })();
   const dayLogKey = (row, i) => `${selIdx}-${row.time}-${row.tag || 'item'}-${i}`;
   const dayLogDetails = (row) => {
     if (row.tag === 'MEAL') return {
@@ -2386,6 +2399,39 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                       return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
                     })()}
                   </span>
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* HABITS — same numbered format as the Day log; "View" → full habits page */}
+      <BSSection
+        title="Habits"
+        kicker={`${selDayHabits.filter(h => h.done).length}/${selDayHabits.length} done`}
+        meta={<span onClick={() => setHabitsPage(true)} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>View →</span>}
+      />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderTop: `2px solid ${t.INK}` }} />
+        {selDayHabits.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+            — No habits yet · tap View to add —
+          </div>
+        ) : (
+          selDayHabits.map((h, i) => {
+            const avoid = h.type === 'avoid';
+            const pillC = avoid ? t.RUST : t.GREEN;
+            return (
+              <div key={`${h.name}-${i}`} style={{ borderBottom: i === selDayHabits.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '28px 40px 1fr auto', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK, letterSpacing: '-0.01em', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.PAPER, background: pillC, padding: '2px 4px', textTransform: 'uppercase', fontWeight: 700, textAlign: 'center', justifySelf: 'start', borderRadius: t.RADIUS_SM }}>{avoid ? 'AVOID' : 'DO'}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px' }}>{h.name}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: h.done ? pillC : t.INK50, marginTop: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
+                  </div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: h.done ? pillC : t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
                 </button>
               </div>
             );
