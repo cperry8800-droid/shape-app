@@ -7675,8 +7675,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </svg>
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
-            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 16px))`, top: `${here.y - 42}px` }}>
-              <BSFacetAvatar size={32} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
+            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 22px))`, top: `${here.y - 54}px` }}>
+              <BSFacetAvatar size={44} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>{heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
