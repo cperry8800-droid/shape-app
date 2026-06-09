@@ -6074,7 +6074,9 @@ const BS_FOLLOW_DEMO_NAMES = ['Priya Shah', 'Drew Oyelaran', 'Casey Morgan', 'De
 // and in the Settings card.
 function bsDemoFollowCounts(name) {
   let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) >>> 0;
-  return { followers: 40 + (n % 860), following: 28 + ((n >> 5) % 320) };
+  // NB: use the UNSIGNED shift (>>>) — a signed >> on a high-bit n goes negative,
+  // and JS `% 320` keeps that sign, which produced negative "following" counts.
+  return { followers: 40 + (n % 860), following: 28 + ((n >>> 5) % 320) };
 }
 // Compact followers/following counts for the Me identity card (Settings) — each
 // count opens the SAME live followers/following list sheet the profile uses (with
@@ -6309,14 +6311,14 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
-    <button onClick={() => openList(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
-      <span style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: INK, letterSpacing: '-0.02em' }}>{n}</span>
-      <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginLeft: 6 }}>{label}</span>
+    <button onClick={() => openList(kind)} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+      <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
+      <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>{label}</span>
     </button>
   );
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 20 }}>
         {statBtn(stats.followers, 'Followers', 'followers')}
         {statBtn(stats.following, 'Following', 'following')}
       </div>
