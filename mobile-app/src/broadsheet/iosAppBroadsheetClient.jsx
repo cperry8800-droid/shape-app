@@ -7063,6 +7063,31 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const liftsEff = (isSelf && realLifts && realLifts.length) ? realLifts : lifts;
   const traj = [176, 175, 174, 173, 172, 171, 171];
   const week = [40, 72, 55, 88, 33, 90, 18];
+  // Live "Living signals" — day streak, bodyweight trajectory, weekly momentum —
+  // from the same ShapeProgress rollups as the progress page (demo otherwise).
+  const [realSig, setRealSig] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeProgress) return;
+    let on = true;
+    Promise.all([
+      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
+      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
+    ]).then(([train, prog]) => {
+      if (!on) return;
+      const m = {};
+      if (train && train.stats && Number.isFinite(Number(train.stats.currentStreak))) m.streak = Number(train.stats.currentStreak);
+      const w = (prog && prog.series && Array.isArray(prog.series.weight)) ? prog.series.weight.slice(-7).map(Number).filter(Number.isFinite) : null;
+      if (w && w.length >= 2) m.traj = w;
+      const vbd = (train && Array.isArray(train.volumeByDay)) ? train.volumeByDay.slice(-7).map(Number).filter(Number.isFinite) : null;
+      if (vbd && vbd.length) m.week = vbd;
+      if (Object.keys(m).length) setRealSig(m);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [isSelf]);
+  const streakEff = (isSelf && realSig && realSig.streak != null) ? realSig.streak : streak;
+  const trajEff = (isSelf && realSig && realSig.traj && realSig.traj.length) ? realSig.traj : traj;
+  const weekEff = (isSelf && realSig && realSig.week && realSig.week.length) ? realSig.week : week;
+  const trajDeltaLb = Math.round((trajEff[trajEff.length - 1] - trajEff[0]) || 0);
   const feed = [
     { k: 'PR', t: 'New PR — Back squat', b: 'Six weeks ago this was a hard triple at 225.', metric: ['▲', '+22 lb'], time: '2d', hot: true },
     { k: 'Workout', t: 'Lower push · this week', b: 'Bar speed stayed crisp through the last rep — first time at this weight.', metric: ['Squat', '245×5'], time: '2h' },
@@ -7074,9 +7099,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const block = 'Week 6 of 12', program = 'Hypertrophy Block II', startLabel = "Feb ’25 — start";
   const coachName = 'Maya Okafor', coachInit = 'MO';
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
-  const maxTraj = Math.max(...traj), minTraj = Math.min(...traj);
-  const sparkPath = traj.map((v, i) => [(i / (traj.length - 1)) * 150, 34 - ((v - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3]).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const maxWk = Math.max(...week);
+  const maxTraj = Math.max(...trajEff), minTraj = Math.min(...trajEff);
+  const sparkPath = trajEff.map((v, i) => [(i / (trajEff.length - 1)) * 150, 34 - ((v - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3]).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const maxWk = Math.max(...weekEff);
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // On your OWN profile the climb is wired to real data, and you can choose what
@@ -7225,14 +7250,14 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // demo fallback otherwise (so every aspect tab always renders a ridgeline).
   const climbCfgFor = (aspect) => {
     if (aspect === 'score') {
-      const pts = (isSelf ? ((typeof window !== 'undefined' && window.ShapeScore && Number(window.ShapeScore.points)) || (points || 0)) : (points || 0)) || 0;
+      const pts = Number(score) || 0;
       const TH = [0, 750, 2000, 5000, 15000], NM = ['Base', 'Tempo', 'Form', 'Peak', 'Legend'];
       let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
       const last = i >= TH.length - 1, floor = TH[i], next = last ? TH[i] : TH[i + 1], nextName = last ? NM[i] : NM[i + 1];
       return { arc: [[NM[i], `${floor.toLocaleString()} pts`, 'start'], ['Now', `${pts.toLocaleString()} pts`, 'now'], [nextName, `${next.toLocaleString()} pts`, 'target']], pct: last ? 1 : Math.max(0.04, Math.min(0.98, (pts - floor) / Math.max(1, next - floor))), summit: last ? 'Legend tier' : `${nextName} tier` };
     }
     if (aspect === 'streak') {
-      const s = Number(streak) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
+      const s = Number(streakEff) || 0, target = Math.max(7, Math.ceil((s + 1) / 7) * 7);
       return { arc: [['Start', 'Day 0', 'start'], ['Now', `${s} days`, 'now'], ['Goal', `${target} days`, 'target']], pct: Math.max(0.04, Math.min(0.98, target ? s / target : 0)), summit: `${target}-day streak` };
     }
     if (aspect === 'bodyfat') {
@@ -7401,6 +7426,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         })()}
       </div>
 
+      {meMode && (
+        <div style={{ padding: '14px 18px 0' }}>
+          <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={onOpenProgress} />
+        </div>
+      )}
+
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} />
         {isPrivate ? (
@@ -7418,10 +7449,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             ]} />
             {tab === 'stats' && (
               <div style={{ marginBottom: 22 }}>
-                <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} onOpen={isSelf ? onOpenProgress : undefined} />
-                {isSelf && <BSMeGoalCard c={c} />}
+                {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
                 {isSelf
-                  ? <div style={{ marginTop: 16 }}><BSClientProgress embedded /></div>
+                  ? <><BSMeGoalCard c={c} /><div style={{ marginTop: 16 }}><BSClientProgress embedded /></div></>
                   : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
@@ -7493,16 +7523,16 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <Kick>Living signals</Kick>
               <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
                 <div style={{ flex: 'none', width: 96, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 14, padding: '13px 14px' }}>
-                  <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1 }}>{streak}</div>
+                  <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1 }}>{streakEff}</div>
                   <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 6 }}>Day streak</div>
                 </div>
                 <div style={{ flex: 1, ...card, padding: '13px 14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Weekly momentum</span><span style={{ fontFamily: MONO, fontSize: 10, color: TEAL }}>today ↑</span></div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 30 }}>{week.map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(8, (v / maxWk) * 100)}%`, background: i === week.length - 2 ? TEAL : bsTHexA(c, 0.5), borderRadius: 2 }} />)}</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 30 }}>{weekEff.map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(8, (v / maxWk) * 100)}%`, background: i === weekEff.length - 2 ? TEAL : bsTHexA(c, 0.5), borderRadius: 2 }} />)}</div>
                 </div>
               </div>
               <div style={{ marginTop: 9, ...card, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', color: TEAL }}>−5 lb</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Trajectory</div></div>
+                <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', color: TEAL }}>{trajDeltaLb > 0 ? '+' : '−'}{Math.abs(trajDeltaLb)} lb</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Trajectory</div></div>
                 <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }}><path d={sparkPath} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 <div style={{ fontFamily: SANS, fontSize: 11, color: bsTHexA(INK, 0.5), flex: 'none' }}>16-wk recomp</div>
               </div>
@@ -7524,7 +7554,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streak }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              {isSelf && <div style={{ marginBottom: 22 }}><BSMeKpis onOpen={onOpenProgress} embedded /></div>}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Kick>Personal activities</Kick>
                 {isSelf && (
@@ -11509,25 +11540,22 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
     ]).then(([prog, train, nutr]) => { if (on) setD({ prog, train, nutr }); }).catch(() => {});
     return () => { on = false; };
   }, []);
-  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
-  const prog = d && d.prog, train = d && d.train, nutr = d && d.nutr;
-  const wkΔ = num(prog && prog.kpis && (prog.kpis.weightDelta != null ? prog.kpis.weightDelta : prog.kpis.bodyweightDelta));
-  const bf = num(prog && prog.kpis && (prog.kpis.bodyFat != null ? prog.kpis.bodyFat : prog.kpis.bodyfat));
-  const sleep = num(prog && prog.kpis && prog.kpis.sleepAvg);
-  const sessions = num(train && train.stats && (train.stats.thisWeekCount != null ? train.stats.thisWeekCount : train.stats.thisWeek));
-  const prs = num(train && train.stats && (train.stats.prCount != null ? train.stats.prCount : train.stats.prs));
-  const vol = num(train && train.stats && (train.stats.volume7d != null ? train.stats.volume7d : train.stats.weekVolume));
-  const protein = num(nutr && (nutr.today && nutr.today.protein != null ? nutr.today.protein : (nutr.macros && nutr.macros.protein)));
-  const adherence = num(nutr && nutr.stats && (nutr.stats.adherencePct != null ? nutr.stats.adherencePct : nutr.stats.adherent));
+  // Merge live ShapeProgress over the demo defaults — exactly like BSClientProgress —
+  // so the numbers match the full progress page (was reading the wrong fields → 0s).
+  const O = { kpis: { ...BSPROG_DEMO.overall.kpis, ...((d && d.prog && d.prog.kpis) || {}) } };
+  const TR = { stats: { ...BSPROG_DEMO.train.stats, ...((d && d.train && d.train.stats) || {}) }, prs: (d && d.train && d.train.prs) || BSPROG_DEMO.train.prs };
+  const NU = { ...BSPROG_DEMO.nutri, ...((d && d.nutr) || {}), today: { ...BSPROG_DEMO.nutri.today, ...((d && d.nutr && d.nutr.today) || {}) } };
+  const k = O.kpis;
+  const wc = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v || 0))} lb`;
   const cards = [
-    { l: 'Sessions / wk', v: sessions != null ? String(sessions) : '4', c: t.RUST },
-    { l: 'PRs', v: prs != null ? String(prs) : '3', c: t.RUST },
-    { l: '7d volume', v: vol != null ? `${Math.round(vol)}k` : '42k', c: t.RUST },
-    { l: 'Protein', v: protein != null ? `${Math.round(protein)}g` : '168g', c: teal },
-    { l: 'Adherence', v: adherence != null ? `${Math.round(adherence)}%` : '92%', c: teal },
-    { l: 'Weight Δ', v: wkΔ != null ? `${wkΔ > 0 ? '+' : ''}${wkΔ}` : '−3.4', c: '#8a5cf6' },
-    { l: 'Body fat', v: bf != null ? `${bf}%` : '17%', c: '#8a5cf6' },
-    { l: 'Sleep', v: sleep != null ? `${sleep}h` : '7.4h', c: '#8a5cf6' },
+    { l: 'Sessions / wk', v: String(TR.stats.thisWeekCount ?? 0), c: t.RUST },
+    { l: 'PRs', v: String((TR.prs || []).length), c: t.RUST },
+    { l: '7d volume', v: `${Math.round((TR.stats.volume7dLb || 0) / 1000)}k`, c: t.RUST },
+    { l: 'Protein', v: `${Math.round(NU.today.protein || 0)}g`, c: teal },
+    { l: 'Adherence', v: `${Math.round(((NU.adherentDays7 || 0) / 7) * 100)}%`, c: teal },
+    { l: 'Weight Δ', v: wc(k.weightChange), c: '#8a5cf6' },
+    { l: 'Body fat', v: `${(k.bodyFatLatest || 0).toFixed(1)}%`, c: '#8a5cf6' },
+    { l: 'Sleep', v: `${k.sleepAvg || 0} h`, c: '#8a5cf6' },
   ];
   return (
     <div style={{ padding: embedded ? '6px 0 2px' : '8px 18px 4px' }}>
