@@ -9167,7 +9167,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
           <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1 }}>
-            {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'messages' ? 'Friends' : 'Your team'}
+            {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'support' ? 'Support' : 'Your team'}
           </h1>
         </div>
       </div>
@@ -9195,10 +9195,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
       </div>
 
-      {/* Feed / Channels / Friends / Team */}
+      {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', 'Feed', 0], ['channels', 'Channels', chUnread], ['messages', 'Friends', friendUnread], ['teams', 'Team', coachUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+          {[['feed', 'Feed', 0], ['teams', 'Team', coachUnread + friendUnread], ['channels', 'Channels', chUnread], ['support', 'Support', 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -9250,19 +9250,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             );
           };
 
-          if (tab === 'messages') {
-            // Friends: a simple list of people — tap one to open the chat.
-            const friends = friendRows.length ? friendRows : (loggedIn ? [] : (isCoach
-              ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
-              : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
-            return (
-              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
-                <BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} />
-                {ThreadHead(friends)}
-                {friends.map(Row)}
-              </div>
-            );
-          }
+          // Friends — now a sub-tab INSIDE Team (rendered in the Team body below).
+          const friends = friendRows.length ? friendRows : (loggedIn ? [] : (isCoach
+            ? [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Dev Patel', s: '2h ago', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: 'Yesterday', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]
+            : [{ n: 'Sofia Martinez', s: 'Active now', c: '#147b68', i: 'S', conversation_id: 'demo-sofia', messages: BS_SAMPLE_DMS['Sofia Martinez'] }, { n: 'Jordan Chen', s: '2h ago', c: '#c0533b', i: 'J', messages: BS_SAMPLE_DMS['Jordan Chen'] }, { n: 'Maya Okafor', s: 'Active now', c: '#a07a2e', i: 'M', messages: BS_SAMPLE_DMS['Maya Okafor'] }, { n: 'Dev Patel', s: 'Yesterday', c: '#2e6fa0', i: 'D', messages: BS_SAMPLE_DMS['Dev Patel'] }, { n: 'Aria Kim', s: '3h ago', c: '#8a5cf6', i: 'A', messages: BS_SAMPLE_DMS['Aria Kim'] }]));
 
           // Teams: Channels / Coaches / Support selector. Support is its own
           // continuous AI-backed thread (rendered inline below), not a channel.
@@ -9287,10 +9278,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return hqShown ? [_shapeHQ, ...base] : base;
           })();
           const _coachUnread = (coaches || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
-          // Channels moved to its own top-level tab — Team keeps Coaches + Support.
+          const _friendUnread = (friends || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
+          // Channels + Support are their own top-level tabs — Team holds Coaches + Friends.
           const selectors = [
             { key: 'coaches', label: 'Coaches', color: '#c0533b', badge: _coachUnread },
-            { key: 'support', label: 'Support', color: '#2e6fa0', badge: 0 },
+            { key: 'friends', label: 'Friends', color: '#147b68', badge: _friendUnread },
           ];
           const active = selectors.find(s => s.key === teamsSel) || selectors[0];
           const _chPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
@@ -9368,25 +9360,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               </div>
             );
           }
-          return (
-            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
-                {selectors.map(sec => {
-                  const on = active.key === sec.key;
-                  return (
-                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      <span style={{ width: 5, height: 5, borderRadius: 3, background: sec.color }} />{sec.label}
-                      {sec.badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-              {active.key === 'coaches' ? (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {ThreadHead(coaches)}
-                  {coaches.map(Row)}
-                </div>
-              ) : (
+          // Support — its own top-level tab: the continuous AI-backed thread.
+          if (tab === 'support') {
+            return (
+              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
                   {supportMsgs.map((m, i) => (
@@ -9417,6 +9394,34 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     )
                   ))}
                   {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Nora is typing…</div>}
+                </div>
+              </div>
+            );
+          }
+          // Team — Coaches / Friends sub-tabs (shared by every profile type).
+          return (
+            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
+                {selectors.map(sec => {
+                  const on = active.key === sec.key;
+                  return (
+                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      <span style={{ width: 5, height: 5, borderRadius: 3, background: sec.color }} />{sec.label}
+                      {sec.badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {active.key === 'friends' ? (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} />
+                  {ThreadHead(friends)}
+                  {friends.map(Row)}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {ThreadHead(coaches)}
+                  {coaches.map(Row)}
                 </div>
               )}
             </div>
@@ -9498,7 +9503,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
-      {tab === 'teams' && teamsSel === 'support' && (
+      {tab === 'support' && (
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
       )}
       {newDmOpen && createPortal(
