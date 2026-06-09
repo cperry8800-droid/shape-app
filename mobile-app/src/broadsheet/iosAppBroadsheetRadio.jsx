@@ -702,7 +702,6 @@ function BSRadioScreen({ onBack }) {
   return (
     <div className="bs-scroll" style={{
       position: 'absolute', inset: 0, overflow: 'auto',
-      paddingBottom: 80 + 28,
       fontFamily: t.DISPLAY,
       color: CREAM,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
@@ -756,11 +755,11 @@ function BSRadioScreen({ onBack }) {
         <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
 
         {/* Top breathing room before live readout */}
-        <div style={{ height: 14 }} />
+        <div style={{ height: 6 }} />
 
-        <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 18px` }}>
+        <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 14px` }}>
           {/* On air + active listeners — sits high at the top-left of the box */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 22, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
             {onLive ? `On Air · ${r.LIVE.listeners.toLocaleString()}` : 'Coach Playlist'}
           </div>
@@ -768,32 +767,32 @@ function BSRadioScreen({ onBack }) {
           {/* Now playing — centered hero */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             {/* BPM ring */}
-            <div style={{ position: 'relative', width: 112, height: 112 }}>
+            <div style={{ position: 'relative', width: 88, height: 88 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
-              <div style={{ position: 'absolute', inset: 11, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
-              <div style={{ position: 'absolute', inset: 6, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / trackBpm).toFixed(3)}s ease-out infinite` }} />
+              <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
+              <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / trackBpm).toFixed(3)}s ease-out infinite` }} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 35, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{trackBpm}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 3 }}>BPM</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{trackBpm}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 2 }}>BPM</div>
               </div>
             </div>
 
             {/* Now playing label + track */}
-            <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
               Now Playing
             </div>
-            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>
               {onLive ? tr.a : playlist.name}
             </div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
               {onLive ? `${tr.b} · ${tr.bpm} BPM · ${tr.len}` : `From ${playlist.by} · ${playlist.bpm} BPM`}
             </div>
           </div>
 
           {/* Waveform */}
-          <div style={{ margin: '16px auto 0', maxWidth: 210 }}>
-            <BSEQ bars={17} color={TEAL} height={26} gap={3} paused={r.paused} />
+          <div style={{ margin: '10px auto 0', maxWidth: 210 }}>
+            <BSEQ bars={17} color={TEAL} height={20} gap={3} paused={r.paused} />
           </div>
 
           {/* Scrubber */}
@@ -804,7 +803,7 @@ function BSRadioScreen({ onBack }) {
             const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
             const pct = total ? Math.round((elapsed / total) * 100) : 0;
             return (
-              <div style={{ marginTop: 14 }}>
+              <div style={{ marginTop: 10 }}>
                 <div style={{ position: 'relative', height: 2.5, borderRadius: 999, background: CREAM25 }}>
                   <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 999, background: TEAL }} />
                   <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 10, height: 10, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}` }} />
@@ -818,9 +817,9 @@ function BSRadioScreen({ onBack }) {
           })()}
 
           {/* Transport */}
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'stretch', gap: 8 }}>
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'stretch', gap: 8 }}>
             <button onClick={() => r.setPaused(p => !p)} style={{ borderRadius: 12,
-              flex: 1, padding: '11px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
+              flex: 1, padding: '10px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
               fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
@@ -837,7 +836,7 @@ function BSRadioScreen({ onBack }) {
 
           {/* Heart-rate sync — stages: not connected → free → matching → in sync.
               Full-bleed opaque band so no glow / stage-light shows through (plain black). */}
-          <div style={{ marginTop: 18, marginLeft: -t.padX, marginRight: -t.padX, marginBottom: -18, padding: `14px ${t.padX}px 18px`, background: t.PAPER, position: 'relative', zIndex: 3, borderTop: `1px solid ${CREAM25}` }}>
+          <div style={{ marginTop: 16, marginLeft: -t.padX, marginRight: -t.padX, marginBottom: -14, padding: `14px ${t.padX}px 18px`, background: t.PAPER, position: 'relative', zIndex: 3, borderTop: `1px solid ${RULE_DK}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
@@ -916,8 +915,9 @@ function BSRadioScreen({ onBack }) {
         </div>
       </div>
 
-      {/* Below-fold panel — tracks paper mode */}
-      <div style={{ background: isLight ? t.PAPER : 'rgba(5,7,7,0.92)' }}>
+      {/* Below-fold panel — tracks paper mode. Carries the page's bottom padding so
+          its background fills all the way down (no color step / "border" above the nav). */}
+      <div style={{ background: isLight ? t.PAPER : 'rgba(5,7,7,0.92)', paddingBottom: 80 + 28 }}>
         {/* CHANNEL */}
         <DarkSection title="Channel" meta="Live channel" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         {false && (
