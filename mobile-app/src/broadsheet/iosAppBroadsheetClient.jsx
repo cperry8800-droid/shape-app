@@ -7268,6 +7268,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const [custom, setCustom] = useStateBSC(null);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
+  const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
+  const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
@@ -7652,7 +7654,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       <div style={{ margin: '16px 18px 0', paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
           photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)}
-          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={() => setTab('activity')} />
+          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
@@ -7768,6 +7770,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </div>
         ) : (
           <>
+            <div ref={activityRef} />
             <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'stats', label: 'Stats' },
@@ -8075,6 +8078,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
   const [reviewerProfile, setReviewerProfile] = useStateBSC(null);
+  const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
+  const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   React.useEffect(() => {
     const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     let on = true;
@@ -8205,7 +8210,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ marginTop: 18 }}>
           <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
             ownerPhoto={photo || (live && live.avatar) || (isSelf ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)}
-            onOpenProfile={setReviewerProfile} onOpenPosts={() => setTab('activity')} />
+            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts} />
         </div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
@@ -8244,7 +8249,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           <div style={{ ...card, padding: '18px', marginTop: 18, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their profile with friends — connect to see more.` : `${first} keeps their profile private — only name and tier are shown.`}</div></div>
         ) : (
         <>
-          <div style={{ marginTop: 22 }}>
+          <div ref={activityRef} style={{ marginTop: 22 }}>
             <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'about', label: 'About' },
