@@ -563,9 +563,9 @@ function BSNowPlaying({ onOpen }) {
       margin: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0,
       background: t.PAPER, color: t.INK,
     }}>
-      {/* Light effects layer */}
-      <BSHalftoneAurora color={t.ACCENT} opacity={0.45} paused={r.paused} />
-      <BSStageLight color={t.ACCENT} opacity={0.12} paused={r.paused} />
+      {/* Light effects layer — accent (adapts to paper); stronger so it reads on light papers too */}
+      <BSHalftoneAurora color={t.ACCENT} opacity={t.isLight ? 0.7 : 0.55} paused={r.paused} />
+      <BSStageLight color={t.ACCENT} opacity={t.isLight ? 0.22 : 0.16} paused={r.paused} />
       <div aria-hidden style={{
         position: 'absolute',
         inset: 0,
@@ -958,7 +958,9 @@ function BSRadioScreen({ onBack }) {
           textAlign: 'center',
           whiteSpace: 'nowrap',
         }}>
-          <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png?v=2`} alt="Shape Radio" style={{ width: 'min(86%, 330px)', height: 'auto', display: 'block', margin: '0 auto', filter: t.isLight ? 'brightness(0)' : 'none' }} />
+          {t.isLight
+            ? <span aria-label="Shape Radio" style={{ width: 'min(86%, 330px)', aspectRatio: '1647 / 116', display: 'block', margin: '0 auto', background: '#0a8f87', WebkitMaskImage: `url(${import.meta.env.BASE_URL}shape-radio-logo.png?v=2)`, maskImage: `url(${import.meta.env.BASE_URL}shape-radio-logo.png?v=2)`, WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }} />
+            : <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png?v=2`} alt="Shape Radio" style={{ width: 'min(86%, 330px)', height: 'auto', display: 'block', margin: '0 auto' }} />}
         </div>
       </div>
 
@@ -1110,7 +1112,7 @@ function BSRadioScreen({ onBack }) {
             <div style={{ marginTop: 13, display: 'flex', gap: 8 }}>
               {hrStage === 'off' ? (
                 <button onClick={connectMonitor} style={{ borderRadius: 11, flex: 1,
-                  border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM,
+                  border: `1px solid ${t.isLight ? '#0a8f87' : CREAM25}`, background: t.isLight ? '#0a8f8714' : 'transparent', color: t.isLight ? '#0a8f87' : CREAM,
                   padding: '11px', cursor: 'pointer',
                   fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
                 }}>Connect monitor</button>
@@ -1235,18 +1237,19 @@ function DarkSection({ title, meta, cream, cream50, rule, t }) {
 }
 
 function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, right, t, cream, cream50, rule, accent }) {
+  const ink = t.isLight ? t.INK : cream, ink50 = t.isLight ? t.INK50 : cream50;
   return (
     <button onClick={onClick} style={{ borderRadius: t.RADIUS_SM,
       width: '100%', display: 'flex', alignItems: 'center', gap: 12,
       padding: `14px ${t.padX}px`, cursor: 'pointer', textAlign: 'left',
-      background: active ? 'rgba(244,237,224,0.06)' : 'transparent',
-      color: cream, border: 0, borderBottom: `1px solid ${rule}`,
+      background: active ? (t.isLight ? `${accent}12` : 'rgba(244,237,224,0.06)') : 'transparent',
+      color: ink, border: 0, borderBottom: `1px solid ${rule}`,
       borderLeft: active ? `3px solid ${accent}` : '3px solid transparent',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: eyebrowColor }}>{eyebrow}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: cream, marginTop: 4, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: cream50, marginTop: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: ink, marginTop: 4, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink50, marginTop: 4, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
       </div>
       <div style={{ flexShrink: 0 }}>{right}</div>
     </button>
