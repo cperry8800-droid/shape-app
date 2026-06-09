@@ -9506,7 +9506,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned placeholder="Message the Shape team…" />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked placeholder="Message the Shape team…" />
       )}
       {newDmOpen && createPortal(
         <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -9576,7 +9576,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
@@ -9711,7 +9711,10 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   const fieldRow = leftBtns
     ? <div><div>{tagChips}</div><div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%' }}>{leftBtns}{field}</div></div>
     : field;
-  const body = canChat ? fieldRow : lockedField;
+  // `unlocked` bypasses the member gate — used by the Support (Nora) composer,
+  // which is deliberately open to everyone incl. demo/preview (the /api/support
+  // endpoint isn't membership-gated either, matching the website Help tab).
+  const body = (canChat || unlocked) ? fieldRow : lockedField;
 
   if (pinned) {
     // Docked input bar: spans the full phone-frame width and sits flush on top
