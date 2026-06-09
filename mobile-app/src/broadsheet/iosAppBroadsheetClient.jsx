@@ -1783,18 +1783,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // ledger entries earned *today* (local day) so the chip reflects what's been
   // added so far this day and grows as the day goes on. null = not loaded /
   // demo, in which case the chip keeps its sample value.
-  const [todayScore, setTodayScore] = useStateBSC(null);
+  const [ptsByDate, setPtsByDate] = useStateBSC(null); // dateString → points earned that day (live ledger)
   React.useEffect(() => {
     let cancelled = false;
     fetch('/api/client/score', { credentials: 'same-origin', cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (cancelled || !d || !Array.isArray(d.recent)) return;
-        const todayKey = new Date().toDateString();
-        const sum = d.recent
-          .filter(e => e && e.earned_at && new Date(e.earned_at).toDateString() === todayKey)
-          .reduce((acc, e) => acc + (Number(e.delta) || 0), 0);
-        setTodayScore(sum);
+        const map = {};
+        d.recent.forEach(e => { if (e && e.earned_at) { const k = new Date(e.earned_at).toDateString(); map[k] = (map[k] || 0) + (Number(e.delta) || 0); } });
+        setPtsByDate(map);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -1846,6 +1844,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
   const dataDay = 20 + selIdx;
   const dayLog = DAY_LOGS[dataDay] || [];
+  // Total Shape Score points earned on the selected day. Live from the ledger
+  // (per-date map) when signed in; a stable demo value per weekday otherwise
+  // (future days = 0, since nothing's been earned yet).
+  const selDayPts = (() => {
+    if (ptsByDate) return ptsByDate[weekDates[selIdx].toDateString()] || 0;
+    const d0 = new Date(weekDates[selIdx]); d0.setHours(0, 0, 0, 0);
+    const today0 = new Date(_now); today0.setHours(0, 0, 0, 0);
+    if (d0 > today0) return 0;
+    return [46, 38, 52, 24, 48, 31, 40][selIdx] != null ? [46, 38, 52, 24, 48, 31, 40][selIdx] : 40;
+  })();
   const dayLogKey = (row, i) => `${selIdx}-${row.time}-${row.tag || 'item'}-${i}`;
   const dayLogDetails = (row) => {
     if (row.tag === 'MEAL') return {
@@ -2113,63 +2121,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      <div style={{
-        padding: `10px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER,
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-          {[
-            { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => setHabitsPage(true) },
-            { label: 'Score', meta: todayScore == null ? '+4 pts' : `+${todayScore} pts`, accent: t.ACCENT, onClick: () => goScore?.() },
-          ].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={item.onClick}
-              style={{
-                minWidth: 0,
-                padding: '11px 9px 10px',
-                borderRadius: 15,
-                border: `1.5px solid ${item.active ? t.INK : `${item.accent || t.INK}66`}`,
-                background: item.active ? 'transparent' : (t.isLight ? `${item.accent || t.INK}14` : `${item.accent || t.INK}24`),
-                color: t.INK,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <span style={{
-                display: 'block',
-                fontFamily: t.MONO,
-                fontSize: 8.5,
-                fontWeight: 800,
-                letterSpacing: '0.16em',
-                textTransform: 'uppercase',
-                color: item.active ? t.INK : (item.accent || t.INK),
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {item.label}
-              </span>
-              <span style={{
-                display: 'block',
-                marginTop: 5,
-                fontFamily: t.DISPLAY,
-                fontSize: 13.5,
-                fontWeight: 800,
-                letterSpacing: '-0.03em',
-                color: t.INK,
-                whiteSpace: 'nowrap',
-                overflow: 'visible',
-              }}>
-                {item.meta}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
       <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
         <BSHomeCards
@@ -2302,7 +2253,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       })()}
 
       {/* DAY LOG */}
-      <BSSection title="Day log" kicker={selIdx === todayIdx ? `Today · ${fmtDate(selIdx)}` : fmtDate(selIdx)} meta={`${dayLog.length} item${dayLog.length === 1 ? '' : 's'}`} />
+      <BSSection title="Day log" kicker={selIdx === todayIdx ? `Today · ${fmtDate(selIdx)}` : fmtDate(selIdx)} meta={<>{dayLog.length} item{dayLog.length === 1 ? '' : 's'} · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{selDayPts} pts</span></>} />
       <div style={{ padding: `0 ${t.padX}px` }}>
         <div style={{ borderTop: `2px solid ${t.INK}` }} />
         {dayLog.length === 0 ? (
@@ -11331,6 +11282,19 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
     }).catch(() => {});
   }, []);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client); // live points/tier when signed in
+  const [todayPts, setTodayPts] = useStateBSC(null); // points earned today (live ledger)
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/client/score', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d || !Array.isArray(d.recent)) return;
+        const todayKey = new Date().toDateString();
+        setTodayPts(d.recent.filter(e => e && e.earned_at && new Date(e.earned_at).toDateString() === todayKey).reduce((a, e) => a + (Number(e.delta) || 0), 0));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const membership = useBSMembership(); // gate the Shape Store row for non-members
   const storeLocked = !membership.loading && !membership.allowed;
   const authProfile = window.ShapeAuth?.getCachedState?.().profile || {};
@@ -11701,7 +11665,7 @@ function BSClientMe({ onProfile, onLogout, onIntegrations = () => {}, goMarket =
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 37, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.04em' }}>{total.toLocaleString()}</span>
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK50, marginBottom: 4 }}>of {goal.toLocaleString()}</span>
                   </div>
-                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}>{scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
+                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierC, fontWeight: 700 }}><span style={{ color: t.ACCENT }}>+{todayPts == null ? 4 : todayPts} today</span> · {scoreProfile.week} this week · {(scoreProfile.pointsToNext || 0).toLocaleString()} to {scoreProfile.nextTier}</div>
                 </div>
                 <svg width="68" height="68" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
                   <circle cx="42" cy="42" r={RAD} fill="none" stroke={t.HAIR} strokeWidth="6" />
