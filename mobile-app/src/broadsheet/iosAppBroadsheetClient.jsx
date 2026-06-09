@@ -7298,6 +7298,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </div>
           : <BSMeCorner size={30} />}
       </div>
+      {meMode && (
+        <div style={{ padding: '14px 18px 0' }}>
+          <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Me</div>
+          <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 400, letterSpacing: '-0.03em', color: INK, margin: '5px 0 0', lineHeight: 1 }}>Profile<span style={{ color: TEAL }}>.</span></h1>
+        </div>
+      )}
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
         {(() => {
