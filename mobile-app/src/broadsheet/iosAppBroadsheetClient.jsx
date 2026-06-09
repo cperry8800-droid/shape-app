@@ -8458,12 +8458,13 @@ function BSNoraProfile({ onClose }) {
           <button onClick={onClose} style={{ background: bsTHexA(t.INK, 0.06), border: `1px solid ${bsTHexA(t.INK, 0.18)}`, color: t.INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
         </div>
-        {/* identity */}
+        {/* identity — the live ring + dot overflow the avatar box, so pad the
+            wrapper to keep clear air before the eyebrow */}
         <div style={{ textAlign: 'center', marginTop: 26 }}>
-          <div style={{ display: 'inline-block' }}>
+          <div style={{ display: 'inline-block', padding: '6px 6px 14px' }}>
             <BSFacetAvatar size={96} c={BLUE} initial="N" name="Nora" photo={BS_NORA_AVATAR} showRank={false} live BG={t.PAPER_BG} INK={t.INK} />
           </div>
-          <div style={{ marginTop: 24, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: BLUE }}>Shape's Assistant · <span style={{ color: TEAL }}>Always online</span></div>
+          <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL }}>Always online</div>
           <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: t.W.display, letterSpacing: '-0.03em', margin: '8px 0 0', lineHeight: 1 }}>Nora<span style={{ color: TEAL }}>.</span></h1>
           <div style={{ marginTop: 10, fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(t.INK, 0.65), lineHeight: 1.5, padding: '0 14px' }}>Shape's AI concierge — here for every member and visitor, day and night.</div>
         </div>
@@ -8509,7 +8510,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
   // reload starts a clean thread with the current greeting (no persistence).
-  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's assistant. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
+  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
@@ -9447,7 +9448,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                           <BSFacetAvatar size={32} c={'#2e6fa0'} initial={(m.who || 'N').trim().charAt(0).toUpperCase()} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>
+                          <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Concierge" : ''}</div>
                           <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
                           {Array.isArray(m.actions) && m.actions.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
