@@ -12068,6 +12068,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     ['Shape merch - 20% off', 'In-house apparel and essentials', '400 pts'],
     ['Annual membership credit', '$200 toward next year', '3,500 pts'],
   ];
+  // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
+  const [scoreTab, setScoreTab] = useStateBSC('rewards');
 
   return (
     <BSPage>
@@ -12162,8 +12164,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
       {/* Shape Store — spend your points (condensed, below the hero) */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onOpenStore} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12, border: `1px solid ${t.ACCENT}55`, background: `${t.ACCENT}12`, color: t.INK, cursor: 'pointer', textAlign: 'left' }}>
-          <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 8, background: `${t.ACCENT}22`, color: t.ACCENT, display: 'grid', placeItems: 'center' }}>
+        <button onClick={onOpenStore} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 6, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: bsTHexA(t.INK, 0.05), color: t.INK, cursor: 'pointer', textAlign: 'left' }}>
+          <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 6, background: bsTHexA(t.INK, 0.08), color: t.ACCENT, display: 'grid', placeItems: 'center' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
           </span>
           <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Spend your points</span>
@@ -12198,55 +12200,56 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         })}
       </div>
 
-      <BSSection title="Rewards" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {rewards.map(([title, sub, cost], i) => (
-          <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
-            display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
-            padding: '13px 0', borderBottom: i === rewards.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            cursor: title.includes('Store') ? 'pointer' : 'default',
-          }}>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
-            </div>
-            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
-          </div>
-        ))}
+      {/* Tabs under Reward tiers — Rewards / Point values / Recent points, each in a
+          defined square box. */}
+      <div style={{ padding: `${t.sectGap}px ${t.padX}px 0`, display: 'flex', gap: 6 }}>
+        {[['rewards', 'Rewards'], ['points', 'Point values'], ['ledger', 'Recent points']].map(([k, label]) => {
+          const on = scoreTab === k;
+          return (
+            <button key={k} onClick={() => setScoreTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 6, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
+          );
+        })}
       </div>
-
-      <BSSection title="Point values" meta={`${activities.length} ways`} />
-      <div className="bs-hide-scroll" style={{ padding: `0 ${t.padX}px`, maxHeight: 252, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {activities.map((a, i) => (
-          <div key={a.name} style={{
-            display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
-            padding: '13px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
-              <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-                <span>{a.cap}</span>
-                <span>-</span>
-                <span>{a.note}</span>
+      <div style={{ padding: `10px ${t.padX}px 8px` }}>
+        <div className="bs-hide-scroll" style={{ border: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderRadius: 4, background: t.PAPER2, padding: '2px 14px', maxHeight: 320, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {scoreTab === 'rewards' && rewards.map(([title, sub, cost], i) => (
+            <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
+              display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
+              padding: '13px 0', borderBottom: i === rewards.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              cursor: title.includes('Store') ? 'pointer' : 'default',
+            }}>
+              <div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
               </div>
+              <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
             </div>
-            <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
-          </div>
-        ))}
-      </div>
-
-      <BSSection title="Recent points" kicker="Ledger" />
-      <div style={{ padding: `0 ${t.padX}px 8px` }}>
-        {ledger.map(([day, pts, label], i) => (
-          <div key={`${day}-${label}`} style={{
-            display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
-            padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <BSEyebrow>{day}</BSEyebrow>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, textAlign: 'right', color: t.GREEN }}>{pts}</div>
-          </div>
-        ))}
+          ))}
+          {scoreTab === 'points' && activities.map((a, i) => (
+            <div key={a.name} style={{
+              display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
+              padding: '13px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            }}>
+              <div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
+                <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                  <span>{a.cap}</span><span>-</span><span>{a.note}</span>
+                </div>
+              </div>
+              <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
+            </div>
+          ))}
+          {scoreTab === 'ledger' && ledger.map(([day, pts, label], i) => (
+            <div key={`${day}-${label}`} style={{
+              display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
+              padding: '13px 0', borderBottom: i === ledger.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            }}>
+              <BSEyebrow>{day}</BSEyebrow>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, textAlign: 'right', color: t.GREEN }}>{pts}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <BSFooter right="Rewards" />
