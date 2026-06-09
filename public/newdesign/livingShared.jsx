@@ -250,7 +250,11 @@ function LvPortrait({ d, size = 96, duotone = false, editable = false, hide = fa
   const c = tierOf(d).color;
   const inset = Math.max(2, Math.round(size * 0.06));
   const hasPhoto = !hide && !!d.portrait;
-  const showInitials = !hide && !hasPhoto && d.initials;
+  // The set rule: a profile avatar is ALWAYS a photo or initials — never a blank
+  // gem. Use the explicit initials, else derive 2 letters from the name, so a
+  // profile that only carries a name (most live accounts) still reads.
+  const initials = (d.initials && String(d.initials).trim())
+    || (d.name ? String(d.name).trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase() : "");
   return (
     <div style={{ width: size, height: size, position: "relative", display: "grid", placeItems: "center", flex: "none" }}>
       <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, boxShadow: `0 6px 18px ${hexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.3)` }}>
@@ -258,8 +262,8 @@ function LvPortrait({ d, size = 96, duotone = false, editable = false, hide = fa
         <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: LV_BG, display: "grid", placeItems: "center" }}>
           {/* initials/crest underneath → a missing/broken photo falls back to them */}
           <div style={{ transform: "rotate(-45deg)", display: "grid", placeItems: "center" }}>
-            {(!hide && d.initials)
-              ? <span style={{ fontFamily: lvSerif, fontWeight: 500, fontSize: size * 0.4, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{d.initials}</span>
+            {(!hide && initials)
+              ? <span style={{ fontFamily: lvSerif, fontWeight: 500, fontSize: size * 0.4, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{initials}</span>
               : <LvCrest d={d} size={size * 0.5} />}
           </div>
           {hasPhoto && (

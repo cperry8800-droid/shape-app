@@ -6344,7 +6344,7 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, BG, INK }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, BG, INK }) {
   // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
   // right now" flag: `activity` 'workout' → teal dot, 'cooking' → amber dot. When
   // no `activity`/`online` is passed the dot falls back to `live` so existing
@@ -6364,6 +6364,9 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
   // the avatar always reads as a tier-coloured jewel with legible initials.
   const innerBg = t.isLight ? bsShade(c, 0.6) : '#0f0c0a';
   const initInk = t.isLight ? '#fbf7ef' : INKv;
+  // The set rule: an avatar is ALWAYS a photo or initials — never blank. Prefer the
+  // explicit `initial`, else derive 2-letter initials from `name`, else a neutral dot.
+  const shownInitials = (initial != null && String(initial).trim()) || (name ? bsInitials(name) : '') || '•';
   return (
     <div onClick={onClick} style={{ width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
@@ -6374,7 +6377,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
             underneath the photo so a missing/broken image falls back to them —
             it's always a real photo or 2 initials, never a blank/placeholder gem. */}
         <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: innerBg, display: 'grid', placeItems: 'center' }}>
-          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: initInk, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>
+          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: initInk, lineHeight: 1 }}>{shownInitials}</span>
           {photo && <img src={photo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
         </div>
       </div>
@@ -7367,7 +7370,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
             <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 23px))`, top: `${here.y - 56}px` }}>
-              <BSFacetAvatar size={46} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+              <BSFacetAvatar size={46} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(BG, 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
@@ -7857,7 +7860,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} rings={sigilRings} progress={sigilToNext} c={c} teal={TEAL} ink={INK} size={240} />
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
-            <BSFacetAvatar size={86} c={c} initial={initials} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <BSFacetAvatar size={86} c={c} initial={initials} name={name} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
         {/* progress readout + the three contribution rings, legend */}
@@ -14255,7 +14258,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} showRank={false} live={bsAmLive()} BG={t.PAPER} />
+              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} showRank={false} live={bsAmLive()} BG={t.PAPER} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
                   <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
@@ -14289,7 +14292,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             <div>
               {/* Avatar + photo + accent swatches */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name) || 'A'} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
+                <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
                 <div style={{ minWidth: 0 }}>
                   <button onClick={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} style={{ borderRadius: 999,
                     padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
