@@ -192,6 +192,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [showTour, setShowTour] = useStateBSC(false); // first-run app tour overlay
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
+  const goEditProfile = () => { setSettingsStart('edit-profile'); setShowSettings(true); };
   const goIntegrations = () => { setSettingsStart('integrations'); setShowSettings(true); };
   const goRadio    = () => setTab('radio');
   const goTrain    = () => setTab('train');
@@ -220,6 +221,15 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => goSettings();
     window.addEventListener('shape:openProfile', open);
     return () => window.removeEventListener('shape:openProfile', open);
+  }, []);
+
+  // The Goal page's "Primary goal · Edit" card (and anywhere else that wants the
+  // profile editor itself, not just the Settings landing) deep-links straight
+  // into the edit-profile pane where the Primary goal field lives.
+  React.useEffect(() => {
+    const open = () => goEditProfile();
+    window.addEventListener('shape:editProfile', open);
+    return () => window.removeEventListener('shape:editProfile', open);
   }, []);
 
   // Jump to the marketplace from anywhere (e.g. the Pricing page's "Browse all
@@ -11250,7 +11260,7 @@ function BSClientGoals({ onBack }) {
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Primary goal</div>
               <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{data.primaryGoal || 'Set a goal'}</div>
             </div>
-            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Edit</button>
+            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:editProfile')); } catch (e) {} }} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Edit</button>
           </div>
           <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Set in profile · syncs everywhere</div>
         </div>
@@ -13757,7 +13767,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     link: '',
     goal: 'Lose fat',
   });
-  const [editing, setEditing] = useStateBSC(false);
+  // Deep-link: open straight into the edit-profile pane (e.g. the Goal page's
+  // "Primary goal · Edit" card) instead of the Settings landing.
+  const [editing, setEditing] = useStateBSC(initialPage === 'edit-profile');
   const [draft, setDraft] = useStateBSC(identity);
   // Persist the profile identity across sessions/devices via user_goals.
   React.useEffect(() => {
@@ -13765,6 +13777,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.shapeDb.getUserGoals('client_identity').then(d => {
       if (d && typeof d === 'object' && Object.keys(d).length) {
         setIdentity(prev => ({ ...prev, ...d }));
+        // When opened directly in edit mode, seed the draft from the saved
+        // identity (which loads async) so the form shows real values, not defaults.
+        if (initialPage === 'edit-profile') setDraft(prev => ({ ...prev, ...d }));
         try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
       }
     }).catch(() => {});
