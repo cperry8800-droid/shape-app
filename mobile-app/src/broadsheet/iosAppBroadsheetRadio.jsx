@@ -1070,29 +1070,32 @@ function BSShapeSetsScreen({ onBack }) {
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: `url('${BG}') center 28% / cover no-repeat`, pointerEvents: 'none' }} />
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: 'linear-gradient(180deg, rgba(8,10,9,0.62), rgba(8,10,9,0.78) 55%, rgba(8,10,9,0.9))', pointerEvents: 'none' }} />
 
-      <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflow: 'auto', zIndex: 1, paddingBottom: 80 + 28, fontFamily: t.DISPLAY, color: CREAM, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {/* HEADER */}
-        <div style={{ padding: `50px ${t.padX}px 14px` }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
+      <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflow: 'auto', zIndex: 1, fontFamily: t.DISPLAY, color: CREAM, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div style={{ minHeight: '100%', boxSizing: 'border-box', paddingBottom: 80 + 28, display: 'flex', flexDirection: 'column' }}>
+          {/* HEADER — masthead like other mobile pages: Vol·No + back, then eyebrow + serif title */}
+          <div style={{ padding: `50px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
+              </div>
+              <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM, padding: '6px 12px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM50}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>← Radio</button>
             </div>
-            <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM, padding: '6px 12px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM50}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>← Radio</button>
+            <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Section · Music</div>
+            <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></h1>
           </div>
-        </div>
 
-        {/* HERO — Shape Sets (the only section) */}
-        <div style={{ padding: `8px ${t.padX}px 0` }}>
-          <Glass style={{ textAlign: 'center', padding: '26px 20px' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginBottom: 12 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
-              Live from Club Shape
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 300, letterSpacing: '-0.04em', lineHeight: 0.95, color: CREAM }}>Shape <span style={{ fontStyle: 'italic', fontWeight: 600, color: TEAL }}>Sets.</span></div>
-            <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '16px auto 0', maxWidth: 360, lineHeight: 1.5 }}>A virtual concert series broadcast straight from <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.</p>
-            <div style={{ marginTop: 22, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Coming soon</div>
-          </Glass>
+          {/* HERO card — centered in the remaining space (title now lives in the header) */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: `8px ${t.padX}px` }}>
+            <Glass style={{ textAlign: 'center', padding: '30px 22px', width: '100%' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, marginBottom: 16 }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
+                Live from Club Shape
+              </div>
+              <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>A virtual concert series broadcast straight from <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.</p>
+              <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Coming soon</div>
+            </Glass>
+          </div>
         </div>
       </div>
       <style>{`@keyframes bs-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
