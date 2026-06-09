@@ -488,8 +488,8 @@ function BSNowPlaying({ onOpen }) {
 
   return (
     <div onClick={onOpen} style={{
-      position: 'relative', overflow: 'hidden', cursor: 'pointer',
-      margin: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0,
+      position: 'relative', overflow: 'hidden', cursor: 'pointer', boxSizing: 'border-box',
+      margin: `10px ${t.padX}px`, border: `1.5px solid ${t.ACCENT}80`, borderRadius: 14,
       background: t.PAPER, color: t.INK,
     }}>
       {/* Light effects layer — accent (adapts to paper); stronger so it reads on light papers too */}
@@ -595,8 +595,8 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
 
   return (
     <div onClick={onOpen} style={{
-      position: 'relative', cursor: onOpen ? 'pointer' : 'default',
-      margin: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, overflow: 'hidden',
+      position: 'relative', cursor: onOpen ? 'pointer' : 'default', boxSizing: 'border-box',
+      margin: `10px ${t.padX}px`, border: `1.5px solid ${t.RULE}`, borderRadius: 14, overflow: 'hidden',
       background: t.PAPER, color: t.INK, opacity: 0.92,
     }}>
       <div style={{ padding: `10px ${t.padX}px 10px` }}>
@@ -949,9 +949,9 @@ function BSRadioScreen({ onBack }) {
 
         {/* SHAPE SETS — link to the editorial about-Shape-Radio / Club Shape page */}
         <button onClick={() => setShowSets(true)} style={{
-          width: '100%', textAlign: 'left', cursor: 'pointer', border: 0,
-          borderTop: `1px solid ${RULE_DK}`, background: 'transparent', color: CREAM,
-          display: 'flex', alignItems: 'center', gap: 12, padding: `15px ${t.padX}px`,
+          width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer',
+          margin: `14px ${t.padX}px`, borderRadius: 14, border: `1.5px solid ${TEAL}55`, background: `${TEAL}10`, color: CREAM,
+          display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>Live from Club Shape</div>
@@ -1071,10 +1071,11 @@ function BSShapeSetsScreen({ onBack }) {
   );
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', backgroundColor: '#0a0d0c' }}>
-      {/* Club Shape backdrop + darkening scrim — absolute (NOT fixed) so they stay
-          inside the phone frame instead of covering the whole desktop preview. */}
-      <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: `url('${BG}') center 28% / cover no-repeat`, pointerEvents: 'none' }} />
-      <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: 'linear-gradient(180deg, rgba(8,10,9,0.62), rgba(8,10,9,0.78) 55%, rgba(8,10,9,0.9))', pointerEvents: 'none' }} />
+      {/* Club Shape backdrop + light scrim — absolute (NOT fixed) so they stay inside
+          the phone frame. The image is pre-cropped to the frame ratio, so center/cover
+          fills it cleanly; a light scrim keeps it visible (not washed out). */}
+      <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: `#0a0d0c url('${BG}') center / cover no-repeat`, pointerEvents: 'none' }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, background: 'linear-gradient(180deg, rgba(8,10,9,0.34), rgba(8,10,9,0.22) 45%, rgba(8,10,9,0.55))', pointerEvents: 'none' }} />
 
       <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflow: 'auto', zIndex: 1, fontFamily: t.DISPLAY, color: CREAM, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <div style={{ minHeight: '100%', boxSizing: 'border-box', paddingBottom: 80 + 28, display: 'flex', flexDirection: 'column' }}>
@@ -1092,8 +1093,9 @@ function BSShapeSetsScreen({ onBack }) {
           </div>
 
           {/* HERO — centered in the remaining space; no box, just the content over
-              the Club Shape backdrop (title lives in the page header above). */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: `8px ${t.padX}px` }}>
+              the Club Shape backdrop (title lives in the page header above). A soft
+              local vignette keeps the text readable without darkening the whole image. */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: `8px ${t.padX}px`, background: 'radial-gradient(120% 60% at 50% 50%, rgba(8,10,9,0.62), rgba(8,10,9,0.18) 72%, transparent 88%)' }}>
             <div style={{ textAlign: 'center', width: '100%' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 18 }}>
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
