@@ -6363,15 +6363,13 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 20 }}>
-        {statBtn(stats.followers, 'Followers', 'followers')}
-        {statBtn(stats.following, 'Following', 'following')}
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+      {statBtn(stats.followers, 'Followers', 'followers')}
+      {statBtn(stats.following, 'Following', 'following')}
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
-          flex: 'none', borderRadius: 999, padding: '6px 13px', cursor: 'pointer',
-          fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+          flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer',
+          fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
       )}
@@ -6380,8 +6378,8 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         const solid = fs === 'follow';
         return (
           <button onClick={onToggle} disabled={busy} style={{
-            flex: 'none', borderRadius: 999, padding: '6px 13px', cursor: busy ? 'default' : 'pointer',
-            fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+            flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer',
+            fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
             border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
           }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
@@ -7520,7 +7518,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       ) : (
         /* Others' public profile (pushed): back + avatar corner. */
         <div style={{ padding: '44px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           {isSelf
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
@@ -8066,7 +8064,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>
         ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
