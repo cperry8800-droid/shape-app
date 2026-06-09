@@ -7697,8 +7697,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* identity strip */}
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <h1 style={{ fontFamily: SERIF, fontSize: 26, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
-                <div style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.55), marginTop: 5 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
+                {/* identity header above owns the name — the hero carries the handle */}
+                <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, letterSpacing: '0.01em', color: INK, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.55), marginTop: 5 }}>{[pronouns, city].filter(Boolean).join(' · ')}</div>
               </div>
               <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                 <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
