@@ -200,7 +200,7 @@ function TrendChart({ accent, series, h = 120 }) {
 }
 
 // ── Overall body-comp dashboard (ported from the mobile broadsheet) ─────────
-function OverallDashboard({ overall, accent, onEdit, onLog, consistency }) {
+function OverallDashboard({ overall, accent, onEdit, onLog, consistency, plans: livePlans = null, weekTargets: liveWeek = null }) {
   const start = Number(overall.start) || 0, now = goalNow(overall), target = Number(overall.target) || 0;
   const unit = overall.unit || "kg";
   const down = +(now - start).toFixed(1);
@@ -247,16 +247,22 @@ function OverallDashboard({ overall, accent, onEdit, onLog, consistency }) {
       return { done, next: isNext, n: String(i + 1).padStart(2, "0"), t: `${m.t} · ${fmtv(m.w)}`, sub: m.sub, when: i === 0 ? (overall.startMonth || "Start") : i === defs.length - 1 ? (byLabel || "Goal") : (isNext ? "Next" : "") };
     });
   })();
-  const plans = [
-    { role: "Training", c: G_AMBER, t: "12-wk lean strength", sub: "Jordan · 4×/wk" },
-    { role: "Nutrition", c: RUST,   t: "Protein-led cut",     sub: "Dr. Maya · 1,890 kcal" },
-  ];
-  const weekTargets = [
-    { l: "Sessions",     v: "3/4",  sub: "one to go",      c: RUST },
-    { l: "Protein days", v: "6/7",  sub: "≥170g hit",      c: accent },
-    { l: "Steps",        v: "7.2k", sub: "avg · goal 8k",  c: G_AMBER },
-    { l: "Sleep",        v: "6.8h", sub: "avg · goal 7h",  c: G_PURPLE },
-  ];
+  const PLAN_C = [G_AMBER, RUST];
+  const plans = (Array.isArray(livePlans) && livePlans.length)
+    ? livePlans.map((p, i) => ({ ...p, c: p.c || PLAN_C[i % PLAN_C.length] }))
+    : [
+      { role: "Training", c: G_AMBER, t: "12-wk lean strength", sub: "Jordan · 4×/wk" },
+      { role: "Nutrition", c: RUST,   t: "Protein-led cut",     sub: "Dr. Maya · 1,890 kcal" },
+    ];
+  const WK_C = [RUST, accent, G_PURPLE, G_AMBER];
+  const weekTargets = (Array.isArray(liveWeek) && liveWeek.length)
+    ? liveWeek.map((w, i) => ({ ...w, c: w.c || WK_C[i % WK_C.length] }))
+    : [
+      { l: "Sessions",     v: "3/4",  sub: "one to go",      c: RUST },
+      { l: "Protein days", v: "6/7",  sub: "≥170g hit",      c: accent },
+      { l: "Steps",        v: "7.2k", sub: "avg · goal 8k",  c: G_AMBER },
+      { l: "Sleep",        v: "6.8h", sub: "avg · goal 7h",  c: G_PURPLE },
+    ];
   const SecHead = ({ kicker, title, action }) => (
     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, margin: "30px 0 14px" }}>
       <div>
@@ -582,6 +588,8 @@ function ClientGoalPage() {
   const [editOverall, setEditOverall] = React.useState(false);
   const [logWeigh, setLogWeigh] = React.useState(false);
   const [consist, setConsist] = React.useState(null);
+  const [livePlans, setLivePlans] = React.useState(null);
+  const [liveWeek, setLiveWeek] = React.useState(null);
   const [tab, setTab] = React.useState("overall"); // overall | training | nutrition
 
   React.useEffect(() => {
@@ -626,6 +634,33 @@ function ClientGoalPage() {
             const active = vbd.filter(v => v > 0).length;
             setConsist({ series, avg: Math.round((active / vbd.length) * 100), label: "last 7 days" });
           }
+        }
+      } catch (e) {}
+      // Live "Your plans" + "This week targets" for the Overall dashboard (cookie
+      // auth → the same rollups mobile reads). Falls back to demo on any non-200.
+      try {
+        const j = async (p) => { const r = await fetch(p, { credentials: "same-origin", cache: "no-store" }); return r.ok ? r.json().catch(() => null) : null; };
+        const [train, nutr, prog, plan] = await Promise.all([
+          j("/api/client/train"), j("/api/client/nutrition"), j("/api/client/progress"), j("/api/client/plan"),
+        ]);
+        const sessTarget = (plan && plan.training && Array.isArray(plan.training.workouts) && plan.training.workouts.length) || 4;
+        const kcal = (nutr && nutr.today && nutr.today.calorieTarget) || null;
+        const mealTitle = (plan && plan.meals && plan.meals.title) || null;
+        if (train || nutr || prog || plan) {
+          setLivePlans([
+            { role: "Training", t: "Training block", sub: `${sessTarget}×/wk${plan && plan.training && plan.training.hasPlan ? " · assigned" : ""}` },
+            { role: "Nutrition", t: mealTitle || "Nutrition plan", sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : "macro targets" },
+          ]);
+          const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;
+          const adher = (nutr && Number(nutr.adherentDays7)) || 0;
+          const sleep = (prog && prog.kpis && Number(prog.kpis.sleepAvg)) || 0;
+          const vol7 = (train && train.stats && Number(train.stats.volume7dLb)) || 0;
+          setLiveWeek([
+            { l: "Sessions", v: `${thisWk}/${sessTarget}`, sub: thisWk >= sessTarget ? "done" : `${Math.max(0, sessTarget - thisWk)} to go` },
+            { l: "Protein days", v: `${adher}/7`, sub: "on target" },
+            { l: "Sleep", v: sleep ? `${sleep}h` : "—", sub: "avg · goal 7h" },
+            { l: "7d volume", v: vol7 ? `${Math.round(vol7 / 1000)}k` : "—", sub: "load lifted" },
+          ]);
         }
       } catch (e) {}
     })();
@@ -731,7 +766,7 @@ function ClientGoalPage() {
       </Card>
 
       {tab === "overall" ? (
-        <OverallDashboard overall={overall} accent={accent} consistency={consist}
+        <OverallDashboard overall={overall} accent={accent} consistency={consist} plans={livePlans} weekTargets={liveWeek}
           onEdit={() => setEditOverall(true)} onLog={() => setLogWeigh(true)} />
       ) : (
         <>

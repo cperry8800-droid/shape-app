@@ -142,7 +142,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Native mic + camera plugins (WebView fallback today)', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'The Loop (member value)', serves: 'Member', purpose: 'The daily reason to open the app.', pieces: ['Train', 'Eat', 'Habits', 'Goals', 'Shape Score', 'Progress hub', 'Library', 'Store'], gaps: [
-      { task: 'Train deck per-day workouts driven by coach Adjust', status: 'not-started', priority: 'P2' },
+      { task: 'Train deck now reflects coach Adjust (bsApplyTrainAdjust over client_programs.detail.training): intensity scales loads + shown RPE, the weekly split re-themes days + sets coach rest days, the note rides onto the day — the live session/preview inherit the scaled moves. Banner still summarizes. Remaining: full per-day exercise authoring (coach can\'t yet write new moves, only tune)', status: 'in-progress', priority: 'P3' },
       { task: 'Food-database free-text search in the logger', status: 'not-started', priority: 'P2' },
       { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
@@ -638,7 +638,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'get_client_goals merges the live weigh-in series into overall.weighIns + latest into overall.now; coach sees the weight trend chart (mobile + website)', status: 'done' },
         { label: 'Overall dashboard data wired: stat grid (current/to-go/weekly pace/on-track) + milestones (start→25/50/75%→target, auto-✓) + the weight trend all derive from the real weigh-in series; consistency heatmap from live ShapeProgress.train.volumeByDay (demo fallback)', status: 'done' },
         { label: 'Website goal page ported to match mobile (Overall body-comp dashboard added) AND unified to user_goals(client_goals) — same key mobile uses + the one get_client_goals reads, so a goal set on either surface shows on both and to coaches (reads client_goals, falls back to legacy client, migrates flat goals[])', status: 'done' },
-        { label: 'Still demo on the Overall tab: the "Your plans" cards + "This week · targets that move it" (not yet wired to the assigned program / weekly activity)', status: 'pending' },
+        { label: 'Overall tab "Your plans" + "This week · targets" now LIVE on both surfaces: plans from the assigned plan (ShapePlan/api/client/plan title + cadence) + coach detail (sessions/kcal) + program phase; weekly targets (Sessions done/target · Protein days · Sleep · 7d volume) from ShapeProgress train/nutrition/progress rollups. Demo fallback when signed-out / no data', status: 'done' },
         { label: 'Migrations applied on Supabase: 2026-06-13-client-goals-coach-read.sql + 2026-06-13-client-weigh-ins.sql', status: 'manual' },
       ],
     },

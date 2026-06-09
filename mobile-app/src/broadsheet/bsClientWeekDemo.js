@@ -217,3 +217,56 @@ export function bsBuildDemoTrainProgram(t) {
     };
   });
 }
+
+// Scale a parsed load string ("185 lb", "24 kg", "BW", "—") by a factor, rounding
+// to the nearest 5 for barbell-ish numbers. Non-numeric loads pass through.
+function bsScaleLoad(load, scale) {
+  const s = String(load == null ? '' : load);
+  if (scale === 1 || !/\d/.test(s)) return s;
+  return s.replace(/\d+(?:\.\d+)?/, (n) => {
+    const v = Number(n) * scale;
+    return String(v >= 20 ? Math.round(v / 5) * 5 : Math.round(v));
+  });
+}
+// Nudge a shown RPE in a meta string ("52 min · RPE 8" → "52 min · RPE 7").
+function bsAdjustRpeMeta(meta, adj) {
+  if (!adj) return meta;
+  return String(meta || '').replace(/RPE\s*(\d+(?:\.\d+)?)/i, (_, n) => `RPE ${Math.min(10, Math.max(5, Math.round(Number(n) + adj)))}`);
+}
+
+const BS_SPLIT_TAG = { 'Push day': 'PUSH', 'Pull day': 'PULL', 'Legs day': 'LEGS', 'Upper day': 'UPPER', 'Lower day': 'LOWER', 'Conditioning': 'COND' };
+
+// Apply a coach's "Adjust program" intent (client_programs.detail.training) onto a
+// built Train deck so the client's per-day workouts actually reflect what the coach
+// set — not just the banner. Honest transform (no fabricated exercises):
+//   • intensity → scales every training day's loads + shown RPE (deload lighter /
+//     progress nudges up / maintain unchanged) and labels the day,
+//   • days[] weekly split → coach "Rest" turns that day into a rest day; a focus
+//     label re-themes the day's eyebrow + tag (keeps the programmed moves),
+//   • the coach's note rides onto each adjusted day's coach line.
+// Returns the program unchanged when there's no applied adjustment.
+export function bsApplyTrainAdjust(program, training, t) {
+  if (!Array.isArray(program) || !training || !training.updatedAt) return program;
+  const intensity = training.intensity || 'maintain';
+  const scale = intensity === 'deload' ? 0.85 : intensity === 'progress' ? 1.025 : 1;
+  const rpeAdj = intensity === 'deload' ? -1 : 0;
+  const intensityLabel = intensity === 'deload' ? 'Deload · lighter' : intensity === 'progress' ? 'Progress · nudge up' : 'Maintain';
+  const days = Array.isArray(training.days) ? training.days : null;
+  const note = training.note || '';
+  return program.map((day, i) => {
+    const cd = days ? days[i] : null;
+    const hasMoves = Array.isArray(day.moves) && day.moves.length > 0;
+    // Coach scheduled REST here → override a training day to recovery.
+    if (cd === 'Rest' && hasMoves) {
+      return { ...day, tag: 'REST', tagColor: t.GREEN, accent: t.GREEN, kicker: 'The Recovery', title: 'Rest day.', headline: 'Coach-set rest.', meta: 'No session · 0 min', moves: [], total: '0 sessions', copy: 'Your coach scheduled recovery today — walk, mobility, sleep.', coachLine: note || 'Recovery is part of the plan.', coachAdjust: true, intensityLabel: null };
+    }
+    if (!hasMoves) return day;
+    const next = { ...day, moves: day.moves.map((m) => ({ ...m, l: bsScaleLoad(m.l, scale) })), meta: bsAdjustRpeMeta(day.meta, rpeAdj), coachAdjust: true, intensityLabel, coachLine: note || day.coachLine };
+    // Re-theme by the coach split focus (keep the day's actual moves).
+    if (cd && cd !== 'Rest' && day.tag !== 'COND' && BS_SPLIT_TAG[cd]) {
+      next.coachFocus = cd.replace(/\s*day$/i, '');
+      next.tag = BS_SPLIT_TAG[cd];
+    }
+    return next;
+  });
+}

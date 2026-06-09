@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, bsClientWorkoutForDay, bsBuildDemoTrainProgram } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -3167,7 +3167,13 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // and the calendar for each day. Real assigned plans still win (liveProgram).
   const MOCK_PROGRAM = React.useMemo(() => bsBuildDemoTrainProgram(t), [t]);
 
-  const PROGRAM = liveProgram || MOCK_PROGRAM;
+  // Apply the coach's "Adjust program" intent (client_programs.detail.training) onto
+  // the deck so the per-day workouts reflect what the coach set — intensity scales
+  // loads/RPE, the weekly split re-themes days + sets rest days, the note rides along.
+  const PROGRAM = React.useMemo(
+    () => bsApplyTrainAdjust(liveProgram || MOCK_PROGRAM, bsTrainProgram.detail?.training, t),
+    [liveProgram, MOCK_PROGRAM, bsTrainProgram.detail, t]
+  );
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
   // Apply any coach-approved exercise swaps the user picked for this day.
@@ -3213,6 +3219,12 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>
           {effMoves.length > 0 ? cur.meta : cur.copy}
         </div>
+        {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 999, padding: '3px 8px' }}>{cur.coachFocus}</span>}
+            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
+          </div>
+        )}
         <div style={{ marginTop: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>J</div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -10653,7 +10665,7 @@ function BSGoalsTrend({ teal, series, h = 92 }) {
 // The Overall tab — a body-comp dashboard for the headline goal. Editable fields
 // (start/now/target/title/why) come from `overall`; the trend, milestones,
 // week-targets and consistency are illustrative demo content for now.
-function BSGoalsOverall({ overall, onLog, consistency = null }) {
+function BSGoalsOverall({ overall, onLog, consistency = null, plans: livePlans = null, weekTargets: liveWeekTargets = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const purple = '#8a5cf6';
@@ -10706,16 +10718,24 @@ function BSGoalsOverall({ overall, onLog, consistency = null }) {
       return { done, next: isNext, n: String(i + 1).padStart(2, '0'), t: `${m.t} · ${fmt(m.w)}`, sub: m.sub, when: i === 0 ? (overall.startMonth || 'Start') : i === defs.length - 1 ? (byLabel || 'Goal') : (isNext ? 'Next' : '') };
     });
   })();
-  const plans = [
-    { role: 'Training', c: t.AMBER, t: '12-wk lean strength', sub: 'Jordan · 4×/wk' },
-    { role: 'Nutrition', c: t.RUST, t: 'Protein-led cut', sub: 'Dr. Maya · 1,890 kcal' },
-  ];
-  const weekTargets = [
-    { l: 'Sessions', v: '3/4', sub: 'one to go', c: t.RUST },
-    { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: teal },
-    { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k', c: t.AMBER },
-    { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h', c: purple },
-  ];
+  // Your plans — live (assigned plan + coach cadence/kcal) when available, else demo.
+  const PLAN_C = [t.AMBER, t.RUST];
+  const plans = (Array.isArray(livePlans) && livePlans.length)
+    ? livePlans.map((p, i) => ({ ...p, c: p.c || PLAN_C[i % PLAN_C.length] }))
+    : [
+      { role: 'Training', c: t.AMBER, t: '12-wk lean strength', sub: 'Jordan · 4×/wk' },
+      { role: 'Nutrition', c: t.RUST, t: 'Protein-led cut', sub: 'Dr. Maya · 1,890 kcal' },
+    ];
+  // This week — live ShapeProgress targets when available, else demo.
+  const WK_C = [t.RUST, teal, purple, t.AMBER];
+  const weekTargets = (Array.isArray(liveWeekTargets) && liveWeekTargets.length)
+    ? liveWeekTargets.map((w, i) => ({ ...w, c: w.c || WK_C[i % WK_C.length] }))
+    : [
+      { l: 'Sessions', v: '3/4', sub: 'one to go', c: t.RUST },
+      { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: teal },
+      { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k', c: t.AMBER },
+      { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h', c: purple },
+    ];
   const SecHead = ({ kicker, title, action }) => (
     <div style={{ padding: `22px ${t.padX}px 0` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
@@ -11234,6 +11254,12 @@ function BSClientGoals({ onBack }) {
   // Real workout consistency (last 7 logged days) for the Overall heatmap — from
   // ShapeProgress.train.volumeByDay; null → BSGoalsOverall falls back to demo.
   const [consist, setConsist] = useStateBSC(null);
+  // Live "Your plans" + "This week targets" for the Overall dashboard (null →
+  // BSGoalsOverall keeps its demo content). Built from the assigned plan + the
+  // coach adjustment + real ShapeProgress rollups.
+  const [livePlans, setLivePlans] = useStateBSC(null);
+  const [liveWeek, setLiveWeek] = useStateBSC(null);
+  const bsGoalProgram = useBSProgram();
   React.useEffect(() => {
     if (!window.ShapeProgress?.train) return undefined;
     let on = true;
@@ -11249,6 +11275,42 @@ function BSClientGoals({ onBack }) {
     }).catch(() => {});
     return () => { on = false; };
   }, []);
+  React.useEffect(() => {
+    if (!loggedIn || !window.ShapeProgress) return undefined;
+    let on = true;
+    Promise.all([
+      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
+      window.ShapeProgress.nutrition ? window.ShapeProgress.nutrition().catch(() => null) : null,
+      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
+      window.ShapePlan?.get ? window.ShapePlan.get().catch(() => null) : null,
+    ]).then(([train, nutr, prog, plan]) => {
+      if (!on) return;
+      const det = bsGoalProgram.detail || {};
+      const tphase = bsGoalProgram.trainingPhase || 'Build';
+      const nphase = bsGoalProgram.nutritionPhase || 'Cut';
+      // Your plans — title from phase/assigned plan; sub from coach cadence/kcal.
+      const sessTarget = (det.training && det.training.sessions) || (plan && plan.training && Array.isArray(plan.training.workouts) ? plan.training.workouts.length : 4) || 4;
+      const kcal = (det.nutrition && det.nutrition.calories) || (nutr && nutr.today && nutr.today.calorieTarget) || null;
+      const mealTitle = (plan && plan.meals && plan.meals.title) || null;
+      setLivePlans([
+        { role: 'Training', t: `${tphase} block`, sub: `${sessTarget}×/wk${plan && plan.training && plan.training.hasPlan ? ' · assigned' : ''}` },
+        { role: 'Nutrition', t: mealTitle || `${nphase} plan`, sub: kcal ? `${Math.round(kcal).toLocaleString()} kcal` : `${nphase} targets` },
+      ]);
+      // This week — real targets that move the goal.
+      const thisWk = (train && train.stats && Number(train.stats.thisWeekCount)) || 0;
+      const adher = (nutr && Number(nutr.adherentDays7)) || 0;
+      const proteinTgt = (det.nutrition && det.nutrition.protein) || 170;
+      const sleep = (prog && prog.kpis && Number(prog.kpis.sleepAvg)) || 0;
+      const vol7 = (train && train.stats && Number(train.stats.volume7dLb)) || 0;
+      setLiveWeek([
+        { l: 'Sessions', v: `${thisWk}/${sessTarget}`, sub: thisWk >= sessTarget ? 'done' : `${Math.max(0, sessTarget - thisWk)} to go` },
+        { l: 'Protein days', v: `${adher}/7`, sub: `≥${proteinTgt}g hit` },
+        { l: 'Sleep', v: sleep ? `${sleep}h` : '—', sub: 'avg · goal 7h' },
+        { l: '7d volume', v: vol7 ? `${Math.round(vol7 / 1000)}k` : '—', sub: 'load lifted' },
+      ]);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [loggedIn, bsGoalProgram.detail, bsGoalProgram.trainingPhase, bsGoalProgram.nutritionPhase]);
   const logWeighIn = (kg) => {
     const today = new Date().toISOString().slice(0, 10);
     const prev = bsGoalWeighIns(overall);
@@ -11351,7 +11413,7 @@ function BSClientGoals({ onBack }) {
       </div>
 
       {tab === 'overall' ? (
-        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} consistency={consist} />
+        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} consistency={consist} plans={livePlans} weekTargets={liveWeek} />
       ) : tab === 'training' ? (
         <BSGoalsTraining onOpenProgram={() => {}} />
       ) : (
