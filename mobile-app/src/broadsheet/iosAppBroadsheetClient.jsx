@@ -6459,9 +6459,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   );
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: center ? 'center' : 'flex-start', gap: center ? 24 : 14, marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
-      {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
       {statBtn(stats.followers, 'Followers', () => openList('followers'))}
       {statBtn(stats.following, 'Following', () => openList('following'))}
+      {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
           flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer',

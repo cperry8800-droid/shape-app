@@ -231,13 +231,9 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
             ? <button onClick={() => { if (coachingHref) window.location.href = coachingHref; }} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${dHexA(LV_INK, 0.22)}`, background: "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>View coaching</button>
             : (!follow || follow.canFollow !== false) && (() => { const on = follow && (follow.isFollowing || follow.isPending); return <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: on ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : follow && follow.isPending ? "Requested" : "Follow"}</button>; })())}
         </div>
-        {/* posts / followers / following — always public, live links */}
+        {/* followers / following / posts — always public, live links */}
         {follow && (
           <div style={{ display: "flex", gap: 26, marginTop: 22, alignItems: "baseline" }}>
-            <button onClick={() => follow.openPosts && follow.openPosts()} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
-              <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.posts != null ? follow.posts : 0}</span>
-              <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Posts</span>
-            </button>
             <button onClick={() => follow.openList && follow.openList("followers")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.followers}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Followers</span>
@@ -245,6 +241,10 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
             <button onClick={() => follow.openList && follow.openList("following")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.following}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Following</span>
+            </button>
+            <button onClick={() => follow.openPosts && follow.openPosts()} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.posts != null ? follow.posts : 0}</span>
+              <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Posts</span>
             </button>
             {owner && follow.requests > 0 && (
               <button onClick={() => follow.openRequests && follow.openRequests()} style={{ borderRadius: 999, border: 0, background: LV_TEAL, color: "#06110e", padding: "8px 14px", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button>
