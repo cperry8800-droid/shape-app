@@ -315,13 +315,39 @@ function ScoreLedger() {
     return slugs.indexOf(h) >= 0 ? h : "all";
   };
   const [active, setActive] = React.useState(readHash);
+  // Live ledger from the real score_ledger (members only); demo LEDGER is the
+  // signed-out / no-data fallback so the marketing preview still reads.
+  const [live, setLive] = React.useState(null);
   React.useEffect(function () {
     var onHash = function () { setActive(readHash()); };
     window.addEventListener("hashchange", onHash);
     return function () { window.removeEventListener("hashchange", onHash); };
   }, []);
+  React.useEffect(function () {
+    var alive = true;
+    var catK = function (c) {
+      c = String(c || "").toLowerCase();
+      if (c.indexOf("session") >= 0 || c.indexOf("consult") >= 0) return "session";
+      if (c.indexOf("habit") >= 0 || c.indexOf("streak") >= 0 || c.indexOf("step") >= 0 || c.indexOf("sleep") >= 0 || c.indexOf("checkin") >= 0) return "habit";
+      if (c.indexOf("nutri") >= 0 || c.indexOf("protein") >= 0 || c.indexOf("meal") >= 0 || c.indexOf("macro") >= 0 || c.indexOf("hydrat") >= 0 || c.indexOf("calorie") >= 0) return "nutrition";
+      if (c.indexOf("workout") >= 0 || c.indexOf("pr") >= 0 || c.indexOf("lift") >= 0 || c.indexOf("train") >= 0 || c.indexOf("run") >= 0) return "workout";
+      return "session";
+    };
+    var fmtD = function (iso) { try { return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; } };
+    fetch("/api/client/score", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!alive || !d || !Array.isArray(d.recent) || !d.recent.length) return;
+        setLive(d.recent.map(function (r) {
+          return { d: fmtD(r.earned_at), t: r.note || (r.category ? String(r.category).replace(/_/g, " ") : "Points"), p: r.delta, k: catK(r.category) };
+        }));
+      })
+      .catch(function () {});
+    return function () { alive = false; };
+  }, []);
+  const source = live || LEDGER;
   const activeK = LEDGER_SLUG_K[active] || null;
-  const rows = activeK ? LEDGER.filter(function (r) { return r.k === activeK; }) : LEDGER;
+  const rows = activeK ? source.filter(function (r) { return r.k === activeK; }) : source;
   return (
     <section style={{ padding: "70px 72px" }}>
       <ScReveal>
