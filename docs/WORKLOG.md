@@ -64,6 +64,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Calendar month view: divider-row day list + cleaner grid + real preview data
+- **`iosAppBroadsheetCalendar.jsx`** — three fixes to the month view + its event
+  preview sheets (`BSEventSheet` bodies):
+  - **Box view removed:** the per-day event list under the month grid is now clean
+    **divider rows** (thin accent bar · time/min · kind tag + serif title + sub ·
+    chevron, hairline between) instead of bordered `PAPER2` cards.
+  - **Grid fits cleanly:** tighter day cells (gap 5→4, smaller number/count, a
+    single non-wrapping dot row, `boxSizing:border-box`) and a **teal ring on
+    today** so the weeks sit clean without crowding.
+  - **Preview data is now real (no more contradictions):** the workout body looks
+    up the actual session by title from **`BS_CLIENT_WORKOUTS`** (now imported from
+    `bsClientWeekDemo.js`), so a **Z2 run** shows run **segments** + cardio stats
+    (DUR/DIST/ZONE/KCAL) — not barbell rows; strength shows real moves + loads +
+    RPE. The meal body **parses kcal/protein from the event's own `sub`** and
+    derives carbs/fat (internally consistent), draws a **macro-split bar**, and
+    lists **"On the plate"** components from the title — so "Yogurt parfait · 380
+    kcal" never renders a chicken-bowl ingredient list again. Both bodies modernized
+    (rounded cards + a coach's-cue callout); live server events fall back gracefully.
+
 ### 2026-06-09 — Coach media: upload photos & videos for plans/programs/workouts
 - **Migration `2026-06-09-coach-media.sql`** (**run on Supabase**): public
   **`coach-media`** storage bucket (200 MB; image + video mime types — jpeg/png/webp/
