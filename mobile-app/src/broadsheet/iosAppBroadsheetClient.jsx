@@ -6334,12 +6334,15 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, BG = '#100d0a', INK = '#f2ede4' }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, BG, INK }) {
   // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
   // right now" flag: `activity` 'workout' → teal dot, 'cooking' → amber dot. When
   // no `activity`/`online` is passed the dot falls back to `live` so existing
   // callers keep their presence dot.
   const t = useBS();
+  // BG/INK follow the paper theme when a caller doesn't pass them (header avatars
+  // don't), so the dot ring + rank shadow sit on the right surface on any paper.
+  const BGv = BG || t.PAPER, INKv = INK || t.INK;
   const COOK = '#d8a23a';
   const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
   const showDot = activity ? true : (online === undefined ? live : online);
@@ -6350,7 +6353,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
   // light papers the window fills with a darkened tier tint + light initials, so
   // the avatar always reads as a tier-coloured jewel with legible initials.
   const innerBg = t.isLight ? bsShade(c, 0.6) : '#0f0c0a';
-  const initInk = t.isLight ? '#fbf7ef' : INK;
+  const initInk = t.isLight ? '#fbf7ef' : INKv;
   return (
     <div onClick={onClick} style={{ width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
@@ -6366,14 +6369,14 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
         </div>
       </div>
       {editable && (
-        <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BG}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
+        <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
       )}
       {!editable && showDot && (
-        <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BG, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BG}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: dotColor }} /></span>
+        <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BGv, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BGv}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: dotColor }} /></span>
       )}
       {!editable && showRank && tierLabel && (
         <div style={{ position: 'absolute', left: '50%', whiteSpace: 'nowrap', pointerEvents: 'none', ...(tierPos === 'top' ? { top: 0, transform: 'translate(-50%,-105%)' } : { bottom: 0, transform: 'translate(-50%,72%)' }) }}>
-          <span style={{ fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.145)), fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c, lineHeight: 1, textShadow: `0 1px 4px ${BG}, 0 0 3px ${BG}, 0 0 3px ${BG}` }}>{tierLabel}</span>
+          <span style={{ fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.145)), fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c, lineHeight: 1, textShadow: `0 1px 4px ${BGv}, 0 0 3px ${BGv}, 0 0 3px ${BGv}` }}>{tierLabel}</span>
         </div>
       )}
     </div>
@@ -11077,12 +11080,12 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
   return (
     <div style={{ padding: embedded ? '6px 0 2px' : '8px 18px 4px' }}>
       <div style={{ padding: '0 0 10px' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA('#f2ede4', 0.5), fontWeight: 700 }}>Your progress</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), fontWeight: 700 }}>Your progress</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {cards.map((s) => (
-          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${bsTHexA('#f2ede4', 0.12)}`, background: bsTHexA('#f2ede4', 0.04), padding: '10px 9px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em', color: '#f2ede4', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
+          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: bsTHexA(t.INK, 0.04), padding: '10px 9px' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
             <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.c, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.l}</div>
           </button>
         ))}

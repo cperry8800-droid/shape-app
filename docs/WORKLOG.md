@@ -64,6 +64,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — App-wide paper-theme sweep (all 11 papers read correctly)
+- Audited every broadsheet file for colors that don't follow the paper theme
+  (`t.INK/PAPER*/RULE/ACCENT`). The app overwhelmingly already adapts; the
+  remaining offenders were dark-designed pieces. Fixed:
+  - **`BSMeKpis`** (Me → Stats "Your progress" grid): hardcoded cream `#f2ede4`
+    for the label, card border/fill, and stat values → cream-on-cream on light
+    papers. Now `t.INK`.
+  - **`BSFacetAvatar`**: `BG`/`INK` no longer default to fixed dark/cream — they
+    fall back to `t.PAPER`/`t.INK`, so header avatars (which don't pass them) get
+    the right dot-ring + rank-shadow surface on every paper. (Inner gem window +
+    initials were already made theme-aware in the prior commit.)
+- **Verified intentional / no change:** the `PAPERS` palette definitions (source
+  of truth); the Main auth screens (deliberately on `BSNightSky`), splash, and
+  error screen; Tweaks color-picker swatch values; dark overlays *over cover
+  photos*; the rust/gold "Find a trainer/nutritionist" bars and other `#fff`-on-
+  colored-chip text; the intentional black channel header. Pros / Marketplace /
+  Calendar / Habits / Widgets carry no dark-designed literals (all theme tokens).
+
 ### 2026-06-09 — Light-paper sweep: radio two-tone logo + Me-page reads on cream
 - **Shape Radio wordmark, light papers** (`iosAppBroadsheetRadio.jsx`): baked a
   recolored **`shape-radio-logo-lt.png`** (white parts → ink/black: SHAPE + the
