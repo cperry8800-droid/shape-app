@@ -312,8 +312,8 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   if (style === 'masthead') {
     return (
       <div style={{ position: 'absolute', inset: 0, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '54px 20px 40px' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><BSLogo size={22} color={t.INK} /> Vol. 1 · No. 1</span>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${t.INK}`, paddingBottom: 10 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BSLogo size={22} color={t.INK} /> Vol. 1 · No. 1</span>
           <span>Thu · May 21 · 2026</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
