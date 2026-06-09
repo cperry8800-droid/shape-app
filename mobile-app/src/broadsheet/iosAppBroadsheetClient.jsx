@@ -2511,7 +2511,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         return (
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
-              <BSEyebrow color={teal}>Week totals</BSEyebrow>
+              <BSEyebrow color={teal}>Weekly totals</BSEyebrow>
               <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>So far</div>
             </div>
             <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
@@ -5657,7 +5657,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       })()}
 
       {/* Tracklist — today's meals. LOG opens the next unlogged meal to record it. */}
-      <BSTrackHeader kicker="Tracklist" title={day === 4 ? "Today's meals" : `${cur.d} meals`} actionLabel="Swap meal" onAction={() => setSwapMealId('pick')} />
+      <BSTrackHeader kicker="Meal list" title={day === bsWeekdayIdx() ? "Today's meals" : `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}'s meals`} actionLabel="Swap meal" onAction={() => setSwapMealId('pick')} />
       <div style={{ padding: `10px ${t.padX}px 0` }}>
         {effMeals.map((m, i) => {
           const logged = m.state === 'done';
@@ -5700,7 +5700,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
             try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_meal_swaps', next); } catch (e) {}
             if (!o._keep) {
               window.__bsToast && window.__bsToast('Swapped to ' + o._alt.title, 'ok');
-              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: 'Dr. Maya Patel', provider_role: 'nutritionist' }, text: `Swapped ${base.title} → ${o._alt.title} · ${day === 4 ? 'today' : cur.d}` }).catch(() => {}); } catch (e) {}
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: 'Dr. Maya Patel', provider_role: 'nutritionist' }, text: `Swapped ${base.title} → ${o._alt.title} · ${day === bsWeekdayIdx() ? 'today' : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}` }).catch(() => {}); } catch (e) {}
             }
             setSwapMealId(null);
           }} />;
