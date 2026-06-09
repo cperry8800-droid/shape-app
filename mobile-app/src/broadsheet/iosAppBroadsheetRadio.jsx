@@ -516,7 +516,10 @@ function BSNowPlaying({ onOpen }) {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: '#d83a2c', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
             ▍ Shape Radio
           </span>
-          <span>{r.LIVE.listeners.toLocaleString()} listening now · Open →</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: t.INK70 }}>{r.LIVE.listeners.toLocaleString()} listening now</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.16em' }}>Open →</span>
+          </span>
         </div>
 
         {/* Body */}
@@ -607,7 +610,10 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
             <span style={{ width: 6, height: 6, borderRadius: 3, border: `1px solid ${t.INK50}`, background: 'transparent' }} />
             ▍ Shape Radio · Muted
           </span>
-          <span>{r.LIVE.listeners.toLocaleString()} listening now · Open →</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span>{r.LIVE.listeners.toLocaleString()} listening now</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.16em' }}>Open →</span>
+          </span>
         </div>
 
         {/* Body — same layout as live, but greyscale + tune-in CTA */}
