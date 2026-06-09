@@ -64,6 +64,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Appearance settings persist per account (survive reload + login) + Steel bolder + 4 papers
+- **Appearance tweaks now persist** (`iosAppBroadsheetMain.jsx` `BSApp`, the live root —
+  applies to **all** profiles: client/coach/radio). Before, `paperMode/accentKey/texture/
+  weight/border/fx/splash…` lived in React state seeded from a static defaults file and
+  `setTweak` only posted to the desktop-preview bridge, so every reload/login reset them.
+  Now: seed from **localStorage** (`shape.tweaks`) over defaults (no flash-back on reload);
+  every change writes localStorage **and** (debounced) to the account via
+  **`user_goals('app_tweaks')`**; on login (polled `ShapeAuth` uid) the account's saved
+  appearance loads and applies — so it restores on every login, on any device, and an
+  account switch loads that account's look. `role` is excluded (derived from the profile).
+  *No migration* — reuses `user_goals`. The mobile BSSettings preferences (units, meal-times,
+  visibility, nutrition/training prefs) already persisted via `client_settings`/`user_goals`.
+  **Website:** functional settings already persist via the same shared tables; the site uses a
+  fixed editorial design (no paper themes), so there's no appearance state to sync there.
+- **Steel paper reads bolder:** lightened the stock (`#a9aeb4`→`#c2c7cd` + paper2/3) so dark
+  ink, deep accents, and tier colors all gain contrast on the metal — uniform fix (also affects
+  hardcoded literals + tier hexes) without retargeting ~58 teal literals.
+- **4 new papers** in the Appearance picker (client Settings + Tweaks panel) + label map +
+  tinted phone bezels: **Sage** (light green), **Forest** (dark green), **Slate** (blue-grey),
+  **Plum** (aubergine). 14 papers total.
+
 ### 2026-06-09 — Third post visibility ('profile') + settings icon-boxes removed
 - **New "Profile" visibility** on the Log-activity composer (both member + coach
   profiles): **Public** (profile + feed) · **Profile** (visible to everyone on your

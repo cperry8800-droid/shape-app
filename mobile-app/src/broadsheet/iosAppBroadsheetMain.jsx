@@ -1480,19 +1480,48 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
 // ═══════════════════════════════════════════════════════════
 // ROOT
 // ═══════════════════════════════════════════════════════════
+// ── Appearance-tweaks persistence ───────────────────────────────────
+// Settings changed while signed in must stay put — survive reloads (localStorage)
+// AND follow the account across devices/logins (user_goals('app_tweaks')). 'role'
+// is never persisted here (it's derived from the signed-in profile).
+const BS_TWEAKS_LOCAL_KEY = 'shape.tweaks';
+const BS_TWEAKS_CLOUD_KIND = 'app_tweaks';
+const BS_TWEAKS_NO_PERSIST = new Set(['role']);
+function bsTweaksForCloud(t) { const o = { ...(t || {}) }; BS_TWEAKS_NO_PERSIST.forEach((k) => { delete o[k]; }); return o; }
+function bsReadLocalTweaks() { try { return JSON.parse(window.localStorage.getItem(BS_TWEAKS_LOCAL_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function bsWriteLocalTweaks(t) { try { window.localStorage.setItem(BS_TWEAKS_LOCAL_KEY, JSON.stringify(bsTweaksForCloud(t))); } catch (e) {} }
+let _bsTweakCloudTimer = null;
+function bsSaveTweaksCloud(t) {
+  if (_bsTweakCloudTimer) clearTimeout(_bsTweakCloudTimer);
+  const snapshot = bsTweaksForCloud(t);
+  _bsTweakCloudTimer = setTimeout(() => {
+    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals(BS_TWEAKS_CLOUD_KIND, snapshot); } catch (e) {}
+  }, 600);
+}
+
 function BSApp() {
   const initial = window.__TWEAKS || {};
-  const [tweaks, setTweaks] = useStateBSM({
+  // Seed appearance from the last device choice (localStorage) over the static
+  // defaults, so a reload never flashes back to defaults. The account's saved
+  // appearance (cloud) is loaded on login below and takes precedence.
+  const [tweaks, setTweaks] = useStateBSM(() => ({
     role: 'client', paperMode: 'dark', accentKey: 'blue',
     weightKey: 'bold', borderKey: 'hairlines', textureKey: 'none', textureColor: 'auto',
     splashStyle: 'cosmos', splashBg: 'plain', splashBgColor: 'auto',
     fxGrain: false, fxHalftone: false, fxSepia: false, fxVignette: false, fxScanlines: false, fxInkBleed: false,
-    startLoggedIn: true, ...initial,
-  });
+    startLoggedIn: true, ...initial, ...bsReadLocalTweaks(),
+  }));
   const [tweaksOn, setTweaksOn] = useStateBSM(false);
 
   function setTweak(k, v) {
-    setTweaks(s => ({ ...s, [k]: v }));
+    setTweaks(s => {
+      const next = { ...s, [k]: v };
+      // Persist every change: localStorage (this device) + cloud (this account),
+      // so it survives reloads and follows the user across logins/devices.
+      bsWriteLocalTweaks(next);
+      if (!BS_TWEAKS_NO_PERSIST.has(k)) bsSaveTweaksCloud(next);
+      return next;
+    });
     window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*');
   }
 
@@ -1505,6 +1534,34 @@ function BSApp() {
     window.addEventListener('message', onMsg);
     window.parent.postMessage({ type: '__edit_mode_available' }, '*');
     return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  // Follow the account: when a user is (or becomes) signed in, load THEIR saved
+  // appearance from the cloud and apply it — so settings restore on every login,
+  // on any device, and an account switch loads the other account's look. Logging
+  // out resets the marker so the next login reloads. Runs for all profiles.
+  useEffectBSM(() => {
+    let lastUid = null;
+    const tryLoad = async () => {
+      let uid = null;
+      try { uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null; } catch (e) {}
+      if (uid && uid !== lastUid) {
+        lastUid = uid;
+        try {
+          const cloud = await (window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals(BS_TWEAKS_CLOUD_KIND) : null);
+          const merged = cloud ? bsTweaksForCloud(cloud) : {};
+          if (merged && Object.keys(merged).length) {
+            setTweaks(s => ({ ...s, ...merged }));
+            bsWriteLocalTweaks({ ...bsReadLocalTweaks(), ...merged });
+          }
+        } catch (e) {}
+      } else if (!uid) {
+        lastUid = null;
+      }
+    };
+    tryLoad();
+    const iv = setInterval(tryLoad, 1500);
+    return () => clearInterval(iv);
   }, []);
 
   return (
