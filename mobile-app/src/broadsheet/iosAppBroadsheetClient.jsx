@@ -8431,6 +8431,73 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
 }
 
+// Nora's avatar image — drop `nora-avatar.png` into mobile-app/public and it
+// lights up everywhere (BSFacetAvatar falls back to the "N" initial until then).
+const BS_NORA_AVATAR = `${import.meta.env.BASE_URL}nora-avatar.png`;
+
+// ── Nora's profile — Shape's AI assistant ─────────────────────────────────────
+// A lightweight STAFF profile (deliberately not a member Terrain profile — no
+// score/followers/climb): who she is, always-online status, what she helps
+// with, and the human-escalation promise. Opened by tapping her avatar/name in
+// the Support thread.
+function BSNoraProfile({ onClose }) {
+  const t = useBS();
+  const BLUE = '#2e6fa0', TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
+  const MONO = t.MONO, SERIF = t.DISPLAY;
+  const helps = [
+    ['Connecting integrations', 'Whoop, Oura, Strava, Spotify & more'],
+    ['Your plan & programs', 'Workouts, meals, schedules, swaps'],
+    ['Billing & membership', 'The $5/mo plan, coach payments, receipts'],
+    ['Account & settings', 'Profile, privacy, notifications, data'],
+    ['Finding a coach', 'Matching you with vetted trainers & RDs'],
+  ];
+  const sheet = (
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 100000, background: t.PAPER_BG, color: t.INK, overflowY: 'auto' }}>
+      <div style={{ padding: `46px ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={onClose} style={{ background: bsTHexA(t.INK, 0.06), border: `1px solid ${bsTHexA(t.INK, 0.18)}`, color: t.INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>Shape team</span>
+        </div>
+        {/* identity */}
+        <div style={{ textAlign: 'center', marginTop: 26 }}>
+          <div style={{ display: 'inline-block' }}>
+            <BSFacetAvatar size={96} c={BLUE} initial="N" name="Nora" photo={BS_NORA_AVATAR} showRank={false} live BG={t.PAPER_BG} INK={t.INK} />
+          </div>
+          <div style={{ marginTop: 14, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: BLUE }}>Shape's Assistant · <span style={{ color: TEAL }}>Always online</span></div>
+          <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: t.W.display, letterSpacing: '-0.03em', margin: '8px 0 0', lineHeight: 1 }}>Nora<span style={{ color: TEAL }}>.</span></h1>
+          <div style={{ marginTop: 10, fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(t.INK, 0.65), lineHeight: 1.5, padding: '0 14px' }}>Shape's AI concierge — here for every member and visitor, day and night.</div>
+        </div>
+        {/* stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 20 }}>
+          {[['Instant', 'Replies'], ['24/7', 'Hours'], ['Human', 'Backup']].map(([v, l]) => (
+            <div key={l} style={{ textAlign: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: bsTHexA(t.INK, 0.04), padding: '12px 6px' }}>
+              <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{v}</div>
+              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        {/* what she helps with */}
+        <div style={{ marginTop: 22 }}>
+          <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: BLUE, paddingBottom: 6 }}>What Nora helps with</div>
+          {helps.map(([title, sub], i) => (
+            <div key={title} style={{ padding: '10px 2px', borderTop: i ? `1px solid ${bsTHexA(t.INK, 0.08)}` : 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+              <div style={{ marginTop: 2, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5) }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+        {/* escalation note */}
+        <div style={{ marginTop: 16, borderRadius: 14, border: `1px solid ${bsTHexA(BLUE, 0.35)}`, background: bsTHexA(BLUE, 0.08), padding: '12px 14px', fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', color: bsTHexA(t.INK, 0.75), lineHeight: 1.5 }}>
+          “If I can't sort it out, I bring in the human Shape team — you never get stuck with a bot.”
+        </div>
+        <button onClick={onClose} style={{ marginTop: 18, width: '100%', minHeight: 46, borderRadius: 999, background: TEAL, color: '#06110e', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message Nora →</button>
+      </div>
+    </div>
+  );
+  const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return surface ? createPortal(sheet, surface) : sheet;
+}
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   useBSPresence(); // re-render avatars as people come online / go offline
@@ -8535,6 +8602,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [memberResults, setMemberResults] = useStateBSC([]);
   // "New message" people picker (the + New action on the thread lists).
   const [newDmOpen, setNewDmOpen] = useStateBSC(false);
+  const [showNora, setShowNora] = useStateBSC(false); // Nora's staff profile (from the Support thread)
   const [dmQuery, setDmQuery] = useStateBSC('');
   const [dmResults, setDmResults] = useStateBSC([]);
   React.useEffect(() => {
@@ -9376,10 +9444,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     ) : (
                       <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <div style={{ flexShrink: 0 }}>
-                          <BSFacetAvatar size={32} c={'#2e6fa0'} initial={(m.who || 'N').trim().charAt(0).toUpperCase()} showRank={false} BG={t.PAPER} INK={'#fff'} />
+                          <BSFacetAvatar size={32} c={'#2e6fa0'} initial={(m.who || 'N').trim().charAt(0).toUpperCase()} name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3 }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>
+                          <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Assistant" : ''}</div>
                           <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
                           {Array.isArray(m.actions) && m.actions.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
@@ -9508,6 +9576,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {tab === 'support' && (
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked placeholder="Message the Shape team…" />
       )}
+      {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {newDmOpen && createPortal(
         <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
