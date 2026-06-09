@@ -7144,7 +7144,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // Field notes / log — wired to your real logged activities on your own profile.
   const [realFeed, setRealFeed] = useStateBSC(null);
   React.useEffect(() => {
-    if (!isSelf || !window.ShapeActivities?.list) return;
+    if (!isSelf) return;
     let alive = true;
     const ago = (iso) => {
       if (!iso) return '';
@@ -7157,11 +7157,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     };
     const cap = (s) => String(s || 'Workout').replace(/[_-]+/g, ' ').replace(/\b\w/g, (x) => x.toUpperCase());
     (async () => {
-      let d = null;
-      try { d = await window.ShapeActivities.list(); } catch (e) {}
+      const [ad, td] = await Promise.all([
+        window.ShapeActivities?.list ? window.ShapeActivities.list().catch(() => null) : null,
+        window.ShapeProgress?.train ? window.ShapeProgress.train().catch(() => null) : null,
+      ]);
       if (!alive) return;
-      const acts = (d && Array.isArray(d.activities)) ? d.activities : [];
-      const mapped = acts.slice(0, 6).map((a) => {
+      const acts = (ad && Array.isArray(ad.activities)) ? ad.activities : [];
+      const actItems = acts.slice(0, 6).map((a) => {
         const type = cap(a.activity_type);
         const km = Number(a.distance_km), min = Number(a.duration_min), kcal = Number(a.calories);
         const bits = [];
@@ -7172,9 +7174,16 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         if (Number.isFinite(km) && km > 0 && Number.isFinite(min) && min > 0) metric = [`${Math.round(km * 10) / 10}K`, `${min} min`];
         else if (Number.isFinite(min) && min > 0) metric = ['Time', `${min} min`];
         else if (Number.isFinite(kcal) && kcal > 0) metric = ['Burn', `${Math.round(kcal)} kcal`];
-        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, time: ago(a.started_at), hot: false };
+        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
       });
-      if (mapped.length) setRealFeed(mapped);
+      // Real PRs (ShapeProgress.train) surfaced as feed items.
+      const prs = (td && Array.isArray(td.prs)) ? td.prs : [];
+      const prItems = prs.slice(0, 4).map((p) => {
+        const val = `${p.best != null ? p.best : (p.value != null ? p.value : '')}${p.unit ? ' ' + p.unit : ''}`.trim();
+        return { k: 'PR', t: `New PR — ${p.move || p.lift || 'Lift'}`, b: (p.best != null && p.bestReps) ? `Best: ${val} × ${p.bestReps}` : (val ? `Best: ${val}` : ''), metric: val ? ['▲', val] : null, time: ago(p.bestAt || p.date), hot: true, _at: p.bestAt || p.date || '' };
+      });
+      const merged = [...prItems, ...actItems].sort((a, b) => String(b._at).localeCompare(String(a._at))).slice(0, 8);
+      if (merged.length) setRealFeed(merged);
     })();
     return () => { alive = false; };
   }, [isSelf]);
