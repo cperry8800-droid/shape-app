@@ -7439,8 +7439,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </svg>
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
-            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 23px))`, top: `${here.y - 56}px` }}>
-              <BSFacetAvatar size={46} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 20px))`, top: `${here.y - 50}px` }}>
+              <BSFacetAvatar size={40} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(BG, 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
@@ -7485,7 +7485,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: '11px 12px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</span>
+                        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
                         <span style={{ fontFamily: SERIF, fontSize: 22, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, lineHeight: 0.9 }}>{pts.toLocaleString()}<span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginLeft: 3 }}>pts</span></span>
                       </div>
                       <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{nextT ? `${toNextPts.toLocaleString()} to ${nextT[0]}` : 'Top of the ladder'}</span>
