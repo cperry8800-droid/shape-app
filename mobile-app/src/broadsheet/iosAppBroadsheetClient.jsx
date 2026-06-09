@@ -6324,8 +6324,8 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       </div>
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
-          flex: 'none', borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
-          fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+          flex: 'none', borderRadius: 999, padding: '6px 13px', cursor: 'pointer',
+          fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
       )}
@@ -6334,8 +6334,8 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         const solid = fs === 'follow';
         return (
           <button onClick={onToggle} disabled={busy} style={{
-            flex: 'none', borderRadius: 999, padding: '8px 18px', cursor: busy ? 'default' : 'pointer',
-            fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+            flex: 'none', borderRadius: 999, padding: '6px 13px', cursor: busy ? 'default' : 'pointer',
+            fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
             border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
           }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
