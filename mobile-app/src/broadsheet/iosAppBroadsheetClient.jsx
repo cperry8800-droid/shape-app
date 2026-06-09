@@ -6184,18 +6184,37 @@ function BSFollowSuggestions({ onOpenProfile }) {
 // profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
 // each person is a live link to their public profile (onOpenProfile).
 function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, onClose, onOpenProfile }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
   const [list, setList] = useStateBSC(null);
   const [avatars, setAvatars] = useStateBSC({});
   const [group, setGroup] = useStateBSC('all'); // all | coaches | members
   const [followingSet, setFollowingSet] = useStateBSC(null); // userIds I already follow (for follow-back)
   const [backState, setBackState] = useStateBSC({}); // key -> 'following' (follow-back, optimistic/local)
+  const [query, setQuery] = useStateBSC(''); // search people
+  const [reqs, setReqs] = useStateBSC(null); // pending follow requests, shown inline on my own followers list
   const isCoachRow = (u) => u.role === 'trainer' || u.role === 'nutritionist';
   // The non-coach group is "Clients" on a coach's profile, "Members" on a member's.
   const memberTabLabel = coach ? 'Clients' : 'Members';
   React.useEffect(() => {
     let alive = true;
-    setList(null); setAvatars({}); setGroup('all'); setBackState({}); setFollowingSet(null);
+    setList(null); setAvatars({}); setGroup('all'); setBackState({}); setFollowingSet(null); setQuery(''); setReqs(null);
+    // On MY OWN followers list, surface pending follow requests (private/friends
+    // profiles only) inline under the search bar.
+    if (self && kind === 'followers') {
+      if (uid && window.ShapeFollows?.requests) {
+        window.ShapeFollows.requests().then((r) => {
+          if (!alive) return; const arr = r || []; setReqs(arr);
+          const ids = arr.map((u) => u.userId).filter(Boolean);
+          if (ids.length && window.ShapeProfiles?.getUserAvatars) window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (alive && m) setAvatars((p) => ({ ...p, ...m })); }).catch(() => {});
+        }).catch(() => { if (alive) setReqs([]); });
+      } else if (!uid && bsDemoIsPrivate(name)) {
+        // Demo: a "private" preview profile shows a couple of synthesized requests.
+        let s2 = 0; const nm = String(name || 'Shape'); for (let i = 0; i < nm.length; i++) s2 = (s2 * 31 + nm.charCodeAt(i)) >>> 0;
+        const pool = BS_FOLLOW_DEMO_NAMES, k = 2 + (s2 % 2), off2 = (s2 + 7) % pool.length, out2 = [];
+        for (let i = 0; i < k; i++) out2.push({ name: pool[(off2 + i * 5) % pool.length], role: (off2 + i) % 7 === 0 ? 'trainer' : 'client' });
+        setReqs(out2);
+      } else setReqs([]);
+    }
     const finish = (arr) => {
       if (!alive) return;
       const safe = Array.isArray(arr) ? arr : [];
@@ -6226,9 +6245,11 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
     }
     return () => { alive = false; };
   }, [kind, uid, name, self]);
-  const respondReq = async (followerId, accept) => {
-    setList((cur) => (cur || []).filter((u) => u.userId !== followerId));
-    try { await window.ShapeFollows?.respond?.(followerId, accept); } catch (e) { window.__bsToast?.(e?.message || 'Could not respond.', 'err'); }
+  const respondReq = async (u, accept) => {
+    const key = u.userId || u.name;
+    setList((cur) => (cur || []).filter((x) => (x.userId || x.name) !== key));
+    setReqs((cur) => (cur || []).filter((x) => (x.userId || x.name) !== key));
+    if (u.userId) { try { await window.ShapeFollows?.respond?.(u.userId, accept); } catch (e) { window.__bsToast?.(e?.message || 'Could not respond.', 'err'); } }
   };
   const openPerson = (u, photo) => {
     if (!onOpenProfile) return;
@@ -6263,13 +6284,33 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
     }
   };
   const showFollowBack = self && kind === 'followers';
-  const visible = (list || []).filter((u) => group === 'all' ? true : group === 'coaches' ? isCoachRow(u) : !isCoachRow(u));
+  const q = query.trim().toLowerCase();
+  const matchesQ = (u) => !q || String(u.name || '').toLowerCase().includes(q);
+  const groupMatch = (u) => group === 'all' ? true : group === 'coaches' ? isCoachRow(u) : !isCoachRow(u);
+  const visible = (list || []).filter((u) => groupMatch(u) && matchesQ(u));
+  const visibleReqs = (reqs || []).filter((u) => groupMatch(u) && matchesQ(u));
   const tab = (key, label) => {
     const on = group === key;
     return (
       <button key={key} onClick={() => setGroup(key)} style={{ flex: 1, minWidth: 0, padding: '7px 6px', borderRadius: 999, border: 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9, fontWeight: on ? 800 : 600, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</button>
     );
   };
+  // Shared left side of a person row (avatar + name + role → opens their profile).
+  const personLeft = (u, photo) => (
+    <button onClick={() => openPerson(u, photo)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+      <BSFacetAvatar size={36} c={bsTierColor(bsPostTier({ who: u.name }))} initial={bsInitials(u.name) || '?'} name={u.name} photo={photo} showRank={false} BG={BG} INK={INK} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: SERIF, fontSize: 15.5, fontWeight: 600, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
+        <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member'}</div>
+      </div>
+    </button>
+  );
+  const acceptDecline = (u) => (
+    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+      <button onClick={() => respondReq(u, true)} style={{ borderRadius: 8, border: 0, background: TEAL, color: '#06110e', padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
+      <button onClick={() => respondReq(u, false)} style={{ borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
+    </div>
+  );
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
@@ -6283,31 +6324,38 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               {tab('all', 'All')}{tab('coaches', 'Coaches')}{tab('members', memberTabLabel)}
             </div>
           )}
+          {/* search — under the tabs (the only filter beyond the tabs) */}
+          <div style={{ marginTop: 8, position: 'relative' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={bsTHexA(INK, 0.4)} strokeWidth="2.2" strokeLinecap="round" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people" style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px 9px 31px', borderRadius: 10, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.05), color: INK, fontFamily: SANS, fontSize: 13, outline: 'none' }} />
+          </div>
         </div>
+        {/* Pending follow requests — inline on my own followers list (private/friends). */}
+        {showFollowBack && visibleReqs.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, padding: '0 2px 4px' }}>{visibleReqs.length} request{visibleReqs.length === 1 ? '' : 's'}</div>
+            {visibleReqs.map((u, i) => {
+              const photo = u.userId ? avatars[u.userId] : bsDemoFace(u.name);
+              return (
+                <div key={'req-' + (u.userId || u.name || i)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
+                  {personLeft(u, photo)}{acceptDecline(u)}
+                </div>
+              );
+            })}
+            <div style={{ borderBottom: `1px solid ${bsTHexA(INK, 0.14)}`, margin: '11px 2px 2px' }} />
+          </div>
+        )}
         {list == null ? (
           <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), padding: '8px 2px' }}>Loading…</div>
         ) : visible.length === 0 ? (
-          <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{kind === 'requests' ? 'No pending requests.' : group === 'coaches' ? 'No coaches here yet.' : group === 'members' ? `No ${memberTabLabel.toLowerCase()} here yet.` : kind === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
+          <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(INK, 0.6), padding: '8px 2px 16px' }}>{q ? `No one matches “${query.trim()}”.` : kind === 'requests' ? 'No pending requests.' : group === 'coaches' ? 'No coaches here yet.' : group === 'members' ? `No ${memberTabLabel.toLowerCase()} here yet.` : kind === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</div>
         ) : visible.map((u, i) => {
-          const tier = bsPostTier({ who: u.name });
-          const roleLabel = u.role === 'trainer' ? 'Trainer' : u.role === 'nutritionist' ? 'Nutritionist' : 'Member';
           const photo = u.userId ? avatars[u.userId] : bsDemoFace(u.name);
           const bst = backStatus(u); // '' | 'following' | 'requested'
           return (
             <div key={u.userId || u.name || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
-              <button onClick={() => openPerson(u, photo)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
-                <BSFacetAvatar size={36} c={bsTierColor(tier)} initial={bsInitials(u.name) || '?'} name={u.name} photo={photo} showRank={false} BG={BG} INK={INK} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontFamily: SERIF, fontSize: 15.5, fontWeight: 600, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginTop: 2 }}>{roleLabel}</div>
-                </div>
-              </button>
-              {kind === 'requests' ? (
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button onClick={() => respondReq(u.userId, true)} style={{ borderRadius: 999, border: 0, background: TEAL, color: '#06110e', padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
-                  <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, padding: '7px 12px', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Decline</button>
-                </div>
-              ) : showFollowBack ? (
+              {personLeft(u, photo)}
+              {kind === 'requests' ? acceptDecline(u) : showFollowBack ? (
                 <button onClick={() => followBack(u)} style={{ flexShrink: 0, borderRadius: 8, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', background: bst ? 'transparent' : TEAL, color: bst ? bsTHexA(INK, 0.55) : '#06110e', border: `1px solid ${bst ? bsTHexA(INK, 0.25) : TEAL}` }}>{bst === 'following' ? 'Following ✓' : bst === 'requested' ? 'Requested' : 'Follow back'}</button>
               ) : null}
             </div>

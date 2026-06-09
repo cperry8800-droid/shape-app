@@ -63,6 +63,8 @@ function LiveProfilePage() {
   const [list, setList] = React.useState(null);
   const [avatars, setAvatars] = React.useState({}); // userId -> profile photo
   const [group, setGroup] = React.useState("all"); // all | coaches | members
+  const [query, setQuery] = React.useState(""); // search people
+  const [reqs, setReqs] = React.useState(null); // pending follow requests, inline on my own followers list
   const [followingSet, setFollowingSet] = React.useState(null); // userIds I follow (follow-back)
   const [backState, setBackState] = React.useState({}); // userId -> 'following' (follow-back)
   const [reqCount, setReqCount] = React.useState(0);
@@ -121,7 +123,7 @@ function LiveProfilePage() {
     });
   };
   const openList = (kind) => {
-    const c = cl(); setSheet(kind); setList(null); setAvatars({}); setGroup("all"); setBackState({}); setFollowingSet(null);
+    const c = cl(); setSheet(kind); setList(null); setAvatars({}); setGroup("all"); setQuery(""); setReqs(null); setBackState({}); setFollowingSet(null);
     if (!c || !c.rpc) { setList([]); return; }
     if (kind === "requests") {
       c.rpc("list_follow_requests").then((r) => { const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : []; const m = rows.map((x) => ({ userId: x.user_id, name: x.full_name || "Shape member", role: x.role || "client" })); setList(m); loadAvatars(m); }).catch(() => setList([]));
@@ -129,9 +131,10 @@ function LiveProfilePage() {
     }
     if (!st.uid) { setList([]); return; }
     c.rpc("get_follow_list", { p_user_id: st.uid, p_kind: kind }).then((r) => { const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : []; const m = rows.map((x) => ({ userId: x.user_id, name: x.full_name || "Shape member", role: x.role || "client" })); setList(m); loadAvatars(m); }).catch(() => setList([]));
-    // Follow-back: on MY OWN followers list, learn who I already follow.
+    // Follow-back + inline pending requests: only on MY OWN followers list.
     if (kind === "followers" && st.isSelf) {
       c.rpc("get_follow_list", { p_user_id: st.uid, p_kind: "following" }).then((r) => { const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : []; setFollowingSet(new Set(rows.map((x) => x.user_id).filter(Boolean))); }).catch(() => setFollowingSet(new Set()));
+      c.rpc("list_follow_requests").then((r) => { const rows = (r && !r.error && Array.isArray(r.data)) ? r.data : []; const m = rows.map((x) => ({ userId: x.user_id, name: x.full_name || "Shape member", role: x.role || "client" })); setReqs(m); loadAvatars(m); }).catch(() => setReqs([]));
     }
   };
   const followBack = async (u) => {
@@ -147,7 +150,7 @@ function LiveProfilePage() {
     catch (e) {}
   };
   const respondReq = async (followerId, accept) => {
-    const c = cl(); setList((cur) => (cur || []).filter((u) => u.userId !== followerId));
+    const c = cl(); setList((cur) => (cur || []).filter((u) => u.userId !== followerId)); setReqs((cur) => (cur || []).filter((u) => u.userId !== followerId));
     try { await c.rpc("respond_follow_request", { p_follower_id: followerId, p_accept: !!accept }); } catch (e) {}
     try { const r = await c.rpc("list_follow_requests"); if (r && !r.error) setReqCount((r.data || []).length); } catch (e) {}
     if (st.uid) c.rpc("get_follow_stats", { p_user_id: st.uid }).then((r) => { if (r && !r.error) applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
@@ -207,7 +210,11 @@ function LiveProfilePage() {
   // the follow-back box on my own followers list.
   const memberTabLabel = coach ? "Clients" : "Members";
   const isCoachRow = (u) => u.role === "trainer" || u.role === "nutritionist";
-  const sheetVisible = (list || []).filter((u) => group === "all" ? true : group === "coaches" ? isCoachRow(u) : !isCoachRow(u));
+  const sheetQ = query.trim().toLowerCase();
+  const matchesQ = (u) => !sheetQ || String(u.name || "").toLowerCase().includes(sheetQ);
+  const groupMatch = (u) => group === "all" ? true : group === "coaches" ? isCoachRow(u) : !isCoachRow(u);
+  const sheetVisible = (list || []).filter((u) => groupMatch(u) && matchesQ(u));
+  const visibleReqs = (reqs || []).filter((u) => groupMatch(u) && matchesQ(u));
   const showFollowBack = sheet === "followers" && st.isSelf;
   const backStatus = (u) => (u.userId in backState) ? backState[u.userId] : ((followingSet && u.userId && followingSet.has(u.userId)) ? "following" : "");
   const sheetTab = (key, label) => {
@@ -226,8 +233,30 @@ function LiveProfilePage() {
               <button onClick={() => setSheet(null)} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.6)", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
             {sheet !== "requests" && (
-              <div style={{ display: "flex", gap: 6, background: "rgba(242,237,228,0.05)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 999, padding: 4, marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 6, background: "rgba(242,237,228,0.05)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 999, padding: 4, marginBottom: 12 }}>
                 {sheetTab("all", "All")}{sheetTab("coaches", "Coaches")}{sheetTab("members", memberTabLabel)}
+              </div>
+            )}
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people" style={{ width: "100%", boxSizing: "border-box", padding: "9px 13px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.14)", background: "rgba(242,237,228,0.05)", color: "#f2ede4", fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, outline: "none", marginBottom: 14 }} />
+            {showFollowBack && visibleReqs.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#2ee0c4", paddingBottom: 4 }}>{visibleReqs.length} request{visibleReqs.length === 1 ? "" : "s"}</div>
+                {visibleReqs.map((u, i) => (
+                  <div key={"req-" + (u.userId || i)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
+                    {u.userId && avatars[u.userId]
+                      ? <img src={avatars[u.userId]} alt="" style={{ width: 36, height: 36, flex: "none", borderRadius: 999, objectFit: "cover", background: "#3a322a" }} />
+                      : <span style={{ width: 36, height: 36, flex: "none", borderRadius: 999, background: "#3a322a", display: "grid", placeItems: "center", fontFamily: "Fraunces,serif", fontSize: 14 }}>{String(u.name).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}</span>}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{u.name}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 2 }}>{u.role === "trainer" ? "Trainer" : u.role === "nutritionist" ? "Nutritionist" : "Member"}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => respondReq(u.userId, true)} style={{ borderRadius: 8, border: 0, background: "#1ec0a8", color: "#06110e", padding: "7px 12px", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Accept</button>
+                      <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 8, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: "#f2ede4", padding: "7px 12px", fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Decline</button>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ borderBottom: "1px solid rgba(242,237,228,0.14)", margin: "12px 0 2px" }} />
               </div>
             )}
             {list == null ? <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", padding: "8px 0" }}>Loading…</div>
@@ -245,7 +274,7 @@ function LiveProfilePage() {
                   <button onClick={() => respondReq(u.userId, false)} style={{ borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: "#f2ede4", padding: "7px 12px", fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>Decline</button>
                 </div>
               </div>
-            ))) : (sheetVisible.length === 0 ? <div style={{ fontFamily: "Fraunces,serif", fontSize: 16, fontStyle: "italic", color: "rgba(242,237,228,0.6)", padding: "8px 0 14px" }}>{group === "coaches" ? "No coaches here yet." : group === "members" ? ("No " + memberTabLabel.toLowerCase() + " here yet.") : sheet === "following" ? "Not following anyone yet." : "No followers yet."}</div> : sheetVisible.map((u, i) => {
+            ))) : (sheetVisible.length === 0 ? <div style={{ fontFamily: "Fraunces,serif", fontSize: 16, fontStyle: "italic", color: "rgba(242,237,228,0.6)", padding: "8px 0 14px" }}>{sheetQ ? ("No one matches “" + query.trim() + "”.") : group === "coaches" ? "No coaches here yet." : group === "members" ? ("No " + memberTabLabel.toLowerCase() + " here yet.") : sheet === "following" ? "Not following anyone yet." : "No followers yet."}</div> : sheetVisible.map((u, i) => {
               const bst = backStatus(u);
               return (
               <div key={u.userId || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
