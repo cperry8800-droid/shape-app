@@ -6531,11 +6531,12 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', photo, rank = 
       {/* gem frame */}
       <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)', pointerEvents: 'none' }} />
-        {/* portrait window (rotated square clip → rounded diamond) */}
+        {/* portrait window (rotated square clip → rounded diamond). Initials sit
+            underneath the photo so a missing/broken image falls back to them —
+            it's always a real photo or 2 initials, never a blank/placeholder gem. */}
         <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: '#0f0c0a', display: 'grid', placeItems: 'center' }}>
-          {photo
-            ? <img src={photo} alt="" style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />
-            : <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>}
+          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: INK, lineHeight: 1 }}>{(initial && String(initial).trim()) || '?'}</span>
+          {photo && <img src={photo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
         </div>
       </div>
       {editable && (

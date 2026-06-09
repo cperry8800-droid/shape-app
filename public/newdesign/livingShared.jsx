@@ -256,17 +256,17 @@ function LvPortrait({ d, size = 96, duotone = false, editable = false, hide = fa
       <div style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, boxShadow: `0 6px 18px ${hexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.3)` }}>
         <div style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
         <div style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: LV_BG, display: "grid", placeItems: "center" }}>
-          {hasPhoto ? (
+          {/* initials/crest underneath → a missing/broken photo falls back to them */}
+          <div style={{ transform: "rotate(-45deg)", display: "grid", placeItems: "center" }}>
+            {(!hide && d.initials)
+              ? <span style={{ fontFamily: lvSerif, fontWeight: 500, fontSize: size * 0.4, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{d.initials}</span>
+              : <LvCrest d={d} size={size * 0.5} />}
+          </div>
+          {hasPhoto && (
             <React.Fragment>
-              <img src={lvPortraitURL(d.portrait, Math.round(size * 2))} alt={d.name || ""} style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
+              <img src={lvPortraitURL(d.portrait, Math.round(size * 2))} alt={d.name || ""} onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
               {duotone && <div style={{ position: "absolute", inset: 0, background: hexA(c, 0.42), mixBlendMode: "color" }} />}
             </React.Fragment>
-          ) : (
-            <div style={{ transform: "rotate(-45deg)", display: "grid", placeItems: "center" }}>
-              {showInitials
-                ? <span style={{ fontFamily: lvSerif, fontWeight: 500, fontSize: size * 0.4, color: LV_INK, letterSpacing: "-0.02em", lineHeight: 1 }}>{d.initials}</span>
-                : <LvCrest d={d} size={size * 0.5} />}
-            </div>
           )}
         </div>
       </div>
