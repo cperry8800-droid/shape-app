@@ -2554,16 +2554,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            className="bs-scroll"
             style={{
               width: '100%',
               maxWidth: 460,
               border: `1px solid ${t.RULE}`,
-              borderRadius: 20,
+              borderRadius: 24,
               background: t.PAPER,
               color: t.INK,
               boxShadow: '0 24px 70px rgba(0,0,0,0.45)',
               overflow: 'auto',
-              maxHeight: '80%',
+              maxHeight: '82%',
               WebkitOverflowScrolling: 'touch',
             }}
           >
@@ -2620,11 +2621,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               </div>
               <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {activeDayLogDetails.metrics.map(([label, value]) => (
-                  <div key={label} style={{ borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '11px 11px' }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
+                  <div key={label} style={{ borderRadius: 14, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}26`, background: `${activeDayLog.tagColor || t.ACCENT}0d`, padding: '11px 12px' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: activeDayLog.tagColor || t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
                       {label}
                     </div>
-                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.15, color: t.INK }}>
+                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, lineHeight: 1.15, color: t.INK }}>
                       {value}
                     </div>
                   </div>
@@ -2656,7 +2657,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   </div>
                 );
               })()}
-              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 13, background: `${activeDayLog.tagColor || t.ACCENT}14`, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}3a`, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>
+              <div style={{ marginTop: 12, padding: '13px 15px', borderRadius: 14, background: `${activeDayLog.tagColor || t.ACCENT}12`, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}33`, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>
                 {activeDayLogDetails.note}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 10, marginTop: 16 }}>
