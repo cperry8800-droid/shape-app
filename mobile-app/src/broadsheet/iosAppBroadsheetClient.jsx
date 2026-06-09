@@ -6407,7 +6407,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       })()}
       {sheet && createPortal(
         <div onClick={() => setSheet(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: BG, color: INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '70%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.6)', border: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+          <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, background: BG, color: INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '70%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.6)', border: `1px solid ${bsTHexA(INK, 0.12)}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{sheet === 'requests' ? 'Follow requests' : sheet === 'following' ? 'Following' : 'Followers'}</span>
               <button onClick={() => setSheet(null)} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
@@ -11511,7 +11511,6 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
 // progress/stats summary. A gear opens the full settings hub (BSMeSettingsHub),
 // which still holds every account/preference/utility link with wiring intact.
 function BSClientMe(props) {
-  const [view, setView] = useStateBSC('profile'); // 'profile' | 'hub'
   const [showProgress, setShowProgress] = useStateBSC(false);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
   const uid = (auth.user && auth.user.id) || null;
@@ -11519,14 +11518,13 @@ function BSClientMe(props) {
   const photo = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null;
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
   if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
-  if (view === 'hub') return <BSMeSettingsHub {...props} onBack={() => setView('profile')} />;
   return (
     <BSTerrainProfile
       person={person}
       isSelf
       meMode
       onBack={props.goHome || (() => {})}
-      onOpenSettings={() => setView('hub')}
+      onOpenSettings={() => { try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }}
       onOpenProgress={() => setShowProgress(true)}
     />
   );
@@ -14110,7 +14108,34 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showStore, setShowStore] = useStateBSC(false);
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showPublicProfile, setShowPublicProfile] = useStateBSC(false);
-  const scoreProfile = SHAPE_SCORE_PROFILES.client;
+  const [showGoals, setShowGoals] = useStateBSC(false);
+  const [showLibrary, setShowLibrary] = useStateBSC(false);
+  const [showHabits, setShowHabits] = useStateBSC(false);
+  const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
+  const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
+  // Nutrition + training preferences (merged in from the old Me page) — stored in
+  // user_goals, edited through the same edit sheet.
+  const [nutritionPrefs, setNutritionPrefs] = useStateBSC({});
+  const [trainingPrefs, setTrainingPrefs] = useStateBSC({});
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [np, tp] = await Promise.all([
+          window.shapeDb?.getUserGoals?.('client_nutrition_prefs') ?? {},
+          window.shapeDb?.getUserGoals?.('client_training_prefs') ?? {},
+        ]);
+        if (cancelled) return;
+        setNutritionPrefs(np || {}); setTrainingPrefs(tp || {});
+      } catch (e) {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const persistPref = async (store, next) => {
+    const kind = store === 'nutrition' ? 'client_nutrition_prefs' : 'client_training_prefs';
+    try { await window.shapeDb?.saveUserGoals?.(kind, next); window.__bsToast?.('Saved', 'ok'); } catch (e) { window.__bsToast?.('Save failed', 'err'); }
+    if (store === 'nutrition') setNutritionPrefs(next); else setTrainingPrefs(next);
+  };
 
   // Live subscription for the "Your plan" card. null until loaded; { active:false }
   // when there's no active subscription (free) — then we show the upgrade copy.
@@ -14420,9 +14445,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     };
   }, [dropdown]);
   const openAccountEdit = (key, label, opts = {}) => setEditField({ key, label, value: opts.value != null ? opts.value : (account[key] || ''), type: opts.type || 'text', placeholder: opts.placeholder || '' });
+  const openPrefEdit = (store, key, label, opts = {}) => setEditField({ store, key, label, value: (store === 'nutrition' ? nutritionPrefs : trainingPrefs)[key] || '', type: opts.type || 'text', placeholder: opts.placeholder || '', options: opts.options || null });
   const saveEditField = () => {
     if (!editField) return;
     const v = String(editField.value || '').trim();
+    if (editField.store) {
+      const blob = editField.store === 'nutrition' ? nutritionPrefs : trainingPrefs;
+      persistPref(editField.store, { ...blob, [editField.key]: v });
+      setEditField(null);
+      return;
+    }
     if (!v) { setEditField(null); return; }
     if (editField.key === 'password') {
       window.__bsToast?.('Password updated', 'ok');
@@ -14491,6 +14523,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       link: <><path d="M9 15l6-6" /><path d="M11 6.5l1-1a3.5 3.5 0 0 1 5 5l-1 1" /><path d="M13 17.5l-1 1a3.5 3.5 0 0 1-5-5l1-1" /></>,
       life: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.2" /><path d="M14.3 9.7 17 7M9.7 9.7 7 7M14.3 14.3 17 17M9.7 14.3 7 17" /></>,
       shield: <><path d="M12 3.5 19 6v5c0 4.5-3 8-7 9.5C8 19 5 15.5 5 11V6Z" /><path d="m9 12 2 2 4-4" /></>,
+      leaf: <><path d="M11 20A7 7 0 0 1 4 13c0-5 4-9 16-9 0 9-4 16-9 16Z" /><path d="M4 20c4-5 7-8 12-10" /></>,
+      dumbbell: <><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></>,
+      card: <><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></>,
+      compass: <><circle cx="12" cy="12" r="9" /><path d="m15 9-2 5-4 1 2-5 4-1Z" /></>,
     };
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -14619,6 +14655,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showProgress) {
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
   }
+  if (showGoals) {
+    return <BSClientGoals onBack={() => setShowGoals(false)} />;
+  }
+  if (showLibrary) {
+    return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} />;
+  }
+  if (showHabits) {
+    return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
+  }
+  if (showLeaderboard) {
+    return <BSLeaderboard onBack={() => setShowLeaderboard(false)} />;
+  }
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
@@ -14626,6 +14674,40 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); setEditing(true); }} />;
   }
 
+  const nutritionRows = [
+    { k: 'dietary_style', l: 'Dietary style', options: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian', 'Keto', 'Paleo', 'Mediterranean'] },
+    { k: 'allergies', l: 'Allergies', placeholder: 'Shellfish, tree nuts…' },
+    { k: 'dislikes', l: 'Dislikes', placeholder: 'Cilantro, blue cheese…' },
+    { k: 'protein_target_g', l: 'Protein target (g/day)', type: 'number', placeholder: '168' },
+    { k: 'calorie_range', l: 'Calorie range', options: ['By feel', 'Strict', 'Loose tracking', '1600–1800', '1800–2000', '2000–2200', '2200–2400', '2400+'] },
+    { k: 'meal_cadence', l: 'Meal cadence', placeholder: '3 meals + 1 snack' },
+    { k: 'supplements', l: 'Supplements', placeholder: 'Creatine, D, omega-3' },
+    { k: 'alcohol', l: 'Alcohol', options: ['None', 'Rare', 'Social', 'Weekly', 'Daily'] },
+    { k: 'hydration_target_l', l: 'Hydration target (L/day)', type: 'number', placeholder: '3.0' },
+  ].map((r) => ({ l: r.l, r: nutritionPrefs[r.k] || 'Not set', action: () => openPrefEdit('nutrition', r.k, r.l, { type: r.type, placeholder: r.placeholder, options: r.options }) }));
+  const trainingRows = [
+    { k: 'primary_goal', l: 'Primary goal', options: ['Strength', 'Hypertrophy', 'Strength + hypertrophy', 'Endurance', 'Fat loss', 'General health'] },
+    { k: 'experience', l: 'Experience', options: ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite'] },
+    { k: 'sessions_per_week', l: 'Sessions / week', options: ['2', '3', '4', '5', '6'] },
+    { k: 'equipment', l: 'Equipment access', options: ['Full gym', 'Home gym', 'Bodyweight only', 'Limited (bands + DBs)', 'Full gym + home DBs'] },
+    { k: 'injuries', l: 'Injuries & notes', placeholder: 'Left shoulder, knee tracking…' },
+    { k: 'preferred_times', l: 'Preferred times', options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
+  ].map((r) => ({ l: r.l, r: trainingPrefs[r.k] || 'Not set', action: () => openPrefEdit('training', r.k, r.l, { placeholder: r.placeholder, options: r.options }) }));
+  const moreRows = [
+    { l: 'Goals', r: 'Track', action: () => setShowGoals(true) },
+    { l: 'Habits', r: 'Daily', action: () => setShowHabits(true) },
+    { l: 'Library', r: 'Saved', action: () => setShowLibrary(true) },
+    { l: 'Progress & stats', r: 'View', action: () => setShowProgress(true) },
+    { l: 'Shape Score', r: 'Standing', action: () => setShowScore(true) },
+    { l: 'Shape Store', r: 'Redeem', action: () => setShowStore(true) },
+    { l: 'Leaderboard', r: 'Rank', action: () => setShowLeaderboard(true) },
+    { l: 'Sessions', r: 'Booked', action: () => setShowSessions(true) },
+  ];
+  const billingRows = [
+    { l: 'Manage subscription', r: 'Stripe portal', action: openBillingPortal },
+    { l: 'Update payment method', r: 'Stripe portal', action: openBillingPortal },
+    { l: 'View invoices & receipts', r: 'Stripe portal', action: openBillingPortal },
+  ];
   const sections = [
     {
       title: 'Account',
@@ -14696,6 +14778,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
       ],
     },
+    { title: 'Nutrition', meta: '', rows: nutritionRows },
+    { title: 'Training', meta: '', rows: trainingRows },
+    { title: 'Membership & billing', meta: '', rows: billingRows },
+    { title: 'More', meta: '', rows: moreRows },
   ];
 
   const findSec = (title) => sections.find(s => s.title === title) || { rows: [] };
@@ -14707,10 +14793,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   ];
   const settingCards = [
     { icon: 'user',    title: 'Account',            summary: 'Email · password · 2FA',                                            detail: 'account' },
+    { icon: 'sliders', title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
+    { icon: 'leaf',    title: 'Nutrition',           summary: nutritionPrefs.dietary_style ? `${nutritionPrefs.dietary_style} · prefs` : 'Diet · allergies · macros', detail: 'nutrition' },
+    { icon: 'dumbbell',title: 'Training',            summary: trainingPrefs.experience ? `${trainingPrefs.experience} · prefs` : 'Goal · experience · equipment', detail: 'training' },
     { icon: 'link',    title: 'Health integrations', summary: 'Apple Health · WHOOP · Strava',                                     detail: 'health' },
     { icon: 'bell',    title: 'Notifications',       summary: `${notifOn} of 4 active`,                                            detail: 'notifications' },
-    { icon: 'sliders', title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
     { icon: 'lock',    title: 'Privacy & data',      summary: `Profile · ${prefs.profileVisibility}`,                             detail: 'privacy' },
+    { icon: 'card',    title: 'Membership & billing', summary: plan && plan.active ? 'Active · manage' : 'Manage · invoices',      detail: 'billing' },
+    { icon: 'compass', title: 'More',                summary: 'Goals · Habits · Library · Score · Store',                          detail: 'more' },
     { icon: 'life',    title: 'About',               summary: 'Help · contact · legal',                                           detail: 'about' },
     { icon: 'shield',  title: 'Account actions',     summary: 'Export · pause · delete',                                          detail: 'accountactions', accent: t.RUST },
   ];
@@ -14725,6 +14815,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'notifications' && (<><DetailBack title="Notifications" />{renderRows(findSec('Notifications').rows)}</>)}
       {detail === 'preferences' && (<><DetailBack title="Preferences" />{renderRows(findSec('Preferences').rows)}</>)}
       {detail === 'privacy' && (<><DetailBack title="Privacy & data" />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {detail === 'nutrition' && (<><DetailBack title="Nutrition" />{renderRows(findSec('Nutrition').rows)}</>)}
+      {detail === 'training' && (<><DetailBack title="Training" />{renderRows(findSec('Training').rows)}</>)}
+      {detail === 'billing' && (<><DetailBack title="Membership & billing" />{renderRows(findSec('Membership & billing').rows)}</>)}
+      {detail === 'more' && (<><DetailBack title="More" />{renderRows(findSec('More').rows)}</>)}
       {detail === 'about' && (<><DetailBack title="About" />{renderRows(findSec('About').rows)}</>)}
       {detail === 'accountactions' && (<>
         <DetailBack title="Account actions" />
@@ -15240,9 +15334,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div onClick={() => setEditField(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>Edit {editField.label}</div>
+            {editField.options && editField.options.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {editField.options.map((opt) => { const on = String(editField.value) === String(opt); return (
+                  <button key={opt} onClick={() => setEditField(f => ({ ...f, value: opt }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}1c` : 'transparent', color: on ? t.ACCENT : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{opt}</button>
+                ); })}
+              </div>
+            )}
             <input
               autoFocus
-              type={editField.type}
+              type={editField.type === 'number' ? 'number' : 'text'}
               value={editField.value}
               placeholder={editField.placeholder}
               onChange={(e) => setEditField(f => ({ ...f, value: e.target.value }))}
