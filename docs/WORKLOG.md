@@ -74,6 +74,13 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Tighter "Vol. 1 · No. 1" header row (every page)
+- The logo + Vol·No masthead row is condensed app-wide: letter-spacing
+  `0.22em → 0.12em`, logo↔text gap `8 → 6` (gate screen `10 → 6`). Applied to the
+  shared `BSMasthead` + `BSPageHeader` and every custom copy (profile/chat
+  mastheads in the client module, the membership gate, both Radio headers).
+  Splash/loading/footer Vol·No lines untouched (not page headers).
+
 ### 2026-06-09 — Quinn Harper demo headshot wired
 - The uploaded demo headshot (`public/Demo account headshot AI.png`) is now
   **`public/demo-avatar.png`** + **`mobile-app/public/demo-avatar.png`** (served at

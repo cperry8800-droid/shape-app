@@ -715,9 +715,9 @@ function BSRadioScreen({ onBack }) {
       {/* HEADER — translucent so portrait shows through */}
       <div style={{ padding: `50px ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM70 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>
               Vol. 1 · No. 1
             </div>
           </div>
@@ -1084,9 +1084,9 @@ function BSShapeSetsScreen({ onBack }) {
           {/* HEADER — masthead like other mobile pages: Vol·No + back, then eyebrow + serif title */}
           <div style={{ padding: `50px ${t.padX}px 0` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>Vol. 1 · No. 1</div>
               </div>
               <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM, padding: '6px 12px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM50}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>← Radio</button>
             </div>
