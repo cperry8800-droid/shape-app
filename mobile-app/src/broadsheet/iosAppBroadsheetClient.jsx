@@ -1700,6 +1700,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const fmtDate = (idx) => `${_BS_MON[weekDates[idx].getMonth()]} ${weekDates[idx].getDate()}`;
 
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
+  // "Up next" follows the day you tap in the week strip (not just today).
+  const selWorkout = bsClientWorkoutForDay(selIdx);
+  const _selDelta = selIdx - todayIdx;
+  const upNextLabel = _selDelta === 0 ? 'Today' : _selDelta === 1 ? 'Tomorrow' : _selDelta === -1 ? 'Yesterday'
+    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][selIdx];
   const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
@@ -1850,6 +1855,18 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
   const dataDay = 20 + selIdx;
   const dayLog = DAY_LOGS[dataDay] || [];
+  // The selected day's lunch for the "Up next" nutrition card — today uses the
+  // full rich meal; other days derive title/macros from that day's meal row.
+  const selLunch = (() => {
+    if (selIdx === todayIdx) return HOME_LUNCH;
+    const meals = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
+    const row = meals.find((r) => { const h = parseInt(String(r.time).split(':')[0], 10); return h >= 11 && h <= 14; }) || meals[1] || meals[0];
+    if (!row) return HOME_LUNCH;
+    const sub = row.sub || '';
+    const kc = parseInt((sub.match(/(\d[\d,]*)\s*kcal/i) || [])[1] || '0', 10);
+    const pp = parseInt((sub.match(/(\d+)\s*P\b/i) || [])[1] || '0', 10);
+    return { ...HOME_LUNCH, id: 'home-lunch-' + selIdx, title: row.title, sub, time: row.time, kcal: kc || HOME_LUNCH.kcal, p: pp || HOME_LUNCH.p, hero: (row.title || '') + '.' };
+  })();
   // Total Shape Score points earned on the selected day. Live from the ledger
   // (per-date map) when signed in; a stable demo value per weekday otherwise
   // (future days = 0, since nothing's been earned yet).
@@ -2003,7 +2020,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setPreviewMeal(null); setShowLogMeal(true); }} />;
   }
   if (showWorkoutPreview) {
-    return <BSHomeWorkoutPreview workout={todayWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
+    return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
     return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => setNextMealLogged(true)} />;
@@ -2150,7 +2167,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         />
       </div>
 
-      <BSSection title="Up next" kicker="3 of 8 done" />
+      <BSSection title={upNextLabel} />
 
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2177,13 +2194,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         // displayed time and the order (earliest first). The workout is today's
         // actual session (shared week); the meal follows the client's lunch-time
         // preference so it stays in sync with the day-log.
-        const _wkAt = (todayWorkout && todayWorkout.time && todayWorkout.time !== '—') ? todayWorkout.time : '09:00';
+        const _wkAt = (selWorkout && selWorkout.time && selWorkout.time !== '—') ? selWorkout.time : '09:00';
         const [_wkH, _wkM] = String(_wkAt).split(':').map(Number);
         const WORKOUT_AT = (Number.isNaN(_wkH) ? 9 : _wkH) * 60 + (Number.isNaN(_wkM) ? 0 : _wkM);
-        const _wkMoves = (todayWorkout && todayWorkout.detail && todayWorkout.detail.moves) || [];
-        const _wkShortMeta = (todayWorkout && todayWorkout.detail && todayWorkout.detail.meta)
-          ? todayWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
-          : (todayWorkout && todayWorkout.sub) || '';
+        const _wkMoves = (selWorkout && selWorkout.detail && selWorkout.detail.moves) || [];
+        const _wkShortMeta = (selWorkout && selWorkout.detail && selWorkout.detail.meta)
+          ? selWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
+          : (selWorkout && selWorkout.sub) || '';
         const _wkCompact = _wkMoves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
         if (_wkMoves.length > 3) _wkCompact.push(['+', `+ ${_wkMoves.length - 3} more`, _wkMoves.slice(3).map(m => m.name).slice(0, 3).join(' · '), '']);
         const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
@@ -2195,14 +2212,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           const h12 = h % 12 === 0 ? 12 : h % 12;
           return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
         };
-        const workoutCard = todayWorkout ? (
+        const workoutCard = selWorkout ? (
           <div style={cardBase(rust)}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
               <span style={metaRight}>{_wkShortMeta}</span>
             </div>
             <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              {todayWorkout.title}
+              {selWorkout.title}
             </div>
             {_wkCompact.length > 0 && (
               <div style={{ marginTop: 12 }}>
@@ -2250,11 +2267,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <span style={eyebrow(teal)}>Lunch · {fmtAt(MEAL_AT)}</span>
               <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Coach plan</span>
             </div>
-            <div onClick={() => setPreviewMeal(HOME_LUNCH)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              Chicken bowl <span style={{ fontStyle: 'italic', color: teal }}>+ rice.</span>
+            <div onClick={() => setPreviewMeal(selLunch)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+              {(() => { const w = String(selLunch.title || 'Meal').trim().split(/\s+/); const last = w.length ? w.pop() : ''; return <>{w.join(' ')} {last && <span style={{ fontStyle: 'italic', color: teal }}>{last}.</span>}</>; })()}
             </div>
             <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-              620 kcal · 48P · 72C · 14F
+              {selLunch.sub}
             </div>
             <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
