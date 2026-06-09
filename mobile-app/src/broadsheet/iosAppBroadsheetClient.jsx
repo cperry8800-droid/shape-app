@@ -12252,7 +12252,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 
 function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
-  const lifetime = profile.lifetime;
+  // Live points + tier for ALL profiles (client + coach) — was only wired for client.
+  profile = _bsUseLiveScore(profile);
   const categories = ['All', 'Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
   const [cat, setCat] = useStateBSC('All');
   const [affordable, setAffordable] = useStateBSC(false);
@@ -12303,6 +12304,11 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         ['NUTRI-PLAN-04F1', 'Grocery list buildout', 'May 21', 420],
       ]);
   const redeemedCount = liveRedemptions ? liveRedemptions.length : profile.redeemedCount;
+  // Lifetime earned (gross) = current spendable balance + everything ever redeemed.
+  // Live when signed in (store balance + redemption costs); demo otherwise.
+  const lifetime = (store.balance != null && liveRedemptions)
+    ? store.balance + liveRedemptions.reduce((s, r) => s + (Number(r.cost_points) || 0), 0)
+    : profile.lifetime;
   const visible = products.filter(p => {
     if (cat !== 'All' && p.cat !== cat) return false;
     if (affordable && (p.locked || p.cost > balance)) return false;
