@@ -11187,29 +11187,29 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
   const RAD = 30, CIRC = 2 * Math.PI * RAD;
   const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
   return (
-    <div onClick={onOpen} style={{ borderRadius: 16, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: 14, marginBottom: 14, cursor: onOpen ? 'pointer' : 'default' }}>
+    <div onClick={onOpen} style={{ borderRadius: 15, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: '11px 12px', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</div>
-          <div style={{ marginTop: 3, fontFamily: SERIF, fontSize: 24, fontStyle: 'italic', letterSpacing: '-0.02em', color: c, lineHeight: 1 }}>{tierName}</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 7 }}>
-            <span style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9, color: INK }}>{pts.toLocaleString()}</span>
-            <span style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.45), marginBottom: 4, letterSpacing: '0.06em' }}>pts</span>
+          <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</div>
+          <div style={{ marginTop: 1, fontFamily: SERIF, fontSize: 19, fontStyle: 'italic', letterSpacing: '-0.02em', color: c, lineHeight: 1 }}>{tierName}</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginTop: 4 }}>
+            <span style={{ fontFamily: SERIF, fontSize: 27, letterSpacing: '-0.03em', lineHeight: 0.9, color: INK }}>{pts.toLocaleString()}</span>
+            <span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginBottom: 3, letterSpacing: '0.06em' }}>pts</span>
           </div>
-          <div style={{ marginTop: 6, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{next ? `${toNext.toLocaleString()} to ${next[0]}` : 'Top of the ladder'}</div>
+          <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{next ? `${toNext.toLocaleString()} to ${next[0]}` : 'Top of the ladder'}</div>
         </div>
-        <svg width="66" height="66" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
+        <svg width="50" height="50" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
           <circle cx="42" cy="42" r={RAD} fill="none" stroke={bsTHexA(INK, 0.1)} strokeWidth="6" />
           <circle cx="42" cy="42" r={RAD} fill="none" stroke={c} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
-          <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: SERIF, fontSize: '17px', fill: INK }}>{Math.round(pct * 100)}%</text>
+          <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: SERIF, fontSize: '18px', fill: INK }}>{Math.round(pct * 100)}%</text>
         </svg>
       </div>
-      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {cats.map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-            <div style={{ width: 80, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <div style={{ width: 70, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
             <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-            <div style={{ width: 22, textAlign: 'right', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
+            <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
           </div>
         ))}
       </div>
