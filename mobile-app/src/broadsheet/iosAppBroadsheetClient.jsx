@@ -6677,9 +6677,6 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
   const Kick = ({ children }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   return (
     <div style={{ marginBottom: 26 }}>
-      {isSelf && (
-        <button onClick={onCustomize} style={{ width: '100%', marginBottom: empty ? 0 : 16, padding: '11px 14px', borderRadius: 13, border: `1px dashed ${bsTHexA(c, 0.5)}`, background: bsTHexA(c, 0.06), color: c, cursor: 'pointer', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>✎ Customize profile</button>
-      )}
       {heroStats.length > 0 && (
         <div style={{ display: 'flex', gap: 9, marginBottom: 16 }}>
           {heroStats.map((s) => (
@@ -7206,7 +7203,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
         {isSelf
           ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <button onClick={onEdit} aria-label="Edit profile info" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
               <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
@@ -7668,7 +7665,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
               ? <>
-                  <button onClick={onEdit} aria-label="Edit profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)} live={bsAmLive()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
