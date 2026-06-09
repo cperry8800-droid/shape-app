@@ -29,6 +29,16 @@ function bsMyName() {
 function bsInitials(name) {
   return String(name || '').replace(/^#\s*/, '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 }
+// A photo source only counts if it's a real, non-empty image URL — so a blank/
+// stale stored value ('', 'null', a bodyless data: URI) is ignored and the avatar
+// falls back to initials instead of rendering an invisible/blank image over them.
+function bsValidPhoto(p) {
+  const s = (p == null ? '' : String(p)).trim();
+  if (!s || s === 'null' || s === 'undefined') return null;
+  if (/^data:/i.test(s)) return /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{16,}/i.test(s) ? s : null;
+  if (/^(https?:|blob:|\/)/i.test(s)) return s;
+  return null;
+}
 function bsMyInitials() {
   // A custom override (set in edit-profile, cached on window.ShapeIdentity) wins;
   // otherwise derive from the display name.
@@ -6367,6 +6377,9 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   // The set rule: an avatar is ALWAYS a photo or initials — never blank. Prefer the
   // explicit `initial`, else derive 2-letter initials from `name`, else a neutral dot.
   const shownInitials = (initial != null && String(initial).trim()) || (name ? bsInitials(name) : '') || '•';
+  // Ignore blank/stale stored photo values so they can't render an invisible image
+  // over the initials.
+  const photoSrc = bsValidPhoto(photo);
   return (
     <div onClick={onClick} style={{ width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
       {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
@@ -6378,7 +6391,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
             it's always a real photo or 2 initials, never a blank/placeholder gem. */}
         <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: innerBg, display: 'grid', placeItems: 'center' }}>
           <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: initInk, lineHeight: 1 }}>{shownInitials}</span>
-          {photo && <img src={photo} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
+          {photoSrc && <img src={photoSrc} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
         </div>
       </div>
       {editable && (

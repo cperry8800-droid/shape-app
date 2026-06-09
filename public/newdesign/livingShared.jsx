@@ -249,7 +249,16 @@ function lvShade(hex, f) {
 function LvPortrait({ d, size = 96, duotone = false, editable = false, hide = false }) {
   const c = tierOf(d).color;
   const inset = Math.max(2, Math.round(size * 0.06));
-  const hasPhoto = !hide && !!d.portrait;
+  // A portrait only counts if it's a real, non-empty image ref — a blank/stale
+  // stored value ('', 'null', a bodyless data: URI) is ignored so the avatar
+  // falls back to initials instead of an invisible image over them.
+  const portraitOk = (() => {
+    const s = (d.portrait == null ? "" : String(d.portrait)).trim();
+    if (!s || s === "null" || s === "undefined") return false;
+    if (/^data:/i.test(s)) return /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]{16,}/i.test(s);
+    return true; // http(s)/path or an unsplash id token
+  })();
+  const hasPhoto = !hide && portraitOk;
   // The set rule: a profile avatar is ALWAYS a photo or initials — never a blank
   // gem. Use the explicit initials, else derive 2 letters from the name, so a
   // profile that only carries a name (most live accounts) still reads.
