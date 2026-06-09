@@ -74,6 +74,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Nora website parity (concierge profile) + demo "you" renamed to Quinn Harper
+- **Website Nora now matches mobile** (`chatWidget.jsx`): tapping her avatar in the
+  Help tab opens a **staff concierge card** instead of the generic member preview —
+  teal "ALWAYS ONLINE · SHAPE'S CONCIERGE" eyebrow, live dot, concierge bio,
+  Status/Replies/Escalates stats (no tier/score), a "Helps with / Can't sort it?"
+  details card, and no "Full profile →" (she has no member page). Thread copy updated
+  to the concierge wording in `clientChatThreads.jsx` **and** the `globalChatButton.js`
+  fallback (was "Shape Support"). `?v=` bumps on `MemberProfile.html` +
+  `index-explorations.html`.
+- **Demo "you" renamed: Alex Rivera → Quinn Harper** (signed-out preview identity
+  only — `bsMyName`/profile fallbacks, `@quinn.harper` handle, demo email; the
+  stock demo face follows the new name automatically). The "Alex Rivera" demo
+  *client* in the coach rosters/calendars is intentionally untouched.
+
 ### 2026-06-09 — Nora has a real avatar (mobile + website)
 - The uploaded Nora photo (`public/NORA 1.png`, the android-concierge render) is now
   **`public/nora-avatar.png`** (web-safe name) + a copy at

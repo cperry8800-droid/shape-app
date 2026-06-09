@@ -869,8 +869,10 @@ function ChatWidget(props) {
               const isPrivate = !!(profLive && profLive.is_public === false);
               const points = (profLive && Number.isFinite(profLive.points)) ? profLive.points : null;
               const isCoach = profileFor.coach;
+              // Nora is staff, not a member — no tier/score/full-profile, concierge card instead.
+              const isNora = !profileFor.userId && String(profileFor.who || "").trim() === "Nora";
               const tier = points != null ? cwTierForPoints(points, isCoach) : (profileFor.tier || cwHashTier(profileFor.who, isCoach));
-              const tc = cwTierColor(tier);
+              const tc = isNora ? TEAL_BRIGHT : cwTierColor(tier);
               const roleLabel = isCoach ? (/nutrition/i.test(profileFor.role || "") ? "Nutritionist" : "Trainer") : "Client";
               const first = String(profileFor.who).split(" ")[0] || "This member";
               const pronouns = !isPrivate && profLive && profLive.pronouns;
@@ -879,7 +881,9 @@ function ChatWidget(props) {
               const followers = profFollow && Number.isFinite(profFollow.followers) ? profFollow.followers : null;
               const following = profFollow && Number.isFinite(profFollow.following) ? profFollow.following : null;
               const handle = "@" + String(profileFor.who).toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18);
-              const bio = isPrivate ? null : ((profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`);
+              const bio = isNora
+                ? "Nora is Shape's concierge — the assistant built into the app. Ask her about finding a coach, billing, integrations, your plan or your account; she brings in the human Shape team whenever she can't sort something herself."
+                : (isPrivate ? null : ((profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`));
               // Full-profile link → the SAME person shown here. Real accounts load
               // by id; for demo people we pass the name + role + this card's points
               // and avatar so the full page matches (same tier + photo, not a re-derive).
@@ -909,15 +913,15 @@ function ChatWidget(props) {
                 <div style={{ position: "absolute", inset: 0, zIndex: 12, background: "#1a1612", display: "flex", flexDirection: "column", overflowY: "auto" }}>
                   <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
                     <button onClick={() => setProfileFor(null)} style={{ background: "transparent", border: 0, color: TEAL_BRIGHT, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em" }}>← BACK</button>
-                    <a href={fullProfileHref}
-                      style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>
+                    {!isNora && <a href={fullProfileHref}
+                      style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>}
                   </div>
                   <div style={{ padding: 18 }}>
                     <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
-                      <CwFacetAvatar size={64} c={tc} initial={cwInitials(profileFor.who)} photo={(profLive && profLive.avatar) || (profileFor && !profileFor.userId ? cwDemoFace(profileFor.who) : undefined)} live={!!((profileFor && profileFor.online) || (window.ShapeWebPresence && profileFor && window.ShapeWebPresence.isOnline(profileFor.userId)))} />
+                      <CwFacetAvatar size={64} c={tc} initial={cwInitials(profileFor.who)} photo={(profLive && profLive.avatar) || (profileFor && !profileFor.userId ? cwDemoFace(profileFor.who) : undefined)} live={isNora || !!((profileFor && profileFor.online) || (window.ShapeWebPresence && profileFor && window.ShapeWebPresence.isOnline(profileFor.userId)))} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
-                          <span style={{ color: tc }}>{tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{roleLabel}</span>
+                          <span style={{ color: tc }}>{isNora ? "Always online" : tier}</span><span style={{ color: "rgba(242,237,228,0.4)" }}>·</span><span style={{ color: "rgba(242,237,228,0.55)" }}>{isNora ? "Shape's Concierge" : roleLabel}</span>
                         </div>
                         <div style={{ marginTop: 5, fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1, color: INK }}>{profileFor.who}</div>
                         <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>{handle}</div>
@@ -930,9 +934,19 @@ function ChatWidget(props) {
                       </div>
                     </div>
                     <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-                      <Stat label="Tier" value={tier} color={tc} />
-                      <Stat label="Shape Score" value={points != null ? points.toLocaleString() + " pts" : "—"} />
-                      <Stat label="Role" value={roleLabel} />
+                      {isNora ? (
+                        <React.Fragment>
+                          <Stat label="Status" value="Online" color={tc} />
+                          <Stat label="Replies" value="Instantly" />
+                          <Stat label="Escalates to" value="Shape team" />
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment>
+                          <Stat label="Tier" value={tier} color={tc} />
+                          <Stat label="Shape Score" value={points != null ? points.toLocaleString() + " pts" : "—"} />
+                          <Stat label="Role" value={roleLabel} />
+                        </React.Fragment>
+                      )}
                     </div>
                     {isPrivate ? (
                       <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.03)", padding: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -942,6 +956,12 @@ function ChatWidget(props) {
                     ) : (
                       <React.Fragment>
                         <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: 16, fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{bio}</div>
+                        {isNora && (
+                          <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "4px 16px 12px" }}>
+                            <Row label="Helps with" value="Finding a coach · billing · integrations · your plan & account" />
+                            <Row label="Can't sort it?" value="She flags it for the human Shape team to follow up." />
+                          </div>
+                        )}
                         {(pronouns || goal || link) && (
                           <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(242,237,228,0.1)", background: "rgba(242,237,228,0.03)", padding: "4px 16px 12px" }}>
                             {pronouns && <Row label="Pronouns" value={pronouns} />}
