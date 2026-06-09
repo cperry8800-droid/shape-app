@@ -325,7 +325,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     store:   storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('home')} onOpenScore={() => setStoreView('score')} />,
-    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
+    me:      <BSClientMe       onProfile={goSettings} onLogout={onLogout} onIntegrations={goIntegrations} goMarket={goMarket} goRadio={goRadio} goChat={goChat} goHome={() => setTab('home')} sheet={sheet} tweaks={tweaks} setTweak={setTweak} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }} data-identity-version={identityVersion}>
@@ -6381,7 +6381,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 22, paddingBottom: 18, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
         {statBtn(stats.followers, 'Followers', 'followers')}
         {statBtn(stats.following, 'Following', 'following')}
@@ -6959,7 +6959,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
 function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
   const MONO = "'JetBrains Mono', monospace";
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: '0 0 22px', padding: '8px 0', background: BG }}>
+    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: '0 0 14px', padding: '6px 0', background: BG }}>
       <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 999, padding: 4 }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 6px', borderRadius: 999, border: 0, cursor: 'pointer',
@@ -6971,7 +6971,7 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
   );
 }
 
-function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, extra = null }) {
+function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {} }) {
   const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
@@ -7283,10 +7283,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
       {/* back + your-avatar/settings corner (top-right, matches the rest of the app) */}
-      <div style={{ padding: '48px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        {meMode
-          ? <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>You</div>
-          : <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>}
+      <div style={{ padding: '44px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
         {isSelf
           ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
@@ -7301,9 +7299,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           : <BSMeCorner size={30} />}
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
-      <div style={{ padding: '14px 18px 0' }}>
+      <div style={{ padding: '10px 18px 0' }}>
         {(() => {
-          const W = 330, H = 220;
+          const W = 330, H = 178;
           const base = [10, H - 26], peak = [W - 26, 34];
           const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 40}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
           // Clamp the you-are-here marker so it tracks progress but never climbs
@@ -7339,19 +7337,19 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
             <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA('#0c1110', 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
-            <div style={{ padding: 16, borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <h1 style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
-                <div style={{ fontFamily: MONO, fontSize: 10.5, color: bsTHexA(INK, 0.55), marginTop: 7 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
+                <h1 style={{ fontFamily: SERIF, fontSize: 26, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.55), marginTop: 5 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
               </div>
-              <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7 }}>
-                <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '5px 11px', whiteSpace: 'nowrap' }}><span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
+              <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}><span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
               </div>
             </div>
             {/* coached-by band */}
-            <div style={{ padding: '0 16px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 13, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
+            <div style={{ padding: '0 14px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 12, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{blockEff}</div>
                   <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
@@ -7368,7 +7366,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         })()}
       </div>
 
-      <div style={{ flex: 1, padding: '24px 22px 28px' }}>
+      <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} />
         {isPrivate ? (
           <div style={{ ...card, padding: '18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -7379,9 +7377,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           <>
             <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
+              { key: 'stats', label: 'Stats' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
             ]} />
+            {tab === 'stats' && (
+              <div style={{ marginBottom: 22 }}>
+                <BSScoreCardDark points={points} tierKey={tierKey} tierName={tierName} c={c} onOpen={isSelf ? onOpenProgress : undefined} />
+                {isSelf && <BSMeGoalCard c={c} />}
+                {isSelf && <BSMeKpis onOpen={onOpenProgress} embedded />}
+                {!isSelf && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
+              </div>
+            )}
             {tab === 'climb' && (<>
             {/* THE CLIMB — start → now → summit ridgeline (the goal at the top) */}
             <div style={{ marginBottom: 28 }}>
@@ -7514,7 +7521,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         )}
       </div>
 
-      {extra}
       {meMode && <div style={{ height: 92, flex: '0 0 auto' }} />}
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
@@ -11367,10 +11373,89 @@ function BSClientGoals({ onBack }) {
   );
 }
 
+// Shape Score card for the living profile (dark surface) — tier ring (% to next
+// tier), tier name, total points, and the 4 category strata. Public (everyone
+// sees their score); tap opens the full progress hub when self.
+function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
+  const INK = '#f2ede4', TEAL = '#34d6c5';
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
+  const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
+  const pts = points != null ? points : 1284;
+  let i = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) i = k;
+  const cur = TH[i], next = TH[i + 1] || null;
+  const pct = next ? Math.max(0.03, Math.min(1, (pts - cur[1]) / (next[1] - cur[1]))) : 1;
+  const toNext = next ? next[1] - pts : 0;
+  const RAD = 30, CIRC = 2 * Math.PI * RAD;
+  const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+  return (
+    <div onClick={onOpen} style={{ borderRadius: 16, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: 14, marginBottom: 14, cursor: onOpen ? 'pointer' : 'default' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</div>
+          <div style={{ marginTop: 3, fontFamily: SERIF, fontSize: 24, fontStyle: 'italic', letterSpacing: '-0.02em', color: c, lineHeight: 1 }}>{tierName}</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, marginTop: 7 }}>
+            <span style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9, color: INK }}>{pts.toLocaleString()}</span>
+            <span style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.45), marginBottom: 4, letterSpacing: '0.06em' }}>pts</span>
+          </div>
+          <div style={{ marginTop: 6, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{next ? `${toNext.toLocaleString()} to ${next[0]}` : 'Top of the ladder'}</div>
+        </div>
+        <svg width="66" height="66" viewBox="0 0 84 84" style={{ flexShrink: 0 }}>
+          <circle cx="42" cy="42" r={RAD} fill="none" stroke={bsTHexA(INK, 0.1)} strokeWidth="6" />
+          <circle cx="42" cy="42" r={RAD} fill="none" stroke={c} strokeWidth="6" strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct)} transform="rotate(-90 42 42)" />
+          <text x="42" y="43" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: SERIF, fontSize: '17px', fill: INK }}>{Math.round(pct * 100)}%</text>
+        </svg>
+      </div>
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {cats.map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+            <div style={{ width: 80, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
+            <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
+            <div style={{ width: 22, textAlign: 'right', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Featured goal card on the Me profile (self only) — your top body-comp goal
+// from user_goals('client_goals'). Personal numbers stay off the public profile.
+function BSMeGoalCard({ c }) {
+  const INK = '#f2ede4', TEAL = '#34d6c5';
+  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
+  const [g, setG] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d && d.overall) setG(d.overall); } catch (e) {} })();
+    return () => { on = false; };
+  }, []);
+  const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
+  const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
+  const range = start - target;
+  const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
+  const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+  const byD = ov.by ? new Date(ov.by) : null;
+  const dateLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : null;
+  const words = String(ov.title || 'Your goal').trim().split(/\s+/);
+  const last = words.length ? words.pop() : '';
+  const head = words.join(' ');
+  return (
+    <div style={{ borderRadius: 16, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, background: bsTHexA(TEAL, 0.06), padding: '14px 16px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}</span>
+        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
+      </div>
+      <div style={{ marginTop: 6, fontFamily: SERIF, fontSize: 23, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
+      <div style={{ marginTop: 11, height: 6, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
+      <div style={{ marginTop: 9, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
+    </div>
+  );
+}
+
 // Inline training/nutrition KPI summary on the Me profile — a compact strip of
 // real numbers (ShapeProgress) with demo fallback; taps into the full progress
 // hub. Keeps Me about "you + your numbers" without the full hub inline.
-function BSMeKpis({ onOpen = () => {} }) {
+function BSMeKpis({ onOpen = () => {}, embedded = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [d, setD] = useStateBSC(null);
@@ -11405,7 +11490,7 @@ function BSMeKpis({ onOpen = () => {} }) {
     { l: 'Sleep', v: sleep != null ? `${sleep}h` : '7.4h', c: '#8a5cf6' },
   ];
   return (
-    <div style={{ padding: `8px 18px 4px` }}>
+    <div style={{ padding: embedded ? '6px 0 2px' : '8px 18px 4px' }}>
       <button onClick={onOpen} style={{ width: '100%', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', background: 'transparent', border: 0, cursor: 'pointer', padding: '0 0 10px' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA('#f2ede4', 0.5), fontWeight: 700 }}>Your progress</span>
         <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Full stats →</span>
@@ -11440,9 +11525,9 @@ function BSClientMe(props) {
       person={person}
       isSelf
       meMode
-      onBack={() => {}}
+      onBack={props.goHome || (() => {})}
       onOpenSettings={() => setView('hub')}
-      extra={<BSMeKpis onOpen={() => setShowProgress(true)} />}
+      onOpenProgress={() => setShowProgress(true)}
     />
   );
 }
