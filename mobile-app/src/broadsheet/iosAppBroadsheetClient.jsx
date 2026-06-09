@@ -6489,8 +6489,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
         {streak ? <><span style={{ color: bsTHexA(INK, 0.4) }}>·</span><span style={{ color: '#c0533b' }}>{streak} week streak</span></> : null}
       </div>
       <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
-      <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
-        {(handle || goal) ? <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>{handle || ''}{handle && goal ? ' · ' : ''}{goal || ''}</span> : null}
+      <div style={{ marginTop: 8 }}>
         <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} />
       </div>
     </div>
