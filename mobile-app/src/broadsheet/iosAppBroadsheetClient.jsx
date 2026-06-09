@@ -6310,8 +6310,8 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
     <button onClick={() => openList(kind)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
-      <span style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: INK, letterSpacing: '-0.02em' }}>{n}</span>
-      <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginLeft: 6 }}>{label}</span>
+      <span style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: INK, letterSpacing: '-0.02em' }}>{n}</span>
+      <span style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginLeft: 6 }}>{label}</span>
     </button>
   );
   return (
