@@ -231,9 +231,13 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
             ? <button onClick={() => { if (coachingHref) window.location.href = coachingHref; }} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${dHexA(LV_INK, 0.22)}`, background: "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>View coaching</button>
             : (!follow || follow.canFollow !== false) && (() => { const on = follow && (follow.isFollowing || follow.isPending); return <button onClick={onFollow} style={{ height: 50, padding: "0 26px", borderRadius: 14, border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.22)}`, background: on ? dHexA(LV_TEAL, 0.12) : "transparent", color: LV_INK, fontFamily: dSans, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{follow && follow.isFollowing ? "Following ✓" : follow && follow.isPending ? "Requested" : "Follow"}</button>; })())}
         </div>
-        {/* followers / following — always public, live links */}
+        {/* posts / followers / following — always public, live links */}
         {follow && (
-          <div style={{ display: "flex", gap: 26, marginTop: 22, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 26, marginTop: 22, alignItems: "baseline" }}>
+            <button onClick={() => follow.openPosts && follow.openPosts()} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
+              <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.posts != null ? follow.posts : 0}</span>
+              <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Posts</span>
+            </button>
             <button onClick={() => follow.openList && follow.openList("followers")} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", textAlign: "left" }}>
               <span style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.02em" }}>{follow.followers}</span>
               <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginLeft: 7 }}>Followers</span>
@@ -855,6 +859,13 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   const coach = d.role !== "client";
   // Personal activities lead — the profile opens on Activity (mirrors mobile).
   const [tab, setTab] = React.useState("activity");
+  // Posts stat → jump to the Activity tab/section (the posts live there).
+  const followWired = follow ? Object.assign({}, follow, {
+    openPosts: () => {
+      setTab("activity");
+      setTimeout(() => { try { const el = document.getElementById("dk-activity"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }, 60);
+    },
+  }) : follow;
 
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: LV_BG, color: LV_INK, fontFamily: dSans, overflow: "hidden" }}>
@@ -869,12 +880,12 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
           <DesktopLocked d={d} follow={follow} onMessage={onMessage} onFollow={onFollow} coachingHref={coachingHref} />
         ) : (
           <React.Fragment>
-            <DesktopHero d={d} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={follow} coachingHref={coachingHref} />
+            <DesktopHero d={d} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
             <DesktopTabs direction={direction} tab={tab} setTab={setTab} c={c} />
 
             {/* Activity — personal activities lead */}
             {tab === "activity" && (
-              <section style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
+              <section id="dk-activity" style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
                 <ProfileExtras d={d} owner={owner} />
                 <FeedBlock d={d} direction={direction} owner={owner} />
               </section>

@@ -6381,7 +6381,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -6396,6 +6396,16 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const [busy, setBusy] = useStateBSC(false);
   const [sheet, setSheet] = useStateBSC(null); // 'followers' | 'following' | 'requests'
   const [reqCount, setReqCount] = useStateBSC(0); // pending requests (self only)
+  // Posts = the person's visible activity-post count (RLS-scoped). Demo people
+  // get a stable name-derived count so the stat shows on every profile.
+  const [postCount, setPostCount] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!uid || !window.ShapeCommunity?.countByAuthor) return;
+    let alive = true;
+    window.ShapeCommunity.countByAuthor(uid).then((n) => { if (alive && n != null) setPostCount(n); }).catch(() => {});
+    return () => { alive = false; };
+  }, [uid]);
+  const postsShown = postCount != null ? postCount : (demo ? (() => { let n = 0; const s = String(name || 'Shape'); for (let i = 0; i < s.length; i++) n = (n * 29 + s.charCodeAt(i)) >>> 0; return 6 + (n % 120); })() : 0);
   React.useEffect(() => {
     if (!uid || !window.ShapeFollows?.stats) return;
     let alive = true;
@@ -6441,16 +6451,17 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   };
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
-  const statBtn = (n, label, kind) => (
-    <button onClick={() => openList(kind)} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+  const statBtn = (n, label, onTap) => (
+    <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
       <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
     </button>
   );
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: center ? 'center' : 'flex-start', gap: center ? 24 : 14, marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
-      {statBtn(stats.followers, 'Followers', 'followers')}
-      {statBtn(stats.following, 'Following', 'following')}
+      {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
+      {statBtn(stats.followers, 'Followers', () => openList('followers'))}
+      {statBtn(stats.following, 'Following', () => openList('following'))}
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
           flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer',
@@ -6480,7 +6491,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // the hero's climb as the you-are-here marker); just the type column, full
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
-function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false }) {
+function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif";
   return (
     <div style={{ paddingBottom: 13, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
@@ -6490,7 +6501,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
       </div>
       <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
       <div style={{ marginTop: 8 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} />
+        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} />
       </div>
     </div>
   );
@@ -7641,7 +7652,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       <div style={{ margin: '16px 18px 0', paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
           photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)}
-          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} />
+          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={() => setTab('activity')} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
@@ -8194,7 +8205,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ marginTop: 18 }}>
           <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
             ownerPhoto={photo || (live && live.avatar) || (isSelf ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)}
-            onOpenProfile={setReviewerProfile} />
+            onOpenProfile={setReviewerProfile} onOpenPosts={() => setTab('activity')} />
         </div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}

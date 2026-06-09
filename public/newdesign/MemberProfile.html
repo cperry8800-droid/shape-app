@@ -42,7 +42,7 @@
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
-<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=19"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=20"></script>
 <script type="text/babel" data-presets="react">
 // Live wiring — the desktop Terrain (member) / Signal (coach) profile, fed by
 // get_public_profile + the follow graph. Rich sub-data stays illustrative
@@ -62,6 +62,7 @@ function LiveProfilePage() {
   const [sheet, setSheet] = React.useState(null);
   const [list, setList] = React.useState(null);
   const [avatars, setAvatars] = React.useState({}); // userId -> profile photo
+  const [posts, setPosts] = React.useState(null); // visible activity-post count (Posts stat)
   const [group, setGroup] = React.useState("all"); // all | coaches | members
   const [query, setQuery] = React.useState(""); // search people
   const [reqs, setReqs] = React.useState(null); // pending follow requests, inline on my own followers list
@@ -81,7 +82,15 @@ function LiveProfilePage() {
       const qname = params.get("name");
       // A named person without a real account (e.g. a demo chat contact) → render
       // a derived public profile (same idea as the mobile app), not a redirect.
-      if (qname && !qid) { if (on) setSt({ loading: false, status: "derived", derived: { name: qname, role: params.get("role") || "client", pts: Number(params.get("pts")) || null, avatar: params.get("avatar") || "" } }); return; }
+      if (qname && !qid) {
+        if (on) {
+          setSt({ loading: false, status: "derived", derived: { name: qname, role: params.get("role") || "client", pts: Number(params.get("pts")) || null, avatar: params.get("avatar") || "" } });
+          // Stable name-derived demo posts count (mirrors mobile preview).
+          let h = 0; for (let i = 0; i < qname.length; i++) h = (h * 29 + qname.charCodeAt(i)) >>> 0;
+          setPosts(6 + (h % 120));
+        }
+        return;
+      }
       let me = null; try { const r = await c.auth.getUser(); me = r && r.data ? r.data.user : null; } catch (e) {}
       const uid = qid || (me && me.id);
       if (!uid) { if (on) setSt({ loading: false, status: "signin" }); return; }
@@ -91,6 +100,8 @@ function LiveProfilePage() {
       setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid });
       c.rpc("get_follow_stats", { p_user_id: uid }).then((r) => { if (!on || !r || r.error) return; applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
+      // Posts stat — visible activity-post count (RLS-scoped to the viewer).
+      try { c.from("community_posts").select("id", { count: "exact", head: true }).eq("author_id", uid).then((r) => { if (on && r && !r.error && r.count != null) setPosts(r.count); }); } catch (e) {}
     })();
     return () => { on = false; };
   }, []);
@@ -204,7 +215,7 @@ function LiveProfilePage() {
     custom: (!isPrivate && row.custom) || null,
   });
   const variant = (isPrivate && !st.isSelf) ? "locked" : (st.isSelf ? "own" : "public");
-  const followProps = Object.assign({}, follow, { openList, requests: reqCount, openRequests: () => openList("requests"), canFollow: !!(st.uid && !st.isSelf) });
+  const followProps = Object.assign({}, follow, { posts: posts != null ? posts : 0, openList, requests: reqCount, openRequests: () => openList("requests"), canFollow: !!(st.uid && !st.isSelf) });
 
   // Followers / following sheet helpers — Coaches / Clients-or-Members tabs +
   // the follow-back box on my own followers list.

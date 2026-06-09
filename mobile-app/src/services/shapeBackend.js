@@ -3321,9 +3321,19 @@ async function listCommunityPostsByAuthor(authorId, { withPhotoOnly = false } = 
   return { stored: 'supabase', data: (data || []).map(communityPostFromRow) };
 }
 
+// Visible-post count for a profile's "Posts" stat (RLS-scoped, so it matches
+// what the viewer can actually see on that person's activity feed).
+async function countCommunityPostsByAuthor(authorId) {
+  if (!supabase || !authorId) return null;
+  const { count, error } = await supabase.from('community_posts').select('id', { count: 'exact', head: true }).eq('author_id', authorId);
+  if (error) return null;
+  return count ?? 0;
+}
+
 window.ShapeCommunity = {
   listPosts: listCommunityPosts,
   listByAuthor: listCommunityPostsByAuthor,
+  countByAuthor: countCommunityPostsByAuthor,
   createPost: createCommunityPost,
   uploadPhoto: uploadCommunityPhoto,
   toggleLike: toggleCommunityLike,
