@@ -926,6 +926,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
+  const [showAppearance, setShowAppearance] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
   const [showReviews, setShowReviews] = useStateBSP(false);
   const [showHabits, setShowHabits] = useStateBSP(false);
@@ -983,7 +984,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openProSettings', onSettingsEvt);
     return () => window.removeEventListener('shape:openProSettings', onSettingsEvt);
   }, []);
-  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  if (showAppearance) return <BSSettings onBack={() => setShowAppearance(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  if (showSettings) return <BSProMe role="trainer" name="Jordan Chen" onLogout={onLogout} onRadio={goRadio} onBack={() => setShowSettings(false)} onAppearance={() => { setShowSettings(false); setShowAppearance(true); }} onSettings={() => { setShowSettings(false); setShowAppearance(true); }} />;
   if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => setShowReviews(false)} />;
   if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
@@ -999,7 +1001,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('today')} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSProMe role="trainer" name="Jordan Chen" onLogout={onLogout} onSettings={goSettings} onRadio={goRadio} />,
+    me:       <BSPublicProfile person={{ who: 'Jordan Chen', kind: 'TRAINER', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onBack={() => setTab('today')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -3169,6 +3171,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
+  const [showAppearance, setShowAppearance] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
   const [showReviews, setShowReviews] = useStateBSP(false);
   const [showHabits, setShowHabits] = useStateBSP(false);
@@ -3219,7 +3222,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openProSettings', onSettingsEvt);
     return () => window.removeEventListener('shape:openProSettings', onSettingsEvt);
   }, []);
-  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  if (showAppearance) return <BSSettings onBack={() => setShowAppearance(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
+  if (showSettings) return <BSProMe role="nutritionist" name="Dr. Maya Patel" onLogout={onLogout} onRadio={goRadio} onBack={() => setShowSettings(false)} onAppearance={() => { setShowSettings(false); setShowAppearance(true); }} onSettings={() => { setShowSettings(false); setShowAppearance(true); }} />;
   if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => setShowReviews(false)} />;
   if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
@@ -3234,7 +3238,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     store:    storeView === 'score'
       ? <BSShapeScorePage profile={scoreProfile} onBack={() => setStoreView('store')} onOpenStore={() => setStoreView('store')} />
       : <BSShapeStorePage profile={scoreProfile} onBack={() => setTab('today')} onOpenScore={() => setStoreView('score')} />,
-    me:       <BSProMe role="nutritionist" name="Dr. Maya Patel" onLogout={onLogout} onSettings={goSettings} onRadio={goRadio} />,
+    me:       <BSPublicProfile person={{ who: 'Dr. Maya Patel', kind: 'NUTRI', init: bsMyInitials(), userId: (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined }} isSelf meMode onOpenSettings={goSettings} onBack={() => setTab('today')} />,
   };
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
@@ -4221,7 +4225,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   );
 }
 
-function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {} }) {
+function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => {}, onBack = null, onAppearance = () => {} }) {
   const t = useBS();
   const isCoach = role === 'trainer';
   const accent = isCoach ? t.RUST : '#a07a2e';   // trainer rust · nutritionist gold
@@ -4283,7 +4287,10 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
 
   return (
     <BSPage>
-      <div style={{ padding: `60px ${t.padX}px 0` }}>
+      <div style={{ padding: `${onBack ? 54 : 60}px ${t.padX}px 0` }}>
+        {onBack && (
+          <button onClick={onBack} style={{ marginBottom: 14, background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>← Profile</button>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
@@ -4415,6 +4422,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           { l: 'Shape Store', sub: `${(scoreProfile.available || 0).toLocaleString()} pts available`, r: '→', onClick: () => setShowStore(true) },
         ];
         const settings = [
+          { l: 'Appearance & display', sub: 'Paper · accent · units · text weight', r: '→', onClick: onAppearance },
           { l: 'Notifications', sub: 'Sessions · messages · plans', r: '→', onClick: () => setShowNotifications(true) },
           { l: 'Certifications', sub: isCoach ? 'NASM · FMS · CSCS' : 'RDN · CSSD', r: '→', onClick: onSettings },
           { l: 'App tour', sub: 'Replay the quick walkthrough', r: '→', onClick: () => { try { window.dispatchEvent(new Event('shape:startTour')); } catch (e) {} } },

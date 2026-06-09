@@ -7613,7 +7613,7 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
   );
 }
 
-function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
+function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {} }) {
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
@@ -7656,7 +7656,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
   const tierName = bsCoachTier(baseTier);
   const c = bsTierColor(String(tierName).toLowerCase());
-  const name = person.who || (isNutri ? 'Nutritionist' : 'Coach');
+  const name = (isSelf && typeof bsMyName === 'function' && bsMyName()) || person.who || (isNutri ? 'Nutritionist' : 'Coach');
   const first = name.split(' ')[0];
   const city = person.city || 'Shape community';
   const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -7779,13 +7779,37 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
       {isSelf && <input ref={fileRef} type="file" accept="image/*" onChange={onPick} style={{ display: 'none' }} />}
-      <div style={{ flex: 1, padding: '46px 22px 28px', position: 'relative' }}>
+      <div style={{ flex: 1, padding: meMode ? '46px 22px 112px' : '46px 22px 28px', position: 'relative' }}>
         {custom && custom.cover && custom.cover.image && (
           <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 320, zIndex: -1, pointerEvents: 'none' }}>
             <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
             <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.35)}, ${bsTHexA(BG, 0.55)} 58%, ${BG})` }} />
           </div>
         )}
+        {meMode ? (
+          /* Me masthead — matches the client: logo + Vol·No, then ME / Profile.,
+             with edit pencil + settings gear top-right; no back (root tab). */
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {BSLogo && <BSLogo size={16} color={INK} />}
+                <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </button>
+                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: 14, marginBottom: 4 }}>
+              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>Me</div>
+              <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, margin: '6px 0 0', lineHeight: 1 }}>Profile<span style={{ color: c }}>.</span></h1>
+            </div>
+          </>
+        ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -7800,6 +7824,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               : <BSMeCorner size={30} />}
           </div>
         </div>
+        )}
 
         <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} /></div>
 
@@ -8009,11 +8034,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 // respects privacy — only reachable when the post isn't marked private.)
 // Member (client) profiles use the Terrain design; coaches use the Signal
 // design; both are immersive living-identity pages (above).
-function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
+function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {} }) {
   if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
-    return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
+    return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} />;
   }
-  return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} />;
+  return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} />;
 }
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {

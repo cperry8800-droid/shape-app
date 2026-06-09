@@ -64,6 +64,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Coach Me page is profile-first (parity with client) + consolidated coach settings
+- **Coach Me tab = the living Signal profile** (profile-first), mirroring the client's
+  Terrain Me page. `BSSignalCoachProfile` gained `meMode` + `onOpenSettings`: a "ME /
+  Profile." masthead (logo + Vol·No, edit pencil + settings gear, no back) and the real
+  self name (`bsMyName`) / tier (live via the signed-in `userId`). `BSPublicProfile`
+  forwards `meMode`/`onOpenSettings`. Both coach shells now render the profile in the Me
+  tab instead of the old `BSProMe` hub; a `meMode` bottom-pad clears the tab bar.
+- **Consolidated coach settings** (per the chosen option — practice shortcuts live in
+  Settings): the gear opens the existing `BSProMe` hub as the settings screen (back →
+  profile), which already holds every practice shortcut (Marketplace listing · Public
+  profile · Payouts · Availability · Rates · Soundtracks · Radio · Store) + account rows
+  (Notifications · Certifications · App tour · Help · Terms · Sign out). Added an
+  **Appearance & display** row → the shared `BSSettings` (paper · accent · units · text
+  weight), so nothing was lost. `shape:openProSettings` + the chat/home avatar still open
+  the settings hub.
+
 ### 2026-06-09 — Appearance settings persist per account (survive reload + login) + Steel bolder + 4 papers
 - **Appearance tweaks now persist** (`iosAppBroadsheetMain.jsx` `BSApp`, the live root —
   applies to **all** profiles: client/coach/radio). Before, `paperMode/accentKey/texture/
