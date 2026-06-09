@@ -64,6 +64,26 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Shape Sets page (mobile) + Train deck follows coach Adjust + Goal plans/targets live + feed proof cards
+- **Shape Sets (mobile Radio → editorial "about Shape Radio" page).** New `BSShapeSetsScreen`
+  in `iosAppBroadsheetRadio.jsx`, reached from a **"Shape Sets · About →"** row at the top of
+  the Radio screen's below-fold panel (`showSets` state → early return). Mirrors the website
+  Shape Radio page copy (Club Shape concert series · "Residents who train. Sets that land." ·
+  "Your coach picks the soundtrack" + the Maya/Rae/Diego example cards · the social-loop note)
+  and sits on the **Club Shape venue background** — copied the website's `radio background
+  upscale.jpg` into `mobile-app/public/club-shape-bg.jpg` (served at `/m/club-shape-bg.jpg`),
+  fixed + scrimmed under glassy cards. Mobile-only.
+- **Train deck follows coach Adjust** (`bsApplyTrainAdjust` in `bsClientWeekDemo.js`): applies
+  `client_programs.detail.training` onto the per-day deck — intensity scales loads + shown RPE,
+  the weekly split re-themes days + sets coach rest days, the note rides onto the day; the live
+  session + preview inherit the scaled moves. A coach focus/intensity chip shows on the Train hero.
+- **Goal Overall "Your plans" + "This week targets" wired** (mobile + website): plans from the
+  assigned plan + coach detail + program phase; weekly targets (Sessions/Protein days/Sleep/7d
+  volume) from the ShapeProgress rollups. Demo fallback when signed-out.
+- **Community feed activity "proof cards" wired** (`bsActivityFromPost`): the COMMUNITY feed
+  builds Strava-style cards from real workout/run posts (composer workoutStats + sensor stats +
+  GPS route) with live tier + avatar; demo cards are the signed-out / no-activity-yet fallback.
+
 ### 2026-06-09 — Website goal page ⇄ mobile parity (Overall dashboard ported) + storage unified
 - **Mobile redesign ported to the website** (`public/newdesign/ClientGoal.html`). The site
   goal page was a flat goal-card list (Training/Nutrition tabs only); mobile had the richer,
