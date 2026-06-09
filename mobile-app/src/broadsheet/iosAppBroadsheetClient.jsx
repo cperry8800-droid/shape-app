@@ -112,11 +112,41 @@ function useBSPresence() {
   return v;
 }
 
-// Top-right profile avatar for sub-pages — taps through to Settings/profile via
-// a window event (handled in BSClientAppInner), so a page needn't thread an
-// onProfile prop. Drop it into a page's back-button row, right-aligned.
+// Monochrome ⌕ — opens the universal search screen via a window event
+// (handled in BSClientAppInner / the coach shells), so any header can drop it
+// in without prop-threading. Always sits to the LEFT of the profile avatar.
+function BSSearchCorner({ size = 34 }) {
+  const t = useBS();
+  const g = Math.max(13, Math.round(size * 0.44));
+  return (
+    <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openSearch')); } catch (e) {} }} aria-label="Search Shape"
+      style={{ width: size, height: size, flexShrink: 0, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+      <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
+    </button>
+  );
+}
+
+// Header tool cluster — universal search + the profile avatar. Used as the
+// `trailing` of every main page header.
+function BSHeaderTools({ onProfile, size = 34 }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      <BSSearchCorner size={size} />
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
+    </span>
+  );
+}
+
+// Top-right tools for sub-pages — search + the profile avatar (taps through to
+// Settings/profile via a window event, handled in BSClientAppInner), so a page
+// needn't thread props. Drop it into a page's back-button row, right-aligned.
 function BSMeCorner({ size = 30 }) {
-  return <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />;
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <BSSearchCorner size={size} />
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+    </span>
+  );
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
@@ -261,6 +291,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);
 
+  // Universal search — the ⌕ in every header opens it (no prop-threading).
+  const [showSearch, setShowSearch] = useStateBSC(false);
+  React.useEffect(() => {
+    const open = () => setShowSearch(true);
+    window.addEventListener('shape:openSearch', open);
+    return () => window.removeEventListener('shape:openSearch', open);
+  }, []);
+
   // Hydrate the global identity cache (custom avatar initials / accent / name) and
   // the Shape Score tier at startup, so every avatar — header + feed — reflects the
   // right initials + tier color before the Me page is ever opened.
@@ -386,6 +424,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         ]}
       />
       <BSRadioPrompt />
+      {showSearch && <BSUniversalSearch onClose={() => setShowSearch(false)} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
   );
@@ -2067,7 +2106,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
+        trailing={<BSHeaderTools onProfile={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
         noTopRule
@@ -3201,7 +3240,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSPageHeader
         kicker={`${bsTrainProgram.trainingPhase || 'Build'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
+        trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
@@ -4138,7 +4177,7 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
   );
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
         <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
@@ -5580,7 +5619,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <BSPageHeader
         kicker={`${bsEatProgram.nutritionPhase || 'Cut'} · Week ${bsProgramWeek()}`}
         title={cur.title}
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
+        trailing={<BSHeaderTools onProfile={onProfile} />}
       />
 
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
@@ -7653,6 +7692,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
           {isSelf
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <BSSearchCorner size={30} />
                 <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
@@ -8209,6 +8249,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
               ? <>
+                  <BSSearchCorner size={30} />
                   <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
@@ -8430,6 +8471,153 @@ function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false,
     return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
   return <BSTerrainProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
+}
+
+// ── Universal search — find anyone on Shape ──────────────────────────────────
+// Opened from the ⌕ in every header (`shape:openSearch`). Live typeahead over
+// every account (search_shape_people RPC — members + coaches, photo + tier),
+// recent searches (localStorage), role filter chips, and the demo cast as the
+// signed-out fallback. Tapping a person opens their living public profile.
+const BS_RECENT_SEARCH_KEY = 'shape.recentSearch';
+function bsRecentSearchRead() { try { const a = JSON.parse(localStorage.getItem(BS_RECENT_SEARCH_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function bsRecentSearchPush(p) {
+  try {
+    const a = bsRecentSearchRead().filter(x => (x.userId || x.name) !== (p.userId || p.name));
+    a.unshift(p);
+    localStorage.setItem(BS_RECENT_SEARCH_KEY, JSON.stringify(a.slice(0, 8)));
+  } catch (e) {}
+}
+function BSUniversalSearch({ onClose }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [q, setQ] = useStateBSC('');
+  const [filter, setFilter] = useStateBSC('all'); // all | members | coaches
+  const [rows, setRows] = useStateBSC(null);
+  const [busy, setBusy] = useStateBSC(false);
+  const [recents, setRecents] = useStateBSC(bsRecentSearchRead);
+  const [suggested, setSuggested] = useStateBSC([]);
+  const [viewPerson, setViewPerson] = useStateBSC(null);
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { const id = setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 80); return () => clearTimeout(id); }, []);
+
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const demoPeople = React.useMemo(() => [
+    { name: 'Jordan Chen', role: 'trainer' }, { name: 'Dr. Maya Patel', role: 'nutritionist' },
+    ...BS_FOLLOW_DEMO_NAMES.map(n => ({ name: n, role: 'client' })),
+  ].map(p => ({ ...p, userId: null, avatar: bsDemoFace(p.name), points: null, demo: true })), []);
+
+  // Suggested people for the empty state — real accounts when signed in, the demo cast otherwise.
+  React.useEffect(() => {
+    let dead = false;
+    if (signedIn && window.ShapeSearch) {
+      window.ShapeSearch.people('', 8).then(r => { if (!dead && Array.isArray(r) && r.length) setSuggested(r); else if (!dead) setSuggested(demoPeople.slice(0, 8)); }).catch(() => { if (!dead) setSuggested(demoPeople.slice(0, 8)); });
+    } else setSuggested(demoPeople.slice(0, 8));
+    return () => { dead = true; };
+  }, []);
+
+  // Live typeahead — debounced 250ms; demo cast is the signed-out / error fallback.
+  React.useEffect(() => {
+    const query = q.trim();
+    if (!query) { setRows(null); setBusy(false); return; }
+    setBusy(true);
+    let dead = false;
+    const id = setTimeout(() => {
+      const local = demoPeople.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+      if (signedIn && window.ShapeSearch) {
+        window.ShapeSearch.people(query).then(r => { if (dead) return; setRows(Array.isArray(r) && r.length ? r : local); setBusy(false); })
+          .catch(() => { if (!dead) { setRows(local); setBusy(false); } });
+      } else { setRows(local); setBusy(false); }
+    }, 250);
+    return () => { dead = true; clearTimeout(id); };
+  }, [q]);
+
+  const isCoachRole = (r) => r === 'trainer' || r === 'nutritionist';
+  const matchesFilter = (p) => filter === 'all' ? true : (filter === 'coaches' ? isCoachRole(p.role) : !isCoachRole(p.role));
+  const open = (p) => {
+    bsRecentSearchPush({ userId: p.userId || null, name: p.name, role: p.role || 'client', avatar: p.avatar || null, points: p.points != null ? p.points : null });
+    setRecents(bsRecentSearchRead());
+    const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
+    setViewPerson({ who: p.name, kind, userId: p.userId || undefined, init: bsInitials(p.name), photo: p.avatar || undefined, tier: p.points != null ? bsTierForPoints(p.points) : undefined, public: true });
+  };
+
+  if (viewPerson) return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
+      <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)} />
+    </div>
+  );
+
+  const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Member';
+  const roleColor = (r) => r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : teal;
+  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 };
+  const Row = (p, i) => (
+    <button key={(p.userId || p.name) + ':' + i} onClick={() => open(p)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <BSFacetAvatar size={38} c={bsTierColor(p.points != null ? bsTierForPoints(p.points) : bsPostTier({ who: p.name }))} initial={bsInitials(p.name)} name={p.name} photo={p.avatar || undefined} showRank={false} />
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: roleColor(p.role) }}>{roleLabel(p.role)}</span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+      </span>
+      <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
+    </button>
+  );
+
+  const list = (rows || []).filter(matchesFilter);
+  const sugg = suggested.filter(matchesFilter);
+  const recs = recents.filter(matchesFilter);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: '0 0 auto', padding: `54px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Search · Shape</div>
+          <button onClick={onClose} aria-label="Close search" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Find anyone.</div>
+        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members & coaches…"
+          style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
+        <div style={{ display: 'flex', gap: 7, padding: '12px 0 10px' }}>
+          {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches']].map(([k, label]) => (
+            <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: `2px ${t.padX}px 40px` }}>
+        {q.trim() ? (
+          busy && !rows ? (
+            <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
+          ) : list.length === 0 ? (
+            <div style={{ padding: '18px 0' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No one on Shape matches “{q.trim()}”.</div>
+              <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Browse coaches on the marketplace →</button>
+            </div>
+          ) : (
+            <>
+              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{list.length} {list.length === 1 ? 'person' : 'people'}</div>
+              {list.map(Row)}
+            </>
+          )
+        ) : (
+          <>
+            {recs.length > 0 && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0 2px' }}>
+                  <span style={eyebrow}>Recent searches</span>
+                  <button onClick={() => { try { localStorage.removeItem(BS_RECENT_SEARCH_KEY); } catch (e) {} setRecents([]); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Clear</button>
+                </div>
+                {recs.map(Row)}
+              </>
+            )}
+            {sugg.length > 0 && (
+              <>
+                <div style={{ ...eyebrow, padding: `${recs.length ? 18 : 8}px 0 2px` }}>On Shape</div>
+                {sugg.map(Row)}
+              </>
+            )}
+            {!signedIn && <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Preview · sign in to search every real account</div>}
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // Nora's avatar image — drop `nora-avatar.png` into mobile-app/public and it
@@ -9234,7 +9422,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
+          <BSHeaderTools onProfile={onProfile} size={34} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
@@ -13714,7 +13902,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
 
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />} />
+      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
       {/* Header */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -16237,4 +16425,4 @@ function BSHelpPage({ onBack, onContact }) {
   );
 }
 
-Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage });
+Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });

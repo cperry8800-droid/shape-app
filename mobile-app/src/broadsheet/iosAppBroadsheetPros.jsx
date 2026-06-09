@@ -919,6 +919,13 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   React.useEffect(() => { _bsHydrateProScore(); }, []);
   const [tab, setTab] = useStateBSP('today');
   const [showTour, setShowTour] = useStateBSP(false);
+  // Universal search — the ⌕ in the header opens it (shared client component).
+  const [showSearch, setShowSearch] = useStateBSP(false);
+  useEffectBSP(() => {
+    const open = () => setShowSearch(true);
+    window.addEventListener('shape:openSearch', open);
+    return () => window.removeEventListener('shape:openSearch', open);
+  }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
     const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
@@ -1023,6 +1030,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
+      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => setShowSearch(false) }) : null}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -1148,7 +1156,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="14 active clients"
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} />}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
@@ -3213,6 +3221,13 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   React.useEffect(() => { _bsHydrateProScore(); }, []);
   const [tab, setTab] = useStateBSP('today');
   const [showTour, setShowTour] = useStateBSP(false);
+  // Universal search — the ⌕ in the header opens it (shared client component).
+  const [showSearch, setShowSearch] = useStateBSP(false);
+  useEffectBSP(() => {
+    const open = () => setShowSearch(true);
+    window.addEventListener('shape:openSearch', open);
+    return () => window.removeEventListener('shape:openSearch', open);
+  }, []);
   useEffectBSP(() => bsCoachTourAutoShow(setShowTour), []);
   useEffectBSP(() => {
     const start = () => { setShowSettings(false); setShowCalendar(false); setShowTour(true); };
@@ -3309,6 +3324,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         { key: 'me',       label: 'Me' },
       ]} />
       <BSRadioPrompt />
+      {showSearch && typeof window !== 'undefined' && window.BSUniversalSearch ? React.createElement(window.BSUniversalSearch, { onClose: () => setShowSearch(false) }) : null}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
   );
@@ -3430,7 +3446,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
         rightKicker="22 plans · 5 sessions"
-        trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} />}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 

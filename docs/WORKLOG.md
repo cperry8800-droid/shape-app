@@ -74,6 +74,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Universal search: find anyone on Shape (⌕ in every header)
+- **Migration `2026-06-09-universal-search.sql`** (**run on Supabase**): SECURITY
+  DEFINER `search_shape_people(p_q, p_limit)` — name search over every `profiles`
+  row, returning role (client/trainer/nutritionist), profile photo
+  (`user_goals('client_identity').photo`, withheld for private-visibility
+  accounts), and all-time points (→ tier color). Prefix matches rank first.
+- **`BSSearchCorner`** (monochrome ⌕, dispatches `shape:openSearch`) now sits
+  **left of the avatar** in every header: the 5 client tab headers (via new
+  `BSHeaderTools`), the chat masthead, the Terrain/Signal me-mastheads,
+  `BSMeCorner` sub-pages, and both coach Today headers. Both coach shells +
+  `BSClientAppInner` listen for the event and overlay the search screen.
+- **`BSUniversalSearch`** (client module, window-exposed for the pros bundle):
+  serif "Find anyone." screen with an autofocused underline input, **debounced
+  live typeahead** (`ShapeSearch.people` → the RPC; falls back to `search_members`
+  pre-migration, demo cast when signed out), **All / Members / Coaches** filter
+  chips, **recent searches** (localStorage `shape.recentSearch`, cap 8, Clear),
+  an **"On Shape" suggested list** on the empty state, and a no-results state
+  that deep-links to the Marketplace. Rows = tier-colored facet avatar + role
+  eyebrow + name; tap → the person's living public profile (Terrain/Signal),
+  back returns to the results.
+
 ### 2026-06-09 — Tighter "Vol. 1 · No. 1" header row (every page)
 - The logo + Vol·No masthead row is condensed app-wide: letter-spacing
   `0.22em → 0.12em`, logo↔text gap `8 → 6` (gate screen `10 → 6`). Applied to the

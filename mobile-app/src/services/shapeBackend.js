@@ -3596,6 +3596,23 @@ window.ShapeChannels = {
   pin: pinChannel,
 };
 
+// ── Universal search — every account on Shape (members + coaches) ────────────
+// `search_shape_people` returns role + profile photo + all-time points in one
+// call; falls back to the older `search_members` RPC (names only) when the
+// migration hasn't been applied yet.
+async function searchShapePeople(q = '', limit = 20) {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase.rpc('search_shape_people', { p_q: q || '', p_limit: limit });
+    if (error) throw error;
+    return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: p.role || 'client', avatar: p.avatar || null, points: p.points != null ? Number(p.points) : null }));
+  } catch (e) {
+    const { data } = await supabase.rpc('search_members', { p_q: q || '' });
+    return (data || []).map(p => ({ userId: p.id, name: p.full_name || 'Member', role: 'client', avatar: null, points: null }));
+  }
+}
+window.ShapeSearch = { people: searchShapePeople };
+
 // ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
 //    when the chat screen isn't mounted. Seeds persisted counts, then keeps a
 //    live map via realtime. Keys: `ch:<id>` / `dm:<id>`.
