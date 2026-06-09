@@ -9812,11 +9812,18 @@ const SHAPE_SCORE_PROFILES = {
     activities: [
       { name: 'Session kept', pts: '+12-18', cap: 'Variable', note: 'With a coach' },
       { name: 'Workout logged', pts: '+6-10', cap: 'Per log', note: 'Solo or programmed' },
+      { name: 'New PR logged', pts: '+12', cap: 'Per PR', note: 'Any lift or run' },
+      { name: 'Meal logged', pts: '+3', cap: 'Per meal', note: 'Photo, search or voice' },
       { name: 'Protein target hit', pts: '+5', cap: 'Daily', note: 'Daily nutrition goal' },
+      { name: 'Calories on target', pts: '+3', cap: 'Daily', note: 'Within your range' },
       { name: 'Sleep target met', pts: '+3', cap: 'Daily', note: '7+ hours, wearable verified' },
+      { name: 'Steps goal', pts: '+2', cap: 'Daily', note: '8,000+ steps' },
+      { name: 'Hydration goal', pts: '+2', cap: 'Daily', note: 'Water target met' },
+      { name: 'Daily check-in', pts: '+2', cap: 'Daily', note: 'Mood & energy' },
       { name: 'Habit streak', pts: '+2-4', cap: 'Per streak', note: 'Any logged habit' },
       { name: 'Weekly review', pts: '+15', cap: 'Weekly', note: 'Submitted on time' },
-      { name: 'New PR logged', pts: '+12', cap: 'Per PR', note: 'Any lift or run' },
+      { name: 'Program purchased', pts: '+6/wk', cap: 'Active', note: 'Unlocks bonus logging' },
+      { name: 'Meal plan purchased', pts: '+4/wk', cap: 'Active', note: 'Unlocks bonus logging' },
     ],
     ledger: [
       ['APR 18', '+14', 'Session kept - Maya Okafor'],
@@ -9837,10 +9844,15 @@ const SHAPE_SCORE_PROFILES = {
     activities: [
       { name: 'Live session completed', pts: '+18-28', cap: 'Per booking', note: 'Client attended' },
       { name: 'Program block delivered', pts: '+24', cap: 'Per client', note: 'New or refreshed training block' },
+      { name: 'Workout assigned', pts: '+8', cap: 'Per plan', note: 'New or adjusted session' },
       { name: 'Form review returned', pts: '+8-12', cap: 'Per review', note: 'Video feedback within 24h' },
       { name: 'Client check-in answered', pts: '+5', cap: 'Daily', note: 'Meaningful coaching reply' },
+      { name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
       { name: 'PR verified', pts: '+10', cap: 'Per PR', note: 'Client lift or performance milestone' },
+      { name: 'Client weekly target hit', pts: '+6', cap: 'Per client', note: 'Roster adherence credit' },
       { name: 'Retention streak', pts: '+20', cap: 'Weekly', note: 'Active roster held for 7 days' },
+      { name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
+      { name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace program purchase' },
       { name: 'New client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
     ],
     ledger: [
@@ -9860,13 +9872,18 @@ const SHAPE_SCORE_PROFILES = {
     pointsToNext: 2860, available: 870, lifetime: 5310, redeemedCount: 8, week: '+64',
     weekRatio: 0.76, streakRatio: 0.61, tierRatio: 0.42, spendRatio: 0.68,
     activities: [
-      { name: 'Consult completed', pts: '+16-24', cap: 'Per booking', note: 'Initial or follow-up consult' },
-      { name: 'Meal plan delivered', pts: '+22', cap: 'Per client', note: 'New or adjusted nutrition plan' },
-      { name: 'Macro review returned', pts: '+7-10', cap: 'Per review', note: 'Food log analysis within 24h' },
+      { name: 'Consult completed', pts: '+18-28', cap: 'Per booking', note: 'Initial or follow-up consult' },
+      { name: 'Meal plan delivered', pts: '+24', cap: 'Per client', note: 'New or adjusted nutrition plan' },
+      { name: 'Grocery list sent', pts: '+8', cap: 'Per plan', note: 'Built from the plan' },
+      { name: 'Macro review returned', pts: '+8-12', cap: 'Per review', note: 'Food log analysis within 24h' },
       { name: 'Adherence check-in', pts: '+5', cap: 'Daily', note: 'Useful client follow-up' },
-      { name: 'Biomarker note logged', pts: '+12', cap: 'Per update', note: 'Labs, weight trend, or recovery signal' },
-      { name: 'Plan adherence streak', pts: '+18', cap: 'Weekly', note: 'Client hit targets for the week' },
-      { name: 'New nutrition client onboarded', pts: '+36', cap: 'Per intake', note: 'Completed intake and first plan' },
+      { name: 'Fast message reply', pts: '+2', cap: 'Per reply', note: 'Within the hour' },
+      { name: 'Biomarker note logged', pts: '+10', cap: 'Per update', note: 'Labs, weight trend, or recovery signal' },
+      { name: 'Client hit macros', pts: '+6', cap: 'Per client', note: 'Weekly adherence credit' },
+      { name: 'Plan adherence streak', pts: '+20', cap: 'Weekly', note: 'Client hit targets for the week' },
+      { name: '5-star review earned', pts: '+15', cap: 'Per review', note: 'Verified client rating' },
+      { name: 'Plan sold', pts: '+30', cap: 'Per sale', note: 'Marketplace plan purchase' },
+      { name: 'New nutrition client onboarded', pts: '+40', cap: 'Per intake', note: 'Completed intake and first plan' },
     ],
     ledger: [
       ['APR 18', '+22', 'Meal plan delivered - Jamie Wong'],
@@ -12198,8 +12215,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         ))}
       </div>
 
-      <BSSection title="Point values" kicker={`${profile.roleLabel || 'Member'} activity`} meta={`${activities.length} ways`} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
+      <BSSection title="Point values" meta={`${activities.length} ways`} />
+      <div className="bs-hide-scroll" style={{ padding: `0 ${t.padX}px`, maxHeight: 252, overflowY: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {activities.map((a, i) => (
           <div key={a.name} style={{
             display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
