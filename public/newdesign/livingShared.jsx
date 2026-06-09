@@ -633,15 +633,10 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
           {reviewItems.map((r, i) => (
             <div key={i} style={{ ...card, padding: "13px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {r.authorId
-                  ? <a href={"MemberProfile.html?u=" + encodeURIComponent(r.authorId)} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
-                      <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink, textDecoration: "underline", textUnderlineOffset: 2 }}>{r.name}</span>
-                    </a>
-                  : <React.Fragment>
-                      <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
-                      <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink }}>{r.name}</span>
-                    </React.Fragment>}
+                <a href={r.authorId ? ("MemberProfile.html?u=" + encodeURIComponent(r.authorId)) : ("MemberProfile.html?name=" + encodeURIComponent(r.name) + "&role=client")} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
+                  <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink, textDecoration: "underline", textUnderlineOffset: 2 }}>{r.name}</span>
+                </a>
                 <span style={{ marginLeft: "auto", fontFamily: lvMono, fontSize: 10, color: c }}>{r.stars10}/10</span>
               </div>
               <p style={{ fontFamily: lvSerif, fontSize: 14, fontStyle: "italic", lineHeight: 1.45, color: hexA(ink, 0.82), margin: "10px 0 0", textWrap: "pretty" }}>“{r.body}”</p>
