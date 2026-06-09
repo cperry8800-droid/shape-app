@@ -6382,7 +6382,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -6449,7 +6449,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
       {statBtn(stats.followers, 'Followers', 'followers')}
       {statBtn(stats.following, 'Following', 'following')}
       {isSelf && reqCount > 0 && (
@@ -6472,6 +6472,33 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         );
       })()}
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
+    </div>
+  );
+}
+
+// Shared identity heading for the living-identity profiles — sits ABOVE the hero
+// box on the client Me/Terrain page and the coach Signal page: facet avatar +
+// "{TIER} TIER · {N} WEEK STREAK" eyebrow + serif name + "@handle · goal" +
+// the followers/following block (embedded, no border). Mirrors the Settings
+// identity card.
+function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, initials, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, live = false, activity }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif";
+  return (
+    <div style={{ paddingBottom: 12, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <BSFacetAvatar size={62} c={c} initial={initials || bsInitials(name) || '?'} name={name} photo={photo} showRank={false} live={live} activity={activity} BG={BG} INK={INK} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700 }}>
+            <span style={{ color: c, fontWeight: 800 }}>{tierName} Tier</span>
+            {streak ? <><span style={{ color: bsTHexA(INK, 0.4) }}>·</span><span style={{ color: '#c0533b' }}>{streak} week streak</span></> : null}
+          </div>
+          <h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 700, color: INK, letterSpacing: '-0.025em', lineHeight: 1, margin: '5px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
+          {(handle || goal) ? <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle || ''}{handle && goal ? ' · ' : ''}{goal || ''}</div> : null}
+          <div style={{ marginTop: 9 }}>
+            <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded onOpenProfile={onOpenProfile} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -7615,9 +7642,14 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             : <BSMeCorner size={30} />}
         </div>
       )}
-      {/* Followers / following — above the hero box, below the title */}
-      <div style={{ padding: '8px 18px 0' }}>
-        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} onOpenProfile={setFollowProfile} />
+      {/* Identity heading — avatar + tier/streak + name + handle·goal + follows,
+          above the hero box (mirrors the Settings identity card). */}
+      <div style={{ padding: '10px 18px 0' }}>
+        <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
+          photo={avPhoto || ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined)}
+          initials={isSelf ? (bsMyInitials() || bsInitials(name)) : bsInitials(name)}
+          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile}
+          live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
@@ -8165,7 +8197,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </div>
         )}
 
-        <div style={{ marginTop: 18 }}><BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach onOpenProfile={setReviewerProfile} /></div>
+        {/* Identity heading — avatar + tier + name + handle·role + follows, above
+            the Signal instrument (mirrors the Settings identity card). */}
+        <div style={{ marginTop: 18 }}>
+          <BSProfileIdentityHead name={name} handle={handle} goal={roleLabel} tierName={tierName} c={c}
+            photo={photo || (live && live.avatar) || (isSelf ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)}
+            initials={isSelf ? (bsMyInitials() || bsInitials(name)) : initials}
+            userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} coach onOpenProfile={setReviewerProfile}
+            live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} />
+        </div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
@@ -14648,27 +14688,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
       )}
 
-      {/* Identity card */}
-      <div style={{ padding: `14px ${t.padX}px 16px` }}>
+      {/* Identity card — the avatar/name/tier/follows header now lives on the
+          profile (Me/Signal); Settings keeps the quick shortcuts + edit form. */}
+      <div style={{ padding: `8px ${t.padX}px 16px` }}>
         {!editing ? (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <BSFacetAvatar size={72} c={bsMyTierColor()} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || null} showRank={false} live={bsAmLive()} BG={t.PAPER} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700 }}>
-                  <span style={{ color: settingsTierC, fontWeight: 800 }}>{settingsScore.tier} tier</span>
-                  <span style={{ color: t.INK50 }}>·</span>
-                  <span style={{ color: t.RUST }}>14 week streak</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1 }}>{identity.name}<span style={{ color: t.ACCENT }}>.</span></span>
-                  {identity.pronouns ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{identity.pronouns}</span> : null}
-                </div>
-                {identity.handle ? <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{identity.handle}{identity.goal ? ` · ${identity.goal}` : ''}</div> : null}
-                <BSFollowMini onOpen={() => setShowPublicProfile(true)} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 7, marginTop: 16, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '11px 6px', borderRadius: 11, border: `1.5px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
