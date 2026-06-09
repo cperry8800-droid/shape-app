@@ -926,7 +926,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
-  const [showAppearance, setShowAppearance] = useStateBSP(false);
+  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
   const [showReviews, setShowReviews] = useStateBSP(false);
   const [showHabits, setShowHabits] = useStateBSP(false);
@@ -981,11 +981,15 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   }, []);
   React.useEffect(() => {
     const onSettingsEvt = () => setShowSettings(true);
+    const onAvail = () => { setShowSettings(false); setShowCalendar(true); };
+    const onSound = () => { setShowSettings(false); setShowSoundtracks(true); };
     window.addEventListener('shape:openProSettings', onSettingsEvt);
-    return () => window.removeEventListener('shape:openProSettings', onSettingsEvt);
+    window.addEventListener('shape:proAvailability', onAvail);
+    window.addEventListener('shape:proSoundtracks', onSound);
+    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showAppearance) return <BSSettings onBack={() => setShowAppearance(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showSettings) return <BSProMe role="trainer" name="Jordan Chen" onLogout={onLogout} onRadio={goRadio} onBack={() => setShowSettings(false)} onAppearance={() => { setShowSettings(false); setShowAppearance(true); }} onSettings={() => { setShowSettings(false); setShowAppearance(true); }} />;
+  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
+  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="trainer" onBack={() => setShowReviews(false)} />;
   if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;
@@ -3171,7 +3175,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
   const [showSettings, setShowSettings] = useStateBSP(false);
-  const [showAppearance, setShowAppearance] = useStateBSP(false);
+  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [showCalendar, setShowCalendar] = useStateBSP(false);
   const [showReviews, setShowReviews] = useStateBSP(false);
   const [showHabits, setShowHabits] = useStateBSP(false);
@@ -3219,11 +3223,15 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   }, []);
   React.useEffect(() => {
     const onSettingsEvt = () => setShowSettings(true);
+    const onAvail = () => { setShowSettings(false); setShowCalendar(true); };
+    const onSound = () => { setShowSettings(false); setShowSoundtracks(true); };
     window.addEventListener('shape:openProSettings', onSettingsEvt);
-    return () => window.removeEventListener('shape:openProSettings', onSettingsEvt);
+    window.addEventListener('shape:proAvailability', onAvail);
+    window.addEventListener('shape:proSoundtracks', onSound);
+    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
   }, []);
-  if (showAppearance) return <BSSettings onBack={() => setShowAppearance(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
-  if (showSettings) return <BSProMe role="nutritionist" name="Dr. Maya Patel" onLogout={onLogout} onRadio={goRadio} onBack={() => setShowSettings(false)} onAppearance={() => { setShowSettings(false); setShowAppearance(true); }} onSettings={() => { setShowSettings(false); setShowAppearance(true); }} />;
+  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
+  if (showSettings) return <BSSettings onBack={() => setShowSettings(false)} onLogout={onLogout} tweaks={tweaks} setTweak={setTweak} />;
   if (showCalendar) return <BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => setShowCalendar(false)} />;
   if (showReviews) return <BSWorkoutReviewPage role="nutritionist" onBack={() => setShowReviews(false)} />;
   if (showHabits) return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setStoreView('score'); setTab('store'); }} />;

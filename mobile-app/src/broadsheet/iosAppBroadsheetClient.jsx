@@ -13952,7 +13952,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { k: 'injuries', l: 'Injuries & notes', placeholder: 'Left shoulder, knee tracking…' },
     { k: 'preferred_times', l: 'Preferred times', options: ['Early morning', 'Mornings', 'Midday', 'Evenings', 'Late evenings', 'Variable'] },
   ].map((r) => ({ l: r.l, r: trainingPrefs[r.k] || 'Not set', action: () => openPrefEdit('training', r.k, r.l, { placeholder: r.placeholder, options: r.options }) }));
-  const moreRows = [
+  // Coach practice shortcuts (consolidated into Settings). Availability + Soundtracks
+  // are hosted by the coach shell (it owns those screens) via window events; Payouts
+  // calls Stripe Connect directly; the rest open the coach's own public profile.
+  const practiceRows = [
+    { l: 'Public profile & rates', r: 'Edit', action: () => setShowPublicProfile(true) },
+    { l: 'Marketplace listing', r: 'View', action: () => setShowPublicProfile(true) },
+    { l: 'Availability', r: 'Set', action: () => { try { window.dispatchEvent(new Event('shape:proAvailability')); } catch (e) {} } },
+    { l: 'Payouts', r: 'Stripe', action: () => { try { window.ShapeConnect && window.ShapeConnect.startOnboarding && window.ShapeConnect.startOnboarding({ role: tweaks.role }); } catch (e) {} } },
+    { l: 'Soundtracks', r: 'Manage', action: () => { try { window.dispatchEvent(new Event('shape:proSoundtracks')); } catch (e) {} } },
+    { l: 'Certifications', r: 'Edit', action: () => setShowPublicProfile(true) },
+  ];
+  const moreRows = isCoachRole ? [
+    { l: 'Public profile', r: 'View', action: () => setShowPublicProfile(true) },
+    { l: 'Shape Score', r: 'Standing', action: () => setShowScore(true) },
+    { l: 'Shape Store', r: 'Redeem', action: () => setShowStore(true) },
+    { l: 'Shape Radio', r: 'Listen', action: () => setShowRadio(true) },
+  ] : [
     { l: 'Public profile', r: 'View', action: () => setShowPublicProfile(true) },
     { l: 'Goals', r: 'Track', action: () => setShowGoals(true) },
     { l: 'Habits', r: 'Daily', action: () => setShowHabits(true) },
@@ -14052,7 +14068,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
     { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
   ];
-  const settingCards = [
+  const settingCards = isCoachRole ? [
+    { title: 'Account',             summary: 'Email · password · 2FA',                                            detail: 'account' },
+    { title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
+    { title: 'Your practice',       summary: 'Listing · profile · availability · payouts · soundtracks',          detail: 'practice' },
+    { title: 'Health integrations', summary: 'Apple Health · WHOOP · Strava',                                     detail: 'health' },
+    { title: 'Notifications',       summary: `${notifOn} of 4 active`,                                             detail: 'notifications' },
+    { title: 'Privacy & data',      summary: `Profile · ${prefs.profileVisibility}`,                              detail: 'privacy' },
+    { title: 'More',                summary: 'Public profile · Score · Store · Radio',                            detail: 'more' },
+    { title: 'About',               summary: 'Help · contact · legal',                                           detail: 'about' },
+    { title: 'Account actions',     summary: 'Export · pause · delete',                                          detail: 'accountactions', accent: t.RUST },
+  ] : [
     { icon: 'user',    title: 'Account',            summary: 'Email · password · 2FA',                                            detail: 'account' },
     { icon: 'sliders', title: 'Preferences',         summary: `${prefs.units.split(' ')[0]} · ${prefs.language.split(' ')[0]} · ${prefs.weekStarts}`, detail: 'preferences' },
     { icon: 'leaf',    title: 'Nutrition',           summary: nutritionPrefs.dietary_style ? `${nutritionPrefs.dietary_style} · prefs` : 'Diet · allergies · macros', detail: 'nutrition' },
@@ -14076,6 +14102,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'notifications' && (<><DetailBack title="Notifications" />{renderRows(findSec('Notifications').rows)}</>)}
       {detail === 'preferences' && (<><DetailBack title="Preferences" />{renderRows(findSec('Preferences').rows)}</>)}
       {detail === 'privacy' && (<><DetailBack title="Privacy & data" />{renderRows(findSec('Privacy & data').rows)}</>)}
+      {detail === 'practice' && (<><DetailBack title="Your practice" />{renderRows(practiceRows)}</>)}
       {detail === 'nutrition' && (<><DetailBack title="Nutrition" />{renderRows(findSec('Nutrition').rows)}</>)}
       {detail === 'training' && (<><DetailBack title="Training" />{renderRows(findSec('Training').rows)}</>)}
       {detail === 'billing' && (<><DetailBack title="Membership & billing" />{renderRows(findSec('Membership & billing').rows)}</>)}
