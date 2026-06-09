@@ -10520,7 +10520,7 @@ function BSGoalsTrend({ teal, series, h = 92 }) {
 // The Overall tab — a body-comp dashboard for the headline goal. Editable fields
 // (start/now/target/title/why) come from `overall`; the trend, milestones,
 // week-targets and consistency are illustrative demo content for now.
-function BSGoalsOverall({ overall, onLog }) {
+function BSGoalsOverall({ overall, onLog, consistency = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const purple = '#8a5cf6';
@@ -10656,20 +10656,27 @@ function BSGoalsOverall({ overall, onLog }) {
         {weekTargets.map(miniCard)}
       </div>
 
-      {/* Consistency */}
+      {/* Consistency — real workout days (last 7) from ShapeProgress; demo fallback */}
+      {(() => {
+        const cons = (consistency && Array.isArray(consistency.series) && consistency.series.length)
+          ? consistency
+          : { series: [0.9, 0.95, 0.8, 1, 0.7, 0.92, 0.88], avg: 84, label: 'last 7 weeks' };
+        return (
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Consistency · last 7 weeks</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>84% avg</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Consistency · {cons.label}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{cons.avg}% avg</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7 }}>
-            {[0.9, 0.95, 0.8, 1, 0.7, 0.92, 0.88].map((v, i) => (
-              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, background: teal, opacity: 0.35 + v * 0.6 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cons.series.length}, 1fr)`, gap: 7 }}>
+            {cons.series.map((v, i) => (
+              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, background: teal, opacity: 0.18 + v * 0.72 }} />
             ))}
           </div>
         </div>
       </div>
+        );
+      })()}
 
       {/* Your why */}
       <SecHead kicker="Your why" title="Stay with it" />
@@ -11069,6 +11076,24 @@ function BSClientGoals({ onBack }) {
   const [editOverall, setEditOverall] = useStateBSC(false);
   const [logWeigh, setLogWeigh] = useStateBSC(false);
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
+  // Real workout consistency (last 7 logged days) for the Overall heatmap — from
+  // ShapeProgress.train.volumeByDay; null → BSGoalsOverall falls back to demo.
+  const [consist, setConsist] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!window.ShapeProgress?.train) return undefined;
+    let on = true;
+    window.ShapeProgress.train().then((d) => {
+      if (!on) return;
+      const vbd = (d && Array.isArray(d.volumeByDay)) ? d.volumeByDay.slice(-7).map(Number).filter(Number.isFinite) : null;
+      if (vbd && vbd.length) {
+        const max = Math.max(...vbd, 1);
+        const series = vbd.map((v) => (v > 0 ? Math.max(0.45, v / max) : 0));
+        const active = vbd.filter((v) => v > 0).length;
+        setConsist({ series, avg: Math.round((active / vbd.length) * 100), label: 'last 7 days' });
+      }
+    }).catch(() => {});
+    return () => { on = false; };
+  }, []);
   const logWeighIn = (kg) => {
     const today = new Date().toISOString().slice(0, 10);
     const prev = bsGoalWeighIns(overall);
@@ -11171,7 +11196,7 @@ function BSClientGoals({ onBack }) {
       </div>
 
       {tab === 'overall' ? (
-        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} />
+        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} consistency={consist} />
       ) : tab === 'training' ? (
         <BSGoalsTraining onOpenProgram={() => {}} />
       ) : (
