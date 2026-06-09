@@ -8463,7 +8463,7 @@ function BSNoraProfile({ onClose }) {
           <div style={{ display: 'inline-block' }}>
             <BSFacetAvatar size={96} c={BLUE} initial="N" name="Nora" photo={BS_NORA_AVATAR} showRank={false} live BG={t.PAPER_BG} INK={t.INK} />
           </div>
-          <div style={{ marginTop: 14, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: BLUE }}>Shape's Assistant · <span style={{ color: TEAL }}>Always online</span></div>
+          <div style={{ marginTop: 24, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: BLUE }}>Shape's Assistant · <span style={{ color: TEAL }}>Always online</span></div>
           <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: t.W.display, letterSpacing: '-0.03em', margin: '8px 0 0', lineHeight: 1 }}>Nora<span style={{ color: TEAL }}>.</span></h1>
           <div style={{ marginTop: 10, fontFamily: SERIF, fontSize: 15, fontStyle: 'italic', color: bsTHexA(t.INK, 0.65), lineHeight: 1.5, padding: '0 14px' }}>Shape's AI concierge — here for every member and visitor, day and night.</div>
         </div>
