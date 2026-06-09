@@ -959,7 +959,19 @@ function BSRadioScreen({ onBack }) {
           whiteSpace: 'nowrap',
         }}>
           {t.isLight
-            ? <span aria-label="Shape Radio" style={{ width: 'min(86%, 330px)', aspectRatio: '1647 / 116', display: 'block', margin: '0 auto', background: '#0a8f87', WebkitMaskImage: `url(${import.meta.env.BASE_URL}shape-radio-logo.png?v=2)`, maskImage: `url(${import.meta.env.BASE_URL}shape-radio-logo.png?v=2)`, WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' }} />
+            ? (() => {
+                // On light paper, split the single PNG so "SHAPE" reads in ink (black)
+                // while the play-triangle + "RADIO" stay teal. The 46% clip falls in
+                // the whitespace gap between the "E" and the triangle (measured 42.7–50%).
+                const _src = `url(${import.meta.env.BASE_URL}shape-radio-logo.png?v=2)`;
+                const _maskBase = { position: 'absolute', inset: 0, WebkitMaskImage: _src, maskImage: _src, WebkitMaskSize: 'contain', maskSize: 'contain', WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskPosition: 'center' };
+                return (
+                  <div role="img" aria-label="Shape Radio" style={{ position: 'relative', width: 'min(86%, 330px)', aspectRatio: '1647 / 116', display: 'block', margin: '0 auto' }}>
+                    <span aria-hidden style={{ ..._maskBase, background: t.INK, clipPath: 'inset(0 54% 0 0)' }} />
+                    <span aria-hidden style={{ ..._maskBase, background: '#0a8f87', clipPath: 'inset(0 0 0 46%)' }} />
+                  </div>
+                );
+              })()
             : <img src={`${import.meta.env.BASE_URL}shape-radio-logo.png?v=2`} alt="Shape Radio" style={{ width: 'min(86%, 330px)', height: 'auto', display: 'block', margin: '0 auto' }} />}
         </div>
       </div>
