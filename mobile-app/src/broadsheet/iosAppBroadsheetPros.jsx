@@ -2539,11 +2539,27 @@ function BSPlanGeneratorCard({ role = 'trainer', kind = 'workout' }) {
 // Editable draft — after an AI (or blank) generation the coach lands here to
 // customize the name, the sections (add / rename / remove / reorder-by-edit),
 // and a note, then publishes. Shared by the trainer + nutritionist pages.
-function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel = 'Sections', initialName, initialBlocks, initialNote, onPublish, onCancel }) {
+function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockLabel = 'Sections', initialName, initialBlocks, initialNote, initialMedia, onPublish, onCancel }) {
   const [name, setName] = useStateBSP(initialName || '');
   const [blocks, setBlocks] = useStateBSP(initialBlocks || []);
   const [note, setNote] = useStateBSP(initialNote || '');
+  const [media, setMedia] = useStateBSP(initialMedia || []);
+  const [uploading, setUploading] = useStateBSP(false);
+  const mediaInputRef = React.useRef(null);
   const [status, setStatus] = useStateBSP('');
+  const pickMedia = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (e.target) e.target.value = '';
+    if (!files.length) return;
+    if (!window.ShapeCoachMedia?.upload) { setStatus('Sign in to upload media.'); setTimeout(() => setStatus(''), 1800); return; }
+    setUploading(true);
+    for (const f of files) {
+      try { const m = await window.ShapeCoachMedia.upload(f); if (m && m.url) setMedia(list => [...list, m]); }
+      catch (err) { setStatus(String(err?.message || 'Upload failed')); setTimeout(() => setStatus(''), 2200); }
+    }
+    setUploading(false);
+  };
+  const rmMedia = (i) => setMedia(list => list.filter((_, j) => j !== i));
   const setBlock = (i, v) => setBlocks(bs => bs.map((b, j) => (j === i ? { ...b, text: v } : b)));
   const addBlock = () => setBlocks(bs => [...bs, { id: 'b' + Date.now() + Math.round(Math.random() * 1e4), text: '' }]);
   const rmBlock = (i) => setBlocks(bs => bs.filter((_, j) => j !== i));
@@ -2580,7 +2596,31 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
 
         <div style={{ marginTop: 18 }}>{lbl('COACH NOTE')}<textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Anything the client should know…" style={{ ...inputStyle, lineHeight: 1.5, resize: 'vertical' }} /></div>
 
-        <button onClick={async () => { setStatus('Publishing…'); await onPublish({ name, blocks, note }); }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || `Publish ${typeName} →`}</button>
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            {lbl('MEDIA · PHOTOS & VIDEOS')}
+            <button onClick={() => mediaInputRef.current && mediaInputRef.current.click()} disabled={uploading} style={{ border: 0, background: 'transparent', cursor: uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent, opacity: uploading ? 0.5 : 1 }}>{uploading ? 'UPLOADING…' : '+ UPLOAD'}</button>
+          </div>
+          <input ref={mediaInputRef} type="file" accept="image/*,video/*" multiple onChange={pickMedia} style={{ display: 'none' }} />
+          {media.length === 0
+            ? <div onClick={() => mediaInputRef.current && mediaInputRef.current.click()} style={{ borderRadius: 12, border: `1px dashed ${t.RULE}`, background: t.PAPER2, padding: '18px 13px', textAlign: 'center', cursor: 'pointer' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Add demo photos or videos</div>
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>Show clients the moves in this {typeName}</div>
+              </div>
+            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {media.map((m, i) => (
+                  <div key={i} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1 / 1', background: t.PAPER2, border: `1px solid ${t.RULE}` }}>
+                    {m.type === 'video'
+                      ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                      : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    {m.type === 'video' && <div style={{ position: 'absolute', bottom: 4, left: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '1px 4px' }}>VIDEO</div>}
+                    <button onClick={() => rmMedia(i)} aria-label="Remove" style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0 }}>×</button>
+                  </div>
+                ))}
+              </div>}
+        </div>
+
+        <button onClick={async () => { setStatus('Publishing…'); await onPublish({ name, blocks, note, media }); }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || `Publish ${typeName} →`}</button>
         <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>Saves to your library · you can edit again anytime</div>
       </div>
       <BSFooter left="Edit draft" right={typeName} />
@@ -2644,9 +2684,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const BUILD_LABEL = { plan: 'plan', workout: 'workout', program: 'program' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
-  const publishDraft = async ({ name, blocks, note }) => {
+  const publishDraft = async ({ name, blocks, note, media }) => {
     const typeName = BUILD_LABEL[buildType];
-    const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note } };
+    const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note, media: media || [] } };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
     flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
     setEditDraft(null); setDrafting(false);
@@ -2678,7 +2718,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Customize the generated/blank draft before publishing ──
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
 
   // ── AI draft sheet (workout builder) ──
   if (drafting) {
@@ -3574,9 +3614,9 @@ function BSNutriPlans() {
   const BUILD_LABEL = { mealplan: 'meal plan', program: 'program', diet: 'diet' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
-  const publishDraft = async ({ name, blocks, note }) => {
+  const publishDraft = async ({ name, blocks, note, media }) => {
     const typeName = BUILD_LABEL[buildType];
-    const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note } };
+    const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note, media: media || [] } };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
     flash(`${typeName.charAt(0).toUpperCase()}${typeName.slice(1)} published`);
     setEditDraft(null); setDrafting(false);
@@ -3601,7 +3641,7 @@ function BSNutriPlans() {
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Customize the generated/blank draft before publishing ──
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
 
   // ── AI draft sheet (meal-plan builder) ──
   if (drafting) {

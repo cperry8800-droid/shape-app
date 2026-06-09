@@ -64,6 +64,29 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Coach media: upload photos & videos for plans/programs/workouts
+- **Migration `2026-06-09-coach-media.sql`** (**run on Supabase**): public
+  **`coach-media`** storage bucket (200 MB; image + video mime types — jpeg/png/webp/
+  heic/gif + mp4/quicktime/webm/m4v). Storage RLS: public read (clients view the demo
+  media), owner can write/update/delete only their own `<uid>/…` folder. Idempotent.
+- **Migration `2026-06-09-coach-sale-plans-detail.sql`** (**run on Supabase**): the
+  public sale-plan RPCs **`get_coach_sale_plans`** + **`get_coach_sale_plans_by_user`**
+  now also return **`detail jsonb`** (DROP+recreate to widen the return type), so a buyer
+  can preview the coach-uploaded media before buying.
+- **Coach draft editor** (`BSCoachDraftEditor`, mobile pros app — trainer *and*
+  nutritionist plan/program/workout/meal-plan builders): new **MEDIA · PHOTOS & VIDEOS**
+  section — `+ UPLOAD` (multi-file `image/*,video/*`) uploads to `coach-media/<uid>/…` via
+  `window.ShapeCoachMedia.upload(file)` → `{url,type:'image'|'video',name}`, shown as a
+  3-up thumbnail grid (video badge + remove ×). Rides through `onPublish({…, media})` into
+  both `publishDraft`s → **`coach_plans.detail.media`**.
+- **Client preview**: the coach profile's sale-plan rows render a horizontal media
+  thumbnail strip (photo thumbs + a play glyph on videos) on **mobile**
+  (`iosAppBroadsheetMarketplace.jsx`, salePlans now carry `detail`) and **website**
+  (`livingShared.jsx` `LvServices`, `?v=10`).
+- `shapeBackend.js`: `window.ShapeCoachMedia.upload`; `listSalePlans` /
+  `listSalePlansByUser` map `detail`.
+- War Room: registered under "Marketplace & coach profiles".
+
 ### 2026-06-08 — Store fulfillment: redeemed rewards actually DO something
 - **Migration `2026-06-08-store-fulfillment.sql`** (**run on Supabase**): adds fulfillment
   columns to `store_redemptions` (`kind`, `ship_to` jsonb, `fulfilled_at`, `fulfillment_note`),

@@ -406,6 +406,7 @@ function LvServices({ d, light, ink, c, owner, onReviews }) {
         price: pl.price ? (/^\$|free/i.test(String(pl.price)) ? String(pl.price) : `$${pl.price}`) : "Listed",
         unit: "", free: /free/i.test(String(pl.price || "")),
         planId: pl.id, providerId: pl.provider_id, providerRole: pl.provider_role,
+        media: (pl.detail && Array.isArray(pl.detail.media)) ? pl.detail.media.filter((m) => m && m.url) : [],
       })));
     }).catch(() => { if (on) setReal([]); });
     return () => { on = false; };
@@ -456,18 +457,32 @@ function LvServices({ d, light, ink, c, owner, onReviews }) {
           {list.map((o, i) => {
             const buyable = !owner && o.planId && o.providerId && !o.free && o.price !== "Listed";
             return (
-            <div key={i} onClick={buyable ? () => buyPlan(o) : undefined} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 13px", borderRadius: 10, border: `1px solid ${o.free ? hexA(c, 0.3) : hexA(ink, 0.08)}`, background: o.free ? hexA(c, 0.08) : hexA(ink, 0.03), cursor: buyable ? "pointer" : "default" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: c, background: hexA(c, 0.12), padding: "3px 6px", borderRadius: 5 }}>{o.kind}</span>
-                  <span style={{ fontFamily: lvSerif, fontSize: 17, letterSpacing: "-0.01em", color: ink }}>{o.name}</span>
+            <div key={i} onClick={buyable ? () => buyPlan(o) : undefined} style={{ padding: "12px 13px", borderRadius: 10, border: `1px solid ${o.free ? hexA(c, 0.3) : hexA(ink, 0.08)}`, background: o.free ? hexA(c, 0.08) : hexA(ink, 0.03), cursor: buyable ? "pointer" : "default" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: c, background: hexA(c, 0.12), padding: "3px 6px", borderRadius: 5 }}>{o.kind}</span>
+                    <span style={{ fontFamily: lvSerif, fontSize: 17, letterSpacing: "-0.01em", color: ink }}>{o.name}</span>
+                  </div>
+                  <div style={{ fontFamily: lvSans, fontSize: 12, color: hexA(ink, 0.55), marginTop: 5 }}>{o.sub}</div>
                 </div>
-                <div style={{ fontFamily: lvSans, fontSize: 12, color: hexA(ink, 0.55), marginTop: 5 }}>{o.sub}</div>
+                <div style={{ textAlign: "right", flex: "none" }}>
+                  <div style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: o.free ? c : ink }}>{o.price}<span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.45) }}>{o.unit || ""}</span></div>
+                  <div style={{ fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: c, marginTop: 3 }}>{buyable ? "Buy →" : "Book →"}</div>
+                </div>
               </div>
-              <div style={{ textAlign: "right", flex: "none" }}>
-                <div style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: o.free ? c : ink }}>{o.price}<span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.45) }}>{o.unit || ""}</span></div>
-                <div style={{ fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: c, marginTop: 3 }}>{buyable ? "Buy →" : "Book →"}</div>
-              </div>
+              {o.media && o.media.length > 0 && (
+                <div style={{ marginTop: 10, display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
+                  {o.media.slice(0, 8).map((m, j) => (
+                    <div key={j} style={{ position: "relative", flex: "none", width: 66, height: 66, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
+                      {m.type === "video"
+                        ? <video src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline preload="metadata" />
+                        : <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                      {m.type === "video" && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="#fff" /></svg></div></div>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             );
           })}

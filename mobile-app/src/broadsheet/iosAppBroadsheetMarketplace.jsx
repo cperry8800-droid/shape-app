@@ -1420,20 +1420,37 @@ function BSCoachDetailPublic({ coach, onBack }) {
                 <div style={{ padding: `0 ${t.padX}px 16px`, display: 'grid', gap: 8 }}>
                   {list.length === 0 ? (
                     <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, padding: '10px 2px' }}>Nothing listed here yet.</div>
-                  ) : list.map((pl) => (
-                    <div key={pl.id} style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: roleColor }}>{String(pl.category || (pl.kind === 'meal_plan' ? 'meal' : 'program')).toUpperCase()}</div>
-                        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
-                        {pl.meta && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.meta}</div>}
+                  ) : list.map((pl) => {
+                    const media = Array.isArray(pl.detail?.media) ? pl.detail.media.filter((m) => m && m.url) : [];
+                    return (
+                    <div key={pl.id} style={{ borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: roleColor }}>{String(pl.category || (pl.kind === 'meal_plan' ? 'meal' : 'program')).toUpperCase()}</div>
+                          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                          {pl.meta && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.meta}</div>}
+                        </div>
+                        {pl.price ? (
+                          <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ flexShrink: 0, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, padding: '9px 15px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {pl.price}</button>
+                        ) : (
+                          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Listed</span>
+                        )}
                       </div>
-                      {pl.price ? (
-                        <button onClick={() => openCheckout({ type: 'plan', name: pl.name, price: pl.price, planId: pl.id, unit: 'one-time', perks: [pl.meta || 'Coach-built plan', 'Saved to your Library'] })} style={{ flexShrink: 0, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, padding: '9px 15px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {pl.price}</button>
-                      ) : (
-                        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Listed</span>
+                      {media.length > 0 && (
+                        <div style={{ marginTop: 10, display: 'flex', gap: 6, overflowX: 'auto' }} className="bs-hide-scroll">
+                          {media.slice(0, 8).map((m, i) => (
+                            <div key={i} style={{ position: 'relative', flex: 'none', width: 64, height: 64, borderRadius: 9, overflow: 'hidden', background: t.PAPER, border: `1px solid ${t.HAIR}` }}>
+                              {m.type === 'video'
+                                ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline preload="metadata" />
+                                : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                              {m.type === 'video' && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}><div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="8" height="8" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="#fff" /></svg></div></div>}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             );

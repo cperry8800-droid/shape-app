@@ -714,6 +714,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Tapping a coach opens the full living profile (Signal) — app (BSPublicProfile) + website (MemberProfile.html?name&role / ?u). Storefront consolidated INTO the living profile Coaching tab: Subscribe + Book intro + offerings/Buy (global ShapePayments/ShapeBookings) + sticky "Work with {first}" CTA', status: 'done' },
         { label: 'Reviews on their own profile tab (app + website); review authors link to their profile (authorId from /api/coaches/reviews); coach rating shown on a 1–10 scale everywhere', status: 'done' },
         { label: "Client 'Library': save trainers' workouts & paid plans + nutritionists' meals/plans to profile (model + screen + sell/checkout path)", status: 'done' },
+        { label: 'Coach media: trainers/nutritionists upload demo PHOTOS & VIDEOS for each plan/program/workout in the draft editor (BSCoachDraftEditor) → public coach-media bucket (own <uid>/ folder, 200MB/img+video) → detail.media. Migration 2026-06-09-coach-media.sql + 2026-06-09-coach-sale-plans-detail.sql (sale-plan RPCs return detail). Clients preview the media strip on the coach profile sale-plan rows (mobile + website)', status: 'done' },
         { label: 'Sweep now-dead marketplace constants + BSCoachDetailPublic/publicProfile.jsx (superseded by the living profile as the coach destination)', status: 'pending' },
       ],
     },

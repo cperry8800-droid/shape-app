@@ -3175,7 +3175,7 @@ async function listSalePlans(providerRole, providerId) {
   if (!supabase || !providerRole || !providerId) return [];
   const { data, error } = await supabase.rpc('get_coach_sale_plans', { p_provider_role: providerRole, p_provider_id: Number(providerId) });
   if (error) return [];
-  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program') }));
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program'), detail: r.detail || {} }));
 }
 // Same as listSalePlans but keyed by the coach's auth user id (the Signal
 // public profile only has the user id, not a marketplace provider-row id).
@@ -3183,7 +3183,7 @@ async function listSalePlansByUser(userId) {
   if (!supabase || !userId) return [];
   const { data, error } = await supabase.rpc('get_coach_sale_plans_by_user', { p_user_id: userId });
   if (error) return [];
-  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program'), providerId: r.provider_id || null, providerRole: r.provider_role || (r.kind === 'meal_plan' ? 'nutritionist' : 'trainer') }));
+  return (data || []).map((r) => ({ id: r.id, kind: r.kind, name: r.name, meta: r.meta || '', price: r.price || '', category: r.category || (r.kind === 'meal_plan' ? 'meal' : 'program'), providerId: r.provider_id || null, providerRole: r.provider_role || (r.kind === 'meal_plan' ? 'nutritionist' : 'trainer'), detail: r.detail || {} }));
 }
 async function listPurchasedPlans() {
   if (!supabase || !state.user?.id) return [];
@@ -3207,6 +3207,22 @@ async function buyCoachPlan({ plan, providerRole, providerId } = {}) {
   return d.url;
 }
 window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, salePlansByUser: listSalePlansByUser, purchased: listPurchasedPlans, buy: buyCoachPlan };
+
+// Upload a coach's workout media (photo or video) to the public `coach-media`
+// bucket (own <uid>/ folder, gated by storage RLS). Returns { url, type, name }
+// — the URL rides in coach_plans.detail.media so clients can view it inline.
+async function uploadCoachMedia(file) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to upload media.');
+  if (!file) throw new Error('No file selected.');
+  const isVideo = (file.type || '').startsWith('video/');
+  const ext = ((file.type && file.type.split('/')[1]) || (isVideo ? 'mp4' : 'jpg')).replace(/[^a-z0-9]/gi, '') || (isVideo ? 'mp4' : 'jpg');
+  const path = `${state.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const { error } = await supabase.storage.from('coach-media').upload(path, file, { contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'), upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from('coach-media').getPublicUrl(path);
+  return { url: data?.publicUrl || null, type: isVideo ? 'video' : 'image', name: file.name || '' };
+}
+window.ShapeCoachMedia = { upload: uploadCoachMedia };
 
 // Marketplace plan feed — published, priced coach_plans across ALL coaches,
 // tabbed program | workout | meal. Public read (anon ok). Returns [] on no-data.
