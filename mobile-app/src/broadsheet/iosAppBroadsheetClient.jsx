@@ -6315,9 +6315,9 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
         <div style={{ position: 'sticky', top: 0, background: BG, zIndex: 1, marginBottom: 12 }}>
-          {/* Masthead — matches the app's other pages: top hairline + logo + Vol·No
-              line on the left, your avatar + close on the right. */}
-          <div style={{ borderTop: `1px solid ${bsTHexA(INK, 0.5)}`, paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* Masthead — matches the app's other pages: logo + Vol·No line on the
+              left, your avatar + close on the right (no top hairline). */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
@@ -14625,6 +14625,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
         <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>Edit</button>
+      </div>
+      {/* Page heading */}
+      <div style={{ padding: `10px ${t.padX}px 4px` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>Account</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1 }}>Settings<span style={{ color: t.ACCENT }}>.</span></h1>
       </div>
 
       {/* Coach-only — pause new bookings (at capacity) */}
