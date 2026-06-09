@@ -8549,12 +8549,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // is demo data wired through the real tier-color helpers; swap `TRAINING_NOW`
   // for a live presence feed when the backend exposes who's-doing-what.
   const TRAINING_NOW = [
-    { name: 'Priya Shah',   tier: 'peak',   live: true,  photo: '1544005313-94ddf0286df2' },
-    { name: 'Drew Oyelaran', tier: 'legend',             photo: '1499996860823-5214fcc65f8f' },
-    { name: 'Casey Morgan', tier: 'form',                photo: '1507003211169-0a1dd7228f2d' },
-    { name: 'Devon Wells',  tier: 'tempo',               photo: '1500648767791-00dcc994a43e' },
-    { name: 'Maya Okafor',  tier: 'legend', role: 'trainer', photo: '1438761681033-6461ffad8d80' },
-    { name: 'Sofia Park',   tier: 'base',                photo: '1487412720507-e7ab37603c6f' },
+    { name: 'Priya Shah',    tier: 'peak',   live: true,  photo: '1544005313-94ddf0286df2' },
+    { name: 'Drew Oyelaran', tier: 'legend', live: true,  photo: '1499996860823-5214fcc65f8f' },
+    { name: 'Casey Morgan',  tier: 'form',   live: true,  photo: '1507003211169-0a1dd7228f2d' },
+    { name: 'Devon Wells',   tier: 'tempo',  live: true,  photo: '1500648767791-00dcc994a43e' },
+    { name: 'Maya Okafor',   tier: 'legend', live: true,  role: 'trainer', photo: '1438761681033-6461ffad8d80' },
+    { name: 'Sofia Park',    tier: 'base',   live: true,  photo: '1487412720507-e7ab37603c6f' },
+    { name: 'Leo Marchetti', tier: 'form',   live: true,  photo: '1502685104226-ee32379fefbe' },
+    { name: 'Aisha Bello',   tier: 'peak',   live: true,  role: 'nutritionist', photo: '1534528741775-53994a69daeb' },
+    { name: 'Noah Kim',      tier: 'tempo',  live: true,  photo: '1506794778202-cad84cf45f1d' },
+    { name: 'Elena Rossi',   tier: 'legend',              photo: '1524504388940-b1c1722653e1' },
   ];
   const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
   const liftingNow = online > 0 ? online : 2104;
