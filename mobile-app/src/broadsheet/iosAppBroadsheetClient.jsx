@@ -8931,15 +8931,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               );
             })}
           </div>
-          {/* dot legend: what the corner dot means */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '2px 2px 0', flexWrap: 'wrap' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#34d6c5' }} /> In a workout
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
-              <span style={{ width: 6, height: 6, borderRadius: 999, background: '#d8a23a' }} /> Cooking
-            </span>
-          </div>
       </div>
 
       {/* Feed / Channels / Friends / Team */}
