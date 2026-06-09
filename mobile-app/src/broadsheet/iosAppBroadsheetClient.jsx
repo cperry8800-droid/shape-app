@@ -9247,7 +9247,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div style={{ padding: `8px ${t.padX}px 6px` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} online now · near you</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} online now</span>
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '13px 12px 8px' }}>
             {railPeople.map((p, i) => {
