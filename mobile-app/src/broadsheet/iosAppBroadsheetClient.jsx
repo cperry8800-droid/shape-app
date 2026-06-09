@@ -7293,7 +7293,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           </div>
           <div style={{ marginTop: 14 }}>
             <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Me</div>
-            <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 400, letterSpacing: '-0.03em', color: INK, margin: '6px 0 0', lineHeight: 1 }}>Profile<span style={{ color: TEAL }}>.</span></h1>
+            <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, margin: '6px 0 0', lineHeight: 1 }}>Profile<span style={{ color: TEAL }}>.</span></h1>
           </div>
         </div>
       ) : (
@@ -7351,7 +7351,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* identity strip */}
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
-                <h1 style={{ fontFamily: SERIF, fontSize: 26, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
+                <h1 style={{ fontFamily: SERIF, fontSize: 26, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.95 }}>{name}</h1>
                 <div style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.55), marginTop: 5 }}>{handle}{pronouns ? ` · ${pronouns}` : ''}{city ? ` · ${city}` : ''}</div>
               </div>
               <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -7826,7 +7826,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
         {/* name block */}
         <div style={{ textAlign: 'center', marginTop: 14 }}>
-          <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: 400, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.98 }}>{name}</h1>
+          <h1 style={{ fontFamily: SERIF, fontSize: 38, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', margin: 0, lineHeight: 0.98 }}>{name}</h1>
           <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
             <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: c }}>{tierName}</span>
           </div>
@@ -11191,9 +11191,9 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</div>
-          <div style={{ marginTop: 1, fontFamily: SERIF, fontSize: 19, fontStyle: 'italic', letterSpacing: '-0.02em', color: c, lineHeight: 1 }}>{tierName}</div>
+          <div style={{ marginTop: 1, fontFamily: SERIF, fontSize: 19, fontStyle: 'italic', fontWeight: t.W.display, letterSpacing: '-0.02em', color: c, lineHeight: 1 }}>{tierName}</div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginTop: 4 }}>
-            <span style={{ fontFamily: SERIF, fontSize: 27, letterSpacing: '-0.03em', lineHeight: 0.9, color: INK }}>{pts.toLocaleString()}</span>
+            <span style={{ fontFamily: SERIF, fontSize: 27, fontWeight: t.W.display, letterSpacing: '-0.03em', lineHeight: 0.9, color: INK }}>{pts.toLocaleString()}</span>
             <span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginBottom: 3, letterSpacing: '0.06em' }}>pts</span>
           </div>
           <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{next ? `${toNext.toLocaleString()} to ${next[0]}` : 'Top of the ladder'}</div>
@@ -11246,7 +11246,7 @@ function BSMeGoalCard({ c, onOpen }) {
         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
       </div>
-      <div style={{ marginTop: 6, fontFamily: SERIF, fontSize: 23, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
+      <div style={{ marginTop: 6, fontFamily: SERIF, fontSize: 23, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
       <div style={{ marginTop: 11, height: 6, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
       <div style={{ marginTop: 9, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
     </button>
@@ -14101,7 +14101,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             </div>
             <div style={{ display: 'flex', gap: 7, marginTop: 16, justifyContent: 'center' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
-                <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '11px 6px', borderRadius: 11, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+                <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '11px 6px', borderRadius: 11, border: `1.5px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
             <button onClick={() => setShowPublicProfile(true)} style={{ width: '100%', marginTop: 8, padding: '11px', borderRadius: 12, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>View public profile →</button>
@@ -14396,7 +14396,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
         )}
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 12, marginBottom: 6, fontWeight: 700 }}>Display weight</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>Display weight</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['regular','bold'].map(k => (
             <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{k}</Pill>
