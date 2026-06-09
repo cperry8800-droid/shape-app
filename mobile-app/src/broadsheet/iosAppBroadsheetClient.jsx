@@ -7347,8 +7347,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </svg>
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
-            <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `${here.y - 64}px` }}>
-              <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 23px))`, top: `${here.y - 56}px` }}>
+              <BSFacetAvatar size={46} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(BG, 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
