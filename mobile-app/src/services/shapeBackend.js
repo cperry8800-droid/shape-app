@@ -3613,6 +3613,18 @@ async function searchShapePeople(q = '', limit = 20) {
 }
 window.ShapeSearch = { people: searchShapePeople };
 
+// Resolve a provider row (trainers/nutritionists) to its owner auth user — lets
+// "Coached by" chips link to the coach's live public profile.
+async function coachOwnerOf(providerId, role) {
+  if (!supabase || !providerId) return null;
+  try {
+    const table = role === 'nutritionist' ? 'nutritionists' : 'trainers';
+    const { data } = await supabase.from(table).select('owner_id').eq('id', providerId).maybeSingle();
+    return (data && data.owner_id) || null;
+  } catch (e) { return null; }
+}
+window.ShapeCoachLookup = { ownerOf: coachOwnerOf };
+
 // ── Unread manager — app-wide so the Chat-tab badge + per-row badges work even
 //    when the chat screen isn't mounted. Seeds persisted counts, then keeps a
 //    live map via realtime. Keys: `ch:<id>` / `dm:<id>`.

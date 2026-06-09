@@ -299,6 +299,19 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
 
+  // Inline ✉ on a search row → jump to the real 1:1 thread in the Chat tab.
+  React.useEffect(() => {
+    const open = (e) => {
+      const d = (e && e.detail) || {};
+      if (!d.conversationId) return;
+      setShowSearch(false);
+      setChatRequest({ conversationId: d.conversationId, coach: d.name || null, nonce: Date.now() });
+      setTab('chat');
+    };
+    window.addEventListener('shape:openConversation', open);
+    return () => window.removeEventListener('shape:openConversation', open);
+  }, []);
+
   // Hydrate the global identity cache (custom avatar initials / accent / name) and
   // the Shape Score tier at startup, so every avatar — header + feed — reflects the
   // right initials + tier color before the Me page is ever opened.
@@ -7499,7 +7512,19 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   React.useEffect(() => {
     if (!isSelf || !window.ShapeMessages?.listDirectCoachThreads) return;
     let alive = true;
-    window.ShapeMessages.listDirectCoachThreads().then(list => { if (alive && Array.isArray(list) && list.length) { const co = list[0]; const nm = co.who || co.name || co.full_name; if (nm) setCoachReal({ name: nm, init: bsInitials(nm) || 'C' }); } }).catch(() => {});
+    window.ShapeMessages.listDirectCoachThreads().then(res => {
+      const list = Array.isArray(res) ? res : (res && res.data) || [];
+      if (!alive || !list.length) return;
+      const co = list[0]; const nm = co.who || co.name || co.full_name;
+      if (!nm) return;
+      const role = co.provider_role === 'nutritionist' ? 'nutritionist' : 'trainer';
+      setCoachReal({ name: nm, init: bsInitials(nm) || 'C', role });
+      // Best-effort: resolve the provider row → owner uid so the chip links to
+      // the coach's LIVE public profile (derived Signal profile otherwise).
+      if (co.provider_id && window.ShapeCoachLookup) {
+        window.ShapeCoachLookup.ownerOf(co.provider_id, role).then(uid => { if (alive && uid) setCoachReal(prev => (prev ? { ...prev, userId: uid } : prev)); }).catch(() => {});
+      }
+    }).catch(() => {});
     return () => { alive = false; };
   }, [isSelf]);
   const persistClimb = (source, shown) => { try { window.shapeDb?.saveUserGoals?.('client_climb', { source, shown }); } catch (e) {} };
@@ -7767,10 +7792,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
                 </div>
                 <div style={{ width: 1, alignSelf: 'stretch', background: bsTHexA(INK, 0.12) }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInitEff}</div>
-                  <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2 }}>{coachNameEff}</div></div>
-                </div>
+                  <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2, whiteSpace: 'nowrap' }}>{coachNameEff} <span style={{ color: bsTHexA(INK, 0.4) }}>›</span></div></div>
+                </button>
               </div>
             </div>
             {/* Shape Score band — merged into the header (points + to-next + the four
@@ -8467,6 +8492,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 // Member (client) profiles use the Terrain design; coaches use the Signal
 // design; both are immersive living-identity pages (above).
 function BSPublicProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+  // Every profile you view (from chat, the feed, follows, search…) feeds the
+  // search screen's "Recent" list — recently viewed, not just recently searched.
+  React.useEffect(() => {
+    if (isSelf || meMode || !person || !person.who) return;
+    const role = person.kind === 'TRAINER' ? 'trainer' : person.kind === 'NUTRI' ? 'nutritionist' : 'client';
+    bsRecentSearchPush({ userId: person.userId || null, name: person.who, role, avatar: person.photo || null, tier: person.tier || null, points: null });
+  }, []);
   if (person.kind === 'TRAINER' || person.kind === 'NUTRI') {
     return <BSSignalCoachProfile person={person} onBack={onBack} onMessage={onMessage} isSelf={isSelf} onEdit={onEdit} meMode={meMode} onOpenSettings={onOpenSettings} onOpenScore={onOpenScore} />;
   }
@@ -8485,8 +8517,47 @@ function bsRecentSearchPush(p) {
     const a = bsRecentSearchRead().filter(x => (x.userId || x.name) !== (p.userId || p.name));
     a.unshift(p);
     localStorage.setItem(BS_RECENT_SEARCH_KEY, JSON.stringify(a.slice(0, 8)));
+    try { window.dispatchEvent(new Event('shape:recentSearch')); } catch (e2) {}
   } catch (e) {}
 }
+// Inline row actions — follow / message someone straight from the results,
+// without opening their profile first. Real accounts only (demo cast hides them).
+function BSSearchFollowBtn({ uid, teal }) {
+  const t = useBS();
+  const cached = (typeof window !== 'undefined' && window.ShapeFollows?.getCached && window.ShapeFollows.getCached(uid)) || null;
+  const [st, setSt] = React.useState(cached ? { following: !!cached.is_following, pending: !!cached.is_pending } : null);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    let dead = false;
+    if (!st && window.ShapeFollows?.stats) window.ShapeFollows.stats(uid).then(s => { if (!dead && s) setSt({ following: !!s.is_following, pending: !!s.is_pending }); }).catch(() => {});
+    return () => { dead = true; };
+  }, [uid]);
+  const on = !!(st && (st.following || st.pending));
+  const label = st && st.following ? 'Following' : st && st.pending ? 'Requested' : 'Follow';
+  return (
+    <button disabled={busy} onClick={async () => { if (busy) return; setBusy(true); try { const r = await window.ShapeFollows.toggle(uid); if (r) setSt({ following: !!r.is_following, pending: !!r.is_pending }); } catch (e) {} setBusy(false); }}
+      style={{ flexShrink: 0, padding: '6px 11px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? t.RULE : teal}`, background: on ? 'transparent' : (t.isLight ? `${teal}14` : `${teal}22`), color: on ? t.INK50 : teal, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy ? 0.6 : 1 }}>{label}</button>
+  );
+}
+function BSSearchMsgBtn({ uid, name }) {
+  const t = useBS();
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <button disabled={busy} aria-label={`Message ${name}`} onClick={async () => {
+      if (busy) return; setBusy(true);
+      try {
+        const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
+        const cid = (r && r.data) || null;
+        if (cid) { try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name } })); } catch (e) {} }
+      } catch (e2) { try { window.__bsToast && window.__bsToast('Could not open the conversation — try again.', 'error'); } catch (e3) {} }
+      setBusy(false);
+    }}
+      style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, opacity: busy ? 0.6 : 1 }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 8.5 8.5 0 0 1-3.4-.7L3 21l1.8-5.6a8.38 8.38 0 0 1-.8-3.9 8.5 8.5 0 0 1 8.5-8.5 8.38 8.38 0 0 1 8.5 8.5Z" /></svg>
+    </button>
+  );
+}
+
 function BSUniversalSearch({ onClose }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -8506,12 +8577,29 @@ function BSUniversalSearch({ onClose }) {
     ...BS_FOLLOW_DEMO_NAMES.map(n => ({ name: n, role: 'client' })),
   ].map(p => ({ ...p, userId: null, avatar: bsDemoFace(p.name), points: null, demo: true })), []);
 
-  // Suggested people for the empty state — real accounts when signed in, the demo cast otherwise.
+  // Suggested people for the empty state — "people you may know" from the
+  // follow graph first (get_follow_suggestions: mutuals + follows-you ranked),
+  // then any accounts on Shape, then the demo cast when signed out.
+  const [suggestKind, setSuggestKind] = useStateBSC('on'); // 'know' | 'on'
   React.useEffect(() => {
     let dead = false;
-    if (signedIn && window.ShapeSearch) {
-      window.ShapeSearch.people('', 8).then(r => { if (!dead && Array.isArray(r) && r.length) setSuggested(r); else if (!dead) setSuggested(demoPeople.slice(0, 8)); }).catch(() => { if (!dead) setSuggested(demoPeople.slice(0, 8)); });
-    } else setSuggested(demoPeople.slice(0, 8));
+    (async () => {
+      if (signedIn && window.ShapeFollows?.suggestions) {
+        try {
+          const sug = await window.ShapeFollows.suggestions(8);
+          if (!dead && Array.isArray(sug) && sug.length) {
+            let avatars = {};
+            try { avatars = (await window.ShapeProfiles.getUserAvatars(sug.map(s => s.userId))) || {}; } catch (e) {}
+            if (!dead) { setSuggested(sug.map(s => ({ ...s, avatar: avatars[s.userId] || null, points: null }))); setSuggestKind('know'); }
+            return;
+          }
+        } catch (e) {}
+      }
+      if (signedIn && window.ShapeSearch) {
+        try { const r = await window.ShapeSearch.people('', 8); if (!dead && Array.isArray(r) && r.length) { setSuggested(r); setSuggestKind('on'); return; } } catch (e) {}
+      }
+      if (!dead) { setSuggested(demoPeople.slice(0, 8)); setSuggestKind('on'); }
+    })();
     return () => { dead = true; };
   }, []);
 
@@ -8522,7 +8610,8 @@ function BSUniversalSearch({ onClose }) {
     setBusy(true);
     let dead = false;
     const id = setTimeout(() => {
-      const local = demoPeople.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+      const needle = query.replace(/^@/, '').toLowerCase();
+      const local = demoPeople.filter(p => p.name.toLowerCase().includes(needle));
       if (signedIn && window.ShapeSearch) {
         window.ShapeSearch.people(query).then(r => { if (dead) return; setRows(Array.isArray(r) && r.length ? r : local); setBusy(false); })
           .catch(() => { if (!dead) { setRows(local); setBusy(false); } });
@@ -8534,11 +8623,16 @@ function BSUniversalSearch({ onClose }) {
   const isCoachRole = (r) => r === 'trainer' || r === 'nutritionist';
   const matchesFilter = (p) => filter === 'all' ? true : (filter === 'coaches' ? isCoachRole(p.role) : !isCoachRole(p.role));
   const open = (p) => {
-    bsRecentSearchPush({ userId: p.userId || null, name: p.name, role: p.role || 'client', avatar: p.avatar || null, points: p.points != null ? p.points : null });
-    setRecents(bsRecentSearchRead());
+    // (Recents are recorded centrally when the profile mounts — covers profiles
+    // viewed from anywhere, not just searched ones.)
     const kind = p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
     setViewPerson({ who: p.name, kind, userId: p.userId || undefined, init: bsInitials(p.name), photo: p.avatar || undefined, tier: p.points != null ? bsTierForPoints(p.points) : undefined, public: true });
   };
+  React.useEffect(() => {
+    const sync = () => setRecents(bsRecentSearchRead());
+    window.addEventListener('shape:recentSearch', sync);
+    return () => window.removeEventListener('shape:recentSearch', sync);
+  }, []);
 
   if (viewPerson) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
@@ -8549,16 +8643,25 @@ function BSUniversalSearch({ onClose }) {
   const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Member';
   const roleColor = (r) => r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : teal;
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 };
-  const Row = (p, i) => (
-    <button key={(p.userId || p.name) + ':' + i} onClick={() => open(p)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}`, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
-      <BSFacetAvatar size={38} c={bsTierColor(p.points != null ? bsTierForPoints(p.points) : bsPostTier({ who: p.name }))} initial={bsInitials(p.name)} name={p.name} photo={p.avatar || undefined} showRank={false} />
-      <span style={{ minWidth: 0, flex: 1 }}>
-        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: roleColor(p.role) }}>{roleLabel(p.role)}</span>
-        <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
-      </span>
-      <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
-    </button>
-  );
+  const meId = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const Row = (p, i) => {
+    const actionable = signedIn && p.userId && p.userId !== meId;
+    const sub = p.mutuals > 0 ? `${p.mutuals} mutual` : (p.followsMe ? 'Follows you' : null);
+    return (
+      <div key={(p.userId || p.name) + ':' + i} style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+        <button onClick={() => open(p)} style={{ flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BSFacetAvatar size={38} c={bsTierColor(p.points != null ? bsTierForPoints(p.points) : (p.tier || bsPostTier({ who: p.name })))} initial={bsInitials(p.name)} name={p.name} photo={p.avatar || undefined} showRank={false} />
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: roleColor(p.role) }}>{roleLabel(p.role)}{sub ? <span style={{ color: t.INK50 }}> · {sub}</span> : null}</span>
+            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+          </span>
+        </button>
+        {actionable ? <BSSearchFollowBtn uid={p.userId} teal={teal} /> : null}
+        {actionable ? <BSSearchMsgBtn uid={p.userId} name={p.name} /> : null}
+        {!actionable ? <button onClick={() => open(p)} aria-label={`Open ${p.name}'s profile`} style={{ background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</button> : null}
+      </div>
+    );
+  };
 
   const list = (rows || []).filter(matchesFilter);
   const sugg = suggested.filter(matchesFilter);
@@ -8572,7 +8675,7 @@ function BSUniversalSearch({ onClose }) {
           <button onClick={onClose} aria-label="Close search" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Find anyone.</div>
-        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members & coaches…"
+        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
         <div style={{ display: 'flex', gap: 7, padding: '12px 0 10px' }}>
           {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches']].map(([k, label]) => (
@@ -8600,7 +8703,7 @@ function BSUniversalSearch({ onClose }) {
             {recs.length > 0 && (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '8px 0 2px' }}>
-                  <span style={eyebrow}>Recent searches</span>
+                  <span style={eyebrow}>Recent</span>
                   <button onClick={() => { try { localStorage.removeItem(BS_RECENT_SEARCH_KEY); } catch (e) {} setRecents([]); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Clear</button>
                 </div>
                 {recs.map(Row)}
@@ -8608,7 +8711,7 @@ function BSUniversalSearch({ onClose }) {
             )}
             {sugg.length > 0 && (
               <>
-                <div style={{ ...eyebrow, padding: `${recs.length ? 18 : 8}px 0 2px` }}>On Shape</div>
+                <div style={{ ...eyebrow, padding: `${recs.length ? 18 : 8}px 0 2px` }}>{suggestKind === 'know' ? 'People you may know' : 'On Shape'}</div>
                 {sugg.map(Row)}
               </>
             )}
