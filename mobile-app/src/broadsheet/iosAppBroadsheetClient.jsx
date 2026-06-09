@@ -6118,7 +6118,7 @@ function BSFollowMini({ onOpen }) {
     <div style={{ display: 'flex', gap: 18, marginTop: 12 }}>
       {stat(f.followers, 'Followers', 'followers')}
       {stat(f.following, 'Following', 'following')}
-      {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={bsMyName()} c={t.ACCENT} INK={t.INK} BG={t.PAPER} coach={bsIsCoachRole((window.ShapeAuth?.getCachedState?.()?.profile?.role) || '')} self onClose={() => setSheet(null)} onOpenProfile={(p) => { setSheet(null); setViewPerson(p); }} />}
+      {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={bsMyName()} c={bsMyTierColor()} INK={t.INK} BG={t.PAPER} coach={bsIsCoachRole((window.ShapeAuth?.getCachedState?.()?.profile?.role) || '')} self ownerPhoto={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} onClose={() => setSheet(null)} onOpenProfile={(p) => { setSheet(null); setViewPerson(p); }} />}
       {viewPerson && createPortal(
         <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)} />,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -6183,7 +6183,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
 // block AND the Settings mini, so they open the SAME live list everywhere. Shows real
 // profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
 // each person is a live link to their public profile (onOpenProfile).
-function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, onClose, onOpenProfile }) {
+function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, ownerPhoto, onClose, onOpenProfile }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
   const [list, setList] = useStateBSC(null);
   const [avatars, setAvatars] = useStateBSC({});
@@ -6323,7 +6323,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <BSFacetAvatar size={30} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} BG={BG} INK={INK} />
+              <BSFacetAvatar size={30} c={c} initial={bsInitials(name) || bsMyInitials() || '?'} name={name} photo={ownerPhoto || (self ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)} showRank={false} BG={BG} INK={INK} />
               <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
             </div>
           </div>
@@ -6382,7 +6382,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -6449,7 +6449,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: center ? 'center' : 'flex-start', gap: center ? 24 : 14, marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
       {statBtn(stats.followers, 'Followers', 'followers')}
       {statBtn(stats.following, 'Following', 'following')}
       {isSelf && reqCount > 0 && (
@@ -6471,7 +6471,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
         );
       })()}
-      {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
+      {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
     </div>
   );
 }
@@ -6495,7 +6495,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
           <h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 700, color: INK, letterSpacing: '-0.025em', lineHeight: 1, margin: '5px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
           {(handle || goal) ? <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle || ''}{handle && goal ? ' · ' : ''}{goal || ''}</div> : null}
           <div style={{ marginTop: 9 }}>
-            <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded onOpenProfile={onOpenProfile} />
+            <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} />
           </div>
         </div>
       </div>
@@ -7682,8 +7682,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </svg>
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
-            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 20px))`, top: `${here.y - 50}px` }}>
-              <BSFacetAvatar size={40} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
+            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 16px))`, top: `${here.y - 42}px` }}>
+              <BSFacetAvatar size={32} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>{heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
@@ -8197,14 +8197,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </div>
         )}
 
-        {/* Identity heading — avatar + tier + name + handle·role + follows, above
-            the Signal instrument (mirrors the Settings identity card). */}
+        {/* Followers / following / follow — centered row (the coach's name/tier
+            sit centered below the sigil, so just the follow stats live up here). */}
         <div style={{ marginTop: 18 }}>
-          <BSProfileIdentityHead name={name} handle={handle} goal={roleLabel} tierName={tierName} c={c}
-            photo={photo || (live && live.avatar) || (isSelf ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)}
-            initials={isSelf ? (bsMyInitials() || bsInitials(name)) : initials}
-            userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} coach onOpenProfile={setReviewerProfile}
-            live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} />
+          <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
+            ownerPhoto={photo || (live && live.avatar) || (isSelf ? ((typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined) : undefined)}
+            onOpenProfile={setReviewerProfile} />
         </div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
