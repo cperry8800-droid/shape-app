@@ -2410,7 +2410,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       {/* HABITS — same numbered format as the Day log; "View" → full habits page */}
       <BSSection
         title="Habits"
-        kicker={`${selDayHabits.filter(h => h.done).length}/${selDayHabits.length} done`}
+        kicker={<>{selDayHabits.filter(h => h.done).length}/{selDayHabits.length} done · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0)} pts</span></>}
         meta={<span onClick={() => setHabitsPage(true)} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>View →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px` }}>
@@ -2559,17 +2559,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             }}
           >
             <div style={{
-              padding: '14px 16px',
+              padding: '16px 16px 15px',
               borderBottom: `1px solid ${t.RULE}`,
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'space-between',
               gap: 14,
-              background: t.PAPER2,
+              background: `linear-gradient(155deg, ${activeDayLog.tagColor || t.ACCENT}1f, ${t.PAPER2} 70%)`,
             }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <BSTag color={activeDayLog.tagColor || t.INK}>{activeDayLog.tag || 'ITEM'}</BSTag>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: activeDayLog.tagColor || t.INK, background: `${activeDayLog.tagColor || t.INK}1f`, border: `1px solid ${activeDayLog.tagColor || t.INK}59`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, borderRadius: 999 }}>{activeDayLog.tag || 'ITEM'}</span>
                   <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', color: t.INK50, fontWeight: 800 }}>
                     {activeDayLog.time}
                   </span>
@@ -2609,25 +2609,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.42, color: t.INK70 }}>
                 {activeDayLogDetails.description}
               </div>
-              <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 6px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                {activeDayLogDetails.metrics.map(([label, value], i) => (
-                  <div key={label} style={{ padding: '0 8px', borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
+              <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                {activeDayLogDetails.metrics.map(([label, value]) => (
+                  <div key={label} style={{ borderRadius: 13, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '11px 11px' }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
                       {label}
                     </div>
-                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.15, color: t.INK }}>
+                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.15, color: t.INK }}>
                       {value}
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 14, padding: '12px 13px', border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>
+              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 13, background: `${activeDayLog.tagColor || t.ACCENT}14`, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}3a`, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>
                 {activeDayLogDetails.note}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 8, marginTop: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 10, marginTop: 16 }}>
                 <button
                   onClick={() => setActiveDayLogKey(null)}
-                  style={{ padding: '13px 10px', border: `1px solid ${t.INK}`, borderRadius: 12, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  style={{ padding: '14px 10px', border: `1px solid ${t.RULE}`, borderRadius: 999, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}
                 >
                   Close
                 </button>
@@ -2636,9 +2636,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     logDayItem(activeDayLogEntry.key, activeDayLog);
                     setActiveDayLogKey(null);
                   }}
-                  style={{ padding: '13px 10px', border: `1px solid ${activeDayLogLogged ? t.GREEN : t.INK}`, borderRadius: 12, background: activeDayLogLogged ? t.GREEN : t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  style={{ padding: '14px 10px', border: 0, borderRadius: 999, background: activeDayLogLogged ? t.GREEN : (activeDayLog.tagColor || t.INK), color: '#fff', fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 3px 14px ${activeDayLogLogged ? t.GREEN : (activeDayLog.tagColor || t.INK)}40` }}
                 >
-                  {activeDayLogLogged ? 'Logged' : 'Log now'}
+                  {activeDayLogLogged ? '✓ Logged' : 'Log now'}
                 </button>
               </div>
             </div>
