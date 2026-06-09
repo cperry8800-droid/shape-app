@@ -12060,6 +12060,20 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         title={<>Shape<br/><span style={{ fontStyle: 'italic', color: bsTierColor(tier) }}>Score.</span></>}
       />
 
+      {/* Shape Store — spend your points (top of page) */}
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        <button onClick={onOpenStore} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 11, padding: '12px 14px', borderRadius: 14, border: `1px solid ${t.ACCENT}66`, background: `${t.ACCENT}14`, color: t.INK, cursor: 'pointer', textAlign: 'left' }}>
+          <span aria-hidden style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 9, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}66`, color: t.ACCENT, display: 'grid', placeItems: 'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>Shape Store</div>
+            <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Spend your points</div>
+          </div>
+          <span style={{ flexShrink: 0, fontSize: 16, fontWeight: 700, color: t.ACCENT }}>→</span>
+        </button>
+      </div>
+
       {/* Composite hero — ring (progress to goal) + tier + this-week, above the tiers */}
       {(() => {
         const tc = bsTierColor(tier);
@@ -12170,13 +12184,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         })}
       </div>
 
-      {/* Rewards header — "Spend your points" centered, teal, and tappable
-          straight to the Shape Store where points are redeemed. */}
-      <div style={{ padding: `${t.sectGap}px ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>▍ Rewards</span>
-        <button onClick={onOpenStore} style={{ justifySelf: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>Spend your points →</button>
-        <span style={{ justifySelf: 'end', fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{available.toLocaleString()} available</span>
-      </div>
+      <BSSection title="Rewards" />
       <div style={{ padding: `0 ${t.padX}px` }}>
         {rewards.map(([title, sub, cost], i) => (
           <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
