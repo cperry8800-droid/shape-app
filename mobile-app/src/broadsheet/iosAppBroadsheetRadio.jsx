@@ -947,11 +947,13 @@ function BSRadioScreen({ onBack }) {
           />
         ))}
 
-        {/* SHAPE SETS — link to the editorial about-Shape-Radio / Club Shape page */}
+        {/* SHAPE SETS — its own section (header like CHANNEL) + a full-width row that
+            matches the Shape Radio Station row width. Links to the about page. */}
+        <DarkSection title="Shape Sets" meta="Club Shape" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         <button onClick={() => setShowSets(true)} style={{
-          width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer',
-          margin: `14px ${t.padX}px`, borderRadius: 14, border: `1.5px solid ${TEAL}55`, background: `${TEAL}10`, color: CREAM,
-          display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+          width: '100%', boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer',
+          background: `${TEAL}10`, color: CREAM, border: 0, borderBottom: `1px solid ${RULE_DK}`, borderLeft: `3px solid ${TEAL}`,
+          display: 'flex', alignItems: 'center', gap: 12, padding: `14px ${t.padX}px`,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>Live from Club Shape</div>
