@@ -2882,7 +2882,19 @@ async function redeemStoreItem(itemId, shipping) {
   if (!res.ok) throw new Error(data.error || 'Redemption failed.');
   return data;
 }
-window.ShapeStore = { get: getStore, redeem: redeemStoreItem };
+// Coach-only — activate a marketplace Lead Boost (separate from item redemption).
+async function redeemLeadBoost(role, days) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/lead-boosts`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ role, days }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Lead Boost failed.');
+  return data;
+}
+window.ShapeStore = { get: getStore, redeem: redeemStoreItem, redeemLeadBoost };
 
 window.ShapeNotifications = {
   list: listNotifications,

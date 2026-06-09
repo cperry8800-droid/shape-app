@@ -12254,7 +12254,11 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const t = useBS();
   // Live points + tier for ALL profiles (client + coach) — was only wired for client.
   profile = _bsUseLiveScore(profile);
-  const categories = ['All', 'Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
+  // Role-correct catalogue: clients redeem session/meal/perk rewards; coaches redeem
+  // Coach Tools (Lead Boost). Merch is shared. Drives the category pills + the filter.
+  const isCoach = bsIsCoachRole(profile.roleLabel);
+  const roleCats = isCoach ? ['Shape Merch', 'Coach Tools'] : ['Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
+  const categories = ['All', ...roleCats];
   const [cat, setCat] = useStateBSC('All');
   const [affordable, setAffordable] = useStateBSC(false);
   // Live points balance + redemption locker (members only). Falls back to the
@@ -12290,6 +12294,10 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     { id: 'nutri_grocery_buildout', cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
     { id: 'nutri_recipe_pack', cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
     { id: 'perk_annual_credit', cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
+    // Coach-only — Lead Boost (marketplace featured placement). Redeems via /api/lead-boosts.
+    { id: 'lead_boost_7', cat: 'Coach Tools', name: 'Lead Boost · 7 days', brand: 'Marketplace featured placement', cost: 1580, retail: 79, stock: 'Activate now', kind: 'lead_boost', days: 7 },
+    { id: 'lead_boost_14', cat: 'Coach Tools', name: 'Lead Boost · 14 days', brand: 'Marketplace featured placement', cost: 2780, retail: 139, tag: 'Popular', stock: 'Activate now', kind: 'lead_boost', days: 14 },
+    { id: 'lead_boost_30', cat: 'Coach Tools', name: 'Lead Boost · 30 days', brand: 'Marketplace featured placement', cost: 4980, retail: 249, stock: 'Activate now', kind: 'lead_boost', days: 30 },
   ];
   // Uniform store value: 1 Shape point = $0.05 (20 points = $1). Every item is
   // priced straight off its retail $, so the rate is consistent across the catalogue.
@@ -12310,6 +12318,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     ? store.balance + liveRedemptions.reduce((s, r) => s + (Number(r.cost_points) || 0), 0)
     : profile.lifetime;
   const visible = products.filter(p => {
+    if (!roleCats.includes(p.cat)) return false;           // role-correct: hide other-role items
     if (cat !== 'All' && p.cat !== cat) return false;
     if (affordable && (p.locked || p.cost > balance)) return false;
     return true;
@@ -12333,6 +12342,12 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     setBusyId(p.id);
     setNotice('');
     try {
+      if (p.kind === 'lead_boost') {
+        await window.ShapeStore.redeemLeadBoost(String(profile.roleLabel || 'trainer').toLowerCase(), p.days);
+        setNotice(`Lead Boost is live for ${p.days} days — your marketplace ranking is boosted.`);
+        await reloadStore();
+        return;
+      }
       const d = await window.ShapeStore.redeem(p.id, shipping);
       const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : shipping ? ' We’ll ship it out — check your email.' : '';
       setNotice(`${p.name} redeemed! Code ${d.code}.${extra}`);

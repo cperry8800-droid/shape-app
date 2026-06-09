@@ -161,13 +161,13 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
   );
 }
 
-function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }) {
+function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable, categories = CATEGORIES }) {
   const pill = (on) => ({ padding: "9px 16px", borderRadius: 999, border: on ? `1px solid ${INK}` : "1px solid rgba(242,237,228,0.18)", background: on ? INK : "transparent", color: on ? PAPER : INK, fontFamily: sans, fontSize: 13, cursor: "pointer", fontWeight: on ? 500 : 400 });
   return (
     <section style={{ padding: "28px 72px", borderTop: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.02)", position: "sticky", top: 76, zIndex: 40, backdropFilter: "blur(12px)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr auto", gap: 32, alignItems: "center" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {CATEGORIES.map((c) => <button key={c} style={pill(cat === c)} onClick={() => setCat(c)}>{c}</button>)}
+          {categories.map((c) => <button key={c} style={pill(cat === c)} onClick={() => setCat(c)}>{c}</button>)}
           <span style={{ width: 1, background: "rgba(242,237,228,0.15)", height: 20, margin: "0 8px" }} />
           <button style={pill(affordable)} onClick={() => setAffordable(!affordable)}>Within my balance</button>
         </div>
@@ -238,6 +238,25 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   const roleHint = useMStore(() => getRoleHint(), []);
   const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
   const isMerch = (p) => p.cat === "Shape Merch";
+  // Role-correct catalogue: coaches redeem Coach Tools (Lead Boost) + merch; clients
+  // redeem session/meal/perk rewards + merch. Resolve the real role from profiles.role.
+  const [isCoach, setIsCoach] = useSStore(false);
+  useEStore(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cl = window.shapeDb && window.shapeDb.client;
+        const userRes = cl && cl.auth ? await cl.auth.getUser() : null;
+        const user = userRes && userRes.data ? userRes.data.user : null;
+        if (!user) return;
+        const r = await cl.from("profiles").select("role").eq("id", user.id).maybeSingle();
+        const role = r && r.data ? r.data.role : null;
+        if (!cancelled) setIsCoach(role === "trainer" || role === "nutritionist");
+      } catch (_) {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const roleCats = isCoach ? ["Shape Merch", "Coach Tools"] : ["Shape Merch", "Training", "Nutrition", "Shape Perks"];
 
   async function doRedeem(product, shipping) {
     if (busy) return;
@@ -288,6 +307,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
 
   const list = useMStore(() => {
     let arr = allProducts.filter(p => {
+      if (!roleCats.includes(p.cat)) return false;            // role-correct: hide other-role items
       if (cat !== "All" && p.cat !== cat) return false;
       if (affordable && (p.locked || p.cost > balance)) return false;
       if (query && !`${p.name} ${p.brand} ${p.cat}`.toLowerCase().includes(query.toLowerCase())) return false;
@@ -297,11 +317,11 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
     else if (sort === "High to low") arr = [...arr].sort((a, b) => b.cost - a.cost);
     else if (sort === "New") arr = [...arr].sort((a, b) => (b.tag === "New" ? 1 : 0) - (a.tag === "New" ? 1 : 0));
     return arr;
-  }, [allProducts, cat, sort, query, affordable]);
+  }, [allProducts, cat, sort, query, affordable, isCoach]);
 
   return (
     <>
-      <StoreFilters {...{ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }} />
+      <StoreFilters {...{ cat, setCat, sort, setSort, query, setQuery, affordable, setAffordable }} categories={["All", ...roleCats]} />
       <section style={{ padding: "48px 72px 40px" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           {locked && (
