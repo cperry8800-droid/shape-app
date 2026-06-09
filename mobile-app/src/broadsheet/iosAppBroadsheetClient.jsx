@@ -2016,7 +2016,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     <BSPage>
       <BSMasthead
         compact
-        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: 'brightness(0) invert(1)' }} />}
+        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
         trailing={<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />}
@@ -6696,7 +6696,10 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
 }
 
 function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {} }) {
-  const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
+  const tTheme = useBS();
+  // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
+  // light paper makes the profile light). TEAL accent is constant.
+  const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
@@ -7118,11 +7121,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 never slides onto the identity strip below */}
             <div style={{ position: 'absolute', left: `calc(${(here.x / W) * 100}% - 28px)`, top: `${here.y - 64}px` }}>
               <BSFacetAvatar size={56} c={c} initial={bsInitials(name) || '?'} photo={avPhoto} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
-              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA('#0c1110', 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
+              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 5, whiteSpace: 'nowrap', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(BG, 0.85), padding: '2px 6px', borderRadius: 4 }}>You · {heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
-            <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA('#0c1110', 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
-            <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA('#0c1110', 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
+            <div style={{ position: 'absolute', left: 12, top: H - 20, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), background: bsTHexA(BG, 0.7), padding: '2px 6px', borderRadius: 4 }}>{curLevel} · now</div>
+            <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 44, fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA(BG, 0.72), padding: '3px 8px', borderRadius: 5 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
@@ -7394,7 +7397,8 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
 }
 
 function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {} }) {
-  const BG = '#100d0a', INK = '#f2ede4', TEAL = '#34d6c5';
+  const tTheme = useBS();
+  const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
@@ -14665,17 +14669,7 @@ function BSProgChart({ points, color, h = 150 }) {
   );
 }
 function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
-  const tBase = useBS();
-  // Embedded inside the Me profile (an always-dark surface): force a dark palette
-  // so it reads correctly even when the app theme is light. Provided via context
-  // so every sub-component's useBS() gets the dark theme too.
-  const t = (embedded && tBase.isLight) ? {
-    ...tBase, isLight: false,
-    INK: '#f2ede4', INK70: 'rgba(242,237,228,0.7)', INK50: 'rgba(242,237,228,0.5)', INK30: 'rgba(242,237,228,0.3)',
-    PAPER: '#100d0a', PAPER2: 'rgba(242,237,228,0.05)', PAPER3: 'rgba(242,237,228,0.08)',
-    HAIR: 'rgba(242,237,228,0.1)', RULE: 'rgba(242,237,228,0.18)', SURFACE_BORDER: 'rgba(242,237,228,0.14)',
-    ACCENT: '#34d6c5', RUST: '#e07856', AMBER: '#f4b860', BLUE: '#7ed4ff', GREEN: '#7ee0a0',
-  } : tBase;
+  const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [tab, setTab] = useStateBSC(initialTab);
   const [prog, setProg] = useStateBSC(null);
