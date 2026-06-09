@@ -3168,7 +3168,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
           Filled in the TRAINER role color (rust) so it reads as a coach lane at a glance. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #e07a5f', background: 'linear-gradient(135deg, #c0533b, #9a3c28)', boxShadow: '0 2px 10px rgba(192,83,59,0.25)', cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #c06a52', background: 'linear-gradient(135deg, #a34732, #833322)', boxShadow: '0 2px 10px rgba(192,83,59,0.16)', cursor: 'pointer', textAlign: 'left' }}>
         <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
         </div>
@@ -4522,7 +4522,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     {
       d: 'M 17',
       kicker: 'Section · Nutrition',
-      title: <>Loading<br/>day.</>,
+      title: <>Loading day.</>,
       tag: 'PEAK',
       tagColor: t.RUST,
       accent: t.RUST,
@@ -4612,11 +4612,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     {
       d: 'T 18',
       kicker: 'Section · Nutrition',
-      title: <>Push<br/>fuel.</>,
+      title: <>Push fuel.</>,
       tag: 'TRAIN',
       tagColor: t.AMBER,
       accent: t.AMBER,
-      headline: <>Lighter<br/>plate.</>,
+      headline: <>Lighter plate.</>,
       meta: '5 services · 1950 kcal',
       copy: 'Upper-push day. Slightly leaner — the press doesn\'t need 80g of oats. Hit protein, drop volume.',
       totals: { cal: '1948', p: '168', c: '198', f: '60', target: { cal: '2000', p: '165', c: '210', f: '64' } },
@@ -4711,7 +4711,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     {
       d: 'W 19',
       kicker: 'Section · Nutrition',
-      title: <>Reset<br/>plate.</>,
+      title: <>Reset plate.</>,
       tag: 'RECOV',
       tagColor: t.GREEN,
       accent: t.GREEN,
@@ -4797,11 +4797,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     {
       d: 'T 20',
       kicker: 'Section · Nutrition',
-      title: <>Pull<br/>fuel.</>,
+      title: <>Pull fuel.</>,
       tag: 'TRAIN',
       tagColor: t.AMBER,
       accent: t.RUST,
-      headline: <>Bigger<br/>protein.</>,
+      headline: <>Bigger protein.</>,
       meta: '5 services · 2050 kcal',
       copy: 'Lower-pull day. Deadlift demands the most from the posterior chain — protein high, fats moderate, carbs to refill.',
       totals: { cal: '2048', p: '178', c: '218', f: '62', target: { cal: '2100', p: '180', c: '220', f: '65' } },
@@ -4896,7 +4896,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       // ── F 21 — Friday peak day. Full detail. ──
       d: 'F 21',
       kicker: 'Section · Nutrition',
-      title: <>The<br/>menu.</>,
+      title: <>The menu.</>,
       tag: 'PEAK',
       tagColor: t.AMBER,
       accent: t.AMBER,
@@ -5026,11 +5026,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     {
       d: 'S 22',
       kicker: 'Section · Nutrition',
-      title: <>Carb<br/>load.</>,
+      title: <>Carb load.</>,
       tag: 'COND',
       tagColor: t.RUST,
       accent: t.RUST,
-      headline: <>Threshold<br/>fuel.</>,
+      headline: <>Threshold fuel.</>,
       meta: '4 services · 1900 kcal',
       copy: 'Conditioning day. Carbs front-loaded — fuel the intervals, recover with protein. Skip the heavy fats early.',
       totals: { cal: '1898', p: '128', c: '232', f: '50', target: { cal: '1950', p: '130', c: '240', f: '52' } },
@@ -5115,11 +5115,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     {
       d: 'S 23',
       kicker: 'Section · Nutrition',
-      title: <>Easy<br/>plate.</>,
+      title: <>Easy plate.</>,
       tag: 'REST',
       tagColor: t.GREEN,
       accent: t.GREEN,
-      headline: <>Sunday<br/>simple.</>,
+      headline: <>Sunday simple.</>,
       meta: '3 services · 1650 kcal',
       copy: 'Full rest day. Three meals, no snacks needed. Cook one thing well, eat slowly, sleep early.',
       totals: { cal: '1648', p: '128', c: '162', f: '60', target: { cal: '1700', p: '130', c: '170', f: '62' } },
@@ -5540,7 +5540,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
           Filled in the NUTRITIONIST role color (gold) so it reads as the nutrition lane. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #e0b65c', background: 'linear-gradient(135deg, #b8862f, #8a6322)', boxShadow: '0 2px 10px rgba(160,122,46,0.25)', cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '5px 10px', borderRadius: 11, border: '2.5px solid #c2a052', background: 'linear-gradient(135deg, #9c7228, #75541d)', boxShadow: '0 2px 10px rgba(160,122,46,0.16)', cursor: 'pointer', textAlign: 'left' }}>
         <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.30)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
         </div>
