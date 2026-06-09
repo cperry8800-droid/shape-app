@@ -7427,7 +7427,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               </div>
             )}
             <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ display: 'block', position: 'relative' }}>
-              <defs><linearGradient id={`asc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.32)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
+              <defs><linearGradient id={`asc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.5)} /><stop offset="100%" stopColor={bsTHexA(c, 0.04)} /></linearGradient></defs>
               {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
               <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill={`url(#asc${seed})`} />
               <path d={ridge} fill="none" stroke={bsTHexA(INK, 0.4)} strokeWidth="1.5" />
@@ -7482,7 +7482,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
                 <div style={{ padding: '0 14px 14px' }}>
-                  <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: '11px 12px', cursor: 'pointer' }}>
+                  <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
                         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
