@@ -9058,6 +9058,37 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     </button>
   );
 
+  // Real "active now" roster (get_active_now RPC) — real people mid-workout/cooking
+  // with name/tier/avatar; falls back to the demo rail when nobody's active / signed
+  // out. ⚠ Hooks MUST stay ABOVE the openProfile/openChat early returns below —
+  // hooks after a conditional return crash React ("fewer hooks than expected", #300).
+  const [realActive, setRealActive] = useStateBSC([]);
+  React.useEffect(() => {
+    if (!window.ShapePresence?.activeNow) return undefined;
+    let on = true;
+    const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
+    const load = () => window.ShapePresence.activeNow(24).then((rows) => {
+      if (!on) return;
+      const items = (rows || [])
+        .filter((r) => r && r.user_id && String(r.user_id) !== String(myId))
+        .map((r) => ({
+          name: r.full_name || 'Shape member',
+          tier: bsTierForPoints(Number(r.points) || 0),
+          live: true,
+          activity: r.kind === 'cooking' ? 'cooking' : 'workout',
+          role: r.role === 'trainer' ? 'trainer' : r.role === 'nutritionist' ? 'nutritionist' : null,
+          photoUrl: r.avatar || null,
+          userId: r.user_id,
+        }));
+      setRealActive(items);
+    }).catch(() => {});
+    load();
+    const onEvt = () => load();
+    window.addEventListener('shape:presence', onEvt);
+    const iv = setInterval(load, 45000);
+    return () => { on = false; window.removeEventListener('shape:presence', onEvt); clearInterval(iv); };
+  }, []);
+
   if (openProfile) {
     return <BSPublicProfile person={openProfile} onBack={() => setOpenProfile(null)} onMessage={async (person) => {
       setOpenProfile(null);
@@ -9102,34 +9133,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: '1524504388940-b1c1722653e1' },
   ];
   const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
-  // Real "active now" roster (get_active_now RPC) — real people mid-workout/cooking
-  // with name/tier/avatar; falls back to the demo rail when nobody's active / signed out.
-  const [realActive, setRealActive] = useStateBSC([]);
-  React.useEffect(() => {
-    if (!window.ShapePresence?.activeNow) return undefined;
-    let on = true;
-    const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
-    const load = () => window.ShapePresence.activeNow(24).then((rows) => {
-      if (!on) return;
-      const items = (rows || [])
-        .filter((r) => r && r.user_id && String(r.user_id) !== String(myId))
-        .map((r) => ({
-          name: r.full_name || 'Shape member',
-          tier: bsTierForPoints(Number(r.points) || 0),
-          live: true,
-          activity: r.kind === 'cooking' ? 'cooking' : 'workout',
-          role: r.role === 'trainer' ? 'trainer' : r.role === 'nutritionist' ? 'nutritionist' : null,
-          photoUrl: r.avatar || null,
-          userId: r.user_id,
-        }));
-      setRealActive(items);
-    }).catch(() => {});
-    load();
-    const onEvt = () => load();
-    window.addEventListener('shape:presence', onEvt);
-    const iv = setInterval(load, 45000);
-    return () => { on = false; window.removeEventListener('shape:presence', onEvt); clearInterval(iv); };
-  }, []);
   const railPeople = realActive.length ? realActive : TRAINING_NOW;
   const liftingNow = online > 0 ? online : 2104;
 
