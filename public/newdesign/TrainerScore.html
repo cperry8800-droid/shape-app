@@ -111,6 +111,34 @@ function TrainerScorePage() {
           </Card>
         </div>
       </div>
+
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle right="12 WAYS">How you earn · points by action</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 36px" }}>
+          {[
+            ["Live session completed", "Per booking · client attended", "+18–28"],
+            ["Program block delivered", "Per client · new or refreshed block", "+24"],
+            ["Workout assigned", "Per plan · new or adjusted session", "+8"],
+            ["Form review returned", "Per review · video feedback within 24h", "+8–12"],
+            ["Client check-in answered", "Daily · meaningful coaching reply", "+5"],
+            ["Fast message reply", "Per reply · within the hour", "+2"],
+            ["PR verified", "Per PR · client lift or performance milestone", "+10"],
+            ["Client weekly target hit", "Per client · roster adherence credit", "+6"],
+            ["Retention streak", "Weekly · active roster held 7 days", "+20"],
+            ["5-star review earned", "Per review · verified client rating", "+15"],
+            ["Plan sold", "Per sale · marketplace program purchase", "+30"],
+            ["New client onboarded", "Per intake · completed intake and first plan", "+40"],
+          ].map(([name, sub, pts], i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "13px 0", borderTop: i > 1 ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "baseline" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{name}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 3, letterSpacing: "0.03em" }}>{sub}</div>
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: TEAL_BRIGHT, alignSelf: "center" }}>{pts}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </DashPage>
   );
 }

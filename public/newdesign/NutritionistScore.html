@@ -111,6 +111,34 @@ function NutritionistScorePage() {
           </Card>
         </div>
       </div>
+
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle right="12 WAYS">How you earn · points by action</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 36px" }}>
+          {[
+            ["Consult completed", "Per booking · initial or follow-up consult", "+18–28"],
+            ["Meal plan delivered", "Per client · new or adjusted nutrition plan", "+24"],
+            ["Grocery list sent", "Per plan · built from the plan", "+8"],
+            ["Macro review returned", "Per review · food log analysis within 24h", "+8–12"],
+            ["Adherence check-in", "Daily · useful client follow-up", "+5"],
+            ["Fast message reply", "Per reply · within the hour", "+2"],
+            ["Biomarker note logged", "Per update · labs, weight trend, or recovery", "+10"],
+            ["Client hit macros", "Per client · weekly adherence credit", "+6"],
+            ["Plan adherence streak", "Weekly · client hit targets for the week", "+20"],
+            ["5-star review earned", "Per review · verified client rating", "+15"],
+            ["Plan sold", "Per sale · marketplace plan purchase", "+30"],
+            ["New nutrition client onboarded", "Per intake · completed intake and first plan", "+40"],
+          ].map(([name, sub, pts], i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "13px 0", borderTop: i > 1 ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "baseline" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{name}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 3, letterSpacing: "0.03em" }}>{sub}</div>
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: TEAL_BRIGHT, alignSelf: "center" }}>{pts}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </DashPage>
   );
 }
