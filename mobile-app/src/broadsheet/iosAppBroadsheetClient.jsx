@@ -8736,6 +8736,35 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { name: 'Elena Rossi',   tier: 'legend', live: true, activity: 'workout', photo: '1524504388940-b1c1722653e1' },
   ];
   const bsUnsplash = (id) => id ? `https://images.unsplash.com/photo-${id}?w=120&h=120&fit=crop&crop=faces&q=72&auto=format` : null;
+  // Real "active now" roster (get_active_now RPC) — real people mid-workout/cooking
+  // with name/tier/avatar; falls back to the demo rail when nobody's active / signed out.
+  const [realActive, setRealActive] = useStateBSC([]);
+  React.useEffect(() => {
+    if (!window.ShapePresence?.activeNow) return undefined;
+    let on = true;
+    const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
+    const load = () => window.ShapePresence.activeNow(24).then((rows) => {
+      if (!on) return;
+      const items = (rows || [])
+        .filter((r) => r && r.user_id && String(r.user_id) !== String(myId))
+        .map((r) => ({
+          name: r.full_name || 'Shape member',
+          tier: bsTierForPoints(Number(r.points) || 0),
+          live: true,
+          activity: r.kind === 'cooking' ? 'cooking' : 'workout',
+          role: r.role === 'trainer' ? 'trainer' : r.role === 'nutritionist' ? 'nutritionist' : null,
+          photoUrl: r.avatar || null,
+          userId: r.user_id,
+        }));
+      setRealActive(items);
+    }).catch(() => {});
+    load();
+    const onEvt = () => load();
+    window.addEventListener('shape:presence', onEvt);
+    const iv = setInterval(load, 45000);
+    return () => { on = false; window.removeEventListener('shape:presence', onEvt); clearInterval(iv); };
+  }, []);
+  const railPeople = realActive.length ? realActive : TRAINING_NOW;
   const liftingNow = online > 0 ? online : 2104;
 
   return (
@@ -8765,13 +8794,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} online now · near you</span>
           </div>
           <div className="bs-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'visible', padding: '13px 12px 8px' }}>
-            {TRAINING_NOW.map((p, i) => {
+            {railPeople.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
+              const pPhoto = p.photoUrl || bsUnsplash(p.photo);
               return (
-                <button key={i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, photo: bsUnsplash(p.photo) || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={p.userId || i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 58, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={bsUnsplash(p.photo)} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
+                    <BSFacetAvatar size={44} c={tc} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
                   </div>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: cardInk }}>{p.name.split(' ')[0]}</span>
                 </button>

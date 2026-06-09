@@ -3713,6 +3713,13 @@ window.ShapePresence = {
   setVisible: setPresenceVisible,
   setActivity: setActivity,
   activityOf: (uid) => (uid ? (_activity.map.get(String(uid)) || null) : null),
+  // Real "active now" roster (name · role · points → tier · avatar) for the
+  // presence rail. Empty array when signed out / nobody active → demo fallback.
+  activeNow: async (limit = 24) => {
+    if (!supabase) return [];
+    try { const { data } = await supabase.rpc('get_active_now', { p_limit: limit }); return Array.isArray(data) ? data : []; }
+    catch (e) { return []; }
+  },
   myActivity: () => _activity.mine,
   onChange: (cb) => { _presence.listeners.add(cb); return () => _presence.listeners.delete(cb); },
 };
