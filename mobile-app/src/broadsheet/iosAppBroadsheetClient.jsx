@@ -6908,7 +6908,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
   );
 }
 
-function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
+function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
   const [bio, setBio] = useStateBSC(init.bio || '');
@@ -6964,6 +6964,27 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave }) {
           <div><div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>Your profile</div><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em', marginTop: 3 }}>Customize.</div></div>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 20, cursor: 'pointer', padding: 4 }}>×</button>
         </div>
+        {coach && (
+          /* What the Signal sigil rings mean — moved off the public profile to here
+             (coach-only). Explains the instrument on the coach's own profile. */
+          <div style={{ marginBottom: 18, padding: '14px 15px', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(c, 0.06) }}>
+            <span style={label}>Your Signal · what the rings mean</span>
+            <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.7), lineHeight: 1.5, marginBottom: 10 }}>The instrument on your profile reads your coaching at a glance. The <strong style={{ color: INK }}>outer ring</strong> is your progress to the next coach tier; the three inner rings each track a contribution and fill as you keep them up:</div>
+            {[
+              ['Habits', c, 'Your own daily habit consistency.'],
+              ['Client workouts', bsTHexA(c, 0.7), 'Sessions your clients complete on the plans you set.'],
+              ['Own activity', '#34d6c5', 'Your own logged training — you walk the walk.'],
+            ].map(([name, dot, desc]) => (
+              <div key={name} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: dot, flex: 'none', marginTop: 4 }} />
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: INK, fontWeight: 700 }}>{name}</span>
+                  <span style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.6), marginLeft: 7 }}>{desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Bio</span>
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: 'vertical', minHeight: 64 }} />
@@ -8023,18 +8044,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             <BSFacetAvatar size={86} c={c} initial={initials} name={name} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
-        {/* progress readout + the three contribution rings, legend */}
+        {/* progress readout — % to next tier (the ring legend now lives in
+            profile settings → "Your Signal · what the rings mean", coach-only) */}
         <div style={{ marginTop: 12, textAlign: 'center' }}>
           <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{_sigTop ? 'Top of the ladder' : <>{Math.round(sigilToNext * 100)}% to <span style={{ color: TEAL, fontWeight: 800 }}>{sigilNextTier}</span></>}</div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginTop: 9, flexWrap: 'wrap' }}>
-            {sigilRings.map(([label, val], i) => { const col = i === 0 ? c : i === sigilRings.length - 1 ? TEAL : bsTHexA(c, 0.7); return (
-              <div key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: col, flex: 'none' }} />
-                <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6) }}>{label}</span>
-                <span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.4) }}>{Math.round(val * 100)}</span>
-              </div>
-            ); })}
-          </div>
         </div>
 
         {/* name block */}
@@ -8202,7 +8215,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         )}
       </div>
 
-      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
