@@ -6315,9 +6315,20 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', maxWidth: 430, height: '100%', boxSizing: 'border-box', background: BG, color: INK, padding: 'calc(46px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', boxShadow: '0 0 70px rgba(0,0,0,0.6)' }}>
         <div style={{ position: 'sticky', top: 0, background: BG, zIndex: 1, marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8 }}>
+          {/* Masthead — matches the app's other pages: top hairline + logo + Vol·No
+              line on the left, your avatar + close on the right. */}
+          <div style={{ borderTop: `1px solid ${bsTHexA(INK, 0.5)}`, paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {BSLogo && <BSLogo size={16} color={INK} />}
+              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <BSFacetAvatar size={30} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} showRank={false} BG={BG} INK={INK} />
+              <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, paddingBottom: 8 }}>
             <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>{kind === 'requests' ? 'Follow requests' : kind === 'following' ? 'Following' : 'Followers'}</span>
-            <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
           </div>
           {kind !== 'requests' && (
             <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 999, padding: 4 }}>
@@ -6432,18 +6443,18 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
   const statBtn = (n, label, kind) => (
-    <button onClick={() => openList(kind)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left', lineHeight: 1 }}>
+    <button onClick={() => openList(kind)} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
       <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
       {statBtn(stats.followers, 'Followers', 'followers')}
       {statBtn(stats.following, 'Following', 'following')}
       {isSelf && reqCount > 0 && (
         <button onClick={() => openList('requests')} style={{
-          flex: 'none', display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
+          flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer',
           fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
@@ -6453,7 +6464,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         const solid = fs === 'follow';
         return (
           <button onClick={onToggle} disabled={busy} style={{
-            flex: 'none', display: 'inline-flex', alignItems: 'center', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
+            flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer',
             fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
             border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
