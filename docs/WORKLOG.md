@@ -87,6 +87,54 @@ changelog whenever something ships.
   `listSalePlansByUser` map `detail`.
 - War Room: registered under "Marketplace & coach profiles".
 
+### 2026-06-09 — Live "doing now" activity dot, home re-layout, photos & avatars
+- **Live activity dot (persistent).** Migration **`2026-06-09-user-activity.sql`**
+  (**run on Supabase**): `user_activity` table (owner-write, authenticated-read,
+  realtime, 6h `expires_at` safety) + `get_active_activities()`. `ShapePresence`
+  gained `setActivity`/`activityOf`/`myActivity`; the workout player broadcasts
+  `'workout'` and the meal logger `'cooking'`. The avatar **corner dot** is now
+  decoupled from the online ring: **teal = in a workout, amber = cooking**. The
+  workout dot is set on session start and **persists across screen changes / app
+  backgrounding**, clearing only when she ends it (✕ End / Finish). Reads on real
+  avatars (self header/me, chat messages, profiles); chat thread refreshes live.
+  Cooking stays logger-open-scoped (per request).
+- **Chat presence rail:** "lifting now" → **"online now"**; more avatars marked
+  live (pulsing ring) + a dot legend.
+- **Home re-layout.** Removed the **Log/Activity**, **Habits**, and **Score** quick
+  chips. The **Day Log** header now shows the selected day's **`+N pts`** (live
+  per-date ledger, demo fallback, future days = 0). New **Habits** section directly
+  under the Day Log — same numbered row format (DO/AVOID pill, name, done state,
+  points), a per-day **check-mark box**, header **`+N pts`** + a **View →** link to
+  the full habits page. Me-page Shape Score card leads with **`+N today`**.
+- **Day-log detail sheet redesign:** tag-tinted header + the new rounded badge,
+  3 rounded metric tiles, tag-tinted note, fully-rounded pill buttons, frosted
+  backdrop blur. **Workout items now show an Exercises preview** (numbered moves +
+  scheme + load chip from the day's workout).
+- **Tag pills modernized** (Day Log + Habits): flat solid blocks → soft tinted,
+  fully-rounded badges with colored text + hairline border.
+- **Meal preview photos:** `bsMealPhoto(meal)` shows the meal's own `photo`, then a
+  coach-uploaded `media` image (coach-media), then an inferred stock food photo
+  (halftone fallback) — replacing the halftone placeholder.
+- **Find-a-coach bars** (Train/Eat): filled in role color (trainer rust /
+  nutritionist gold), compacted, thicker 2.5px lighter border.
+- **Facet avatar = photo OR initials, always.** Initials now render underneath the
+  photo and a missing/broken image (`onError`) falls back to them — never a blank/
+  placeholder gem. Mobile `BSFacetAvatar` + website `LvPortrait` (`livingShared ?v=11`).
+- **Website marketplace polish:** marketing face photos on the signed-out directory
+  (spotlight + grid), a coach-customizable **cover image** band behind the avatar
+  (darkened/tinted; demo covers + real `profile_custom.cover.image`), filter
+  dropdowns. Migration **`2026-06-09-coach-sale-plans-detail.sql`** already covers
+  the plan-media preview.
+- **Real coach accounts resolve on BOTH surfaces.** App already fetched live
+  providers + photos (`get_public_profile.avatar`). Website now does too: fetches
+  live coaches from `trainers`/`nutritionists`, resolves each real photo via
+  `get_public_profile`, merges them ahead of the demo directory (deduped), and links
+  real coaches to their live profile (`?u=<owner>`). Marketplace links also pass
+  `&avatar=` so derived (demo) coach profiles show the card photo (`marketplace.jsx ?v=5`).
+- **Settings:** removed the tier name under the identity avatar.
+- **Cards dropdown** ("Show on home"): scrollbar hidden + no longer closes when you
+  scroll *inside* it (only on page scroll).
+
 ### 2026-06-08 — Store fulfillment: redeemed rewards actually DO something
 - **Migration `2026-06-08-store-fulfillment.sql`** (**run on Supabase**): adds fulfillment
   columns to `store_redemptions` (`kind`, `ship_to` jsonb, `fulfilled_at`, `fulfillment_note`),
