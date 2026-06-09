@@ -41,7 +41,10 @@ function bsMyInitials() {
 // I earn points — so the avatar reflects standing, not a chosen accent.
 function bsMyTier() {
   const s = (typeof window !== 'undefined' && window.ShapeScore) || null;
-  return (s && s.tier) || 'Base';
+  // Signed in → live tier (Base/steel until you earn points). Signed-out preview
+  // falls back to the demo client profile's tier so avatars, the Me page, the
+  // score card, and Settings all read the SAME tier (no Base-vs-Tempo split).
+  return (s && s.tier) || (SHAPE_SCORE_PROFILES.client && SHAPE_SCORE_PROFILES.client.tier) || 'Base';
 }
 function bsMyTierColor() {
   return bsTierColor(bsMyTier());
@@ -6985,14 +6988,17 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
-  // For your OWN profile, the tier + points come from the live Shape Score cache
-  // (window.ShapeScore) — the same source the header/Me avatars use — so the tier
-  // name, gem color, climb levels, and score card all match the avatar everywhere.
-  const myScore = (isSelf && typeof window !== 'undefined' && window.ShapeScore) || null;
-  const points = (myScore && Number.isFinite(Number(myScore.points))) ? Number(myScore.points)
+  // For your OWN profile, tier + points come from the SAME live-score source as
+  // the Me-page Score card + Settings (the client score profile, live when signed
+  // in, demo otherwise) — so tier name, gem color, climb levels, and the score
+  // card all agree with each other and with the avatars (bsMyTier reads the same).
+  const selfScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
+  const points = isSelf
+    ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
-  const tierKey = (myScore && myScore.tier) ? String(myScore.tier).toLowerCase()
-    : (points != null ? bsTierForPoints(points) : (isSelf ? bsMyTier().toLowerCase() : (person.tier || bsPostTier(person))));
+  const tierKey = isSelf
+    ? String(selfScore.tier || 'Base').toLowerCase()
+    : (points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person)));
   const c = bsTierColor(tierKey);
   const name = person.who || 'Member';
   const first = name.split(' ')[0];
