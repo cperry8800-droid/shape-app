@@ -7408,6 +7408,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             : <BSMeCorner size={30} />}
         </div>
       )}
+      {/* Followers / following — above the hero box, below the title */}
+      <div style={{ padding: '8px 18px 0' }}>
+        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} />
+      </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
         {(() => {
@@ -7515,7 +7519,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       )}
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
-        <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} />
         {isPrivate ? (
           <div style={{ ...card, padding: '18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span aria-hidden style={{ fontSize: 16 }}>🔒</span>
