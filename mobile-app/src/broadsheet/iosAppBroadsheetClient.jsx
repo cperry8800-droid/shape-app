@@ -2318,7 +2318,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   style={{
                     width: '100%',
                     display: 'grid',
-                    gridTemplateColumns: '28px 40px 1fr auto',
+                    gridTemplateColumns: '26px 54px 1fr auto',
                     alignItems: 'center',
                     gap: 10,
                     padding: `${t.rowY}px 0`,
@@ -2346,16 +2346,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   {row.tag ? (
                     <span style={{
                       fontFamily: t.MONO,
-                      fontSize: 9,
-                      letterSpacing: '0.16em',
-                      color: t.PAPER,
-                      background: row.tagColor || t.INK,
-                      padding: '2px 4px',
+                      fontSize: 8,
+                      letterSpacing: '0.1em',
+                      color: row.tagColor || t.INK,
+                      background: `${row.tagColor || t.INK}1f`,
+                      border: `1px solid ${row.tagColor || t.INK}59`,
+                      padding: '3px 8px',
                       textTransform: 'uppercase',
-                      fontWeight: 700,
+                      fontWeight: 800,
                       textAlign: 'center',
                       justifySelf: 'start',
-                      borderRadius: t.RADIUS_SM,
+                      borderRadius: 999,
                     }}>{row.tag}</span>
                   ) : <span />}
                   <div style={{ minWidth: 0 }}>
@@ -2424,9 +2425,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             const pillC = avoid ? t.RUST : t.GREEN;
             return (
               <div key={`${h.name}-${i}`} style={{ borderBottom: i === selDayHabits.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '28px 40px 1fr auto', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
+                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '26px 54px 1fr auto', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK, letterSpacing: '-0.01em', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', color: t.PAPER, background: pillC, padding: '2px 4px', textTransform: 'uppercase', fontWeight: 700, textAlign: 'center', justifySelf: 'start', borderRadius: t.RADIUS_SM }}>{avoid ? 'AVOID' : 'DO'}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}59`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 999 }}>{avoid ? 'AVOID' : 'DO'}</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px' }}>{h.name}</div>
                     <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: h.done ? pillC : t.INK50, marginTop: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
