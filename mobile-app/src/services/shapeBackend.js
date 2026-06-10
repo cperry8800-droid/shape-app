@@ -3138,7 +3138,18 @@ async function removePlaylist(id) {
   const { error } = await supabase.from('member_playlists').delete().eq('id', id).eq('user_id', state.user.id);
   return !error;
 }
-window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl };
+// The signed-in member's own Spotify library (reuses the coach importer's API +
+// the existing Spotify OAuth connection). { connected, playlists } | null on error.
+async function listMySpotifyPlaylists() {
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/integrations/spotify/playlists`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) return { connected: true, playlists: Array.isArray(d.playlists) ? d.playlists : [] };
+    if (d && d.connected === false) return { connected: false, playlists: [] };
+    return null;
+  } catch (e) { return null; }
+}
+window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl, mySpotify: listMySpotifyPlaylists };
 
 // Coach grocery lists — a coach's own + per-client lists (coach_grocery_lists,
 // owner-scoped). Same shape as soundtracks; returns null when signed out so the

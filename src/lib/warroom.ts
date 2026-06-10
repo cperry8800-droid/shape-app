@@ -657,6 +657,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Member playlists (profile Music tab)',
+      items: [
+        { label: 'Music tab on both profiles: own library (add / public-private toggle / ✉ send / ↗ share / remove) + others\' public playlists (▶ open / ＋ save-to-library)', status: 'done' },
+        { label: 'Add flow imports straight from the connected Spotify library (reuses /api/integrations/spotify/playlists); paste-a-link fallback covers Apple Music + unconnected', status: 'done' },
+        { label: 'Migration applied on Supabase: 2026-06-09-member-playlists.sql (member_playlists + get_member_playlists)', status: 'manual' },
+        { label: 'Website profile Music-tab parity', status: 'pending' },
+      ],
+    },
+    {
       section: 'Usernames (Shape handles)',
       items: [
         { label: 'profiles.username (unique, case-insensitive) + is_username_available / set_my_username / get_email_for_username RPCs; search_shape_people matches usernames; get_public_profile returns username', status: 'done' },
