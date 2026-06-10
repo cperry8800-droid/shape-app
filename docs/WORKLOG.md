@@ -74,6 +74,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Profile Music tab: personal playlist library (public/share) — Spotify & Apple Music
+- **Migration `2026-06-09-member-playlists.sql`** (**run on Supabase**): `member_playlists`
+  table (owner-scoped; provider spotify|apple|other, url, cover, track_count, is_public,
+  saved_from) + RLS (public rows readable by anyone, owner full control) + SECURITY DEFINER
+  `get_member_playlists(p_user_id)` (own → all; else only public, gated on profile visibility).
+- **`ShapePlaylists`** backend (`mine`/`listFor`/`add`/`update`/`remove`/`parseUrl`): paste a
+  Spotify or Apple Music playlist link, name it, mark public/private. `parseUrl` classifies
+  the provider.
+- **New "Music" tab** on both profiles (member Terrain + coach Signal, via `BSLivingTabs`):
+  `BSProfilePlaylists`. **Own profile** = "Your library" — add (`BSAddPlaylistSheet`),
+  per-row Public/Private toggle, ✉ Send (DM the playlist to a member via the generalized
+  send sheet — `kind:'shared_playlist'`), ↗ share, × remove. **Others' profile** = their
+  public playlists, each with ▶ Open (Spotify/Apple) + ＋ Save-to-my-library (copies the row,
+  `saved_from`). Provider-colored tiles (Spotify green / Apple red).
+
 ### 2026-06-09 — Post & channel engagement: like · comment · send · share · repost (app + website)
 - **No migration** — `community_likes`/`community_comments` (+ RLS gated on
   `can_view_community_post`) existed since 2026-05-02; this wires them everywhere.

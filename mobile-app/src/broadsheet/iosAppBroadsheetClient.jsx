@@ -6994,6 +6994,9 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
         // Sharing a CHANNEL: the message carries the channel in metadata so the
         // recipient's thread renders a tappable open-the-channel card.
         await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Join me in #${post.channel.name} on Shape — ${post.channel.memberCount || 0} member${post.channel.memberCount === 1 ? '' : 's'}.`, metadata: { kind: 'shared_channel', channel: { id: post.channel.id, name: post.channel.name, memberCount: post.channel.memberCount || 0 } } });
+      } else if (post.playlist && post.playlist.url) {
+        // Sharing a PLAYLIST: link rides in the body (renders as a tap-out link).
+        await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Listen to “${post.playlist.name}” on ${post.playlist.provider === 'apple' ? 'Apple Music' : 'Spotify'} — ${post.playlist.url}`, metadata: { kind: 'shared_playlist' } });
       } else {
         const snippet = [post.title, post.body].filter(Boolean).join(' — ').slice(0, 200);
         await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Shared ${post.who ? `${post.who}'s` : 'a'} post: “${snippet || 'Activity'}”`, metadata: { kind: 'shared_post', post_id: post.postId || null } });
@@ -7004,7 +7007,7 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
     setBusy('');
   };
   return (
-    <BSPostSheetShell title={post.channel ? `Send #${post.channel.name} to` : 'Send to'} onClose={onClose} INK={ink} BG={BG}>
+    <BSPostSheetShell title={post.channel ? `Send #${post.channel.name} to` : post.playlist ? `Send “${post.playlist.name}” to` : 'Send to'} onClose={onClose} INK={ink} BG={BG}>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
@@ -7515,6 +7518,139 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
         ); })}
       </div>
     </div>
+  );
+}
+
+// ── Profile playlists tab — the member's Spotify/Apple library ───────────────
+// Add a playlist (paste a Spotify/Apple Music link), toggle public/private,
+// share to a member (✉) or externally (↗), open in the provider app, and — on
+// someone else's profile — save their public playlist into your own library.
+function bsProviderColor(p) { return p === 'apple' ? '#fc3c44' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
+function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
+function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
+  const t = useBS();
+  const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const muted = bsTHexA(INK, 0.55), hair = bsTHexA(INK, 0.1);
+  const [items, setItems] = React.useState(null);
+  const [adding, setAdding] = React.useState(false);
+  const [sendFor, setSendFor] = React.useState(null);
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const load = React.useCallback(() => {
+    const api = window.ShapePlaylists;
+    if (!api) { setItems([]); return; }
+    const p = isSelf ? api.mine() : (userId ? api.listFor(userId) : Promise.resolve([]));
+    p.then((r) => setItems(Array.isArray(r) ? r : [])).catch(() => setItems([]));
+  }, [userId, isSelf]);
+  React.useEffect(() => { load(); }, [load]);
+
+  const card = { borderRadius: 13, border: `1px solid ${hair}`, background: bsTHexA(INK, 0.03) };
+  const pill = (filled) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 27, boxSizing: 'border-box', padding: '0 11px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', border: `1px solid ${filled ? accent : hair}`, background: filled ? accent : 'transparent', color: filled ? '#06110e' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' });
+  const icon = (glyph, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{glyph}</button>;
+
+  const saveToLibrary = async (pl) => {
+    if (!signedIn) { window.__bsToast?.('Sign in to save playlists.', 'info'); return; }
+    try { await window.ShapePlaylists.add({ name: pl.name, url: pl.url, cover: pl.cover, trackCount: pl.track_count, meta: pl.meta, isPublic: false, savedFrom: pl.user_id || null }); window.__bsToast?.('Saved to your library', 'ok'); }
+    catch (e) { window.__bsToast?.(e.message || 'Could not save.', 'error'); }
+  };
+  const togglePublic = async (pl) => {
+    setItems((prev) => prev.map((x) => x.id === pl.id ? { ...x, is_public: !x.is_public } : x));
+    try { await window.ShapePlaylists.update(pl.id, { is_public: !pl.is_public }); } catch (e) { load(); }
+  };
+  const removeIt = async (pl) => { setItems((prev) => prev.filter((x) => x.id !== pl.id)); try { await window.ShapePlaylists.remove(pl.id); } catch (e) { load(); } };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>{isSelf ? 'Your library' : 'Playlists'}</div>
+        {isSelf && <button onClick={() => setAdding(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(accent, 0.12), border: `1px solid ${bsTHexA(accent, 0.45)}`, color: accent, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>＋ Add playlist</button>}
+      </div>
+      {items === null ? (
+        <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Loading…</div>
+      ) : items.length === 0 ? (
+        <div style={{ ...card, padding: '20px 16px', textAlign: 'center' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: INK }}>{isSelf ? 'No playlists yet.' : 'No public playlists.'}</div>
+          <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, color: muted, lineHeight: 1.45 }}>{isSelf ? 'Add your Spotify or Apple Music playlists — keep them private or share them with the community.' : 'When they make a playlist public, it shows up here.'}</div>
+          {isSelf && <button onClick={() => setAdding(true)} style={{ ...pill(true), marginTop: 12 }}>＋ Add your first</button>}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {items.map((pl) => {
+            const pc = bsProviderColor(pl.provider);
+            return (
+              <div key={pl.id} style={{ ...card, padding: 11 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                  <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 9, overflow: 'hidden', background: pl.cover ? `center/cover no-repeat url(${pl.cover})` : `${pc}22`, border: `1px solid ${pc}55`, color: pc, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, textDecoration: 'none' }}>{pl.cover ? '' : '♪'}</a>
+                  <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted }}>
+                      <span style={{ color: pc }}>{bsProviderLabel(pl.provider)}</span>{pl.track_count ? ` · ${pl.track_count} tracks` : ''}{pl.meta ? ` · ${pl.meta}` : ''}{isSelf && !pl.is_public ? ' · Private' : ''}
+                    </div>
+                  </a>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10 }}>
+                  {isSelf ? (
+                    <>
+                      <button onClick={() => togglePublic(pl)} style={pill(pl.is_public)}>{pl.is_public ? '◉ Public' : '○ Private'}</button>
+                      <span style={{ marginLeft: 'auto' }} />
+                      {icon('✉', 'Send to member', () => { if (!pl.is_public) { window.__bsToast?.('Make it public first to share.', 'info'); return; } setSendFor(pl); })}
+                      {icon('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      {icon('×', 'Remove', () => removeIt(pl))}
+                    </>
+                  ) : (
+                    <>
+                      <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ ...pill(false), textDecoration: 'none' }}>▶ Open</a>
+                      <span style={{ marginLeft: 'auto' }} />
+                      {icon('＋', 'Save to my library', () => saveToLibrary(pl))}
+                      {icon('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {adding && <BSAddPlaylistSheet c={accent} INK={INK} BG={BG} onClose={() => setAdding(false)} onAdded={() => { setAdding(false); load(); }} />}
+      {sendFor && <BSPostSendSheet post={{ playlist: { name: sendFor.name, url: sendFor.url, provider: sendFor.provider }, title: sendFor.name, body: bsProviderLabel(sendFor.provider) }} onClose={() => setSendFor(null)} c={accent} INK={INK} BG={BG} />}
+    </div>
+  );
+}
+function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
+  const t = useBS();
+  const ink = INK || t.INK, accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const [url, setUrl] = React.useState('');
+  const [name, setName] = React.useState('');
+  const [isPublic, setIsPublic] = React.useState(true);
+  const [busy, setBusy] = React.useState(false);
+  const parsed = (typeof window !== 'undefined' && window.ShapePlaylists?.parseUrl) ? window.ShapePlaylists.parseUrl(url) : null;
+  const submit = async () => {
+    if (busy) return;
+    if (!parsed) { window.__bsToast?.('Paste a Spotify or Apple Music playlist link.', 'info'); return; }
+    if (!name.trim()) { window.__bsToast?.('Name your playlist.', 'info'); return; }
+    setBusy(true);
+    try { await window.ShapePlaylists.add({ name, url, isPublic }); onAdded(); }
+    catch (e) { window.__bsToast?.(e.message || 'Could not add.', 'error'); setBusy(false); }
+  };
+  return (
+    <BSPostSheetShell title="Add a playlist" onClose={onClose} INK={ink} BG={BG}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+        <div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5), marginBottom: 5 }}>Spotify or Apple Music link</div>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '10px 13px', borderRadius: 10, border: `1px solid ${parsed ? bsProviderColor(parsed.provider) : bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
+          {url && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: parsed ? bsProviderColor(parsed.provider) : '#ff9b7a' }}>{parsed ? bsProviderLabel(parsed.provider) + ' detected' : 'Not a recognized playlist link'}</div>}
+        </div>
+        <div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5), marginBottom: 5 }}>Name</div>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Heavy pull day" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 13px', borderRadius: 10, border: `1px solid ${bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[[true, '◉ Public'], [false, '○ Private']].map(([v, l]) => (
+            <button key={String(v)} onClick={() => setIsPublic(v)} style={{ flex: 1, padding: '9px 6px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${isPublic === v ? accent : bsTHexA(ink, 0.18)}`, background: isPublic === v ? bsTHexA(accent, 0.12) : 'transparent', color: isPublic === v ? accent : bsTHexA(ink, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
+          ))}
+        </div>
+        <button disabled={busy || !parsed || !name.trim()} onClick={submit} style={{ marginTop: 2, width: '100%', minHeight: 46, borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: busy || !parsed || !name.trim() ? 0.55 : 1 }}>{busy ? 'Adding…' : 'Add to library'}</button>
+      </div>
+    </BSPostSheetShell>
   );
 }
 
@@ -8048,7 +8184,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               { key: 'stats', label: 'Stats' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
+              { key: 'playlists', label: 'Music' },
             ]} />
+            {tab === 'playlists' && (
+              <div style={{ marginBottom: 22 }}>
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
+              </div>
+            )}
             {tab === 'stats' && (
               <div style={{ marginBottom: 22 }}>
                 {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
@@ -8525,9 +8667,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               { key: 'activity', label: 'Activity' },
               { key: 'about', label: 'About' },
               { key: 'coaching', label: 'Coaching' },
+              { key: 'playlists', label: 'Music' },
               { key: 'reviews', label: 'Reviews' },
             ]} />
           </div>
+          {tab === 'playlists' && (
+            <div style={{ marginTop: 22, marginBottom: 22 }}>
+              <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
+            </div>
+          )}
           {tab === 'about' && (<>
           {/* philosophy */}
           <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
