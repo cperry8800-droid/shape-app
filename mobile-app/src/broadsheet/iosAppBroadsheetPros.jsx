@@ -1323,38 +1323,6 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         )}
       </div>
 
-      {/* ── COACH'S LIFT CARD — today's flagship session preview (clean, no box) ──── */}
-      <div style={{ margin: `22px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingBottom: 10, borderBottom: `2px solid ${t.ACCENT}` }}>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.26em', color: t.ACCENT, textTransform: 'uppercase', fontWeight: 700 }}>Today · Block 3 / Wk 3</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, marginTop: 4, letterSpacing: '-0.01em' }}>Lower Push <span style={{ color: t.INK50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em' }}>· 62 MIN · Casey M.</span></div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50 }}>RPE</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 18, color: t.INK, fontWeight: 700 }}>8.0</div>
-          </div>
-        </div>
-        <div style={{ padding: '10px 0 4px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 30px 56px 42px 36px', gap: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, padding: '0 2px 4px', borderBottom: `1px dashed ${t.SURFACE_BORDER}` }}>
-            <span>Lift</span><span style={{ textAlign: 'center' }}>SET</span><span style={{ textAlign: 'right' }}>LOAD</span><span style={{ textAlign: 'right' }}>REPS</span><span style={{ textAlign: 'right' }}>RPE</span>
-          </div>
-          {[
-            { lift: 'Back Squat', set: '3', load: '255', reps: '5', rpe: '8.5' },
-            { lift: 'Romanian DL', set: '3', load: '215', reps: '8', rpe: '8' },
-            { lift: 'Split Squat', set: '2', load: '65',  reps: '10', rpe: '7.5' },
-          ].map((r, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1.4fr 30px 56px 42px 36px', gap: 6, alignItems: 'center', padding: '7px 2px', borderBottom: i === 2 ? 'none' : `1px dotted ${t.SURFACE_BORDER}` }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, letterSpacing: '-0.005em' }}>{r.lift}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, textAlign: 'center', fontWeight: 700 }}>{r.set}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK, textAlign: 'right' }}>{r.load}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, textAlign: 'right' }}>{r.reps}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.ACCENT, textAlign: 'right' }}>{r.rpe}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div style={{ marginTop: 8 }}>
         <BSProHomeWidgets role="trainer" onOpen={onWidgetOpen} />
       </div>
