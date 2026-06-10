@@ -7101,7 +7101,9 @@ function bsMapActivityPosts(data) {
 function bsActivityFromPost(p) {
   if (!p) return null;
   const ws = Array.isArray(p.workoutStats) ? p.workoutStats.filter(Boolean) : null;
-  const hasSensor = !!(p.statA || p.statB || p.statC);
+  // Only REAL metric data counts — statA/B/C carry 'Live/On plan/Shape' display
+  // filler on every post, which used to turn plain "hi" posts into fake cards.
+  const hasSensor = !!p.hasRealStats;
   const route = !!p.route;
   const at = String(p.workout || p.kind || '').toLowerCase();
   const isRun = route || /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at);
