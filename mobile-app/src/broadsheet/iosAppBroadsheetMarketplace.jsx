@@ -697,10 +697,11 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
                   <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>No {PLAN_TABS.find(([k]) => k === planTab)[1].toLowerCase()} listed yet — check back soon.</div>
                 ) : tabPlans.map((pl, i) => (
                   <MktTrackRow key={pl.id} n={i + 1} title={pl.name} meta={`${pl.providerRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'} · ${pl.coachName}`} right={pl.price || 'View'} first={i === 0} onClick={() => {
-                    // Tap a hot plan → open that coach's living profile (their storefront,
-                    // where the plan + Buy live) — a real link, not a dead toast/blind buy.
-                    if (pl.demo || !pl.providerId) { window.__bsToast?.('Sample plan — real plans open the coach once they publish.', 'info'); return; }
-                    setOpen({ name: pl.coachName, provider_user_id: pl.providerId, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' });
+                    // Tap a hot plan → open that coach's page (their storefront, where
+                    // the plan + Buy live). Real coaches resolve to their live account;
+                    // sample plans open the demo coach's derived detail page — every
+                    // row is a working link, never a dead toast.
+                    setOpen({ name: pl.coachName, provider_user_id: (!pl.demo && pl.providerId) || undefined, provider_role: pl.providerRole, init: String(pl.coachName || '?').trim()[0] || '?', loc: 'Remote' });
                   }} />
                 ))}
               </div>
