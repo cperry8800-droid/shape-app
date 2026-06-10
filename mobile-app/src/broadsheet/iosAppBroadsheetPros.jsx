@@ -791,12 +791,13 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
             const dd    = (dots && dots[day.idx]) || [];
             return (
               <button key={day.d} onClick={() => setSelDay(day.d)} style={{
+                boxSizing: 'border-box', minHeight: 62,
                 borderRadius: t.RADIUS_SM,
-                border: `1px solid ${on ? t.INK : t.HAIR}`,
-                background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
+                border: `1px solid ${on ? t.INK : (today ? (t.isLight ? '#0a8f87' : '#34d6c5') : t.RULE)}`,
+                background: on ? t.INK : t.PAPER2,
                 color: on ? t.PAPER : t.INK,
                 padding: '8px 0 6px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
               }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{day.d}</span>
