@@ -13732,6 +13732,8 @@ Object.assign(window, {
   bsMyName,
   bsMyInitials,
   bsMyTierColor,
+  bsMyPhoto,
+  bsMyActivity,
 });
 
 // ═══════════════════════════════════════════════════════════
