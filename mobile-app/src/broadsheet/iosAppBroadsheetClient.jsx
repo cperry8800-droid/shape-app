@@ -7108,6 +7108,8 @@ function bsActivityFromPost(p) {
   return {
     real: true,
     key: p.id ? `post-${p.id}` : `act-${p.author_id || ''}-${p.created_at || ''}`,
+    postId: p.id || null,
+    liked: !!p.liked,
     userId: p.author_id || null,
     who: p.name || 'Shape member',
     role: p.role || 'Client',
@@ -9550,18 +9552,26 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [actCmtOpen, setActCmtOpen] = useStateBSC(null);
   const [sendPostFor, setSendPostFor] = useStateBSC(null); // ✉ on a feed post → the send-to-DM picker
   const [actCmtDraft, setActCmtDraft] = useStateBSC('');
-  const toggleActLike = (key) => {
+  const toggleActLike = (key, postId) => {
     setActLikes(prev => ({ ...prev, [key]: !prev[key] }));
+    // Real activity cards persist the cheer as a community-post like.
+    if (postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId }); if (lk && lk.catch) lk.catch(() => {}); }
   };
   const openActComments = (key, isOpen) => { setActCmtOpen(isOpen ? null : key); setActCmtDraft(''); };
-  const sendActComment = (key) => {
+  const sendActComment = (key, postId) => {
     const body = (actCmtDraft || '').trim();
     if (!body) return;
     setActComments(prev => ({ ...prev, [key]: [...(prev[key] || []), { who: 'You', body }] }));
     setActCmtDraft('');
-    // Persist to the backend when `key` is a real community post id (activity
-    // keys contain '|'; sample posts start with 's'/'tmp').
-    if (key && !String(key).includes('|') && !/^(s|tmp)/.test(String(key))) {
+    // Persist to the backend: an explicit postId (activity cards — their keys
+    // carry a 'post-' prefix), else a `key` that IS a real community post id
+    // (feed bubbles; activity keys contain '|', sample posts start 's'/'tmp').
+    if (postId) {
+      const c0 = window.ShapeCommunity?.addComment?.({ postId, body });
+      if (c0 && c0.catch) c0.catch(() => {});
+      return;
+    }
+    if (key && !String(key).includes('|') && !/^(s|tmp|post-)/.test(String(key))) {
       const c = window.ShapeCommunity?.addComment?.({ postId: key, body });
       if (c && c.catch) c.catch(() => {});
     }
@@ -9668,7 +9678,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
     const key = a.key || `${a.who}|${a.ago}`;
-    const liked = !!actLikes[key];
+    // Seed from the post's live like state; local toggles override. The kudos
+    // count from the row already includes my own like, so subtract the seed
+    // before re-adding the local state (no double count).
+    const liked = actLikes[key] != null ? !!actLikes[key] : !!a.liked;
+    const baseKudos = Math.max(0, (a.kudos || 0) - (a.liked ? 1 : 0));
     const comments = actComments[key] || [];
     const cmtOpen = actCmtOpen === key;
     const typeLabel = a.real ? a.typeLabel : (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout');
@@ -9722,8 +9736,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 'auto', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEALB, fontWeight: 800 }}>
               <span style={{ display: 'inline-flex', width: 11, height: 11, borderRadius: 6, border: `1px solid ${TEALB}`, alignItems: 'center', justifyContent: 'center', fontSize: 6.5 }}>✓</span>Verified
             </span>
-            <button onClick={() => toggleActLike(key)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 11px', background: liked ? tc : 'transparent', color: liked ? '#fff' : muted, border: `1px solid ${liked ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↑ {cheer} · {(a.kudos || 0) + (liked ? 1 : 0)}</button>
+            <button onClick={() => { setActLikes(prev => ({ ...prev, [key]: !(prev[key] != null ? prev[key] : a.liked) })); if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); } }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 11px', background: liked ? tc : 'transparent', color: liked ? '#fff' : muted, border: `1px solid ${liked ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
             <button onClick={() => openActComments(key, cmtOpen)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 10px', background: cmtOpen ? `${TEALB}1f` : 'transparent', color: cmtOpen ? TEALB : muted, border: `1px solid ${cmtOpen ? TEALB : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↳ {(a.replies || 0) + comments.length}</button>
+            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 999, padding: '5px 9px', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>✉</button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 999, padding: '5px 9px', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>↗</button>
+            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 999, padding: '5px 9px', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>⇄</button>
           </div>
           {/* comments */}
           {cmtOpen && (
@@ -9735,8 +9752,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 </div>
               ))}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: comments.length ? 4 : 0 }}>
-                <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
-                <button onClick={() => sendActComment(key)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
+                <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key, a.postId || null); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
+                <button onClick={() => sendActComment(key, a.postId || null)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
               </div>
             </div>
           )}
