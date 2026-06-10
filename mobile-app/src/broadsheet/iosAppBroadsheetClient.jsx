@@ -300,13 +300,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   }, []);
 
   // Inline ✉ on a search row → the real 1:1 thread; a channel result → that
-  // channel's thread. Both land in the Chat tab.
+  // channel's thread; Nora → the Support tab. All land in the Chat tab.
   React.useEffect(() => {
     const open = (e) => {
       const d = (e && e.detail) || {};
-      if (!d.conversationId && !d.channel) return;
+      if (!d.conversationId && !d.channel && !d.support) return;
       setShowSearch(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -8637,13 +8637,19 @@ function BSUniversalSearch({ onClose }) {
   const needle = q.trim().replace(/^[@#]/, '').toLowerCase();
   const recipesAll = React.useMemo(() => (Array.isArray(SHAPE_KITCHEN_RECIPES) ? SHAPE_KITCHEN_RECIPES : []), []);
   const workoutsAll = React.useMemo(() => Object.entries(BS_CLIENT_WORKOUTS || {}).map(([title, detail]) => ({ title, detail })), []);
-  const chHits = needle ? chAll.filter(c => (c.name + ' ' + c.blurb).toLowerCase().includes(needle)).slice(0, 4) : [];
-  const recHits = needle ? recipesAll.filter(r => String(r.title || '').toLowerCase().includes(needle)).slice(0, 4) : [];
-  const wkHits = needle ? workoutsAll.filter(w => (w.title + ' ' + ((w.detail && w.detail.meta) || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
-  const planHits = needle ? plansAll.filter(p => (p.name + ' ' + (p.meta || '') + ' ' + (p.coachName || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
+  // Channels/Recipes have their own chips: with no query the chip browses the
+  // full list; typing filters it. On All they appear as 4-row sections.
+  const chMatch = needle ? chAll.filter(c => (c.name + ' ' + c.blurb).toLowerCase().includes(needle)) : chAll;
+  const recMatch = needle ? recipesAll.filter(r => String(r.title || '').toLowerCase().includes(needle)) : recipesAll;
+  const chHits = filter === 'channels' ? chMatch.slice(0, 24) : (filter === 'all' && needle ? chMatch.slice(0, 4) : []);
+  const recHits = filter === 'recipes' ? recMatch.slice(0, 24) : (filter === 'all' && needle ? recMatch.slice(0, 4) : []);
+  const wkHits = (filter === 'all' && needle) ? workoutsAll.filter(w => (w.title + ' ' + ((w.detail && w.detail.meta) || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
+  const planHits = (filter === 'all' && needle) ? plansAll.filter(p => (p.name + ' ' + (p.meta || '') + ' ' + (p.coachName || '')).toLowerCase().includes(needle)).slice(0, 4) : [];
+  // Nora (Shape's concierge) is staff, not a profiles row — searchable anyway.
+  const noraHit = filter === 'all' && !!needle && ('nora'.includes(needle) || ['concierge', 'support', 'help', 'assistant'].some(w => w.startsWith(needle)));
 
   const isCoachRole = (r) => r === 'trainer' || r === 'nutritionist';
-  const matchesFilter = (p) => filter === 'all' ? true : (filter === 'coaches' ? isCoachRole(p.role) : !isCoachRole(p.role));
+  const matchesFilter = (p) => filter === 'all' ? true : filter === 'coaches' ? isCoachRole(p.role) : filter === 'members' ? !isCoachRole(p.role) : false;
   const open = (p) => {
     // (Recents are recorded centrally when the profile mounts — covers profiles
     // viewed from anywhere, not just searched ones.)
@@ -8717,30 +8723,65 @@ function BSUniversalSearch({ onClose }) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: '0 0 auto', padding: `54px ${t.padX}px 0` }}>
+      <div style={{ flex: '0 0 auto', padding: `46px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Search Shape<span style={{ color: teal }}>.</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
           <button onClick={onClose} aria-label="Close search" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
+        <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Search Shape<span style={{ color: teal }}>.</span></div>
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
-        <div style={{ display: 'flex', gap: 7, padding: '12px 0 10px' }}>
-          {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches']].map(([k, label]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
+        <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, padding: '12px 0 10px', overflowX: 'auto' }}>
+          {[['all', 'All'], ['members', 'Members'], ['coaches', 'Coaches'], ['channels', 'Channels'], ['recipes', 'Recipes']].map(([k, label]) => (
+            <button key={k} onClick={() => setFilter(k)} style={{ flexShrink: 0, padding: '6px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${filter === k ? teal : t.RULE}`, background: filter === k ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: filter === k ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</button>
           ))}
         </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: `2px ${t.padX}px 40px` }}>
-        {q.trim() ? (
+        {filter === 'channels' ? (
+          chHits.length ? (
+            <>
+              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{chHits.length} {chHits.length === 1 ? 'channel' : 'channels'}</div>
+              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${c.memberCount || 0} member${c.memberCount === 1 ? '' : 's'}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+            </>
+          ) : (
+            <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? `No channels match “${q.trim()}”.` : (signedIn ? 'No channels yet — start one from Chat → Channels.' : 'Sign in to browse the community channels.')}</div>
+          )
+        ) : filter === 'recipes' ? (
+          recHits.length ? (
+            <>
+              <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{recHits.length} {recHits.length === 1 ? 'recipe' : 'recipes'} · Shape Kitchen</div>
+              {recHits.map((r, i) => <TileRow key={'rc' + (r.id || r.title)} first={i === 0} glyph="◇" color={teal} title={r.title} sub={`${r.kcal ? r.kcal + ' kcal' : 'Recipe'}${r.macros && r.macros.p ? ' · ' + r.macros.p + 'P' : ''}${r.time ? ' · ' + r.time : ''}`} onClick={() => setViewRecipe(r)} />)}
+            </>
+          ) : (
+            <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No recipes match “{q.trim()}”.</div>
+          )
+        ) : q.trim() ? (
           busy && !rows ? (
             <div style={{ padding: '18px 0', ...eyebrow }}>Searching…</div>
-          ) : (list.length === 0 && moreHits === 0) ? (
+          ) : (list.length === 0 && moreHits === 0 && !noraHit) ? (
             <div style={{ padding: '18px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>Nothing on Shape matches “{q.trim()}”.</div>
               <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Browse coaches on the marketplace →</button>
             </div>
           ) : (
             <>
+              {noraHit && (
+                <>
+                  <div style={{ ...eyebrow, padding: '8px 0 2px' }}>Shape staff</div>
+                  <button onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { support: true, name: 'Nora' } })); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <BSFacetAvatar size={38} c={'#2e6fa0'} initial="N" name="Nora" photo={BS_NORA_AVATAR} live showRank={false} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Shape's Concierge · always online</span>
+                      <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>Nora</span>
+                    </span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
+                  </button>
+                </>
+              )}
               {list.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{list.length} {list.length === 1 ? 'person' : 'people'}</div>
@@ -8954,6 +8995,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (openRequest.channel && openRequest.channel.id != null) {
       setTab('channels');
       openChannelNow(openRequest.channel);
+      return;
+    }
+    // Deep-link to Nora (universal search → the Support tab's concierge thread).
+    if (openRequest.support) {
+      setTab('support');
+      setOpenChat(null);
       return;
     }
     setTab('teams');
