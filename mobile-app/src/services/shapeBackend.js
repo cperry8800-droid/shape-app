@@ -140,11 +140,22 @@ async function signIn({ email, password, role }) {
     });
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  // The sign-in field accepts an email OR a Shape username — resolve a
+  // username to its login email first (get_email_for_username RPC).
+  let loginEmail = String(email || '').trim();
+  if (loginEmail && !loginEmail.includes('@')) {
+    let resolved = null;
+    try { const { data: r } = await supabase.rpc('get_email_for_username', { p_username: loginEmail.replace(/^@/, '') }); resolved = r || null; } catch (e) { resolved = undefined; }
+    if (resolved === null) throw new Error('No account with that username — check the spelling or sign in with your email.');
+    if (resolved) loginEmail = resolved;
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
   if (error) throw error;
 
   let profile = await fetchProfile(data.user);
   if (!profile) profile = await upsertProfile(data.user, { role });
+  profile = await ensureUsernameClaimed(data.user, profile);
 
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -153,7 +164,31 @@ async function signIn({ email, password, role }) {
   return cached;
 }
 
-async function signUp({ email, password, fullName, role }) {
+// If the account asked for a username at signup (stored in user_metadata —
+// covers the email-confirmation flow where no session exists at signup time)
+// but the profile doesn't carry one yet, claim it now. Best-effort.
+async function ensureUsernameClaimed(user, profile) {
+  try {
+    const want = user && user.user_metadata && user.user_metadata.username;
+    if (!want || !supabase || (profile && profile.username)) return profile;
+    const { data } = await supabase.rpc('set_my_username', { p_username: want });
+    if (data && profile) profile = { ...profile, username: data };
+  } catch (e) {}
+  return profile;
+}
+async function checkUsernameAvailable(username) {
+  if (!supabase) return null;
+  try { const { data } = await supabase.rpc('is_username_available', { p_username: String(username || '').replace(/^@/, '') }); return data === true; } catch (e) { return null; }
+}
+async function claimUsername(username) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  const { data, error } = await supabase.rpc('set_my_username', { p_username: String(username || '').replace(/^@/, '') });
+  if (error) throw error;
+  if (state.profile) setCached({ ...state, profile: { ...state.profile, username: data } });
+  return data;
+}
+
+async function signUp({ email, password, fullName, role, username }) {
   const normalizedRole = normalizeRole(role);
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
@@ -164,6 +199,7 @@ async function signUp({ email, password, fullName, role }) {
     });
   }
 
+  const cleanUsername = String(username || '').trim().replace(/^@/, '').toLowerCase() || undefined;
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -173,6 +209,7 @@ async function signUp({ email, password, fullName, role }) {
         full_name: fullName,
         role: normalizedRole,
         roles: [normalizedRole],
+        ...(cleanUsername ? { username: cleanUsername } : {}),
       },
     },
   });
@@ -180,11 +217,13 @@ async function signUp({ email, password, fullName, role }) {
 
   // Email confirmation enabled: Supabase returns a user but no session until
   // the link is clicked. Surface that so the UI shows "check your email".
+  // (The chosen username rides in user_metadata and is claimed on first login.)
   if (data.user && !data.session) {
     return { needsEmailConfirmation: true, email, role: normalizedRole };
   }
 
-  const profile = data.user ? await upsertProfile(data.user, { fullName, role }) : null;
+  let profile = data.user ? await upsertProfile(data.user, { fullName, role }) : null;
+  if (data.session) profile = await ensureUsernameClaimed(data.user, profile);
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
     console.warn('[shape] Session bridge failed.', error);
@@ -301,7 +340,8 @@ async function getCurrentSession() {
   if (error) throw error;
 
   const user = data.session?.user || null;
-  const profile = user ? await fetchProfile(user) : null;
+  let profile = user ? await fetchProfile(user) : null;
+  if (user) profile = await ensureUsernameClaimed(user, profile); // claim a signup-chosen username on first (confirmed) login
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
@@ -2663,6 +2703,8 @@ window.ShapeAuth = {
   getCurrentSession,
   updateProfileRoles,
   updateProfileName,
+  checkUsername: checkUsernameAvailable,
+  claimUsername,
   getCachedState: () => ({ ...state }),
 };
 

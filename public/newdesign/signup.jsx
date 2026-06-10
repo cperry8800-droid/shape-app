@@ -98,11 +98,41 @@ function Check({ on, onClick, children }) {
 
 // -------------- Step bodies --------------
 
+// Username — the member's Shape handle (@username). Live availability check
+// via the is_username_available RPC (anon-allowed, so it works pre-account).
+function UsernameField({ v, set, span = 2 }) {
+  const [status, setStatus] = React.useState(null); // null=idle/checking · true · false
+  const u = v.username || "";
+  React.useEffect(() => {
+    if (!u) { setStatus(null); return; }
+    if (!/^[a-z0-9][a-z0-9._]{2,19}$/.test(u)) { setStatus(false); return; }
+    let dead = false;
+    setStatus(null);
+    const id = setTimeout(() => {
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (!sb) { if (!dead) setStatus(true); return; }
+      sb.rpc("is_username_available", { p_username: u })
+        .then(r => { if (!dead) setStatus(r && r.data === false ? false : true); })
+        .catch(() => { if (!dead) setStatus(true); });
+    }, 300);
+    return () => { dead = true; clearTimeout(id); };
+  }, [u]);
+  return (
+    <Field label="Username — your Shape handle" span={span}>
+      <TextInput value={u} onChange={e => set({ username: e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "").slice(0, 20) })} placeholder="your.handle" autoComplete="username" />
+      <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: !u ? "rgba(242,237,228,0.45)" : status === false ? "#ff9b7a" : status ? "#0ac5a8" : "rgba(242,237,228,0.45)" }}>
+        {!u ? "Letters · numbers · . _ (3–20 chars)" : status === false ? "Taken or invalid — try another" : status ? `@${u} is yours` : "Checking…"}
+      </div>
+    </Field>
+  );
+}
+
 function ClientPersonal({ v, set }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
       <Field label="First name"><TextInput value={v.firstName || ""} onChange={e => set({ firstName: e.target.value })} /></Field>
       <Field label="Last name"><TextInput value={v.lastName || ""} onChange={e => set({ lastName: e.target.value })} /></Field>
+      <UsernameField v={v} set={set} />
       <Field label="Email" span={2}><TextInput type="email" value={v.email || ""} onChange={e => set({ email: e.target.value })} /></Field>
       <Field label="Password" span={2}><TextInput type="password" value={v.password || ""} onChange={e => set({ password: e.target.value })} placeholder="At least 8 characters" /></Field>
     </div>
@@ -184,6 +214,7 @@ function ProPersonal({ v, set, roleNoun }) {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
       <Field label="First name"><TextInput value={v.firstName || ""} onChange={e => set({ firstName: e.target.value })} /></Field>
       <Field label="Last name"><TextInput value={v.lastName || ""} onChange={e => set({ lastName: e.target.value })} /></Field>
+      <UsernameField v={v} set={set} />
       <Field label="Email"><TextInput type="email" value={v.email || ""} onChange={e => set({ email: e.target.value })} /></Field>
       <Field label="Phone"><TextInput type="tel" value={v.phone || ""} onChange={e => set({ phone: e.target.value })} /></Field>
       <Field label="City, State / Country" span={2}><TextInput value={v.city || ""} onChange={e => set({ city: e.target.value })} placeholder="e.g. Brooklyn, NY · USA" /></Field>
@@ -392,6 +423,7 @@ function SignupForm({ role }) {
     form.append("yearsExperience", values.years || "");
     form.append("monthlyPrice", values.subPrice || "");
     form.append("details", JSON.stringify({
+      username: values.username || "",
       timezone: values.tz || "",
       social: values.social || "",
       bio: values.bio || "",

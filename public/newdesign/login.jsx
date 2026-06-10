@@ -151,7 +151,18 @@ function LoginCard() {
         setSubmitting(false);
         return;
       }
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      // The field accepts an email OR a Shape username — resolve a username to
+      // its login email first (get_email_for_username RPC). A leading @ is
+      // stripped; anything containing @ beyond position 0 is treated as email.
+      let loginEmail = String(email || "").trim();
+      const unameCandidate = loginEmail.charAt(0) === "@" ? loginEmail.slice(1) : (loginEmail.indexOf("@") === -1 ? loginEmail : null);
+      if (unameCandidate) {
+        let resolved;
+        try { const r = await sb.rpc("get_email_for_username", { p_username: unameCandidate }); resolved = r && r.data; } catch (err2) { resolved = undefined; }
+        if (resolved === null) { setErrMsg("No account with that username — check the spelling or sign in with your email."); setSubmitting(false); return; }
+        if (resolved) loginEmail = resolved;
+      }
+      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password });
       if (error || !data.session) {
         setErrMsg(error ? error.message : "Could not sign in.");
         setSubmitting(false);
@@ -242,9 +253,9 @@ function LoginCard() {
         ) : (
           <>
             <div>
-              <label style={labelStyle} htmlFor="email">Email</label>
+              <label style={labelStyle} htmlFor="email">Email or username</label>
               <div style={fieldWrap}>
-                <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" style={inputStyle}
+                <input id="email" type="text" autoComplete="username" autoCapitalize="none" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com or your.handle" style={inputStyle}
                   onFocus={(e) => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(10,9,8,0.95)"; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(242,237,228,0.2)"; e.currentTarget.style.background = "rgba(8,7,6,0.76)"; }} />
               </div>
