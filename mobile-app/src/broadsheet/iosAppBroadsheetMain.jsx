@@ -795,7 +795,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         </div>
 
         {/* Role */}
-        <div>
+        <div style={{ marginBottom: 14 }}>
           <div style={labelStyle}>I'm a</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, border: `1px solid ${LINE2}`, borderRadius: 999, padding: 4 }}>
             {[['client','Client'],['trainer','Trainer'],['nutritionist','Nutritionist']].map(([k, l]) => {
@@ -841,10 +841,10 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             </>
           ) : (
             <>
-              <div><div style={labelStyle}>{isCreate ? 'Email' : 'Email or username'}</div>
+              <div><div style={{ ...labelStyle, fontWeight: 800, color: C70 }}>{isCreate ? 'Email' : 'Email or username'}</div>
                 <input placeholder={isCreate ? 'you@example.com' : 'you@example.com or your.handle'} type={isCreate ? 'email' : 'text'} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={isCreate ? 'email' : 'username'} autoCapitalize="none" style={inputStyle} />
               </div>
-              <div><div style={labelStyle}>Password</div>
+              <div><div style={{ ...labelStyle, fontWeight: 800, color: C70 }}>Password</div>
                 <input placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={inputStyle} />
               </div>
             </>
