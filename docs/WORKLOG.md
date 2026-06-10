@@ -74,6 +74,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Post & channel engagement: like · comment · send · share · repost (app + website)
+- **No migration** — `community_likes`/`community_comments` (+ RLS gated on
+  `can_view_community_post`) existed since 2026-05-02; this wires them everywhere.
+- **`BSPostActions`** under every profile activity card (member Terrain + coach
+  Signal): ♥ live like toggle, ↳ comments bottom-sheet (list + composer),
+  **✉ Send** (member picker → real 1:1 DM with `shared_post` metadata), ↗ system
+  share (clipboard fallback), **⇄ Repost** (new public post quoting the original
+  via `metrics.repostOf`). Engagement fields plumbed through `bsMapActivityPosts`
+  + `communityPostFromRow` (which now also maps `repostOf`).
+- **Chat feed**: bubble posts gained ✉ ↗ ⇄ next to the existing live ♥/↳; the
+  Strava-style **activity cards** now persist cheers as real likes (seeded, no
+  double count), persist comments with the CORRECT post id (fixed: the card key's
+  `post-` prefix was being sent as the id, so comments never landed), and carry
+  ✉ ↗ ⇄. **VERIFIED badge removed** from activity cards; the action row is
+  uniform 27px pills.
+- **Channels shareable**: every channel row has ✉ (DM the channel — the message
+  carries `metadata.channel`, rendering as a tappable "# name · Open →" card in
+  the recipient's thread that deep-links into the channel) and ↗ share. The send
+  sheet is generalized for channel payloads; both DM thread mappers map
+  `sharedChannel`.
+- **Website** (`dashboardCommunity.jsx`): likes + replies now PERSIST for live
+  posts (direct `community_likes`/`community_comments` writes), and the action
+  row is complete — ✉ SEND (member picker → `get_or_create_member_conversation`
+  → `messages` insert), ↗ SHARE, ⇄ REPOST (`/api/community/feed`). Demo cards
+  self-explain. (Site has no real-channels UI — a shared channel shows as text
+  in the site widget, the tappable card in the app.)
+
 ### 2026-06-09 — Usernames: every account gets a Shape handle (@username)
 - **Migration `2026-06-09-usernames.sql`** (**run on Supabase**): `profiles.username`
   (unique, case-insensitive) + RPCs — `is_username_available` (anon, signup
