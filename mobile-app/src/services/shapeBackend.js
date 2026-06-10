@@ -1789,6 +1789,7 @@ function communityPostFromRow(row) {
     video: metrics.video_url || metrics.video || null,
     link: (metrics.link && metrics.link.url) ? metrics.link : null,
     workoutStats: Array.isArray(metrics.workoutStats) ? metrics.workoutStats : null,
+    repostOf: (metrics.repostOf && typeof metrics.repostOf === 'object') ? metrics.repostOf : null,
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
     time: row.created_at ? new Date(row.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now',

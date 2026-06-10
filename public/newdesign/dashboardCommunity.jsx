@@ -53,6 +53,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           // throw on .toUpperCase()/.split() of undefined. The activity_type
           // still drives the section tag below.
           kind: 'post',
+          id: p.id || null,
           who: p.author_name || 'Shape member',
           role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
           time: since(p.created_at),
@@ -168,15 +169,43 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     const [replies, setReplies] = React.useState([]);
     const totalReplies = p.comments + replies.length;
 
-    const toggleLike = () => {
+    // Live posts persist engagement to the real tables (same RLS the app uses);
+    // demo cards stay optimistic-local so the feed always demonstrates itself.
+    const sb = () => (window.shapeDb && window.shapeDb.client) || null;
+    const toggleLike = async () => {
       setLikeCount(c => liked ? c - 1 : c + 1);
       setLiked(v => !v);
+      if (!p.isLive || !p.id) return;
+      try {
+        const client = sb(); if (!client) return;
+        const { data: u } = await client.auth.getUser();
+        const uid = u && u.user && u.user.id; if (!uid) return;
+        const { data: existing } = await client.from("community_likes").select("post_id").eq("post_id", p.id).eq("user_id", uid).maybeSingle();
+        if (existing) await client.from("community_likes").delete().eq("post_id", p.id).eq("user_id", uid);
+        else await client.from("community_likes").insert({ post_id: p.id, user_id: uid });
+      } catch (e) {}
     };
-    const submitReply = () => {
+    const submitReply = async () => {
       const t = draft.trim();
       if (!t) return;
       setReplies(rs => [...rs, { who: "You", t, time: "now" }]);
       setDraft("");
+      if (!p.isLive || !p.id) return;
+      try {
+        const client = sb(); if (!client) return;
+        const { data: u } = await client.auth.getUser();
+        const uid = u && u.user && u.user.id; if (!uid) return;
+        const name = (u.user.user_metadata && u.user.user_metadata.full_name) || String(u.user.email || "Member").split("@")[0];
+        await client.from("community_comments").insert({ post_id: p.id, user_id: uid, author_name: name, body: t });
+      } catch (e) {}
+    };
+    const onRepost = async () => {
+      if (!p.isLive || !p.id) { try { window.alert("Sample post — repost works on real posts."); } catch (e) {} return; }
+      try {
+        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: p.title || "Repost", note: p.body || "", privacy: "public", metrics: { kind: "note", repostOf: { postId: p.id, who: p.who || "", title: p.title || "", body: String(p.body || "").slice(0, 240) } } }) });
+        if (!res.ok) throw new Error("repost_failed");
+        try { window.alert("Reposted to the feed"); } catch (e) {}
+      } catch (e2) { try { window.alert("Could not repost."); } catch (e3) {} }
     };
     const onShare = () => {
       const url = window.location.href + "#post-" + (p.who || "").replace(/[^a-z0-9]/gi, "-").toLowerCase();
@@ -238,6 +267,10 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
             SHARE
+          </button>
+          <button onClick={onRepost} aria-label="Repost"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            ⇄ REPOST
           </button>
         </div>
 

@@ -6883,6 +6883,178 @@ function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isN
 // Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
 // shared by the member (Terrain) and coach (Signal) profile feeds so both render
 // the same rich types.
+// ── Post engagement — like · comment · send · share · repost ─────────────────
+// Mounts under any activity/post card. Real posts (a community_posts id) get
+// live likes + comments (existing tables/RLS), repost (a new post quoting the
+// original via metrics.repostOf), send (DM the post to anyone), and share
+// (system share sheet, clipboard fallback). Demo cards keep the buttons but
+// explain themselves instead of silently failing.
+// Real community_posts ids are uuids; demo/optimistic feed posts use short ids
+// ('s1', 'tmp…') that can't take server-side engagement.
+function bsRealPostId(p) {
+  const id = p && p.id ? String(p.id) : '';
+  return /^[0-9a-f][0-9a-f-]{31,}$/i.test(id) ? id : null;
+}
+async function bsSharePostExternal({ who, title, body, postId }) {
+  const text = [who ? `${who} on Shape` : 'Shape', title, body].filter(Boolean).join(' — ').slice(0, 280);
+  const url = postId ? `https://theshapecommunity.com/newdesign/Community.html?post=${encodeURIComponent(postId)}` : 'https://theshapecommunity.com';
+  try { if (navigator.share) { await navigator.share({ title: 'Shape', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); window.__bsToast?.('Copied — paste anywhere', 'ok'); }
+  catch (e) { window.__bsToast?.('Could not share.', 'error'); }
+}
+async function bsRepostPost({ postId, who, title, body }) {
+  await window.ShapeCommunity.createPost({
+    title: title || 'Repost', note: body || '', privacy: 'public',
+    metrics: { kind: 'note', repostOf: { postId: postId || null, who: who || '', title: title || '', body: String(body || '').slice(0, 240) } },
+  });
+}
+function BSPostSheetShell({ title, onClose, INK, BG, children }) {
+  const t = useBS();
+  const ink = INK || t.INK, bg = BG || t.PAPER;
+  const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  const sheet = (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'absolute', inset: 0, zIndex: 245, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div style={{ background: bg, borderRadius: '18px 18px 0 0', border: `1px solid ${bsTHexA(ink, 0.14)}`, borderBottom: 0, padding: '15px 16px calc(18px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(ink, 0.6) }}>{title}</span>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: bsTHexA(ink, 0.5), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, padding: 2, lineHeight: 1 }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+  return host ? createPortal(sheet, host) : sheet;
+}
+function BSPostCommentsSheet({ post, comments, onAdded, onClose, c, INK, BG }) {
+  const t = useBS();
+  const ink = INK || t.INK;
+  const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const [draft, setDraft] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const send = async () => {
+    const body = draft.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    try {
+      await window.ShapeCommunity.addComment({ postId: post.postId, body });
+      onAdded({ who: 'You', text: body });
+      setDraft('');
+    } catch (e) { window.__bsToast?.('Could not comment — try again.', 'error'); }
+    setBusy(false);
+  };
+  return (
+    <BSPostSheetShell title={`Comments · ${comments.length}`} onClose={onClose} INK={ink} BG={BG}>
+      <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 60, overflowY: 'auto' }}>
+        {comments.length === 0 ? (
+          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>No comments yet — say something.</div>
+        ) : comments.map((cm, i) => (
+          <div key={i} style={{ padding: '9px 2px', borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{cm.who || 'Member'}</div>
+            <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 14.5, color: ink, lineHeight: 1.45 }}>{cm.text}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} placeholder="Add a comment…"
+          style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '10px 13px', borderRadius: 999, border: `1px solid ${bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+        <button disabled={busy || !draft.trim()} onClick={send} style={{ flexShrink: 0, padding: '10px 16px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy || !draft.trim() ? 0.55 : 1 }}>Post</button>
+      </div>
+    </BSPostSheetShell>
+  );
+}
+function BSPostSendSheet({ post, onClose, c, INK, BG }) {
+  const t = useBS();
+  const ink = INK || t.INK;
+  const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const [q, setQ] = React.useState('');
+  const [people, setPeople] = React.useState([]);
+  const [busy, setBusy] = React.useState('');
+  React.useEffect(() => {
+    let dead = false;
+    const id = setTimeout(() => {
+      const s = window.ShapeChannels?.searchMembers;
+      if (!s) { setPeople([]); return; }
+      s(q).then(r => { if (!dead) setPeople((r && r.data) || []); }).catch(() => { if (!dead) setPeople([]); });
+    }, 220);
+    return () => { dead = true; clearTimeout(id); };
+  }, [q]);
+  const sendTo = async (m) => {
+    if (busy) return;
+    setBusy(m.id);
+    try {
+      const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: m.id });
+      const cid = conv && conv.data;
+      if (!cid) throw new Error('no_conversation');
+      const snippet = [post.title, post.body].filter(Boolean).join(' — ').slice(0, 200);
+      await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Shared ${post.who ? `${post.who}'s` : 'a'} post: “${snippet || 'Activity'}”`, metadata: { kind: 'shared_post', post_id: post.postId || null } });
+      window.__bsToast?.(`Sent to ${m.name}`, 'ok');
+      onClose();
+    } catch (e) { window.__bsToast?.('Could not send — try again.', 'error'); }
+    setBusy('');
+  };
+  return (
+    <BSPostSheetShell title="Send to" onClose={onClose} INK={ink} BG={BG}>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
+        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
+      <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
+        {people.length === 0 ? (
+          <div style={{ padding: '14px 2px', fontFamily: t.DISPLAY, fontSize: 14, color: bsTHexA(ink, 0.5) }}>{q ? 'No one found.' : 'Search for someone to send this to.'}</div>
+        ) : people.map((m, i) => (
+          <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0, padding: '10px 2px', display: 'flex', alignItems: 'center', gap: 11, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
+            <BSFacetAvatar size={32} c={bsTierColor(bsPostTier({ who: m.name }))} initial={bsInitials(m.name)} name={m.name} showRank={false} />
+            <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: busy === m.id ? bsTHexA(ink, 0.4) : accent }}>{busy === m.id ? 'Sending…' : 'Send →'}</span>
+          </button>
+        ))}
+      </div>
+    </BSPostSheetShell>
+  );
+}
+function BSPostActions({ post, c, INK, BG, onReposted }) {
+  const t = useBS();
+  const ink = INK || t.INK;
+  const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const [lk, setLk] = React.useState({ n: post.likes || 0, on: !!post.liked });
+  const [cmts, setCmts] = React.useState(Array.isArray(post.comments) ? post.comments : []);
+  const [openC, setOpenC] = React.useState(false);
+  const [openS, setOpenS] = React.useState(false);
+  const [reBusy, setReBusy] = React.useState(false);
+  const real = !!post.postId;
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const guard = () => {
+    if (!real) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return false; }
+    if (!signedIn) { window.__bsToast?.('Sign in to do that.', 'info'); return false; }
+    return true;
+  };
+  const pill = (on) => ({ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 10px', background: on ? bsTHexA(accent, 0.12) : 'transparent', color: on ? accent : bsTHexA(ink, 0.55), border: `1px solid ${on ? bsTHexA(accent, 0.7) : bsTHexA(ink, 0.18)}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' });
+  const doLike = async () => {
+    if (!guard()) return;
+    setLk(s => ({ n: Math.max(0, s.n + (s.on ? -1 : 1)), on: !s.on }));
+    try { await window.ShapeCommunity.toggleLike({ postId: post.postId }); }
+    catch (e) { setLk(s => ({ n: Math.max(0, s.n + (s.on ? -1 : 1)), on: !s.on })); }
+  };
+  const doRepost = async () => {
+    if (!guard() || reBusy) return;
+    setReBusy(true);
+    try { await bsRepostPost(post); window.__bsToast?.('Reposted to your feed', 'ok'); onReposted && onReposted(); }
+    catch (e) { window.__bsToast?.('Could not repost.', 'error'); }
+    setReBusy(false);
+  };
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(ink, 0.1)}` }}>
+        <button onClick={doLike} style={pill(lk.on)}>♥{lk.n ? ` ${lk.n}` : ''}</button>
+        <button onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={pill(openC)}>↳{cmts.length ? ` ${cmts.length}` : ''}</button>
+        <button onClick={() => { if (!guard()) return; setOpenS(true); }} style={pill(false)}>✉ Send</button>
+        <button onClick={() => bsSharePostExternal(post)} style={pill(false)}>↗ Share</button>
+        <button disabled={reBusy} onClick={doRepost} style={{ ...pill(false), opacity: reBusy ? 0.6 : 1 }}>⇄ Repost</button>
+      </div>
+      {openC && <BSPostCommentsSheet post={post} comments={cmts} onAdded={(cm) => setCmts(prev => [...prev, cm])} onClose={() => setOpenC(false)} c={accent} INK={ink} BG={BG} />}
+      {openS && <BSPostSendSheet post={post} onClose={() => setOpenS(false)} c={accent} INK={ink} BG={BG} />}
+    </>
+  );
+}
+
 function bsMapActivityPosts(data) {
   const KMAP = { note: 'Note', article: 'Article', photo: 'Photo', video: 'Video', workout: 'Workout', link: 'Link' };
   const GENERIC = { Photo: 1, Video: 1, Link: 1, Note: 1, Workout: 1, Article: 1 };
@@ -6896,7 +7068,13 @@ function bsMapActivityPosts(data) {
     const kind = p.kind || (p.video ? 'video' : p.link ? 'link' : p.photo ? 'photo' : 'note');
     const rawTitle = String(p.status || '').trim();
     const t = (rawTitle && !GENERIC[rawTitle]) ? rawTitle : '';
-    return { k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false };
+    return {
+      k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false,
+      // Engagement plumbing — real posts carry their id + live like/comment
+      // state so the action row under each card works (demo cards have none).
+      id: p.id || null, who: p.name || '', likes: typeof p.likes === 'number' ? p.likes : 0, liked: !!p.liked,
+      comments: Array.isArray(p.comments) ? p.comments : [], repostOf: p.repostOf || null,
+    };
   });
 }
 // Build a Strava-style activity "proof card" model from a real community post —
@@ -7980,6 +8158,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                     <div style={{ ...card, padding: '13px 15px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
                       <BSActivityBody it={it} c={c} INK={INK} card={card} />
+                      <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={it.hot ? TEAL : c} INK={INK} BG={BG} />
                     </div>
                   </div>
                 ))}
@@ -8458,6 +8637,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                   <div style={{ ...card, padding: '13px 15px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
                     <BSActivityBody it={it} c={c} INK={INK} card={card} />
+                    <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={c} INK={INK} BG={BG} />
                   </div>
                 </div>
               ))}
@@ -9368,6 +9548,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [actLikes, setActLikes] = useStateBSC({});
   const [actComments, setActComments] = useStateBSC({});
   const [actCmtOpen, setActCmtOpen] = useStateBSC(null);
+  const [sendPostFor, setSendPostFor] = useStateBSC(null); // ✉ on a feed post → the send-to-DM picker
   const [actCmtDraft, setActCmtDraft] = useStateBSC('');
   const toggleActLike = (key) => {
     setActLikes(prev => ({ ...prev, [key]: !prev[key] }));
@@ -9445,6 +9626,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
           <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
           <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {replyCount}</button>
+          <button aria-label="Send post" onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>✉</button>
+          <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↗</button>
+          <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>⇄</button>
         </div>
         {actCmtOpen === p.id && (
           <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
@@ -10001,6 +10185,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked placeholder="Message the Shape team…" />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
+      {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
       {newDmOpen && createPortal(
         <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
