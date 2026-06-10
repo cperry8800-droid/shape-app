@@ -118,6 +118,101 @@ function navGroupsFor(authUser) {
   return SHAPE_NAV_GROUPS;
 }
 
+// ── Universal search — site-wide ⌕ in the header ─────────────────────────────
+// Same search_shape_people RPC the app uses: every account by name / @handle /
+// goal keywords (role + photo + points → tier color). Nora (Shape's concierge)
+// matches help/support queries and opens the chat widget's Help tab. Rows link
+// to the person's public profile page.
+const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "#34d6c5"], [750, "#d8a23a"], [0, "#8a93a0"]];
+function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#8a93a0"; }
+function SiteSearch({ signedIn = false }) {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  const [rows, setRows] = React.useState(null); // null = idle · [] = none
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { if (open) { const id = setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 60); return () => clearTimeout(id); } }, [open]);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  React.useEffect(() => {
+    const query = q.trim().replace(/^@/, "");
+    if (!open || !query) { setRows(null); return undefined; }
+    let dead = false;
+    const id = setTimeout(() => {
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (!sb) { setRows([]); return; }
+      sb.rpc("search_shape_people", { p_q: query, p_limit: 12 })
+        .then(r => { if (!dead) setRows(Array.isArray(r.data) ? r.data : []); })
+        .catch(() => { if (!dead) setRows([]); });
+    }, 250);
+    return () => { dead = true; clearTimeout(id); };
+  }, [q, open]);
+  const needle = q.trim().replace(/^@/, "").toLowerCase();
+  const noraHit = !!needle && ("nora".includes(needle) || ["concierge", "support", "help", "assistant"].some(w => w.startsWith(needle)));
+  const roleLabelOf = (r) => r === "trainer" ? "Trainer" : r === "nutritionist" ? "Nutritionist" : "Member";
+  const roleColorOf = (r) => r === "trainer" ? "#c0533b" : r === "nutritionist" ? "#a07a2e" : TEAL;
+  const openNora = () => { setOpen(false); try { if (window.__openChat) window.__openChat("Nora", "support"); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
+  const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, textDecoration: "none", cursor: "pointer", background: "transparent", border: 0, width: "100%", textAlign: "left" };
+  return (
+    <>
+      <button onClick={() => setOpen(true)} aria-label="Search Shape" title="Search Shape" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: "1px solid rgba(245,239,225,0.25)", background: "transparent", color: "rgba(245,239,225,0.75)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
+      </button>
+      {open && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", overflowY: "auto", padding: "12vh 18px 40px" }}>
+          <div style={{ maxWidth: 540, margin: "0 auto", background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, boxShadow: "0 30px 80px rgba(0,0,0,0.55)", padding: "18px 18px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", color: "#f2ede4" }}>Search Shape<span style={{ color: TEAL }}>.</span></div>
+              <button onClick={() => setOpen(false)} aria-label="Close search" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontFamily: mono, fontSize: 14, fontWeight: 700, padding: 4, lineHeight: 1 }}>✕</button>
+            </div>
+            <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
+              style={{ width: "100%", boxSizing: "border-box", marginTop: 12, padding: "11px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", borderRadius: 0, background: "transparent", color: "#f2ede4", fontFamily: sans, fontSize: 16, outline: "none" }} />
+            <div style={{ padding: "10px 0 6px" }}>
+              {noraHit && (
+                <button onClick={openNora} style={rowStyle}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                  <img src="/nora-avatar.png" alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover", border: `1.5px solid ${TEAL}` }} />
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Shape's Concierge · always online</span>
+                    <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4" }}>Nora</span>
+                  </span>
+                  <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(242,237,228,0.4)" }}>›</span>
+                </button>
+              )}
+              {q.trim() ? (
+                rows === null ? (
+                  <div style={{ padding: "12px 12px 8px", fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Searching…</div>
+                ) : rows.length === 0 && !noraHit ? (
+                  <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>
+                    {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Marketplace.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}
+                  </div>
+                ) : rows.map((p) => (
+                  <a key={p.id} href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(p.id)}`} style={rowStyle}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                    {p.avatar
+                      ? <img src={p.avatar} alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover", border: `1.5px solid ${ssTierColor(p.points)}` }} />
+                      : <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: `${ssTierColor(p.points)}26`, border: `1.5px solid ${ssTierColor(p.points)}`, color: "#f2ede4", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>{String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()}</span>}
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: roleColorOf(p.role) }}>{roleLabelOf(p.role)}</span>
+                      <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.full_name}</span>
+                    </span>
+                    <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(242,237,228,0.4)" }}>›</span>
+                  </a>
+                ))
+              ) : (
+                <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.5)" }}>Find anyone on Shape — members, coaches, or Nora for help.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
   React.useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -230,6 +325,7 @@ function Header({ active }) {
           )}
         </nav>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0 }}>
+          <SiteSearch signedIn={!!authUser} />
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
