@@ -643,6 +643,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Universal search & discovery',
+      items: [
+        { label: 'Monochrome ⌕ in every header (left of the avatar): 5 client tabs, chat masthead, Terrain/Signal me-mastheads, sub-page corners, both coach Today headers — opens the search screen via shape:openSearch (client shell + both coach shells listen)', status: 'done' },
+        { label: 'BSUniversalSearch screen: autofocused input, debounced live typeahead over every account (search_shape_people: role + photo + points→tier), All/Members/Coaches chips, demo cast as the signed-out fallback', status: 'done' },
+        { label: 'Search matches names + @handles + bio/goal keywords (privacy-gated: private profiles match by name only, no photo)', status: 'done' },
+        { label: 'Inline row actions: Follow/Requested/Following pill (live ShapeFollows state) + ✉ Message → real 1:1 (get_or_create_member_conversation) opened directly via shape:openConversation (all 3 shells)', status: 'done' },
+        { label: '"People you may know" empty-state suggestions from the follow graph (get_follow_suggestions: mutuals + follows-you, avatar-enriched); Recent = recently VIEWED profiles (recorded centrally in BSPublicProfile, live-synced)', status: 'done' },
+        { label: 'Beyond people (All filter): Channels (deep-links into the channel thread) · Shape Kitchen recipes (in-place detail) · Workouts (preview + Start) · Coach plans for sale (opens the coach profile)', status: 'done' },
+        { label: '"Coached by" chip on the member Terrain hero links to the coach\'s live Signal profile (ShapeCoachLookup provider→owner; fixed the dormant {stored,data} unwrap bug that kept it on demo data)', status: 'done' },
+        { label: 'Migration applied on Supabase: 2026-06-09-universal-search.sql (search_shape_people v2 — names + @handles + bio/goal keywords)', status: 'manual' },
+        { label: 'Website-nav search parity (same RPC, site header)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Client surfaces & library',
       items: [
         { label: 'First-run app tour (skippable, replayable from Me → App tour): 7-step guided walkthrough that switches the underlying tab; persists to localStorage + user_goals(client_onboarding)', status: 'done' },
