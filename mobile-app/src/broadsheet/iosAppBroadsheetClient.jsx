@@ -6985,15 +6985,21 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
       const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: m.id });
       const cid = conv && conv.data;
       if (!cid) throw new Error('no_conversation');
-      const snippet = [post.title, post.body].filter(Boolean).join(' — ').slice(0, 200);
-      await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Shared ${post.who ? `${post.who}'s` : 'a'} post: “${snippet || 'Activity'}”`, metadata: { kind: 'shared_post', post_id: post.postId || null } });
+      if (post.channel && post.channel.id != null) {
+        // Sharing a CHANNEL: the message carries the channel in metadata so the
+        // recipient's thread renders a tappable open-the-channel card.
+        await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Join me in #${post.channel.name} on Shape — ${post.channel.memberCount || 0} member${post.channel.memberCount === 1 ? '' : 's'}.`, metadata: { kind: 'shared_channel', channel: { id: post.channel.id, name: post.channel.name, memberCount: post.channel.memberCount || 0 } } });
+      } else {
+        const snippet = [post.title, post.body].filter(Boolean).join(' — ').slice(0, 200);
+        await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Shared ${post.who ? `${post.who}'s` : 'a'} post: “${snippet || 'Activity'}”`, metadata: { kind: 'shared_post', post_id: post.postId || null } });
+      }
       window.__bsToast?.(`Sent to ${m.name}`, 'ok');
       onClose();
     } catch (e) { window.__bsToast?.('Could not send — try again.', 'error'); }
     setBusy('');
   };
   return (
-    <BSPostSheetShell title="Send to" onClose={onClose} INK={ink} BG={BG}>
+    <BSPostSheetShell title={post.channel ? `Send #${post.channel.name} to` : 'Send to'} onClose={onClose} INK={ink} BG={BG}>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
         style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${bsTHexA(ink, 0.2)}`, borderRadius: 0, background: 'transparent', color: ink, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
       <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 80, overflowY: 'auto', marginTop: 4 }}>
@@ -9159,7 +9165,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null })),
+    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -9731,17 +9737,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               </div>
             ))}
           </div>
-          {/* verified + engagement */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 'auto', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: TEALB, fontWeight: 800 }}>
-              <span style={{ display: 'inline-flex', width: 11, height: 11, borderRadius: 6, border: `1px solid ${TEALB}`, alignItems: 'center', justifyContent: 'center', fontSize: 6.5 }}>✓</span>Verified
-            </span>
-            <button onClick={() => { setActLikes(prev => ({ ...prev, [key]: !(prev[key] != null ? prev[key] : a.liked) })); if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); } }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 11px', background: liked ? tc : 'transparent', color: liked ? '#fff' : muted, border: `1px solid ${liked ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
-            <button onClick={() => openActComments(key, cmtOpen)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', borderRadius: 999, padding: '5px 10px', background: cmtOpen ? `${TEALB}1f` : 'transparent', color: cmtOpen ? TEALB : muted, border: `1px solid ${cmtOpen ? TEALB : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>↳ {(a.replies || 0) + comments.length}</button>
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 999, padding: '5px 9px', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>✉</button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 999, padding: '5px 9px', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>↗</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', borderRadius: 999, padding: '5px 9px', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>⇄</button>
+          {/* engagement — one row of uniform pills */}
+          {(() => {
+            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 27, boxSizing: 'border-box', padding: grow ? '0 11px' : 0, width: grow ? 'auto' : 27, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
+            return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10 }}>
+            <button onClick={() => { setActLikes(prev => ({ ...prev, [key]: !(prev[key] != null ? prev[key] : a.liked) })); if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); } }} style={actPill(liked, true)}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
+            <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>↳ {(a.replies || 0) + comments.length}</button>
+            <span style={{ marginLeft: 'auto' }} />
+            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>✉</button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>↗</button>
+            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>⇄</button>
           </div>
+            );
+          })()}
           {/* comments */}
           {cmtOpen && (
             <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
@@ -9999,6 +10008,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   {unreadBadge('ch:' + ch.id)}
+                  <button onClick={() => { if (isSample) { window.__bsToast?.('Sample channel — share real ones.', 'info'); return; } setSendPostFor({ channel: { id: ch.id, name: ch.name, memberCount: ch.memberCount || 0 } }); }} aria-label="Send channel to a member" title="Send to a member" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>✉</button>
+                  <button onClick={() => bsSharePostExternal({ who: '', title: `Join #${ch.name} on Shape`, body: `${ch.memberCount || 0} members`, postId: null })} aria-label="Share channel" title="Share" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>↗</button>
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.35 }}><PinIcon filled={ch.pinned} size={16} /></button>
                   {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label="Add member" title="Add member" style={{ width: 24, height: 24, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>+</button>}
                   <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ padding: '5px 12px', borderRadius: 999, background: ch.joined ? 'transparent' : TEAL, color: ch.joined ? cardInk : '#031f1c', border: ch.joined ? `1px solid ${hair}` : 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{ch.joined ? 'Open' : 'Join'}</button>
@@ -10671,6 +10682,17 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
                   )}
                   {m.audio && (
                     <audio src={m.audio} controls preload="none" onClick={(e) => e.stopPropagation()} style={{ display: 'block', width: '100%', minWidth: 180, marginTop: 8 }} />
+                  )}
+                  {m.sharedChannel && (
+                    <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: m.sharedChannel } })); } catch (e2) {} }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 10, cursor: 'pointer' }}>
+                      <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, color: teal, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>#</span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{m.sharedChannel.name}</span>
+                        <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
+                      </span>
+                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
+                    </button>
                   )}
                 </div>
                 {pickerOpen && <BSReactionPicker t={t} anchorRight={me} current={myR} onPick={(em) => rx.toggle(rKey, em)} />}
