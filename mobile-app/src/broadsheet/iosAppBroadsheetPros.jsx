@@ -1221,75 +1221,13 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         }[dd] || []))}
       />
 
-      {/* Quick chips — below the week strip to match the client home layout */}
-      <div style={{
-        padding: `12px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER,
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-          {[
-            { label: 'Today', meta: `${bookings.length} bookings`, active: true, onClick: () => {} },
-            { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => onOpenHabits() },
-            { label: 'Score', meta: '+8 pts', accent: t.ACCENT, onClick: () => onOpenScore() },
-          ].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={item.onClick}
-              style={{
-                minWidth: 0,
-                padding: '9px 8px 8px',
-                borderRadius: t.RADIUS_SM,
-                border: `1px solid ${item.active ? t.INK : (item.accent || t.RULE)}`,
-                background: item.active ? t.INK : t.PAPER2,
-                color: item.active ? t.PAPER : t.INK,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <span style={{
-                display: 'block',
-                fontFamily: t.MONO,
-                fontSize: 9,
-                fontWeight: 900,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: item.active ? t.PAPER : (item.accent || t.INK),
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {item.label}
-              </span>
-              <span style={{
-                display: 'block',
-                marginTop: 4,
-                fontFamily: t.MONO,
-                fontSize: 9,
-                fontWeight: 800,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: item.active ? t.PAPER : t.INK50,
-                opacity: item.active ? 0.72 : 1,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {item.meta}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+      <div style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
           <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
           <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
         </div>
-        <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
+        <BSHeadlineNumber value={lead.count} unit="SESSIONS" size={Math.round(t.headlineHero * 0.62)} />
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
           {lead.copy}
         </div>
       </div>
@@ -1324,6 +1262,9 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         )}
       </div>
 
+      <div style={{ marginTop: 8 }}>
+        <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
+      </div>
       <div style={{ marginTop: 8 }}>
         <BSProHomeWidgets role="trainer" onOpen={onWidgetOpen} />
       </div>
@@ -1459,6 +1400,54 @@ function bsProMeInit() {
   return custom || (nm ? nm.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() : 'S') || 'S';
 }
 // The coach's own avatar — opens Settings (the shells listen for the event).
+// Coach home Habits section — same numbered format as the client home page
+// (DO/AVOID pill, name, points, check box, "View →" to the full habits page).
+// Reads the coach's own habits from tweaks via the window-exposed decoder.
+function BSProHabits({ tweaks = {}, onOpen = () => {} }) {
+  const t = useBS();
+  const habits = (() => {
+    const dec = (typeof window !== 'undefined' && window._bsDecodeHabits) ? window._bsDecodeHabits(tweaks.habits) : [];
+    return Array.isArray(dec) ? dec : [];
+  })();
+  const done = habits.filter(h => h.done);
+  const earned = done.reduce((a, h) => a + Math.round(h.pts || 0), 0);
+  return (
+    <>
+      <BSSection
+        title="Habits"
+        kicker={<>{done.length}/{habits.length} done · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{earned} pts</span></>}
+        meta={<span onClick={onOpen} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>View →</span>}
+      />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ borderTop: `2px solid ${t.INK}` }} />
+        {habits.length === 0 ? (
+          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+            — No habits yet · tap View to add —
+          </div>
+        ) : (
+          habits.map((h, i) => {
+            const avoid = h.type === 'avoid';
+            const pillC = avoid ? t.RUST : t.GREEN;
+            return (
+              <div key={`${h.name}-${i}`} style={{ borderBottom: i === habits.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <button onClick={onOpen} style={{ width: '100%', display: 'grid', gridTemplateColumns: '26px 54px 1fr auto 26px', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK, letterSpacing: '-0.01em', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}59`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 999 }}>{avoid ? 'AVOID' : 'DO'}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px' }}>{h.name}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: h.done ? pillC : t.INK50, marginTop: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts || 0)} pts`}</div>
+                  </div>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: h.done ? pillC : t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts || 0)}</span>
+                  <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${h.done ? pillC : t.RULE}`, background: h.done ? pillC : 'transparent', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 900 }}>{h.done ? '✓' : ''}</span>
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
 function BSProAvatarButton({ size = 38 }) {
   // Match the Today/Me headers: the coach's real photo (custom or signed-in),
   // tier-colored ring, falling back to initials — not a flat initial badge.
@@ -3497,68 +3486,6 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         }[dd] || []))}
       />
 
-      {/* Quick chips — below the week strip to match the client home layout */}
-      <div style={{
-        padding: `12px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        background: t.PAPER,
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-          {[
-            { label: 'Today', meta: '5 sessions', active: true, onClick: () => {} },
-            { label: 'Habits', meta: '1/3 done', accent: t.GREEN, onClick: () => onOpenHabits() },
-            { label: 'Score', meta: '+6 pts', accent: t.ACCENT, onClick: () => onOpenScore() },
-          ].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={item.onClick}
-              style={{
-                minWidth: 0,
-                padding: '9px 8px 8px',
-                borderRadius: t.RADIUS_SM,
-                border: `1px solid ${item.active ? t.INK : (item.accent || t.RULE)}`,
-                background: item.active ? t.INK : t.PAPER2,
-                color: item.active ? t.PAPER : t.INK,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <span style={{
-                display: 'block',
-                fontFamily: t.MONO,
-                fontSize: 9,
-                fontWeight: 900,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: item.active ? t.PAPER : (item.accent || t.INK),
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {item.label}
-              </span>
-              <span style={{
-                display: 'block',
-                marginTop: 4,
-                fontFamily: t.MONO,
-                fontSize: 9,
-                fontWeight: 800,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: item.active ? t.PAPER : t.INK50,
-                opacity: item.active ? 0.72 : 1,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {item.meta}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.RUST}>{lead.kicker}</BSEyebrow>
@@ -3585,6 +3512,9 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       </div>
 
       <div style={{ marginTop: 22 }}>
+        <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
+      </div>
+      <div style={{ marginTop: 8 }}>
         <BSProHomeWidgets role="nutritionist" onOpen={onWidgetOpen} />
       </div>
       <BSReviewQueueCard role="nutritionist" onOpen={onOpenReviews} />
