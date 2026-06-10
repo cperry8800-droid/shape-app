@@ -8719,10 +8719,9 @@ function BSUniversalSearch({ onClose }) {
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: '0 0 auto', padding: `54px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Search · Shape</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Search Shape<span style={{ color: teal }}>.</span></div>
           <button onClick={onClose} aria-label="Close search" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>Find anyone.</div>
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
           style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 17, outline: 'none' }} />
         <div style={{ display: 'flex', gap: 7, padding: '12px 0 10px' }}>
