@@ -784,25 +784,25 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>Month view →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 10 }}>
+        {/* Day boxes — identical styling to the client home week strip. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 8 }}>
           {days.map((day) => {
             const on    = day.d === selDay;
             const today = day.isToday;
             const dd    = (dots && dots[day.idx]) || [];
             return (
               <button key={day.d} onClick={() => setSelDay(day.d)} style={{
-                boxSizing: 'border-box', minHeight: 62,
                 borderRadius: t.RADIUS_SM,
-                border: `1px solid ${on ? t.INK : (today ? (t.isLight ? '#0a8f87' : '#34d6c5') : t.RULE)}`,
-                background: on ? t.INK : t.PAPER2,
+                border: `1px solid ${on ? t.INK : t.HAIR}`,
+                background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
                 color: on ? t.PAPER : t.INK,
-                padding: '8px 0 6px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                padding: '5px 0 4px', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
               }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 22, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{day.d}</span>
-                <span style={{ display: 'flex', gap: 2, height: 4, marginTop: 2 }}>
-                  {dd.slice(0, 3).map((c, k) => <span key={k} style={{ width: 3, height: 3, background: on ? t.PAPER : c }} />)}
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{day.l}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{day.d}</span>
+                <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
+                  {dd.slice(0, 3).map((c, k) => <span key={k} style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: on ? t.PAPER : c }} />)}
                 </span>
               </button>
             );
@@ -1234,16 +1234,15 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
 
       {isToday && (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
-          <button onClick={() => onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <BSFacetAvatar size={38} c={t.RUST} initial="A" name="Alex Rivera" showRank={false} />
+          <button onClick={() => onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <BSFacetAvatar size={30} c={t.RUST} initial="A" name="Alex Rivera" showRank={false} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
-                <span style={{ width: 6, height: 6, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live now
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
+                <span style={{ width: 5, height: 5, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live · training
               </div>
-              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Alex Rivera is training</div>
-              <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Upper Pull — Peak · set 3 of 4</div>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Alex Rivera · Upper Pull</div>
             </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
           </button>
         </div>
       )}
@@ -1468,9 +1467,9 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{activeCount} ACTIVE · +{newThisMonth} THIS MONTH</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
+            <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
           </div>
-          <div style={{ flexShrink: 0 }}><BSProAvatarButton size={38} /></div>
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 38 }) : null}<BSProAvatarButton size={38} /></div>
         </div>
         {/* Search */}
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
@@ -1627,7 +1626,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
         <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
       </div>
-      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>{titleA}<br /><span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+      <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
   );
 }
@@ -2177,8 +2176,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
         <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
       </div>
-      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>
-        {first}<br /><span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
+      <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
+        {first} <span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
         <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
@@ -2840,9 +2839,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>4 PUBLISHED · 1 DRAFT</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>programs.</span></div>
+            <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: teal }}>programs.</span></div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
+            {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}
             <BSProAvatarButton size={34} />
           </div>
         </div>
@@ -3777,9 +3777,10 @@ function BSNutriPlans() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>4 PUBLISHED · 40 ON IT</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>plans.</span></div>
+            <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>plans.</span></div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
+            {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}
             <BSProAvatarButton size={34} />
           </div>
         </div>
@@ -4049,7 +4050,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR SPOTIFY</div>
             <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
           <div style={{ marginTop: 16 }}>
             {list.length === 0 ? (
@@ -4084,7 +4085,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>Import a<br /><span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
+          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Import a <span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
           <div style={{ marginTop: 22 }}>
             {/* Pick straight from the coach's connected Spotify — no link to paste.
                 Hidden when VITE_SPOTIFY_LIBRARY_PICKER=off (pre Extended Quota). */}
@@ -4201,7 +4202,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
+        <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
         </>)}
 
@@ -4336,7 +4337,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
-              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
+              <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
