@@ -7707,10 +7707,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               </button>
             </div>
           </div>
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>Me</div>
-            <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, margin: '6px 0 0', lineHeight: 1 }}>Profile<span style={{ color: TEAL }}>.</span></h1>
-          </div>
         </div>
       ) : (
         /* Others' public profile (pushed): back + avatar corner. */
@@ -8246,8 +8242,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </div>
         )}
         {meMode ? (
-          /* Me masthead — matches the client: logo + Vol·No, then ME / Profile.,
-             with edit pencil + settings gear top-right; no back (root tab). */
+          /* Me masthead — matches the client: logo + Vol·No with edit pencil +
+             settings gear top-right; no back (root tab). */
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -8262,10 +8258,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
                 </button>
               </div>
-            </div>
-            <div style={{ marginTop: 14, marginBottom: 4 }}>
-              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>Me</div>
-              <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, margin: '6px 0 0', lineHeight: 1 }}>Profile<span style={{ color: c }}>.</span></h1>
             </div>
           </>
         ) : (
