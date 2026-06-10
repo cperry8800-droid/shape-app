@@ -15,6 +15,8 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
 <style>
   :root{
     --paper:#1a1612;--paper-2:#211c16;--ink-d:#0b0e0c;
@@ -505,35 +507,36 @@
 
 <nav>
   <div class="wrap navr">
-    <a class="brand" href="index.html"><img src="/SHAPE-logo-teal-white.png?v=1" alt="Shape" /></a>
+    <a class="brand" href="/newdesign/index.html"><img src="/SHAPE-logo-teal-white.png?v=1" alt="Shape" /></a>
     <div class="nlinks">
-      <a href="About.html">About</a>
+      <a href="/newdesign/About.html">About</a>
       <div class="ndrop"><span>Clients</span><div class="ndmenu"><div>
-        <a href="Client.html">Overview</a>
-        <a href="ClientDashboard.html">Dashboard</a>
+        <a href="/newdesign/Client.html">Overview</a>
+        <a href="/newdesign/ClientDashboard.html">Dashboard</a>
       </div></div></div>
       <div class="ndrop"><span>Trainers</span><div class="ndmenu"><div>
-        <a href="Coach.html">Overview</a>
-        <a href="TrainerDashboard.html">Dashboard</a>
+        <a href="/newdesign/Coach.html">Overview</a>
+        <a href="/newdesign/TrainerDashboard.html">Dashboard</a>
       </div></div></div>
       <div class="ndrop"><span>Nutritionists</span><div class="ndmenu"><div>
-        <a href="Nutritionist.html">Overview</a>
-        <a href="NutritionistDashboard.html">Dashboard</a>
-        <a href="Recipes.html">Recipes</a>
+        <a href="/newdesign/Nutritionist.html">Overview</a>
+        <a href="/newdesign/NutritionistDashboard.html">Dashboard</a>
+        <a href="/newdesign/Recipes.html">Recipes</a>
       </div></div></div>
-      <a href="Marketplace.html">Marketplace</a>
-      <a href="Community.html">Community</a>
+      <a href="/newdesign/Marketplace.html">Marketplace</a>
+      <a href="/newdesign/Community.html">Community</a>
       <div class="ndrop"><span>Rewards</span><div class="ndmenu"><div>
-        <a href="Score.html">Shape Score</a>
-        <a href="Store.html">Shape Store</a>
+        <a href="/newdesign/Score.html">Shape Score</a>
+        <a href="/newdesign/Store.html">Shape Store</a>
       </div></div></div>
-      <a href="GetApp.html">App</a>
-      <a href="Pricing.html">Pricing</a>
+      <a href="/newdesign/GetApp.html">App</a>
+      <a href="/newdesign/Pricing.html">Pricing</a>
     </div>
     <div class="nauth">
-      <a class="login" href="Login.html">Log in</a>
-      <a class="ncta" href="Landing.html">Get started</a>
-      <a class="nradio" href="Radio.html" aria-label="Shape Radio"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio" /></a>
+      <span id="shape-nav-search" style="display:inline-flex;align-items:center"></span>
+      <a class="login" href="/newdesign/Login.html">Log in</a>
+      <a class="ncta" href="/newdesign/Landing.html">Get started</a>
+      <a class="nradio" href="/newdesign/Radio.html" aria-label="Shape Radio"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio" /></a>
     </div>
   </div>
 </nav>
@@ -553,7 +556,7 @@
     <h1><b class="wt">Different</b> <b>goals.</b><br><b class="wt">One</b> <b>Community.</b></h1>
     <p>Vetted trainers and nutritionists, daily habits, grocery lists, meal plans, recovery, ad-free workout radio, a community that actually shows up, and your Shape Score tracking it all — one app for the whole lifestyle. We write the plan. You just live it.</p>
     <div class="hcta">
-      <a class="b p" href="Landing.html">Get started →</a>
+      <a class="b p" href="/newdesign/Landing.html">Get started →</a>
       <a class="b g" href="#loop">See how it works</a>
     </div>
   </div>
@@ -584,7 +587,7 @@
 <section class="sec" id="market"><div class="wrap" style="max-width:1440px">
   <div class="shead"><h2>The <b>Expert Marketplace</b></h2><div class="s" id="mk-stats">Browse free before you pay</div></div>
   <div class="gal" id="gal"></div>
-  <div style="text-align:center;margin-top:46px"><a class="b g" href="Marketplace.html">Browse all coaches →</a></div>
+  <div style="text-align:center;margin-top:46px"><a class="b g" href="/newdesign/Marketplace.html">Browse all coaches →</a></div>
 </div></section>
 
 <section class="sec" style="padding-top:0"><div class="wrap" style="max-width:1440px">
@@ -593,7 +596,7 @@
       <div class="eyb" style="color:var(--rust)">Shape Radio · included</div>
       <h3>Music built for <b>movement.</b></h3>
       <p>Ad-free mixes curated by BPM. When your coach attaches a playlist to a workout, it plays right on the card. Free with every membership.</p>
-      <div style="margin-top:26px"><a class="b p" href="Radio.html">Open Shape Radio →</a></div>
+      <div style="margin-top:26px"><a class="b p" href="/newdesign/Radio.html">Open Shape Radio →</a></div>
     </div>
     <div class="now-playing">
       <div class="np-head">
@@ -612,7 +615,7 @@
   <div class="eyb">One platform fee · cancel any time</div>
   <div class="big">$5<b>/mo</b></div>
   <p>Browse every coach, message your pros, track progress, log meals, listen to Radio. Coaches set their own rates and you pay them directly. No bundles, no seat math.</p>
-  <div class="hcta" style="margin-top:34px"><a class="b p" href="Pricing.html">See pricing →</a><a class="b g" href="Landing.html">Get started</a></div>
+  <div class="hcta" style="margin-top:34px"><a class="b p" href="/newdesign/Pricing.html">See pricing →</a><a class="b g" href="/newdesign/Landing.html">Get started</a></div>
 </div></section>
 
 <footer>
@@ -624,20 +627,20 @@
     <div class="foot-grid">
       <div>
         <h4>Product</h4>
-        <a href="Marketplace.html">Marketplace</a>
-        <a href="Score.html">Shape Score</a>
-        <a href="Radio.html">Radio</a>
-        <a href="ClientDashboard.html">Dashboard</a>
+        <a href="/newdesign/Marketplace.html">Marketplace</a>
+        <a href="/newdesign/Score.html">Shape Score</a>
+        <a href="/newdesign/Radio.html">Radio</a>
+        <a href="/newdesign/ClientDashboard.html">Dashboard</a>
       </div>
       <div>
         <h4>For trainers</h4>
-        <a href="SignupTrainer.html">Apply</a>
-        <a href="TrainerDashboard.html">Payouts</a>
-        <a href="TrainerPrograms.html">Programs</a>
+        <a href="/newdesign/SignupTrainer.html">Apply</a>
+        <a href="/newdesign/TrainerDashboard.html">Payouts</a>
+        <a href="/newdesign/TrainerPrograms.html">Programs</a>
       </div>
       <div>
         <h4>Company</h4>
-        <a href="index.html">About</a>
+        <a href="/newdesign/index.html">About</a>
         <a href="Team.html#press">Press</a>
       </div>
       <div>
@@ -783,7 +786,7 @@
         e.preventDefault();
         fetch('/api/auth/signout',{method:'POST',credentials:'same-origin'})
           .catch(function(){})
-          .then(function(){window.location.href='index.html';});
+          .then(function(){window.location.href='/newdesign/index.html';});
       });
       nauth.insertBefore(hi,radio);
       nauth.insertBefore(dashLink,radio);
@@ -804,5 +807,17 @@
 })();
 </script>
 <script src="globalChatButton.js?v=20260609" defer></script>
+<!-- Universal search ⌕ in the nav — reuses pageShell's SiteSearch (the index
+     page has its own static header, so the React component is mounted into
+     the #shape-nav-search slot instead of coming via the shared Header). -->
+<script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260609"></script>
+<script type="text/babel" data-presets="react">
+(function(){
+  var el = document.getElementById('shape-nav-search');
+  if (el && window.SiteSearch && window.ReactDOM) {
+    ReactDOM.createRoot(el).render(React.createElement(window.SiteSearch, { signedIn: false }));
+  }
+})();
+</script>
 </body>
 </html>

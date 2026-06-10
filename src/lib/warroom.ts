@@ -653,7 +653,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Beyond people (All filter): Channels (deep-links into the channel thread) · Shape Kitchen recipes (in-place detail) · Workouts (preview + Start) · Coach plans for sale (opens the coach profile)', status: 'done' },
         { label: '"Coached by" chip on the member Terrain hero links to the coach\'s live Signal profile (ShapeCoachLookup provider→owner; fixed the dormant {stored,data} unwrap bug that kept it on demo data)', status: 'done' },
         { label: 'Migration applied on Supabase: 2026-06-09-universal-search.sql (search_shape_people v2 — names + @handles + bio/goal keywords)', status: 'manual' },
-        { label: 'Website-nav search parity (same RPC, site header)', status: 'pending' },
+        { label: 'Website-nav search parity: ⌕ in the pageShell header on every page (+ a mounted copy on the static index nav) — same RPC, role tags, tier-ringed avatars, rows → public profiles, Nora row → chat Help tab', status: 'done' },
+      ],
+    },
+    {
+      section: 'Usernames (Shape handles)',
+      items: [
+        { label: 'profiles.username (unique, case-insensitive) + is_username_available / set_my_username / get_email_for_username RPCs; search_shape_people matches usernames; get_public_profile returns username', status: 'done' },
+        { label: 'Login accepts email OR username (mobile BSLogin + website login.jsx) — username resolves to the login email via RPC, friendly miss message', status: 'done' },
+        { label: 'Signup username step with debounced live availability (mobile create-account covers client + coach roles; website signup forms client/trainer/nutritionist); choice rides user_metadata and is claimed at signup or first confirmed login', status: 'done' },
+        { label: 'Profile @handles prefer the real username (Settings identity seed + Terrain/Signal heroes)', status: 'done' },
+        { label: 'Migration applied on Supabase: 2026-06-09-usernames.sql', status: 'manual' },
+        { label: 'Website client signup still an application stub (collects but does not create the auth account) — username goes live there when that flow does', status: 'pending' },
       ],
     },
     {
