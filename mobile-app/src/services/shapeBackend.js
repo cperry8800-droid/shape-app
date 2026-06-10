@@ -3094,6 +3094,52 @@ async function removeSoundtrack(id) {
 }
 window.ShapeSoundtracks = { list: listSoundtracks, create: createSoundtrack, update: updateSoundtrack, remove: removeSoundtrack };
 
+// ── Member playlists — a profile's Spotify/Apple library (public or private) ──
+// Anyone can read a member's PUBLIC playlists (they show on the public profile);
+// the owner sees all of theirs. Save copies a public playlist into your library.
+function parsePlaylistUrl(url) {
+  const u = String(url || '').trim();
+  if (/open\.spotify\.com\/playlist\//i.test(u) || /spotify:playlist:/i.test(u)) return { provider: 'spotify', url: u };
+  if (/music\.apple\.com\/.+\/playlist\//i.test(u)) return { provider: 'apple', url: u };
+  if (/^https?:\/\//i.test(u)) return { provider: 'other', url: u };
+  return null;
+}
+async function listMyPlaylists() {
+  if (!supabase || !state.user?.id) return [];
+  const { data, error } = await supabase.from('member_playlists').select('*').eq('user_id', state.user.id).order('sort').order('created_at', { ascending: false });
+  if (error) return [];
+  return data || [];
+}
+async function listPlaylistsFor(userId) {
+  if (!supabase || !userId) return [];
+  const { data, error } = await supabase.rpc('get_member_playlists', { p_user_id: userId });
+  if (error) return [];
+  return data || [];
+}
+async function addPlaylist({ name, url, cover = null, trackCount = null, meta = null, isPublic = true, savedFrom = null } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to save playlists.');
+  const parsed = parsePlaylistUrl(url);
+  if (!parsed) throw new Error('Paste a Spotify or Apple Music playlist link.');
+  const row = { user_id: state.user.id, name: String(name || 'Playlist').trim() || 'Playlist', provider: parsed.provider, url: parsed.url, cover, track_count: trackCount, meta, is_public: !!isPublic, saved_from: savedFrom };
+  const { data, error } = await supabase.from('member_playlists').insert(row).select().single();
+  if (error) throw error;
+  return data;
+}
+async function updatePlaylist(id, patch = {}) {
+  if (!supabase || !state.user?.id || !id) return null;
+  const allowed = {};
+  ['name', 'is_public', 'cover', 'track_count', 'meta', 'sort'].forEach((k) => { if (patch[k] !== undefined) allowed[k] = patch[k]; });
+  const { data, error } = await supabase.from('member_playlists').update(allowed).eq('id', id).eq('user_id', state.user.id).select().single();
+  if (error) throw error;
+  return data;
+}
+async function removePlaylist(id) {
+  if (!supabase || !state.user?.id || !id) return false;
+  const { error } = await supabase.from('member_playlists').delete().eq('id', id).eq('user_id', state.user.id);
+  return !error;
+}
+window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl };
+
 // Coach grocery lists — a coach's own + per-client lists (coach_grocery_lists,
 // owner-scoped). Same shape as soundtracks; returns null when signed out so the
 // UI falls back to demo seeds.
