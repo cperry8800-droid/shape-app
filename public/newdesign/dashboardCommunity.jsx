@@ -161,9 +161,66 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     );
   }
 
+  // ✉ Send a live post into a real 1:1 DM (same RPCs the app uses); the
+  // recipient sees it in their chat (app + site widget).
+  function SendPostModal({ post, onClose }) {
+    const [q, setQ] = React.useState("");
+    const [people, setPeople] = React.useState([]);
+    const [busy, setBusy] = React.useState("");
+    React.useEffect(() => {
+      let dead = false;
+      const id = setTimeout(() => {
+        const sb = window.shapeDb && window.shapeDb.client;
+        if (!sb) { setPeople([]); return; }
+        sb.rpc("search_members", { p_q: q || "" }).then(r => { if (!dead) setPeople(Array.isArray(r.data) ? r.data : []); }).catch(() => { if (!dead) setPeople([]); });
+      }, 220);
+      return () => { dead = true; clearTimeout(id); };
+    }, [q]);
+    const sendTo = async (m) => {
+      if (busy) return;
+      setBusy(m.id);
+      try {
+        const sb = window.shapeDb.client;
+        const { data: cid, error } = await sb.rpc("get_or_create_member_conversation", { p_other_user_id: m.id });
+        if (error || !cid) throw error || new Error("no_conversation");
+        const { data: u } = await sb.auth.getUser();
+        if (!u || !u.user) throw new Error("not_signed_in");
+        const snippet = [post.title, post.body].filter(Boolean).join(" — ").slice(0, 200);
+        const { error: e2 } = await sb.from("messages").insert({ conversation_id: cid, sender_id: u.user.id, body: `Shared ${post.who ? post.who + "'s" : "a"} post: “${snippet || "Activity"}”`, metadata: { kind: "shared_post", post_id: post.id || null } });
+        if (e2) throw e2;
+        try { window.alert(`Sent to ${m.full_name}`); } catch (e3) {}
+        onClose();
+      } catch (e4) { try { window.alert("Could not send — try again."); } catch (e5) {} }
+      setBusy("");
+    };
+    return (
+      <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 18px" }}>
+        <div style={{ width: "100%", maxWidth: 440, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Send to</span>
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
+          </div>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontSize: 14.5, outline: "none" }} />
+          <div style={{ maxHeight: 300, overflowY: "auto", marginTop: 6 }}>
+            {people.length === 0 ? (
+              <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{q ? "No one found." : "Search for someone to send this to."}</div>
+            ) : people.map((m, i) => (
+              <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent", border: 0, borderTop: i ? "1px solid rgba(242,237,228,0.07)" : 0, padding: "10px 2px", display: "flex", alignItems: "center", gap: 10, color: INK, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.full_name || "Member"}</span>
+                <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy === m.id ? "rgba(242,237,228,0.4)" : TEAL_BRIGHT }}>{busy === m.id ? "Sending…" : "Send →"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function FeedItem({ p }) {
     const [liked, setLiked] = React.useState(false);
     const [likeCount, setLikeCount] = React.useState(p.likes);
+    const [sendOpen, setSendOpen] = React.useState(false);
     const [showReplies, setShowReplies] = React.useState(false);
     const [draft, setDraft] = React.useState("");
     const [replies, setReplies] = React.useState([]);
@@ -263,8 +320,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
             {totalReplies} replies
           </button>
-          <button onClick={onShare} aria-label="Share"
+          <button onClick={() => { if (!p.isLive || !p.id) { try { window.alert("Sample post — sending works on real posts."); } catch (e) {} return; } setSendOpen(true); }} aria-label="Send privately"
             style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            ✉ SEND
+          </button>
+          <button onClick={onShare} aria-label="Share"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
             SHARE
           </button>
@@ -273,6 +334,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             ⇄ REPOST
           </button>
         </div>
+        {sendOpen && <SendPostModal post={p} onClose={() => setSendOpen(false)} />}
 
         {showReplies && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
