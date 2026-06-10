@@ -10545,16 +10545,16 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
           minWidth: 0,
           width: '100%',
           boxSizing: 'border-box',
-          minHeight: 40,
+          minHeight: 34,
           maxHeight: COMPOSER_MAX_H,
           resize: 'none',
           display: 'block',
           background: pinned ? t.SURFACE : t.PAPER,
           border: `1px solid ${t.SURFACE_BORDER}`,
-          borderRadius: 20,
-          padding: '10px 46px 10px 15px', // right pad clears the embedded send button
+          borderRadius: 17,
+          padding: '7px 40px 7px 13px', // right pad clears the embedded send button
           fontFamily: t.BODY,
-          fontSize: 14,
+          fontSize: 13.5,
           lineHeight: 1.3,
           color: t.INK,
           outline: 'none',
@@ -10567,8 +10567,8 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         disabled={!canSend}
         aria-label="Send"
         style={{
-          position: 'absolute', right: 5, bottom: 5,
-          width: 30, height: 30, flexShrink: 0,
+          position: 'absolute', right: 4, bottom: 4,
+          width: 26, height: 26, flexShrink: 0,
           border: 0, borderRadius: 999,
           background: canSend ? t.ACCENT : t.SURFACE_BORDER,
           color: canSend ? '#031f1c' : t.INK50,
@@ -10578,7 +10578,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
           transition: 'background .15s ease, opacity .15s ease',
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
       </button>
     </div>
   );
@@ -10590,7 +10590,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
     <button
       onClick={() => { try { window.dispatchEvent(new Event('shape:exitPreview')); } catch (e) {} }}
       style={{
-        width: '100%', boxSizing: 'border-box', minHeight: 40,
+        width: '100%', boxSizing: 'border-box', minHeight: 34,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         background: pinned ? t.SURFACE : t.PAPER, border: `1px solid ${t.SURFACE_BORDER}`,
         borderRadius: 20, padding: '11px 15px', cursor: 'pointer',
@@ -10604,7 +10604,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // Optional photo-attach button (community feed). Sits to the left of the field.
   const photoBtn = onPhoto ? (
     <button onClick={() => !photoBusy && onPhoto()} disabled={photoBusy} aria-label="Add photo" title="Add a photo" style={{
-      flexShrink: 0, width: 38, height: 40, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 20,
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
       background: pinned ? t.SURFACE : t.PAPER, color: photoBusy ? t.INK50 : t.INK, cursor: photoBusy ? 'default' : 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end',
     }}>
@@ -10616,7 +10616,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   // Tag-people button (community feed) — opens the member picker.
   const tagBtn = onTag ? (
     <button onClick={onTag} aria-label="Tag people" title="Tag people" style={{
-      flexShrink: 0, width: 38, height: 40, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 20,
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
       background: pinned ? t.SURFACE : t.PAPER, color: (tags && tags.length) ? TEALB : t.INK, cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
     }}>@</button>
