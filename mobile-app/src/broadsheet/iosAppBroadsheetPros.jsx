@@ -927,13 +927,13 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
   // Inline ✉ on a search row → the real 1:1 thread; a channel result → that
-  // channel's thread. Both land in the Chat tab.
+  // channel's thread; Nora → the Support tab. All land in the Chat tab.
   useEffectBSP(() => {
     const open = (e) => {
       const d = (e && e.detail) || {};
-      if (!d.conversationId && !d.channel) return;
+      if (!d.conversationId && !d.channel && !d.support) return;
       setShowSearch(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
@@ -3242,13 +3242,13 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     return () => window.removeEventListener('shape:openSearch', open);
   }, []);
   // Inline ✉ on a search row → the real 1:1 thread; a channel result → that
-  // channel's thread. Both land in the Chat tab.
+  // channel's thread; Nora → the Support tab. All land in the Chat tab.
   useEffectBSP(() => {
     const open = (e) => {
       const d = (e && e.detail) || {};
-      if (!d.conversationId && !d.channel) return;
+      if (!d.conversationId && !d.channel && !d.support) return;
       setShowSearch(false);
-      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, coach: d.name || null, nonce: Date.now() });
+      setChatRequest({ conversationId: d.conversationId || null, channel: d.channel || null, support: !!d.support, coach: d.name || null, nonce: Date.now() });
       setTab('chat');
     };
     window.addEventListener('shape:openConversation', open);
