@@ -6969,6 +6969,11 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
   const [q, setQ] = React.useState('');
   const [people, setPeople] = React.useState([]);
   const [busy, setBusy] = React.useState('');
+  // Single sign-in gate for every ✉ entry point (posts, activities, channels).
+  React.useEffect(() => {
+    const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+    if (!signedIn) { window.__bsToast?.('Sign in to send messages.', 'info'); onClose(); }
+  }, []);
   React.useEffect(() => {
     let dead = false;
     const id = setTimeout(() => {
@@ -7046,14 +7051,16 @@ function BSPostActions({ post, c, INK, BG, onReposted }) {
     catch (e) { window.__bsToast?.('Could not repost.', 'error'); }
     setReBusy(false);
   };
+  const iconPill = { ...pill(false), width: 27, height: 27, boxSizing: 'border-box', padding: 0, justifyContent: 'center', flexShrink: 0 };
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(ink, 0.1)}` }}>
-        <button onClick={doLike} style={pill(lk.on)}>♥{lk.n ? ` ${lk.n}` : ''}</button>
-        <button onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={pill(openC)}>↳{cmts.length ? ` ${cmts.length}` : ''}</button>
-        <button onClick={() => { if (!guard()) return; setOpenS(true); }} style={pill(false)}>✉ Send</button>
-        <button onClick={() => bsSharePostExternal(post)} style={pill(false)}>↗ Share</button>
-        <button disabled={reBusy} onClick={doRepost} style={{ ...pill(false), opacity: reBusy ? 0.6 : 1 }}>⇄ Repost</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(ink, 0.1)}` }}>
+        <button onClick={doLike} style={{ ...pill(lk.on), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>♥{lk.n ? ` ${lk.n}` : ''}</button>
+        <button onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={{ ...pill(openC), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>↳{cmts.length ? ` ${cmts.length}` : ''}</button>
+        <span style={{ marginLeft: 'auto' }} />
+        <button aria-label="Send privately" onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>✉</button>
+        <button aria-label="Share" onClick={() => bsSharePostExternal(post)} style={iconPill}>↗</button>
+        <button aria-label="Repost" disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>⇄</button>
       </div>
       {openC && <BSPostCommentsSheet post={post} comments={cmts} onAdded={(cm) => setCmts(prev => [...prev, cm])} onClose={() => setOpenC(false)} c={accent} INK={ink} BG={BG} />}
       {openS && <BSPostSendSheet post={post} onClose={() => setOpenS(false)} c={accent} INK={ink} BG={BG} />}
@@ -15445,7 +15452,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <div>
             <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
               {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
-                <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '11px 6px', borderRadius: 11, border: `1.5px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
+                <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '7px 5px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
           </div>
@@ -15631,7 +15638,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{`${({light:'Cream',white:'White',dark:'Black',teal:'Teal',manila:'Manila',blueprint:'Blueprint',carbon:'Carbon',steel:'Steel',bone:'Bone',oxblood:'Oxblood',sage:'Sage',forest:'Forest',slate:'Slate',plum:'Plum'})[tweaks.paperMode] || 'Cream'} · ${tweaks.accentKey || 'blue'}`}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? 'Close ▾' : 'Customize ▸'}</span>
+          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? 'Close ▾' : 'Customize ▸'}</span>
         </span>
       </button>
       {showAppearance && (
@@ -15777,7 +15784,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.radioOn ? `Active · ${r.fxMode}` : 'Radio off — preview only'}</div>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '9px 16px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? 'Close ▾' : 'Customize ▸'}</span>
+          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${t.ACCENT}`, background: `${t.ACCENT}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? 'Close ▾' : 'Customize ▸'}</span>
         </span>
       </button>
       {showLightFx && (
