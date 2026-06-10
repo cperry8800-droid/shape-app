@@ -5674,34 +5674,34 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         ];
         return (
           <>
-            {/* Calorie hero */}
-            <div style={{ padding: `14px ${t.padX}px 0` }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 44, lineHeight: 0.9, letterSpacing: '-0.05em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{calNow.toLocaleString()}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.06em', color: t.INK50 }}>/ {calTgt.toLocaleString()} KCAL</span>
+            {/* Calorie hero — condensed */}
+            <div style={{ padding: `10px ${t.padX}px 0` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 33, lineHeight: 0.9, letterSpacing: '-0.045em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{calNow.toLocaleString()}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50 }}>/ {calTgt.toLocaleString()} KCAL</span>
+                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{calPct}%</span>
               </div>
-              <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+              <div style={{ marginTop: 7, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
                 <div style={{ width: `${calPct}%`, height: '100%', background: t.ACCENT }} />
               </div>
-              <div style={{ marginTop: 7, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em' }}>
+              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em' }}>
                 <span style={{ color: t.ACCENT }}>{calLeft.toLocaleString()} kcal left · on pace</span>
-                <span style={{ color: t.INK50 }}>{calPct}%</span>
               </div>
             </div>
 
-            {/* Macro cards */}
-            <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {/* Macro cards — condensed */}
+            <div style={{ padding: `9px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7 }}>
               {macros.map((m) => {
                 const mv = num(m.v), mg = num(m.g);
                 const mp = mg ? Math.min(100, (mv / mg) * 100) : 0;
                 return (
-                  <div key={m.l} style={{ padding: '9px 10px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                  <div key={m.l} style={{ padding: '7px 9px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>/ {mg}</span>
                     </div>
-                    <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{mv}</div>
-                    <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{mv}</div>
+                    <div style={{ marginTop: 5, height: 3, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${mp}%`, height: '100%', background: m.c }} />
                     </div>
                   </div>
