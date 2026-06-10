@@ -1753,6 +1753,13 @@ function normalizeCommunityStats(metrics = {}) {
   const elevationFeet = elevationMeters ? Math.round(elevationMeters * 3.28084) : null;
 
   return {
+    // `real` = the post actually carries metric data. The 'Live / On plan /
+    // Shape' strings below are display filler so sensor cards always show a
+    // full 3-up row — plain text posts must NOT be classified as activities
+    // because of them (they'd render as fake WORKOUT cards).
+    real: !!(distanceMeters || durationSeconds || heartRate || calories || elevationMeters
+      || metrics.statA || metrics.statB || metrics.statC || metrics.distance || metrics.duration
+      || metrics.pace || metrics.sets || metrics.heartRate),
     statA: metrics.statA || formatMetersToMiles(distanceMeters) || metrics.distance || metrics.duration || formatSeconds(durationSeconds) || 'Live',
     statB: metrics.statB || metrics.pace || formatPace(distanceMeters, durationSeconds) || metrics.sets || 'On plan',
     statC: metrics.statC || (heartRate ? `${Math.round(heartRate)} bpm` : '') || (calories ? `${Math.round(calories)} kcal` : '') || (elevationFeet ? `${elevationFeet} ft` : '') || metrics.heartRate || 'Shape',
@@ -1801,6 +1808,7 @@ function communityPostFromRow(row) {
     statA: stats.statA,
     statB: stats.statB,
     statC: stats.statC,
+    hasRealStats: !!stats.real,
     labels: stats.labels,
     note: row.note || '',
     route: displayRoute,
