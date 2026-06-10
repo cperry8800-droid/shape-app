@@ -15269,12 +15269,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} style={{
-      width: 46, height: 26, borderRadius: 999, padding: 3, cursor: 'pointer',
+      width: 38, height: 22, borderRadius: 999, padding: 2.5, cursor: 'pointer', flexShrink: 0,
       border: 0, background: on ? t.ACCENT : t.RULE,
       display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start',
       transition: 'background 140ms ease',
     }}>
-      <span style={{ width: 20, height: 20, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }} />
+      <span style={{ width: 17, height: 17, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }} />
     </button>
   );
 
