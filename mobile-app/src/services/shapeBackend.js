@@ -1399,6 +1399,7 @@ function conversationToThread(conversation, messages = []) {
       coach: message.sender_id !== state.user?.id,
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
+      sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -1434,6 +1435,7 @@ function memberThreadFromRow(row, messages = []) {
       me: message.sender_id === state.user?.id,
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
+      sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
     })),
     updatedAt: row.last_message_at,
   };
