@@ -1462,15 +1462,14 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 24px` }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{activeCount} ACTIVE · +{newThisMonth} THIS MONTH</div>
-            <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
-          </div>
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 38 }) : null}<BSProAvatarButton size={38} /></div>
-        </div>
+      {/* Standard page header — logo + Vol·No row, mono kicker, display title
+          (same formatting as the chat/home pages; no more custom serif header). */}
+      <BSPageHeader
+        kicker={`${activeCount} Active · +${newThisMonth} this month`}
+        title="Your clients."
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
+      />
+      <div style={{ padding: `0 ${t.padX}px 24px` }}>
         {/* Search */}
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
@@ -2834,19 +2833,14 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 28px` }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>4 PUBLISHED · 1 DRAFT</div>
-            <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: teal }}>programs.</span></div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-            {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}
-            <BSProAvatarButton size={34} />
-          </div>
-        </div>
-        {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
+      {/* Standard page header — matches the chat/home page formatting. */}
+      <BSPageHeader
+        kicker="4 Published · 1 Draft"
+        title="Your programs."
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
+      />
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* Top tabs — Library / Soundtracks */}
         <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
@@ -3772,19 +3766,14 @@ function BSNutriPlans() {
 
   return (
     <BSPage>
-      <div style={{ padding: `46px ${t.padX}px 28px` }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>4 PUBLISHED · 40 ON IT</div>
-            <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>plans.</span></div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-            {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}
-            <BSProAvatarButton size={34} />
-          </div>
-        </div>
-        {note && <div style={{ marginTop: 14, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
+      {/* Standard page header — matches the chat/home page formatting. */}
+      <BSPageHeader
+        kicker="4 Published · 40 on it"
+        title="Your plans."
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
+      />
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
 
         {/* Top tabs — Library / Soundtracks */}
         <div style={{ marginTop: 18, display: 'flex', gap: 6 }}>
