@@ -74,6 +74,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Usernames: every account gets a Shape handle (@username)
+- **Migration `2026-06-09-usernames.sql`** (**run on Supabase**): `profiles.username`
+  (unique, case-insensitive) + RPCs — `is_username_available` (anon, signup
+  typeahead), `set_my_username` (validates `^[a-z0-9][a-z0-9._]{2,19}$`),
+  `get_email_for_username` (anon — lets the login form accept either; note:
+  username→email is enumerable by design, standard trade-off). Also recreates
+  **`search_shape_people`** (matches usernames, prefix-ranked) and
+  **`get_public_profile`** (returns `username` as a new LAST column).
+- **Login accepts email OR username** — mobile (`BSLogin`: "Email or username"
+  label, type/text + autocomplete swap) and website (`login.jsx`): a value with
+  no `@` (or a leading `@handle`) resolves via the RPC first; friendly "no
+  account with that username" error.
+- **Signup picks a username** (client + coach roles share the mobile screen):
+  lowercase-sanitized field with **debounced live availability** ("@you is
+  yours" / taken), required before submit. Rides in `user_metadata.username`
+  and is claimed via `set_my_username` — immediately when a session exists,
+  else **on first (confirmed) login** (`ensureUsernameClaimed` in signIn +
+  getCurrentSession). Website `signup.jsx` gains the same `UsernameField` on
+  the client + pro personal steps; coach applications carry `details.username`
+  (note: the website client signup remains an application stub — it collects
+  but doesn't create the auth account; real accounts come from the app).
+- **Handle display prefers the real username**: Settings identity seed and the
+  Terrain/Signal profile `@handle` read `profile.username` / `get_public_profile
+  .username` first (saved client_identity handle still overrides own card).
+- `ShapeAuth.checkUsername` / `claimUsername` exposed; `?v=20260609` stamps on
+  `login.jsx` + `signup.jsx` script tags.
+
 ### 2026-06-09 — Search v3: beyond people (channels · recipes · workouts · coach plans) + chat-script cache stamp
 - **Universal search now matches more than people** (All filter only; Members/
   Coaches chips stay people-only): **Channels** (live `ShapeChannels.list`,

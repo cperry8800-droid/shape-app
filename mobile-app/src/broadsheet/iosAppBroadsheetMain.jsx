@@ -607,6 +607,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
   const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
   const [fullName, setFullName] = useStateBSM('');
+  const [username, setUsername] = useStateBSM('');
+  const [unameOk, setUnameOk] = useStateBSM(null); // null = unchecked/checking · true · false
   const [email, setEmail] = useStateBSM('');
   const [password, setPassword] = useStateBSM('');
   const [phone, setPhone] = useStateBSM('');
@@ -617,6 +619,19 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const [verifyEmail, setVerifyEmail] = useStateBSM(''); // set → show the "check your email" screen
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
+  // Live username availability while creating an account (debounced).
+  React.useEffect(() => {
+    if (!isCreate || !username) { setUnameOk(null); return; }
+    if (!/^[a-z0-9][a-z0-9._]{2,19}$/.test(username)) { setUnameOk(false); return; }
+    let dead = false;
+    setUnameOk(null);
+    const id = setTimeout(() => {
+      const check = window.ShapeAuth?.checkUsername;
+      if (!check) { if (!dead) setUnameOk(true); return; } // pre-migration / demo: don't block signup
+      check(username).then(ok => { if (!dead) setUnameOk(ok === null ? true : ok); }).catch(() => { if (!dead) setUnameOk(true); });
+    }, 300);
+    return () => { dead = true; clearTimeout(id); };
+  }, [username, isCreate]);
   const submitAuth = async () => {
     setAuthError('');
     const auth = window.ShapeAuth;
@@ -625,10 +640,14 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       setAuthError('Enter your email and password.');
       return;
     }
+    if (auth?.configured && isCreate && (!username || unameOk === false)) {
+      setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
+      return;
+    }
     setBusy(true);
     try {
       const result = isCreate
-        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role })
+        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role, username })
         : await auth.signIn({ email: trimmedEmail, password, role });
       // New account needs email confirmation → show the verify screen, don't enter the app.
       if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
@@ -797,6 +816,14 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
               <input placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
             </div>
           )}
+          {isCreate && !isPhone && (
+            <div><div style={labelStyle}>Username</div>
+              <input placeholder="your.handle" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 20))} autoComplete="username" autoCapitalize="none" style={inputStyle} />
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 4, color: username ? (unameOk === false ? '#ff9b7a' : unameOk ? '#2ee0c4' : C50) : C50 }}>
+                {!username ? 'Your Shape handle — letters · numbers · . _' : unameOk === false ? 'Taken or invalid — 3–20 chars, starts with a letter or number' : unameOk ? `@${username} is yours` : 'Checking…'}
+              </div>
+            </div>
+          )}
           {isPhone ? (
             <>
               <button type="button" onClick={() => switchMethod('email')} style={{ alignSelf: 'flex-start', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '0 0 2px' }}>← Back to email</button>
@@ -814,8 +841,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             </>
           ) : (
             <>
-              <div><div style={labelStyle}>Email</div>
-                <input placeholder="you@example.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" style={inputStyle} />
+              <div><div style={labelStyle}>{isCreate ? 'Email' : 'Email or username'}</div>
+                <input placeholder={isCreate ? 'you@example.com' : 'you@example.com or your.handle'} type={isCreate ? 'email' : 'text'} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={isCreate ? 'email' : 'username'} autoCapitalize="none" style={inputStyle} />
               </div>
               <div><div style={labelStyle}>Password</div>
                 <input placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isCreate ? 'new-password' : 'current-password'} style={inputStyle} />

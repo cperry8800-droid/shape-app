@@ -7358,7 +7358,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const name = person.who || 'Member';
   const first = name.split(' ')[0];
   const city = person.city || 'Shape community';
-  const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const handle = (live && live.username && '@' + live.username) || (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const pronouns = (!isPrivate && live && live.pronouns) || '';
   // When there's no live points (signed-out demo), seed the displayed score from
   // the tier so the number agrees with the tier name + avatar (no Base-with-1284).
@@ -8113,7 +8113,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const name = (isSelf && typeof bsMyName === 'function' && bsMyName()) || person.who || (isNutri ? 'Nutritionist' : 'Coach');
   const first = name.split(' ')[0];
   const city = person.city || 'Shape community';
-  const handle = (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const handle = (live && live.username && '@' + live.username) || (live && live.handle) || ('@' + first.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const pronouns = (!isPrivate && live && live.pronouns) || '';
   const score = points != null ? points : 4970;
   // Sigil rings — three coaching contributions (Habits · Client workouts · Own
@@ -14710,9 +14710,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Identity editing — seed name/handle from the signed-in account so the profile
   // matches before any edit; a saved client_identity (below) then overrides.
   const _myName = bsMyName();
+  // The account's real username (the Shape handle picked at signup) wins over
+  // the name-derived fallback; a saved client_identity handle still overrides.
+  const _myUsername = (() => { try { return window.ShapeAuth?.getCachedState?.()?.profile?.username || null; } catch (e) { return null; } })();
   const [identity, setIdentity] = useStateBSC({
     name: _myName,
-    handle: _myName === 'Quinn Harper' ? '@quinn.harper' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, ''),
+    handle: _myUsername ? '@' + _myUsername : (_myName === 'Quinn Harper' ? '@quinn.harper' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, '')),
     initials: '', // optional custom avatar initials (max 2); blank = derive from name
     location: 'Brooklyn, NY',
     bio: 'Cutting for summer. 14-week streak. Logging the wins and the pizza.',
