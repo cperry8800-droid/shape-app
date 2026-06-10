@@ -161,7 +161,10 @@ function SiteSearch({ signedIn = false }) {
       <button onClick={() => setOpen(true)} aria-label="Search Shape" title="Search Shape" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: "1px solid rgba(245,239,225,0.25)", background: "transparent", color: "rgba(245,239,225,0.75)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
       </button>
-      {open && (
+      {/* Portaled to <body>: the header's backdrop-filter makes it the
+          containing block for fixed descendants, which would trap + clip the
+          overlay inside the 60px nav bar. */}
+      {open && ReactDOM.createPortal(
         <div onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", overflowY: "auto", padding: "12vh 18px 40px" }}>
           <div style={{ maxWidth: 540, margin: "0 auto", background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, boxShadow: "0 30px 80px rgba(0,0,0,0.55)", padding: "18px 18px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -207,7 +210,8 @@ function SiteSearch({ signedIn = false }) {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
