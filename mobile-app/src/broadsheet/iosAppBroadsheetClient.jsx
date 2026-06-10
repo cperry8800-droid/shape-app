@@ -7622,7 +7622,23 @@ function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
   const [name, setName] = React.useState('');
   const [isPublic, setIsPublic] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
+  // Your connected Spotify library — pick straight from it (no link pasting).
+  // undefined = loading · {connected, playlists} · null = unavailable (hide).
+  const [spot, setSpot] = React.useState(undefined);
+  React.useEffect(() => {
+    let dead = false;
+    const f = window.ShapePlaylists?.mySpotify;
+    if (!f) { setSpot(null); return; }
+    f().then((r) => { if (!dead) setSpot(r); }).catch(() => { if (!dead) setSpot(null); });
+    return () => { dead = true; };
+  }, []);
   const parsed = (typeof window !== 'undefined' && window.ShapePlaylists?.parseUrl) ? window.ShapePlaylists.parseUrl(url) : null;
+  const addPicked = async (p) => {
+    if (busy) return;
+    setBusy(true);
+    try { await window.ShapePlaylists.add({ name: p.name, url: p.url, cover: p.image || null, trackCount: p.tracks || null, isPublic }); onAdded(); }
+    catch (e) { window.__bsToast?.(e.message || 'Could not add.', 'error'); setBusy(false); }
+  };
   const submit = async () => {
     if (busy) return;
     if (!parsed) { window.__bsToast?.('Paste a Spotify or Apple Music playlist link.', 'info'); return; }
@@ -7631,24 +7647,64 @@ function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
     try { await window.ShapePlaylists.add({ name, url, isPublic }); onAdded(); }
     catch (e) { window.__bsToast?.(e.message || 'Could not add.', 'error'); setBusy(false); }
   };
+  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5), marginBottom: 5 };
   return (
     <BSPostSheetShell title="Add a playlist" onClose={onClose} INK={ink} BG={BG}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-        <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5), marginBottom: 5 }}>Spotify or Apple Music link</div>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '10px 13px', borderRadius: 10, border: `1px solid ${parsed ? bsProviderColor(parsed.provider) : bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
-          {url && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: parsed ? bsProviderColor(parsed.provider) : '#ff9b7a' }}>{parsed ? bsProviderLabel(parsed.provider) + ' detected' : 'Not a recognized playlist link'}</div>}
-        </div>
-        <div>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5), marginBottom: 5 }}>Name</div>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Heavy pull day" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 13px', borderRadius: 10, border: `1px solid ${bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
-        </div>
+      <div className="bs-hide-scroll" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Visibility — applies to picked + pasted adds alike */}
         <div style={{ display: 'flex', gap: 8 }}>
           {[[true, '◉ Public'], [false, '○ Private']].map(([v, l]) => (
-            <button key={String(v)} onClick={() => setIsPublic(v)} style={{ flex: 1, padding: '9px 6px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${isPublic === v ? accent : bsTHexA(ink, 0.18)}`, background: isPublic === v ? bsTHexA(accent, 0.12) : 'transparent', color: isPublic === v ? accent : bsTHexA(ink, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
+            <button key={String(v)} onClick={() => setIsPublic(v)} style={{ flex: 1, padding: '8px 6px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${isPublic === v ? accent : bsTHexA(ink, 0.18)}`, background: isPublic === v ? bsTHexA(accent, 0.12) : 'transparent', color: isPublic === v ? accent : bsTHexA(ink, 0.55), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>
           ))}
         </div>
-        <button disabled={busy || !parsed || !name.trim()} onClick={submit} style={{ marginTop: 2, width: '100%', minHeight: 46, borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: busy || !parsed || !name.trim() ? 0.55 : 1 }}>{busy ? 'Adding…' : 'Add to library'}</button>
+
+        {/* Your Spotify library — the primary path */}
+        {spot === undefined && (
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5) }}>Loading your Spotify…</div>
+        )}
+        {spot && spot.connected && spot.playlists.length > 0 && (
+          <div>
+            <div style={eyebrow}>Pick from your Spotify</div>
+            <div className="bs-hide-scroll" style={{ maxHeight: 250, overflowY: 'auto', border: `1px solid ${bsTHexA(ink, 0.1)}`, borderRadius: 12 }}>
+              {spot.playlists.map((p, i) => (
+                <button key={p.id} disabled={busy} onClick={() => addPicked(p)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderTop: i ? `1px solid ${bsTHexA(ink, 0.08)}` : 0, padding: '9px 11px', display: 'flex', alignItems: 'center', gap: 10, opacity: busy ? 0.6 : 1 }}>
+                  <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 7, overflow: 'hidden', background: p.image ? `center/cover no-repeat url(${p.image})` : '#1db95422', border: '1px solid #1db95455', color: '#1db954', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>{p.image ? '' : '♪'}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                    <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5) }}>{p.tracks || 0} tracks{p.owner ? ` · ${p.owner}` : ''}</span>
+                  </span>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#1db954' }}>＋ Add</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {spot && !spot.connected && (
+          <button onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 12, border: '1px solid #1db95455', background: '#1db95414', padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: '#1db954', color: '#04160b', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>♪</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: ink }}>Connect Spotify to import your library</span>
+              <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(ink, 0.5) }}>Settings · Connected apps</span>
+            </span>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: '#1db954', fontWeight: 800 }}>→</span>
+          </button>
+        )}
+
+        {/* Paste a link — fallback + the Apple Music path */}
+        <div>
+          <div style={eyebrow}>{spot && spot.connected ? 'Or paste a link (Apple Music too)' : 'Paste a playlist link'}</div>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/… or music.apple.com/…" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 13px', borderRadius: 10, border: `1px solid ${parsed ? bsProviderColor(parsed.provider) : bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
+          {url && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: parsed ? bsProviderColor(parsed.provider) : '#ff9b7a' }}>{parsed ? bsProviderLabel(parsed.provider) + ' detected' : 'Not a recognized playlist link'}</div>}
+        </div>
+        {url && parsed && (
+          <div>
+            <div style={eyebrow}>Name</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Heavy pull day" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 13px', borderRadius: 10, border: `1px solid ${bsTHexA(ink, 0.2)}`, background: 'transparent', color: ink, fontFamily: t.BODY, fontSize: 14, outline: 'none' }} />
+          </div>
+        )}
+        {url && parsed && (
+          <button disabled={busy || !name.trim()} onClick={submit} style={{ width: '100%', minHeight: 46, borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: busy || !name.trim() ? 0.55 : 1 }}>{busy ? 'Adding…' : 'Add to library'}</button>
+        )}
       </div>
     </BSPostSheetShell>
   );
