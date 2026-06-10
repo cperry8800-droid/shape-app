@@ -518,7 +518,7 @@ function ShapeMobileStyles() {
   );
 }
 
-Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg });
+Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch });
 
 // -----------------------------------------------------------------------------
 // Calendar overlay — shared across Client / Trainer / Nutritionist pages.
