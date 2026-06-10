@@ -1296,7 +1296,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       {isToday && (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
           <button onClick={() => onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <BSAvatar init="A" size={38} fill={t.RUST} ink={t.PAPER} />
+            <BSFacetAvatar size={38} c={t.RUST} initial="A" name="Alex Rivera" showRank={false} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live now
@@ -1459,8 +1459,13 @@ function bsProMeInit() {
 }
 // The coach's own avatar — opens Settings (the shells listen for the event).
 function BSProAvatarButton({ size = 38 }) {
+  // Match the Today/Me headers: the coach's real photo (custom or signed-in),
+  // tier-colored ring, falling back to initials — not a flat initial badge.
   const tier = (typeof window !== 'undefined' && window.ShapeScore && window.ShapeScore.tier) || 'Base';
-  return <BSAvatar init={bsProMeInit()} size={size} fill={bsTierColor(tier)} ink="#fff" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} }} />;
+  const photo = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined;
+  const live = (typeof window !== 'undefined' && typeof bsAmLive === 'function') ? bsAmLive() : false;
+  const open = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
+  return <BSFacetAvatar size={size} c={bsTierColor(tier)} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
 }
 function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, onOpen, footerLeft, footerRight }) {
   const t = useBS();
@@ -1473,7 +1478,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: teal }}>{activeCount} ACTIVE · +{newThisMonth} THIS MONTH</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
+            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>Your<br /><span style={{ fontStyle: 'italic', color: teal }}>clients.</span></div>
           </div>
           <div style={{ flexShrink: 0 }}><BSProAvatarButton size={38} /></div>
         </div>
@@ -1505,9 +1510,9 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             const subtitle = `${c.prog || (c.r || '').split('·')[0].trim()}${c.streak != null ? ` · ${c.streak}d streak` : ''}`;
             return (
               <button key={i} onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', border: 0, borderTop: i ? `1px solid ${t.HAIR}` : 0, background: 'transparent', padding: '14px 2px' }}>
-                <BSAvatar init={c.i} fill={c.c} size={42} />
+                <BSFacetAvatar size={42} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: t.W.display, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
                   <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.35 }}>{subtitle}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1591,7 +1596,7 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
       <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
-          <BSAvatar init={client.i} fill={client.c} size={36} />
+          <BSFacetAvatar size={36} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
           <div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{client.n}</div>
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{client.r}</div>
@@ -1632,7 +1637,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
         <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
       </div>
-      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{titleA}<br /><span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>{titleA}<br /><span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
   );
 }
@@ -1642,7 +1647,7 @@ function BSProClientMini({ client }) {
   const prog = client.prog || (client.r || '').split('·')[0].trim() || 'Program';
   return (
     <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 15px' }}>
-      <BSAvatar init={client.i} fill={client.c} size={40} />
+      <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
       <div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{client.n}</div>
         <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: t.INK50 }}>{prog} · Week 6 of 12</div>
@@ -2182,11 +2187,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
         <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
       </div>
-      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>
         {first}<br /><span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
-        <BSAvatar init={client.i} fill={client.c} size={40} />
+        <BSFacetAvatar size={40} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
         <div style={{ flex: 1, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{sinceLabel}</div>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: isPast ? t.INK50 : teal, border: `1px solid ${isPast ? t.RULE : teal}`, borderRadius: 999, padding: '6px 11px' }}>{statusLabel}</span>
       </div>
@@ -4265,7 +4270,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>Your<br /><span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
         </>)}
 
@@ -4400,7 +4405,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
-              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.02em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
+              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: t.W.display, color: t.INK, lineHeight: 0.98, letterSpacing: '-0.035em' }}>{firstL || displayName}<br /><span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
