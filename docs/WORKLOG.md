@@ -100,6 +100,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — Live heart-rate monitor (Bluetooth LE) + Radio HR-sync wired real
+- **New `mobile-app/src/services/hrm.js`** (`window.ShapeHRM`): connects to any
+  standard Bluetooth Heart Rate profile device (service 0x180D — Polar/Garmin/
+  Wahoo straps, watches in broadcast mode) via `@capacitor-community/bluetooth-le`
+  (^7.3.2, matches Capacitor 7). One codepath covers the native build AND Web
+  Bluetooth (Chrome desktop/Android — testable today); readings broadcast as
+  `shape:hrm` window events.
+- **Radio "Heart-rate sync" card now uses real data**: Connect monitor opens the
+  system device picker when Bluetooth is available; the YOU number shows the live
+  reading ("You · live" teal label) and the free/matching/in-sync stages compute
+  from the real delta. Falls back to the existing demo simulation when Bluetooth
+  is absent (iOS WebView pre-native-build, Safari) or the picker is cancelled —
+  demo easing never runs over a live reading.
+- **Native prep done**: Android manifest (BLUETOOTH_SCAN neverForLocation +
+  CONNECT, legacy pair ≤ API 30, bluetooth_le feature optional) + iOS
+  `NSBluetoothAlwaysUsageDescription`. Activates on the native build via
+  `npx cap sync` (same pattern as push notifications).
+- **Song BPM remains authored/demo** — real BPM is blocked until Shape Radio
+  streams audio we control (compute at ingest then; Spotify's tempo API is
+  deprecated for new apps). Tracked in War Room with the HRM activation steps.
+
 ### 2026-06-11 — CI gate on main: typecheck + builds + public/m sync check
 - New **`.github/workflows/ci.yml`** runs on every PR into main (+ pushes to
   main/staging): **Web** (root `npm ci` → `tsc --noEmit` → `next build`) and
