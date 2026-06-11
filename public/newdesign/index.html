@@ -153,6 +153,9 @@
   .brand img{height:60px;width:auto;display:block;object-fit:contain}
   .nlinks{display:flex;gap:16px;align-items:center;justify-content:center;font-family:var(--sans);font-size:12px;font-weight:400;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.6);white-space:nowrap;transform:translateX(clamp(0px,(100vw - 1300px)*0.5,72px))}
   .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
+  /* Signed in, the auth cluster is much wider (hi · dashboard · sign out) —
+     the cosmetic shift above would slide the links underneath it. */
+  nav.nav-signed-in .nlinks{transform:none}
   /* Nav dropdowns — CLICK to open (no hover, no timers). Once open the menu
      stays fully visible + clickable until you pick a link or click away, so
      there is no hover-gap that can hide it mid-travel and no close-timer that
@@ -791,6 +794,8 @@
       nauth.insertBefore(hi,radio);
       nauth.insertBefore(dashLink,radio);
       nauth.insertBefore(out,radio);
+      var navEl=document.querySelector('nav');
+      if(navEl)navEl.classList.add('nav-signed-in');
     })
     .catch(function(){});
 })();
