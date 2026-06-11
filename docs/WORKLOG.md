@@ -100,6 +100,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — Assign to client: coach catalogue plans → the client's Train/Eat
+- **The missing middle of the core loop** (flagged in the flow review): a coach
+  could only sell a plan (marketplace) or hand-tune a client (Adjust) — there
+  was no "put this client on my saved program." Now there is, with **no
+  migration**: assignments write the SAME tables the client's `/api/client/plan`
+  already reads — `client_workouts` (extended the existing direct-Supabase
+  `assignClientWorkout` with `scheduled_date`) and `client_meal_plans` (the
+  existing `POST /api/nutritionist/meal-plan`, which archives the prior menu).
+- **New `BSProAssignPage`** (pros app, role-accented): entered from **(a)** an
+  **ASSIGN** pill on every Plans-tab library row (trainer Plans/Workouts/
+  Programs + nutritionist Plans/Programs/Diet — catalogue rows now carry
+  `detail` through) or **(b)** the client profile's **Manage tab → "Assign from
+  your catalogue"** card. Whichever half is missing gets an inline picker:
+  saved `coach_plans` of the right kind, or the coach's REAL linked clients
+  (`/api/trainer|nutritionist/clients` — now accepts **Bearer** auth too, was
+  cookie-only, so the native coach app works).
+- **Outline → plan conversion** (`bsAssign*` parsers): a weekday split
+  ("Mon — Upper (push)" × 3+) schedules one titled workout per day across N
+  weeks (rest lines skipped); an exercise outline ("Secondary compound · 4×8")
+  becomes one weekly session with parsed sets/reps; meal-plan blocks
+  ("Lunch — bowl · 600 kcal") become a 7-day menu with slot/kcal + day targets
+  from the plan's authored calories. Trainer flow has a start-day picker +
+  weeks stepper (defaults from the plan's "N weeks"); nutritionist replaces
+  this week's menu. On assign the client gets a 1:1 note
+  (`metadata.kind:'plan_assigned'`) — demo clients show "assigns once linked".
+- `shapeBackend.js`: **`window.ShapeAssign`** `{ clients, workout, mealPlan }`.
+
 ### 2026-06-11 — Dependabot (monthly grouped minor/patch) + API security audit clean
 - **`.github/dependabot.yml`**: monthly **grouped** version updates for root npm,
   mobile-app npm, and github-actions — **minor/patch only** (majors are deliberate
