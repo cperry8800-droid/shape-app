@@ -67,7 +67,7 @@ function BSProHomeWidgets({ role = 'trainer', onOpen = () => {} }) {
 
 const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 const {
-  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
+  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
@@ -2376,11 +2376,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     );
   };
   const StatCard = ({ label, labelColor, big, small, sub }) => (
-    <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 14px' }}>
+    <BSPlate c={labelColor || accent} notch={9} spine={2.5} pad="13px 14px 13px 17px">
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: labelColor || accent }}>{label}</div>
       <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{big}{small && <span style={{ fontSize: 14, color: t.INK50, fontFamily: t.MONO, marginLeft: 1 }}>{small}</span>}</div>
       {sub && <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
-    </div>
+    </BSPlate>
   );
   const numberedList = (items) => items.map((it, i) => (
     <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
@@ -2428,7 +2428,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adherencePct != null ? String(adherencePct) : '92', small: '%', sub: `${days7 != null ? days7 : 6}/7 days logged · ${bwDelta} ${bwUnit}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
     : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attendancePct != null ? String(attendancePct) : '96', small: '%', sub: `${sDone != null ? sDone : 38}/${sPlan != null ? sPlan : 41} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
   const renderBigCard = () => (
-    <div style={{ borderRadius: 18, border: `1px solid ${accent}33`, background: `linear-gradient(155deg, ${accent}12, ${t.PAPER2} 70%), ${t.PAPER2}`, padding: 18 }}>
+    <BSPlate c={accent} tick bracket pad="18px 18px 18px 24px">
       <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{bigCard.eyebrow}</div>
       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 64, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{bigCard.big}<span style={{ fontSize: 26, color: t.INK50, fontFamily: t.MONO }}>{bigCard.small}</span></div>
       <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{bigCard.sub}</div>
@@ -2448,7 +2448,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           {bigCard.barLetters.map((l, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{l}</div>)}
         </div>
       )}
-    </div>
+    </BSPlate>
   );
   const stats = isNutri ? [
     { label: 'AVG INTAKE', labelColor: gold, big: kcalStr || '2,040', sub: 'TARGET 2,180' },
@@ -2604,13 +2604,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
       <div>
         <Section eyebrow={isNutri ? 'MEAL PLAN' : 'PROGRAM'} title={isNutri ? 'Put them on a menu' : 'Put them on a program'} />
-        <button onClick={() => setShowAssignPage(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: '15px 16px' }}>
+        <BSPlate c={accent} notch={10} pad="15px 16px 15px 20px" role="button" ariaLabel="Assign from your catalogue" onClick={() => setShowAssignPage(true)}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Assign from your catalogue</div>
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? `A saved meal plan → ${first}'s Eat tab` : `A saved program → ${first}'s Train tab`}</div>
           </div>
           <span style={{ color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
-        </button>
+          </div>
+        </BSPlate>
       </div>
       <div>
         <Section eyebrow="PROGRAM PHASE" title="Block & phase" />
@@ -3065,7 +3067,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {tab === 'library' && (<>
         {/* Generate with AI — builds the active library type */}
-        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
@@ -3108,7 +3110,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {libTab === 'workouts' && (<>
         {/* Top workout */}
-        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
+        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP WORKOUT</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>62 MIN</span>
@@ -3142,7 +3144,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {libTab === 'programs' && (<>
         {/* Top program */}
-        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
+        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>TOP PROGRAM</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>8 WK</span>
@@ -4009,7 +4011,7 @@ function BSNutriPlans() {
 
         {tab === 'library' && (<>
         {/* Generate with AI — builds the active library type */}
-        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
@@ -4052,7 +4054,7 @@ function BSNutriPlans() {
 
         {libTab === 'programs' && (<>
         {/* Top program (lifestyle meal program for sale) */}
-        <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
+        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP PROGRAM</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$130</span>
@@ -4071,7 +4073,7 @@ function BSNutriPlans() {
 
         {libTab === 'diet' && (<>
         {/* Top diet (diet-specific plan for sale) */}
-        <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
+        <div style={{ marginTop: 14, borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 11 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>TOP DIET</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50 }}>$90</span>

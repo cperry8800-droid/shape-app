@@ -2359,8 +2359,12 @@ changelog whenever something ships.
   refactored onto it; converted: Train hero, coach-adjust banner, home
   coach-feed pushed items, find-a-coach bars, Score composite hero). Kept
   quiet BY THE RULE: Eat hero (deliberately condensed strip), Eat/Train list
-  rows, Store catalog rows. **Phase 2 (coach apps) still parked — do not start
-  unprompted.** Two-tier rule: plates = live/actionable; quiet rounded cards =
+  rows, Store catalog rows. **Phase 2 SHIPPED same day** — coach apps (both
+  roles, role-accented): client-profile StatCards + big attendance/adherence
+  metric card (plate w/ tick) + Manage assign card; Plans-tab TOP feature
+  cards + AI-generate CTAs squared with role spines. Coach Today lead stays
+  typographic (masthead style); rosters/forms/action pages quiet by the rule.
+  Two-tier rule: plates = live/actionable; quiet rounded cards =
   forms/sheets/lists; chat bubbles stay round.
 - **Client "Library" — save coach content to your profile** (NEW · priority):
   let clients save to their own profile/library: trainers' **workouts** and **paid
