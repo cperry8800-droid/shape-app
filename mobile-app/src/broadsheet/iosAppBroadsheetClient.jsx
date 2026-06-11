@@ -2356,13 +2356,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const rust = t.RUST;
-        const cardBase = (c) => ({
-          margin: `0 ${t.padX}px 12px`, padding: '15px 16px 14px', borderRadius: 18,
-          border: `1px solid ${c}66`,
-          background: `linear-gradient(155deg, ${c}24, ${c}08 44%, ${t.PAPER2} 90%), ${t.PAPER2}`,
-        });
-        const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
-        const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
+        // "Up next" card chrome — instrument-panel plate: clipped top-right
+        // corner, hard accent spine with a pulsing status tick, corner bracket.
+        // Two stacked clipped layers fake the border (clip-path eats a real one).
+        const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+        const AgendaCard = ({ c, children }) => (
+          <div style={{ position: 'relative', margin: `0 ${t.padX}px 12px` }}>
+            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(13), background: `${c}77` }} />
+            <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(12), background: `linear-gradient(165deg, ${c}1f, ${c}06 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
+            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />
+            <div aria-hidden style={{ position: 'absolute', left: 8, top: 16, width: 6, height: 6, borderRadius: 1.5, background: c, boxShadow: `0 0 9px ${c}`, animation: 'bsCardPulse 2.6s ease-in-out infinite' }} />
+            <div aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: `1.5px solid ${c}`, borderBottom: `1.5px solid ${c}`, opacity: 0.65 }} />
+            <div style={{ position: 'relative', padding: '14px 16px 14px 22px' }}>{children}</div>
+            <style>{`@keyframes bsCardPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}</style>
+          </div>
+        );
+        const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
+        const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
         const eyebrow = (c) => ({ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c });
         const metaRight = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 };
         const Person = ({ init, name, role, fill }) => (
@@ -2397,7 +2407,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
         };
         const workoutCard = selWorkout ? (
-          <div style={cardBase(rust)}>
+          <AgendaCard c={rust}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
               <span style={metaRight}>{_wkShortMeta}</span>
@@ -2426,9 +2436,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 <button onClick={() => goTrain?.()} style={pillFilled}>Start →</button>
               </div>
             </div>
-          </div>
+          </AgendaCard>
         ) : (
-          <div style={cardBase(t.GREEN)}>
+          <AgendaCard c={t.GREEN}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(t.GREEN)}>Recovery · today</span>
               <span style={metaRight}>Rest day</span>
@@ -2443,10 +2453,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
               <button onClick={() => goChat('Jordan Chen', 'Coach · Hypertrophy')} style={pillOutline}>Message →</button>
             </div>
-          </div>
+          </AgendaCard>
         );
         const mealCard = !selLunch ? null : (
-          <div style={cardBase(teal)}>
+          <AgendaCard c={teal}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(teal)}>Lunch · {fmtAt(MEAL_AT)}</span>
               <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Coach plan</span>
@@ -2463,7 +2473,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 ? <button onClick={() => setNextMealLogged(false)} style={pillOutline}>✓ Logged</button>
                 : <button onClick={() => setShowLogMeal(true)} style={pillFilled}>Log now →</button>}
             </div>
-          </div>
+          </AgendaCard>
         );
         const agenda = [
           { at: WORKOUT_AT, node: workoutCard },
