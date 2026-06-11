@@ -146,7 +146,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Food-database free-text search in the logger', status: 'not-started', priority: 'P2' },
       { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
-      { task: 'Home tab live wiring: day log / habits / meals / week strip + Calendar events are demo while the ticker, score chip and coach feed beside them are live — wire to real logged data', status: 'in-progress', priority: 'P2' },
+      { task: 'Calendar events still demo — home tab now builds day log / week dots / up-next cards from the real assigned plan; the month calendar should read the same source', status: 'not-started', priority: 'P2' },
       { task: 'One shared data layer for client metrics — ticker (/api/client/analytics) and the ShapeProgress rollups are fetched independently per surface, so the same metric (RHR, sleep) can show different values; single fetch/cache + standardized metric definitions', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Assign to client (catalogue → client Train/Eat)', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
@@ -516,7 +516,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Assign to client — coach catalogue plans land on the client Train/Eat (BSProAssignPage: ASSIGN pill on every Plans-tab row + client profile Manage tab; outline→plan conversion; writes client_workouts/client_meal_plans, no migration; 1:1 note on assign; roster routes now Bearer-capable for native)', status: 'done' },
         { label: 'Coach client profile de-dup: Profile/Analysis merged into one tab on the app (summary + trendline folded in) and the fully-redundant Analysis tab removed on the website (cache tags added to TrainerClient/NutritionistClient.html, which had none)', status: 'done' },
         { label: 'One Progress home: Me→Stats no longer embeds a second Progress hub (KPI grid + link); Goal Overall slimmed to goal framing on app + website — trend chart/heatmap live only on Progress, Log weigh-in kept', status: 'done' },
-        { label: 'Home tab live wiring — in progress (see The Loop gaps)', status: 'pending' },
+        { label: 'Home tab live wiring — day log, week-strip dots, up-next workout + meal cards now build from the REAL assigned plan (bsHomeLiveWeek over /api/client/plan; habits + score chip + ticker were already live); demo week only when no plan exists. Calendar still demo (tracked)', status: 'done' },
         { label: 'Unified client-metrics data layer — tracked (see The Loop gaps)', status: 'pending' },
       ],
     },

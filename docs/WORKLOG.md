@@ -100,6 +100,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — Home tab wired to the real assigned plan (day log · dots · up-next)
+- **New `bsHomeLiveWeek(plan, t)`**: builds the home week from the REAL assigned
+  plan (`/api/client/plan` — the same source Train + Eat read). Workouts slot by
+  `scheduledDate` (Train-deck rules), meal-plan days by `dow`; produces per-day
+  day-log rows, week-strip dot colors, the up-next workout model
+  (`{title, sub, detail:{moves, meta, note}}` — same shape the card/preview
+  already consume), and a per-day lunch record in the `BSMealPreview` shape.
+- **Wiring (live wins, demo only when NO plan exists):** `dayLog`,
+  the week-strip `dots`, `selWorkout` (up-next workout card + preview — falls
+  to the "Active recovery" card on uncovered days), and `selLunch` (meal card
+  hides on live days with no assigned meal — `mealCard` now null-guarded).
+  Habits, the score chip, the ticker, and the coach feed were already live.
+  Dead `todayWorkout` const removed.
+- **Assignments now complete the loop end-to-end**: coach assigns from the
+  catalogue → the client's HOME day log + week dots + up-next cards show it,
+  same as Train/Eat. Calendar events remain demo (tracked in War Room).
+
 ### 2026-06-11 — De-duplication pass: coach Profile⇄Analysis merged + one Progress home
 - **Coach client profile is now 2 tabs (Profile / Manage).** The Analysis tab's
   KPI grid duplicated the Profile tab's cards, so the tab is gone; its unique
