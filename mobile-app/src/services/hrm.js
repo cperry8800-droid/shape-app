@@ -14,7 +14,14 @@
 // (same pattern as shape:follows / shape:identity).
 
 import { Capacitor } from '@capacitor/core';
-import { BleClient } from '@capacitor-community/bluetooth-le';
+
+// The BLE library loads LAZILY on first connect — keeping it out of the app's
+// boot path (it was riding the entry chunk and taxing the splash parse).
+let _blePromise = null;
+function loadBle() {
+  if (!_blePromise) _blePromise = import('@capacitor-community/bluetooth-le').then((m) => m.BleClient);
+  return _blePromise;
+}
 
 const HR_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
 const HR_MEASUREMENT = '00002a37-0000-1000-8000-00805f9b34fb';
@@ -66,6 +73,7 @@ async function handleDisconnect() {
 export async function hrmConnect() {
   if (!hrmAvailable()) throw new Error('Bluetooth is not available here — use the installed app or Chrome.');
   if (state.deviceId) return { deviceId: state.deviceId };
+  const BleClient = await loadBle();
   if (!state.initialized) {
     await BleClient.initialize({ androidNeverForLocation: true });
     state.initialized = true;
@@ -87,7 +95,10 @@ export async function hrmConnect() {
 export async function hrmDisconnect() {
   const id = state.deviceId;
   if (!id) return;
-  try { await BleClient.stopNotifications(id, HR_SERVICE, HR_MEASUREMENT); } catch { /* already gone */ }
-  try { await BleClient.disconnect(id); } catch { /* already gone */ }
+  try {
+    const BleClient = await loadBle();
+    try { await BleClient.stopNotifications(id, HR_SERVICE, HR_MEASUREMENT); } catch { /* already gone */ }
+    try { await BleClient.disconnect(id); } catch { /* already gone */ }
+  } catch { /* lib unavailable — nothing to tear down */ }
   await handleDisconnect();
 }
