@@ -210,7 +210,9 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>
 
-          {view === 'architecture' && (<>
+          {/* North Star — the mission statement leads BOTH the default Status
+              view and the Architecture view (restored after the tab split). */}
+          {(view === 'status' || view === 'architecture') && (<>
           {/* North Star — positioning / vision */}
           <Panel title="North Star — positioning" hint="coach marketplace + social" wide>
             <div style={{ background: C.panel2, border: `1px solid ${C.accent}`, borderLeft: `4px solid ${C.accent}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
