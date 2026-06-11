@@ -1315,10 +1315,10 @@ function BSAppShell({ tweaks, setTweak }) {
               Loading app...
             </div>
           ) : !memberAllowed ? (
-            <React.Fragment>
-              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-              <BSPreviewBannerGated t={t} onJoin={() => setPreviewMode(false)} />
-            </React.Fragment>
+            // Preview mode renders the real app with NO overlay banner (removed by
+            // request) — the join path stays reachable via the locked composer +
+            // the paywall on next launch.
+            <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
           ) : (
             <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
           )

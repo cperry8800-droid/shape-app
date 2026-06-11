@@ -2485,7 +2485,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       {/* DAY LOG */}
       <BSSection title="Day log" kicker={selIdx === todayIdx ? `Today · ${fmtDate(selIdx)}` : fmtDate(selIdx)} meta={<>{dayLog.length} item{dayLog.length === 1 ? '' : 's'} · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{selDayPts} pts</span></>} />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }} />
+        <div style={{ height: 2, background: `linear-gradient(90deg, ${t.ACCENT}, ${t.ACCENT}33 45%, transparent 85%)` }} />
         {dayLog.length === 0 ? (
           <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
             — Rest day · nothing logged —
@@ -2564,16 +2564,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     <span style={{
                       fontFamily: t.MONO,
                       fontSize: 8,
-                      letterSpacing: '0.1em',
+                      letterSpacing: '0.14em',
                       color: row.tagColor || t.INK,
                       background: `${row.tagColor || t.INK}1f`,
-                      border: `1px solid ${row.tagColor || t.INK}59`,
+                      border: `1px solid ${row.tagColor || t.INK}66`,
+                      borderLeft: `3px solid ${row.tagColor || t.INK}`,
                       padding: '3px 8px',
                       textTransform: 'uppercase',
                       fontWeight: 800,
                       textAlign: 'center',
                       justifySelf: 'start',
-                      borderRadius: 999,
+                      borderRadius: 4,
                     }}>{row.tag}</span>
                   ) : <span />}
                   <div style={{ minWidth: 0 }}>
@@ -2631,7 +2632,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         meta={<span onClick={() => setHabitsPage(true)} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>View →</span>}
       />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }} />
+        <div style={{ height: 2, background: `linear-gradient(90deg, ${t.ACCENT}, ${t.ACCENT}33 45%, transparent 85%)` }} />
         {selDayHabits.length === 0 ? (
           <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
             — No habits yet · tap View to add —
@@ -2644,13 +2645,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <div key={`${h.name}-${i}`} style={{ borderBottom: i === selDayHabits.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                 <button onClick={() => setHabitsPage(true)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '26px 54px 1fr auto 26px', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK, letterSpacing: '-0.01em', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}59`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 999 }}>{avoid ? 'AVOID' : 'DO'}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px' }}>{h.name}</div>
                     <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: h.done ? pillC : t.INK50, marginTop: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
                   </div>
                   <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: h.done ? pillC : t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                  <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${h.done ? pillC : t.RULE}`, background: h.done ? pillC : 'transparent', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 900 }}>{h.done ? '✓' : ''}</span>
+                  <span style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${h.done ? pillC : t.RULE}`, background: h.done ? pillC : 'transparent', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 900 }}>{h.done ? '✓' : ''}</span>
                 </button>
               </div>
             );
@@ -2680,17 +2681,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
               {weekTotals.map(s => {
                 const pct = Math.max(0, Math.min(1, s.v / s.max));
+                const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
                 return (
-                  <button key={s.l} onClick={() => setWeekStat(s)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '11px 11px 9px' }}>
+                  <button key={s.l} onClick={() => setWeekStat(s)} style={{ textAlign: 'left', cursor: 'pointer', position: 'relative', border: 0, background: 'transparent', padding: 0 }}>
+                    <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: `${s.c}55` }} />
+                    <span aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(9), background: `linear-gradient(165deg, ${s.c}12, ${s.c}05 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
+                    <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: s.c }} />
+                    <span style={{ position: 'relative', display: 'block', padding: '11px 11px 9px 13px' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
                     </div>
                     <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{s.v.toLocaleString()}</div>
-                    <div style={{ marginTop: 8, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 999 }} />
+                    <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 2 }} />
                     </div>
                     <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>
+                    </span>
                   </button>
                 );
               })}

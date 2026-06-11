@@ -991,23 +991,42 @@ function BSTabBar({ tabs, active, onChange }) {
       WebkitBackdropFilter: 'blur(18px)',
       boxShadow: `0 -16px 40px ${t.isLight ? 'rgba(15,14,12,0.08)' : 'rgba(0,0,0,0.26)'}`,
     }}>
+      {/* Instrument dock rail — accent gradient hairline with a glowing tick
+          that slides to sit above the active tab. */}
+      {(() => {
+        const activeIdx = Math.max(0, tabs.findIndex((tb) => tb.key === active));
+        const n = tabs.length;
+        return (
+          <React.Fragment>
+            <span aria-hidden style={{ position: 'absolute', top: -1, left: 0, right: 0, height: 1.5, background: `linear-gradient(90deg, transparent, ${t.ACCENT}44 28%, ${t.ACCENT}44 72%, transparent)` }} />
+            <span aria-hidden style={{ position: 'absolute', top: -1.5, height: 2.5, borderRadius: 2, width: `calc((100% - 40px) / ${n} * 0.44)`, left: `calc(20px + ((100% - 40px) / ${n}) * (${activeIdx} + 0.28))`, background: t.ACCENT, boxShadow: `0 0 9px ${t.ACCENT}`, transition: 'left .28s cubic-bezier(.4,0,.2,1)' }} />
+          </React.Fragment>
+        );
+      })()}
       {tabs.map((tab, i) => {
         const on = tab.key === active;
         return (
-          <button key={tab.key} onClick={() => onChange(tab.key)} style={{ borderRadius: 12,
+          <button key={tab.key} onClick={() => onChange(tab.key)} style={{
             border: 0, background: 'transparent',
             cursor: 'pointer', padding: '3px 0',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
             color: on ? t.ACCENT : t.INK50, position: 'relative',
           }}>
-            {BS_TAB_ICON_KEYS.has(tab.key)
-              ? <BSTabIcon name={tab.key} size={20} />
-              : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
-            <span style={{
-              fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600,
-            }}>{tab.label}</span>
+            {/* Active tab rides a clipped instrument plate with an accent spine. */}
+            {on && <span aria-hidden style={{ position: 'absolute', inset: '1px 2px 3px', clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: `linear-gradient(165deg, ${t.ACCENT}2e, ${t.ACCENT}0a 72%)` }} />}
+            {on && <span aria-hidden style={{ position: 'absolute', left: 2, top: 1, bottom: 3, width: 2.5, background: t.ACCENT }} />}
+            <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              {BS_TAB_ICON_KEYS.has(tab.key)
+                ? <BSTabIcon name={tab.key} size={20} />
+                : <span style={{ fontFamily: t.MONO, fontWeight: 700, fontSize: 10.5, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
+              {on && (
+                <span style={{
+                  fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
+                }}>{tab.label}</span>
+              )}
+            </span>
             {tab.key === 'chat' && chatUnread > 0 && (
-              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
+              <span style={{ position: 'absolute', top: 0, left: '52%', minWidth: 15, height: 15, borderRadius: 4, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{chatUnread > 9 ? '9+' : chatUnread}</span>
             )}
           </button>
         );
