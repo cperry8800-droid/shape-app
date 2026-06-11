@@ -1790,9 +1790,8 @@ function bsHomeLiveWeek(plan, t) {
   for (let i = 0; i < 7 && mSeq.length; i++) if (!mSlots[i]) mSlots[i] = mSeq.shift();
 
   const mealTimes = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get()) || {};
-  const days = [], dots = [], workoutByIdx = [], lunchByIdx = [];
+  const dots = [], workoutByIdx = [], mealsByIdx = [];
   for (let i = 0; i < 7; i++) {
-    const items = [];
     const w = wSlots[i];
     let wk = null;
     if (w) {
@@ -1803,38 +1802,33 @@ function bsHomeLiveWeek(plan, t) {
       }));
       const meta = [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
       wk = { time: '—', kind: 'TRN', title: w.title || 'Workout', sub: meta, detail: { moves, meta, note: w.description || '' } };
-      items.push({ time: '', tag: 'TRN', tagColor: t.AMBER, title: wk.title, sub: meta });
     }
     workoutByIdx.push(wk);
     const md = mSlots[i];
-    let lunch = null;
+    const recs = [];
     if (md && Array.isArray(md.meals)) {
       md.meals.forEach((meal, j) => {
         const slot = String(meal.slot || 'MEAL').toUpperCase();
         const time = meal.time || mealTimes[slot === 'BFAST' ? 'BREAKFAST' : slot] || '';
         const sub = [meal.kcal ? `${meal.kcal} kcal` : null, meal.p ? `${meal.p}P` : null].filter(Boolean).join(' · ');
-        items.push({ time, tag: 'MEAL', tagColor: t.BLUE, title: meal.title || 'Meal', sub });
-        if (!lunch && (slot === 'LUNCH' || j === 1)) lunch = {
-          id: `home-live-${i}-${j}`, time: time || '12:40', tag: slot.slice(0, 5), tagColor: t.AMBER,
+        recs.push({
+          id: `home-live-${i}-${j}`, time, tag: slot.slice(0, 5), tagColor: t.AMBER,
           title: meal.title || 'Meal', sub: sub || '', kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
           prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
           hero: meal.hero || meal.brief || `${meal.title || 'Meal'}.`, brief: meal.brief || '',
           ingredients: (meal.ingredients || []).map((ing) => ({ n: ing.qty || '', m: ing.name || '', k: ing.kcal != null ? `${ing.kcal} kcal` : '' })),
           steps: meal.steps || [], coachNote: meal.coachNote || '',
-        };
+        });
       });
     }
-    lunchByIdx.push(lunch);
-    items.sort((a, b) => String(a.time).localeCompare(String(b.time)));
-    if (items.length) items[items.length - 1].last = true;
-    days.push(items);
+    mealsByIdx.push(recs);
     const ds = [];
     if (w) ds.push(t.AMBER);
-    if (md && (md.meals || []).length) ds.push(t.BLUE);
+    if (recs.length) ds.push(t.BLUE);
     dots.push(ds);
   }
   return {
-    days, dots, workoutByIdx, lunchByIdx,
+    dots, workoutByIdx, mealsByIdx,
     hasTraining: !!(plan.training && plan.training.hasPlan),
     hasMeals: !!(plan.meals && plan.meals.hasPlan),
   };
@@ -1886,7 +1880,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const _selDelta = selIdx - todayIdx;
   const upNextLabel = _selDelta === 0 ? 'Today' : _selDelta === 1 ? 'Tomorrow' : _selDelta === -1 ? 'Yesterday'
     : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][selIdx];
-  const [nextMealLogged, setNextMealLogged] = useStateBSC(false);
+  const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
+  const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
@@ -1894,8 +1889,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
   const [showMood, setShowMood] = useStateBSC(false);
-  const [activeDayLogKey, setActiveDayLogKey] = useStateBSC(null);
-  const [quickLoggedItems, setQuickLoggedItems] = useStateBSC({});
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
   const [ticker, setTicker] = useStateBSC(null);
   // Which ticker metrics to show + their order — edited in Settings, saved to profile.
@@ -1990,33 +1983,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return () => { cancelled = true; };
   }, []);
 
-  // Home-page lunch record (fed to BSMealPreview when user taps the slab).
-  // Mirrors the shape of meals in BSClientEat — same preview component.
-  const HOME_LUNCH = {
-    id: 'home-lunch',
-    time: (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40', tag: 'LUNCH', tagColor: t.AMBER,
-    title: 'Chicken bowl with rice',
-    sub: '620 kcal · 48P · 72C · 14F',
-    kcal: 620, p: 48, c: 72, f: 14, prep: '15 min', portion: '1 bowl', score: 'A',
-    hero: 'Grilled chicken thigh, jasmine rice, roasted vegetables, tahini-lemon sauce.',
-    brief: 'The anchor meal of the day — biggest carb hit, biggest protein. Eat slow, finish the plate.',
-    ingredients: [
-      { n: '180 g', m: 'Chicken thigh',      k: '320 kcal' },
-      { n: '150 g', m: 'Jasmine rice',       k: '195 kcal' },
-      { n: '120 g', m: 'Roast veg medley',   k: '60 kcal' },
-      { n: '15 g',  m: 'Tahini',             k: '95 kcal' },
-      { n: '½',     m: 'Lemon',              k: '5 kcal' },
-    ],
-    steps: [
-      'Season chicken with salt + paprika, sear 4 min/side over medium-high.',
-      'Cook rice 1:1.5 in salted water, cover 12 min, fluff.',
-      'Roast veg at 220°C / 425°F for 15 min, flipping halfway.',
-      'Whisk tahini + lemon + 30 ml warm water until pourable.',
-      'Plate rice, top with chicken + veg, drizzle sauce.',
-    ],
-    coachNote: 'This is your peak fueling moment. If energy crashed yesterday, add 30 g rice today.',
-  };
-
   // Per-day logs + week-strip dots are both derived from the SHARED client demo
   // week (bsClientWeekDemo.js) — the same source the month calendar uses — so the
   // home week strip and the calendar always show the same workouts/consults/meals
@@ -2035,30 +2001,30 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   });
   const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
   const dataDay = 20 + selIdx;
-  const dayLog = liveWeek ? liveWeek.days[selIdx] : (DAY_LOGS[dataDay] || []);
-  // The selected day's lunch for the "Up next" nutrition card — the assigned
-  // meal plan's meal when one exists (null on uncovered days hides the card);
-  // demo only when no meal plan is assigned at all.
-  const selLunch = (() => {
-    if (liveWeek) return liveWeek.lunchByIdx[selIdx];
-    if (selIdx === todayIdx) return HOME_LUNCH;
-    const meals = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
-    const row = meals.find((r) => { const h = parseInt(String(r.time).split(':')[0], 10); return h >= 11 && h <= 14; }) || meals[1] || meals[0];
-    if (!row) return HOME_LUNCH;
-    const sub = row.sub || '';
-    const kc = parseInt((sub.match(/(\d[\d,]*)\s*kcal/i) || [])[1] || '0', 10);
-    const pp = parseInt((sub.match(/(\d+)\s*P\b/i) || [])[1] || '0', 10);
-    return { ...HOME_LUNCH, id: 'home-lunch-' + selIdx, title: row.title, sub, time: row.time, kcal: kc || HOME_LUNCH.kcal, p: pp || HOME_LUNCH.p, hero: (row.title || '') + '.' };
-  })();
-  // Total Shape Score points earned on the selected day. Live from the ledger
-  // (per-date map) when signed in; a stable demo value per weekday otherwise
-  // (future days = 0, since nothing's been earned yet).
-  const selDayPts = (() => {
-    if (ptsByDate) return ptsByDate[weekDates[selIdx].toDateString()] || 0;
-    const d0 = new Date(weekDates[selIdx]); d0.setHours(0, 0, 0, 0);
-    const today0 = new Date(_now); today0.setHours(0, 0, 0, 0);
-    if (d0 > today0) return 0;
-    return [46, 38, 52, 24, 48, 31, 40][selIdx] != null ? [46, 38, 52, 24, 48, 31, 40][selIdx] : 40;
+  // Every meal for the selected day, as full preview records — each renders as
+  // its own agenda card (the Day Log list is gone). Live = the assigned meal
+  // plan; demo rows only when no plan exists.
+  const selMeals = (() => {
+    if (liveWeek) return liveWeek.mealsByIdx[selIdx] || [];
+    const rows = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
+    return rows.map((row, j) => {
+      const sub = row.sub || '';
+      const kcal = parseInt(((sub.match(/(\d[\d,]*)\s*kcal/i) || [])[1] || '0').replace(/,/g, ''), 10);
+      const pp = parseInt((sub.match(/(\d+)\s*P\b/i) || [])[1] || '0', 10);
+      const remK = Math.max(0, kcal - pp * 4);
+      const cc = Math.round((remK * 0.55) / 4);
+      const ff = Math.round((remK * 0.45) / 9);
+      const parts = String(row.title || '').split(/\s*(?:,|\+|&|\/| with | and )\s*/i).map((x) => x.trim()).filter(Boolean);
+      const per = parts.length ? Math.round(kcal / parts.length) : kcal;
+      return {
+        id: `home-demo-${selIdx}-${j}`, time: row.time || '', tag: row.tag, tagColor: row.tagColor,
+        title: row.title, sub, kcal, p: pp, c: cc, f: ff,
+        prep: '10 min', portion: '1 plate', score: 'A',
+        hero: `${row.title}.`,
+        brief: 'From today’s plan. Confirm to update your calories, protein, carbs, and fat for the day.',
+        ingredients: parts.map((m2, k2) => ({ n: 'portion', m: m2.charAt(0).toUpperCase() + m2.slice(1), k: `${k2 === parts.length - 1 ? Math.max(0, kcal - per * (parts.length - 1)) : per} kcal` })),
+      };
+    });
   })();
   // Habits for the selected day — live from the user's habits (mirrored into
   // tweaks) when present, demo set otherwise. `done` reflects that specific day.
@@ -2073,62 +2039,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     const demo = (typeof window !== 'undefined' && window._BS_HABIT_DEMO_ROWS) || [];
     return demo.map(h => ({ name: h.name, type: h.type, pts: h.pts, done: (h.pattern || [])[selIdx] > 0 }));
   })();
-  const dayLogKey = (row, i) => `${selIdx}-${row.time}-${row.tag || 'item'}-${i}`;
-  const dayLogDetails = (row) => {
-    if (row.tag === 'MEAL') return {
-      label: 'Nutrition log',
-      description: `Confirm ${row.title.toLowerCase()} to update calories, protein, carbs, fat, and meal timing for today's ledger.`,
-      metrics: [['MACROS', row.sub || 'Pending'], ['SOURCE', 'Coach plan'], ['ACTION', 'Confirm meal']],
-      note: 'After logging, this meal counts toward the daily calorie balance and Shape Score nutrition streak.',
-    };
-    if (row.tag === 'TRN') return {
-      label: 'Workout log',
-      description: `Start or confirm ${row.title.toLowerCase()}. Sets, rest time, RPE, and sensor-assisted timing can be captured from the workout screen.`,
-      metrics: [['SESSION', row.sub || 'Assigned'], ['LOGGING', 'Sets + rest'], ['COACH', 'Jordan']],
-      note: 'Use this when you want the coach to see what happened during the workout, not just that it was completed.',
-    };
-    if (row.tag === 'CHK') return {
-      label: 'Check-in',
-      description: `Open a short check-in for ${row.title.toLowerCase()}. Add sleep, energy, soreness, mood, RPE, and a note for your coach.`,
-      metrics: [['FOCUS', row.sub || 'Daily'], ['TIME', '2 min'], ['VISIBLE TO', 'Coach']],
-      note: 'Quick check-ins help adjust tomorrow before the plan gets stale.',
-    };
-    if (row.tag === 'CON') return {
-      label: 'Consult',
-      description: `Preview the scheduled consult details and confirm attendance. Notes can be attached after the call.`,
-      metrics: [['PROVIDER', row.sub || 'Scheduled'], ['TYPE', 'Video'], ['STATUS', 'Upcoming']],
-      note: 'Join the video call from here at the scheduled time. Notes can be attached after the call.',
-    };
-    return {
-      label: 'Daily item',
-      description: row.sub || 'Quick log item.',
-      metrics: [['TIME', row.time], ['TYPE', row.tag || 'Item'], ['STATUS', 'Ready']],
-      note: 'Tap Log now when this item is complete.',
-    };
-  };
-  const logDayItem = (key, row) => {
-    setQuickLoggedItems(prev => ({ ...prev, [key]: true }));
-    // A workout/training item logs a real activity so it lands on the live
-    // Training card + Shape Score, then refresh analytics so the card updates.
-    if (row && row.tag === 'TRN' && window.ShapeActivities?.log) {
-      const minMatch = String(row.sub || '').match(/(\d+)\s*min/i);
-      const durationMin = minMatch ? Number(minMatch[1]) : 45;
-      window.ShapeActivities.log({ activityType: 'strength', durationMin, title: row.title })
-        .then(() => { refreshAnalytics(); window.__bsToast?.('Workout logged · Training updated', 'ok'); })
-        .catch(() => window.__bsToast?.('Logged locally — sign in to save', 'warn'));
-    } else if (row && row.tag === 'MEAL') {
-      window.__bsToast?.('Meal logged', 'ok');
-    }
-  };
-  const activeDayLogEntry = dayLog
-    .map((row, i) => ({ row, key: dayLogKey(row, i), index: i }))
-    .find(entry => entry.key === activeDayLogKey);
-  const activeDayLog = activeDayLogEntry?.row;
-  const activeDayLogLogged = activeDayLogEntry
-    ? activeDayLog.state === 'done' || !!quickLoggedItems[activeDayLogEntry.key]
-    : false;
-  const activeDayLogDetails = activeDayLog ? dayLogDetails(activeDayLog) : null;
-
   // Per-day calorie balance for the LEAD block (target = 2100 burned).
   // Sums kcal from MEAL items in DAY_LOGS, computes deficit/surplus.
   const DAY_MACROS = {
@@ -2206,7 +2116,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
-    return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => setNextMealLogged(true)} />;
+    return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
   }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
@@ -2323,7 +2233,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             const today = idx === todayIdx;
             const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
             return (
-              <button key={idx} onClick={() => { setSelIdx(idx); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
+              <button key={idx} onClick={() => setSelIdx(idx)} style={{ borderRadius: t.RADIUS_SM,
                 border: `1px solid ${on ? t.INK : t.HAIR}`,
                 background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
                 color: on ? t.PAPER : t.INK,
@@ -2455,177 +2365,52 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             </div>
           </AgendaCard>
         );
-        const mealCard = !selLunch ? null : (
-          <AgendaCard c={teal}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(teal)}>Lunch · {fmtAt(MEAL_AT)}</span>
-              <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Coach plan</span>
-            </div>
-            <div onClick={() => setPreviewMeal(selLunch)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              {(() => { const w = String(selLunch.title || 'Meal').trim().split(/\s+/); const last = w.length ? w.pop() : ''; return <>{w.join(' ')} {last && <span style={{ fontStyle: 'italic', color: teal }}>{last}.</span>}</>; })()}
-            </div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-              {selLunch.sub}
-            </div>
-            <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
-              {nextMealLogged
-                ? <button onClick={() => setNextMealLogged(false)} style={pillOutline}>✓ Logged</button>
-                : <button onClick={() => setShowLogMeal(true)} style={pillFilled}>Log now →</button>}
-            </div>
-          </AgendaCard>
-        );
+        // One card per meal of the selected day — same chrome as the workout card.
+        const mealMinutes = (m) => {
+          const [h, mm] = String(m.time || '').split(':').map(Number);
+          if (!Number.isNaN(h)) return h * 60 + (Number.isNaN(mm) ? 0 : mm);
+          return MEAL_AT;
+        };
+        const slotLabel = (m) => {
+          const tag = String(m.tag || '').toUpperCase();
+          if (tag.startsWith('BFAST') || tag.startsWith('BREAK')) return 'Breakfast';
+          if (tag.startsWith('LUNCH')) return 'Lunch';
+          if (tag.startsWith('SNACK')) return 'Snack';
+          if (tag.startsWith('DIN')) return 'Dinner';
+          const h = Math.floor(mealMinutes(m) / 60);
+          return h < 11 ? 'Breakfast' : h < 15 ? 'Lunch' : h < 17 ? 'Snack' : 'Dinner';
+        };
+        const mealCardFor = (m) => {
+          const logged = !!mealLogged[m.id];
+          return (
+            <AgendaCard c={teal}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                <span style={eyebrow(teal)}>{slotLabel(m)} · {fmtAt(mealMinutes(m))}</span>
+                <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Coach plan</span>
+              </div>
+              <div onClick={() => setPreviewMeal(m)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 26, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+                {(() => { const w = String(m.title || 'Meal').trim().split(/\s+/); const last = w.length ? w.pop() : ''; return <>{w.join(' ')} {last && <span style={{ fontStyle: 'italic', color: teal }}>{last}.</span>}</>; })()}
+              </div>
+              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+                {m.sub}
+              </div>
+              <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
+                {logged
+                  ? <button onClick={() => setMealLogged((prev) => ({ ...prev, [m.id]: false }))} style={pillOutline}>✓ Logged</button>
+                  : <button onClick={() => { setLoggingMealId(m.id); setShowLogMeal(true); }} style={pillFilled}>Log now →</button>}
+              </div>
+            </AgendaCard>
+          );
+        };
         const agenda = [
-          { at: WORKOUT_AT, node: workoutCard },
-          { at: MEAL_AT, node: mealCard },
+          { at: WORKOUT_AT, k: 'workout', node: workoutCard },
+          ...selMeals.map((m, i2) => ({ at: mealMinutes(m), k: m.id || `meal-${i2}`, node: mealCardFor(m) })),
         ].sort((a, b) => a.at - b.at);
-        return <>{agenda.map((x, i) => <React.Fragment key={i}>{x.node}</React.Fragment>)}</>;
+        return <>{agenda.map((x) => <React.Fragment key={x.k}>{x.node}</React.Fragment>)}</>;
       })()}
 
-      {/* DAY LOG */}
-      <BSSection title="Day log" kicker={selIdx === todayIdx ? `Today · ${fmtDate(selIdx)}` : fmtDate(selIdx)} meta={<>{dayLog.length} item{dayLog.length === 1 ? '' : 's'} · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{selDayPts} pts</span></>} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ height: 2, background: `linear-gradient(90deg, ${t.ACCENT}, ${t.ACCENT}33 45%, transparent 85%)` }} />
-        {dayLog.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-            — Rest day · nothing logged —
-          </div>
-        ) : (
-          dayLog.map((row, i) => {
-            const key = dayLogKey(row, i);
-            const logged = row.state === 'done' || !!quickLoggedItems[key];
-            const next = row.state === 'next' && !logged;
-            return (
-              <div key={key} style={{ borderBottom: row.last ? 0 : `1px solid ${t.HAIR}` }}>
-                <button
-                  onClick={() => {
-                    // Meals open the full meal preview page; other items (workouts,
-                    // check-ins, consults) use the quick confirm sheet.
-                    if (row.tag === 'MEAL') {
-                      const kc = /(\d[\d,]*)\s*kcal/i.exec(row.sub || '');
-                      const pr = /(\d+)\s*P\b/i.exec(row.sub || '');
-                      const kcal = kc ? parseInt(kc[1].replace(/,/g, ''), 10) : 0;
-                      const p = pr ? parseInt(pr[1], 10) : 0;
-                      // Estimate carbs/fat from the remaining calories so the macro
-                      // split reads real instead of "P 100%".
-                      const remK = Math.max(0, kcal - p * 4);
-                      const c = Math.round((remK * 0.55) / 4);
-                      const f = Math.round((remK * 0.45) / 9);
-                      // Derive a believable ingredient list from the meal title.
-                      const parts = String(row.title || '').split(/\s*(?:,|\+|&|\/| with | and )\s*/i).map(s => s.trim()).filter(Boolean);
-                      const per = parts.length ? Math.round(kcal / parts.length) : kcal;
-                      const ingredients = parts.map((m, i) => ({
-                        n: 'portion',
-                        m: m.charAt(0).toUpperCase() + m.slice(1),
-                        k: `${i === parts.length - 1 ? Math.max(0, kcal - per * (parts.length - 1)) : per} kcal`,
-                      }));
-                      setPreviewMeal({
-                        id: `daylog:${dataDay}:${row.time}`,
-                        title: row.title, time: row.time, tag: row.tag, tagColor: row.tagColor,
-                        kcal, p, c, f, sub: row.sub,
-                        prep: '10 min', portion: '1 plate', score: 'A',
-                        hero: `${row.title}.`,
-                        brief: 'Logged from today’s plan. Confirm to update your calories, protein, carbs, and fat for the day.',
-                        ingredients,
-                      });
-                    } else {
-                      setActiveDayLogKey(key);
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'grid',
-                    gridTemplateColumns: '26px 54px 1fr auto',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: `${t.rowY}px 0`,
-                    border: 0,
-                    borderRadius: next ? t.RADIUS_SM : 0,
-                    background: next ? `${t.ACCENT}10` : 'transparent',
-                    color: t.INK,
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    opacity: logged && row.state === 'done' ? 0.45 : 1,
-                    marginLeft: next ? -8 : 0,
-                    marginRight: next ? -8 : 0,
-                    paddingLeft: next ? 8 : 0,
-                    paddingRight: next ? 8 : 0,
-                  }}
-                >
-                  <span style={{
-                    fontFamily: t.MONO,
-                    fontSize: 12,
-                    color: next ? t.ACCENT : t.INK,
-                    letterSpacing: '-0.01em',
-                    fontWeight: next ? 700 : 500,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}>{i + 1}</span>
-                  {row.tag ? (
-                    <span style={{
-                      fontFamily: t.MONO,
-                      fontSize: 8,
-                      letterSpacing: '0.14em',
-                      color: row.tagColor || t.INK,
-                      background: `${row.tagColor || t.INK}1f`,
-                      border: `1px solid ${row.tagColor || t.INK}66`,
-                      borderLeft: `3px solid ${row.tagColor || t.INK}`,
-                      padding: '3px 8px',
-                      textTransform: 'uppercase',
-                      fontWeight: 800,
-                      textAlign: 'center',
-                      justifySelf: 'start',
-                      borderRadius: 4,
-                    }}>{row.tag}</span>
-                  ) : <span />}
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: t.DISPLAY,
-                      fontSize: 14,
-                      fontWeight: next ? 700 : 500,
-                      color: t.INK,
-                      letterSpacing: '-0.01em',
-                      lineHeight: 1.15,
-                      textDecoration: logged && row.state === 'done' ? 'line-through' : 'none',
-                      textDecorationThickness: '1.5px',
-                    }}>{row.title}</div>
-                    {row.sub && (
-                      <div style={{
-                        fontFamily: t.MONO,
-                        fontSize: 9.5,
-                        color: t.INK50,
-                        marginTop: 2,
-                        letterSpacing: '0.06em',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}>{row.sub}</div>
-                    )}
-                  </div>
-                  <span style={{
-                    fontFamily: t.MONO,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: next ? t.ACCENT : t.INK50,
-                    letterSpacing: '0.06em',
-                    whiteSpace: 'nowrap',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    {(() => {
-                      const [h, m] = String(row.time || '').split(':').map(Number);
-                      if (Number.isNaN(h)) return '';
-                      const ap = h >= 12 ? 'PM' : 'AM';
-                      const h12 = h % 12 === 0 ? 12 : h % 12;
-                      return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
-                    })()}
-                  </span>
-                </button>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* HABITS — same numbered format as the Day log; "View" → full habits page */}
+      {/* HABITS — numbered rows; "View" → full habits page */}
       <BSSection
         title="Habits"
         kicker={<>{selDayHabits.filter(h => h.done).length}/{selDayHabits.length} done · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0)} pts</span></>}
@@ -2747,155 +2532,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             )}
 
             <button onClick={() => setWeekStat(null)} style={{ width: '100%', marginTop: 18, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
-          </div>
-        </div>,
-        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
-      )}
-
-      {/* ── HABIT TRACKER (summary on home; full page via tap) ───── */}
-      {activeDayLog && activeDayLogDetails && createPortal(
-        <div
-          onClick={() => setActiveDayLogKey(null)}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 90,
-            background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(3px)',
-            WebkitBackdropFilter: 'blur(3px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '18px 14px 96px',
-            boxSizing: 'border-box',
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bs-scroll"
-            style={{
-              width: '100%',
-              maxWidth: 460,
-              border: `1px solid ${t.RULE}`,
-              borderRadius: 24,
-              background: t.PAPER,
-              color: t.INK,
-              boxShadow: '0 24px 70px rgba(0,0,0,0.45)',
-              overflow: 'auto',
-              maxHeight: '82%',
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
-            <div style={{
-              padding: '16px 16px 15px',
-              borderBottom: `1px solid ${t.RULE}`,
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 14,
-              background: `linear-gradient(155deg, ${activeDayLog.tagColor || t.ACCENT}1f, ${t.PAPER2} 70%)`,
-            }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: activeDayLog.tagColor || t.INK, background: `${activeDayLog.tagColor || t.INK}1f`, border: `1px solid ${activeDayLog.tagColor || t.INK}59`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, borderRadius: 999 }}>{activeDayLog.tag || 'ITEM'}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', color: t.INK50, fontWeight: 800 }}>
-                    {activeDayLog.time}
-                  </span>
-                </div>
-                <div style={{
-                  fontFamily: t.DISPLAY,
-                  fontSize: 25,
-                  fontWeight: t.W.display,
-                  lineHeight: 0.96,
-                  letterSpacing: '-0.045em',
-                }}>
-                  {activeDayLog.title}
-                </div>
-              </div>
-              <button
-                onClick={() => setActiveDayLogKey(null)}
-                aria-label="Close preview"
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 999,
-                  border: `1px solid ${t.RULE}`,
-                  background: 'transparent',
-                  color: t.INK,
-                  fontFamily: t.MONO,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ padding: 16 }}>
-              <BSEyebrow color={activeDayLog.tagColor || t.ACCENT}>{activeDayLogDetails.label}</BSEyebrow>
-              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.42, color: t.INK70 }}>
-                {activeDayLogDetails.description}
-              </div>
-              <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                {activeDayLogDetails.metrics.map(([label, value]) => (
-                  <div key={label} style={{ borderRadius: 14, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}26`, background: `${activeDayLog.tagColor || t.ACCENT}0d`, padding: '11px 12px' }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: activeDayLog.tagColor || t.INK50, textTransform: 'uppercase', fontWeight: 800 }}>
-                      {label}
-                    </div>
-                    <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, lineHeight: 1.15, color: t.INK }}>
-                      {value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {activeDayLog.tag === 'TRN' && (() => {
-                const wk = bsClientWorkoutForDay(selIdx);
-                const moves = (wk && wk.detail && wk.detail.moves) || [];
-                if (!moves.length) return null;
-                const tc = activeDayLog.tagColor || t.ACCENT;
-                return (
-                  <div style={{ marginTop: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, fontWeight: 800 }}>Exercises</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{moves.length} moves</span>
-                    </div>
-                    <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
-                      {moves.map((m, i) => (
-                        <div key={m.name} style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i > 0 ? `1px solid ${t.HAIR}` : 0 }}>
-                          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: tc, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</div>
-                            <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em' }}>{String(m.scheme || '').split(' · ')[0]}</div>
-                          </div>
-                          {m.load && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: tc, background: `${tc}16`, border: `1px solid ${tc}3a`, borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>{m.load}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-              <div style={{ marginTop: 12, padding: '13px 15px', borderRadius: 14, background: `${activeDayLog.tagColor || t.ACCENT}12`, border: `1px solid ${activeDayLog.tagColor || t.ACCENT}33`, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>
-                {activeDayLogDetails.note}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 10, marginTop: 16 }}>
-                <button
-                  onClick={() => setActiveDayLogKey(null)}
-                  style={{ padding: '14px 10px', border: `1px solid ${t.RULE}`, borderRadius: 999, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    logDayItem(activeDayLogEntry.key, activeDayLog);
-                    setActiveDayLogKey(null);
-                  }}
-                  style={{ padding: '14px 10px', border: 0, borderRadius: 999, background: activeDayLogLogged ? t.GREEN : (activeDayLog.tagColor || t.INK), color: '#fff', fontFamily: t.MONO, fontSize: 10, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 3px 14px ${activeDayLogLogged ? t.GREEN : (activeDayLog.tagColor || t.INK)}40` }}
-                >
-                  {activeDayLogLogged ? '✓ Logged' : 'Log now'}
-                </button>
-              </div>
-            </div>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
