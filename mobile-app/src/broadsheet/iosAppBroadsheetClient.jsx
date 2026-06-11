@@ -13351,13 +13351,12 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
   const tiers = bsIsCoachRole(profile.roleLabel) ? SHAPE_SCORE_TIERS_COACH : SHAPE_SCORE_TIERS;
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
-  const rewards = [
-    ['$25 session credit', 'Use with any coach', '500 pts'],
-    ['Coach intro - 2nd opinion', 'Free 30-min with any trainer', '900 pts'],
-    ['Nutrition plan refresh', 'Full plan rebuild with your RD', '1,200 pts'],
-    ['Shape merch - 20% off', 'In-house apparel and essentials', '400 pts'],
-    ['Annual membership credit', '$200 toward next year', '3,500 pts'],
-  ];
+  // Rewards — featured rows from the LIVE store catalogue (same ids the server
+  // prices at redemption) + affordability against the live balance. Tapping any
+  // row opens the Shape Store, the one real redemption flow.
+  const rewards = ['train_credit_25', 'train_second_opinion', 'nutri_meal_plan_refresh', 'merch_training_tee', 'perk_annual_credit']
+    .map((id) => BS_STORE_PRODUCTS.find((pr) => pr.id === id))
+    .filter(Boolean);
   // Tabbed section under Reward tiers: Rewards / Point values / Recent points.
   const [scoreTab, setScoreTab] = useStateBSC('tiers');
 
@@ -13487,19 +13486,30 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               </div>
             );
           })}
-          {scoreTab === 'rewards' && rewards.map(([title, sub, cost], i) => (
-            <div key={title} onClick={title.includes('Store') ? onOpenStore : undefined} style={{
-              display: 'grid', gridTemplateColumns: '1fr 74px', gap: 12,
-              padding: '13px 0', borderBottom: i === rewards.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-              cursor: title.includes('Store') ? 'pointer' : 'default',
-            }}>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
-              </div>
-              <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{cost}</div>
-            </div>
-          ))}
+          {scoreTab === 'rewards' && (
+            <React.Fragment>
+              {rewards.map((r, i) => {
+                const affordable = Number(scoreTotal) >= r.cost;
+                return (
+                  <div key={r.id} onClick={onOpenStore} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 86px', gap: 12,
+                    padding: '13px 0', borderBottom: `1px solid ${t.HAIR}`,
+                    cursor: 'pointer',
+                  }}>
+                    <div>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
+                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.brand}</div>
+                    </div>
+                    <div style={{ alignSelf: 'center', textAlign: 'right' }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: affordable ? t.ACCENT : t.INK50 }}>{r.cost.toLocaleString()} pts</div>
+                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: affordable ? t.ACCENT : t.INK50 }}>{affordable ? '✓ Redeemable' : `${Math.max(0, r.cost - Number(scoreTotal || 0)).toLocaleString()} to go`}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Redeem in the Shape Store →</div>
+            </React.Fragment>
+          )}
           {scoreTab === 'points' && activities.map((a, i) => (
             <div key={a.name} style={{
               display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
@@ -13532,6 +13542,30 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   );
 }
 
+// Shape Store catalogue — module scope so the Score page's Rewards tab and
+// the Store page read ONE list (ids match src/lib/store-catalogue.ts, which
+// prices redemptions server-side; this list is the display copy).
+const BS_STORE_PRODUCTS = [
+    { id: 'merch_training_tee', cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
+    { id: 'merch_crewneck', cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
+    { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
+    { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
+    { id: 'merch_duffel', cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
+    { id: 'train_credit_25', cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
+    { id: 'train_credit_50', cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
+    { id: 'train_second_opinion', cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
+    { id: 'train_program_review', cat: 'Training', name: 'Program review credit', brand: 'Shape trainer review', cost: 780, retail: 85, stock: 'Unlimited' },
+    { id: 'nutri_meal_plan_refresh', cat: 'Nutrition', name: 'Meal-plan Refresh', brand: 'With your Shape RD', cost: 1200, retail: 140, tag: 'Popular', stock: 'Unlimited' },
+    { id: 'nutri_credit_25', cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
+    { id: 'nutri_grocery_buildout', cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
+    { id: 'nutri_recipe_pack', cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
+    { id: 'perk_annual_credit', cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
+    // Coach-only — Lead Boost (marketplace featured placement). Redeems via /api/lead-boosts.
+    { id: 'lead_boost_7', cat: 'Coach Tools', name: 'Lead Boost · 7 days', brand: 'Marketplace featured placement', cost: 1580, retail: 79, stock: 'Activate now', kind: 'lead_boost', days: 7 },
+    { id: 'lead_boost_14', cat: 'Coach Tools', name: 'Lead Boost · 14 days', brand: 'Marketplace featured placement', cost: 2780, retail: 139, tag: 'Popular', stock: 'Activate now', kind: 'lead_boost', days: 14 },
+    { id: 'lead_boost_30', cat: 'Coach Tools', name: 'Lead Boost · 30 days', brand: 'Marketplace featured placement', cost: 4980, retail: 249, stock: 'Activate now', kind: 'lead_boost', days: 30 },
+  ];
+
 function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
   // Live points + tier for ALL profiles (client + coach) — was only wired for client.
@@ -13561,26 +13595,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   // Shape member perk. Coaches (providers) and active members get in; free or
   // signed-out users see an upgrade prompt instead of the catalogue.
   const memberGate = useBSMembership();
-  const products = [
-    { id: 'merch_training_tee', cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
-    { id: 'merch_crewneck', cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
-    { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
-    { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
-    { id: 'merch_duffel', cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },
-    { id: 'train_credit_25', cat: 'Training', name: '$25 session credit', brand: 'Any Shape coach', cost: 500, retail: 25, stock: 'Unlimited' },
-    { id: 'train_credit_50', cat: 'Training', name: '$50 session credit', brand: 'Any Shape coach', cost: 950, retail: 50, stock: 'Unlimited' },
-    { id: 'train_second_opinion', cat: 'Training', name: 'Coach 2nd-opinion', brand: 'Free 30-min trainer intro', cost: 900, retail: 95, stock: 'Monthly' },
-    { id: 'train_program_review', cat: 'Training', name: 'Program review credit', brand: 'Shape trainer review', cost: 780, retail: 85, stock: 'Unlimited' },
-    { id: 'nutri_meal_plan_refresh', cat: 'Nutrition', name: 'Meal-plan Refresh', brand: 'With your Shape RD', cost: 1200, retail: 140, tag: 'Popular', stock: 'Unlimited' },
-    { id: 'nutri_credit_25', cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
-    { id: 'nutri_grocery_buildout', cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
-    { id: 'nutri_recipe_pack', cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
-    { id: 'perk_annual_credit', cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
-    // Coach-only — Lead Boost (marketplace featured placement). Redeems via /api/lead-boosts.
-    { id: 'lead_boost_7', cat: 'Coach Tools', name: 'Lead Boost · 7 days', brand: 'Marketplace featured placement', cost: 1580, retail: 79, stock: 'Activate now', kind: 'lead_boost', days: 7 },
-    { id: 'lead_boost_14', cat: 'Coach Tools', name: 'Lead Boost · 14 days', brand: 'Marketplace featured placement', cost: 2780, retail: 139, tag: 'Popular', stock: 'Activate now', kind: 'lead_boost', days: 14 },
-    { id: 'lead_boost_30', cat: 'Coach Tools', name: 'Lead Boost · 30 days', brand: 'Marketplace featured placement', cost: 4980, retail: 249, stock: 'Activate now', kind: 'lead_boost', days: 30 },
-  ];
+  const products = BS_STORE_PRODUCTS;
   // Uniform store value: 1 Shape point = $0.05 (20 points = $1). Every item is
   // priced straight off its retail $, so the rate is consistent across the catalogue.
   const SHAPE_PTS_PER_USD = 20;
