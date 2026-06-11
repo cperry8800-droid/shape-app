@@ -21,9 +21,10 @@ changelog whenever something ships.
   duplicate commits, rebase conflicts, and lost work — it has cost real tokens
   multiple times. **Before making ANY edit:** run
   `git fetch origin main && git rev-parse --short HEAD origin/main` — if HEAD ≠
-  origin/main, run `git reset --hard origin/main` first. `main` and the dev branch
-  `claude/sleepy-feynman-RtyIr` are always kept identical (push both to the same
-  commit); treat `origin/main` as the single source of truth.
+  origin/main, run `git reset --hard origin/main` first. `main` and the session's
+  dev branch (the current `claude/*` working branch — it differs per session) are
+  always kept identical (push both to the same commit); treat `origin/main` as the
+  single source of truth.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
@@ -40,9 +41,22 @@ changelog whenever something ships.
   The Next.js app at the repo root (`src/`) is **API routes + the gated
   `/dashboard`** (typecheck: `npx tsc --noEmit`); the public/marketing/profile/
   store/coach pages all live in `public/newdesign/`.
-- **Git / deploy:** develop on `claude/sleepy-feynman-RtyIr`. Per change: commit →
-  push → open PR → squash-merge → re-sync the branch to `main`
+- **Git / deploy:** develop on the session's `claude/*` branch. Per change: commit →
+  push → open PR → **wait for the CI checks to go green** (`.github/workflows/ci.yml`:
+  Web typecheck+build, Mobile build + public/m sync) → **review the PR diff** →
+  squash-merge → re-sync the branch to `main`
   (`git fetch origin main && checkout main && reset --hard origin/main && checkout <branch> && reset --hard origin/main && push --force-with-lease`).
+  Don't merge on red — a failed check is exactly the broken-main it exists to stop.
+  CI also fails when `public/m` is stale (mobile source edited without republishing).
+- **Diff review before merge (standard practice).** For any non-trivial change
+  (logic, data flow, theming, anything touching shared components), give the PR
+  diff a dedicated review pass before squash-merging — hunting specifically for:
+  logic bugs/regressions, missed `?v=` cache-bust bumps on edited referenced
+  `.jsx`, theme-token violations (hardcoded ink/paper on themed surfaces, theme
+  tokens on fixed-background screens), demo-vs-live data leaks, and changes to
+  shared code that other profiles/pages also render. Docs/copy-only tweaks can
+  skip it. Riskier changes additionally go to `staging` for a click-through
+  before merging.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -85,6 +99,20 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-11 — CI gate on main: typecheck + builds + public/m sync check
+- New **`.github/workflows/ci.yml`** runs on every PR into main (+ pushes to
+  main/staging): **Web** (root `npm ci` → `tsc --noEmit` → `next build`) and
+  **Mobile** (`mobile-app npm ci` → `VITE_BASE=/m/` build → **`diff` the fresh
+  dist against the committed `public/m`** — fails with republish instructions
+  when the mobile source was edited without copying the bundle, a recurring
+  break-main mistake). All four checks verified green at current HEAD before
+  shipping. Merge discipline updated in "How we work": open PR → **wait for CI
+  green** → **review the diff** (standard pre-merge pass for non-trivial changes:
+  logic bugs, missed `?v=` bumps, theme-token violations, shared-component blast
+  radius) → squash-merge. *Manual (optional, GitHub Settings → Branches):* add a
+  protection rule on `main` requiring the two checks, which makes the gate hard
+  even for manual merges.
 
 ### 2026-06-11 — Test branch: long-lived `staging` → stable Vercel preview URL
 - Created the **`staging`** branch (from `main` @ 831ca84). Vercel preview
