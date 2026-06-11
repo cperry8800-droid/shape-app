@@ -1880,10 +1880,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
 
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   // "Up next" follows the day you tap in the week strip (not just today).
-  // Live assigned workout for that day when a plan covers training.
-  const selWorkout = (liveWeek && liveWeek.hasTraining)
-    ? liveWeek.workoutByIdx[selIdx]
-    : bsClientWorkoutForDay(selIdx);
+  // Once ANY live plan exists every card follows it — a demo workout next to a
+  // live day log would claim a session that isn't assigned.
+  const selWorkout = liveWeek ? liveWeek.workoutByIdx[selIdx] : bsClientWorkoutForDay(selIdx);
   const _selDelta = selIdx - todayIdx;
   const upNextLabel = _selDelta === 0 ? 'Today' : _selDelta === 1 ? 'Tomorrow' : _selDelta === -1 ? 'Yesterday'
     : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][selIdx];
@@ -2041,7 +2040,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   // meal plan's meal when one exists (null on uncovered days hides the card);
   // demo only when no meal plan is assigned at all.
   const selLunch = (() => {
-    if (liveWeek && liveWeek.hasMeals) return liveWeek.lunchByIdx[selIdx];
+    if (liveWeek) return liveWeek.lunchByIdx[selIdx];
     if (selIdx === todayIdx) return HOME_LUNCH;
     const meals = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
     const row = meals.find((r) => { const h = parseInt(String(r.time).split(':')[0], 10); return h >= 11 && h <= 14; }) || meals[1] || meals[0];
