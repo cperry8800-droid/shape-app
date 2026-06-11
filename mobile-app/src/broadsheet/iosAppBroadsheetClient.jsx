@@ -601,18 +601,24 @@ function _bsBuildCard(type, ctx) {
 }
 
 function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, draggable, dragHandlers, dragging, dragOver }) {
+  const acc = model.accent;
+  const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
     <div
       draggable={draggable}
       {...(dragHandlers || {})}
       style={{
-        margin: `0 ${t.padX}px 6px`, borderRadius: 11, overflow: 'hidden',
-        border: dragOver ? `1.5px dashed ${model.accent}` : (pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`),
-        background: t.PAPER2,
+        position: 'relative', margin: `0 ${t.padX}px 6px`,
         opacity: dragging ? 0.5 : 1,
         transition: 'opacity 0.15s ease',
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px 0' }}>
+      {/* Instrument plate chrome — pinned cards get the full-strength frame. */}
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(10), background: pinned ? acc : `${acc}55` }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(9), background: `linear-gradient(165deg, ${acc}14, ${acc}05 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
+      <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: acc }} />
+      {dragOver && <div aria-hidden style={{ position: 'absolute', inset: -2.5, border: `1.5px dashed ${acc}`, borderRadius: 7, pointerEvents: 'none' }} />}
+      <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px 0 14px' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
           {model.kicker}{pinned ? ' · pinned' : ''}
@@ -639,6 +645,7 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
         )}
         {model.caption ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{model.caption}</div> : null}
       </button>
+      </div>
     </div>
   );
 }
@@ -775,7 +782,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       <div style={{ padding: `2px ${t.padX}px 6px` }}>
         <button onClick={() => setSectionHidden(false)} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '7px 13px', borderRadius: 999, border: `1px dashed ${t.RULE}`, background: 'transparent',
+          padding: '7px 13px', borderRadius: 4, border: `1px dashed ${t.RULE}`, background: 'transparent',
           color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
         }}>▸ Show home cards</button>
       </div>
@@ -792,7 +799,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
         {/* Compact dropdown to choose which cards are visible */}
         <div>
           <button ref={cardsBtnRef} onClick={() => (menuOpen ? setMenuOpen(false) : openCardsMenu())} style={{
-            padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
+            padding: '8px 12px', borderRadius: 4, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
             color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>Cards ▾</button>
           {menuOpen && menuPos && createPortal(
@@ -839,7 +846,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       </div>
 
       {ordered.length === 0 && (
-        <div style={{ margin: `0 ${t.padX}px 12px`, padding: '18px 16px', borderRadius: 14, border: `1px dashed ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1.4 }}>
+        <div style={{ margin: `0 ${t.padX}px 12px`, padding: '18px 16px', borderRadius: 5, border: `1px dashed ${t.RULE}`, borderLeft: `3px solid ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1.4 }}>
           No cards on your home. Tap <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span> to choose what to show.
         </div>
       )}
@@ -2704,10 +2711,11 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
       {DOWL.map((L, i) => {
         const on = i === activeIdx;
         return (
-          <button key={i} onClick={() => onSelect(i)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? 'rgba(10,197,168,0.08)' : 'transparent' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: on ? t.ACCENT : t.INK50 }}>{L}</span>
+          <button key={i} onClick={() => onSelect(i)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 5, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : 'transparent' }}>
+            {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
+            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
             <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 15, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
-            <span style={{ width: 3.5, height: 3.5, borderRadius: 2, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
+            <span style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
           </button>
         );
       })}
@@ -5432,7 +5440,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
                 const mv = num(m.v), mg = num(m.g);
                 const mp = mg ? Math.min(100, (mv / mg) * 100) : 0;
                 return (
-                  <div key={m.l} style={{ padding: '7px 9px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                  <div key={m.l} style={{ padding: '7px 9px 7px 11px', borderRadius: 5, border: `1px solid ${m.c}55`, borderLeft: `2.5px solid ${m.c}`, background: `linear-gradient(165deg, ${m.c}12, ${m.c}04 50%, ${t.PAPER2} 90%), ${t.PAPER}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>/ {mg}</span>
@@ -9780,9 +9788,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRadius: 9, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
-      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 3, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
     </button>
   );
 
@@ -10148,8 +10156,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
-                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{chipLabel(k)}
+                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 5, border: `1px solid ${on ? ROLE[k].color : hair}`, borderLeft: on ? `3px solid ${ROLE[k].color}` : `1px solid ${hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: 1.5, background: ROLE[k].color }} />{chipLabel(k)}
                 </button>
               );
             })}
