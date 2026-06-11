@@ -74,6 +74,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Security: clear remaining transitive dep advisories (npm overrides)
+- Pinned the patched same-major versions of the transitive moderate-severity
+  deps via `overrides` (no breaking bumps): root → `postcss ^8.5.15`,
+  `ws ^8.21.0`, `qs ^6.15.2`; mobile-app → `ws ^8.21.0`, `qs ^6.15.2`.
+- Result: **both packages now report 0 vulnerabilities** (`npm audit --omit=dev`).
+  Smoke-tested: root `tsc --noEmit` + `next build` clean, mobile `npm run build`
+  clean. No source changed (deps only); `public/m` bundle unchanged.
+- **RLS confirmed fully on**: all 66 public tables have RLS enabled AND ≥1 policy
+  (0 tables RLS-off, 0 deny-all). Clean bill of health.
+- *Still manual (no MCP tool / Pro-plan dashboard toggle):* enable **Leaked
+  password protection** at Auth → Providers → Email (HaveIBeenPwned check).
+
 ### 2026-06-09 — Security: Next.js 16.2.3 → 16.2.9 (patch bump, smoke-tested)
 - Resolves the **high-severity** Next.js advisories (middleware/proxy bypass,
   cache poisoning, SSRF on WS upgrades, image-API DoS, RSC XSS, …) — relevant
