@@ -3345,7 +3345,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
   // Parse "4 × 8 · …" → { sets: 4, reps: '8' } so the live player reflects the
   // actual session; segment-style cardio (no "× reps") falls back to one set.
-  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => { const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/); return { ...m, sets: mm ? Number(mm[1]) : 1, reps: mm ? mm[2] : '' }; })} onBack={() => setSession(false)} />;
+  if (session) return <BSSession title={cur.title} moves={effMoves.map(m => {
+    const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/);
+    // No authored scheme (assigned-plan outline lines): duration-style segments
+    // (cardio/warm-up) stay a single set; strength-style moves default to 3
+    // working sets. "+ Add set" in the session covers anything beyond.
+    const isDuration = /\d\s*(?:min|sec|km|mi)\b/i.test(`${m.s || ''} ${m.l || ''}`);
+    return { ...m, sets: mm ? Number(mm[1]) : (isDuration ? 1 : 3), reps: mm ? mm[2] : '' };
+  })} onBack={() => setSession(false)} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
   return (
@@ -14017,9 +14024,12 @@ function bsPlates(total) {
   return out;
 }
 
-function BSSession({ moves, onBack, title = 'Live session' }) {
+function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const t = useBS();
   _bsScrollTopOnMount();
+  // The move list is state so a client can add a set mid-workout ("+ Add set"
+  // under the set table) — the new set extends the CURRENT exercise only.
+  const [moves, setMoves] = useStateBSC(() => movesProp.map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
   const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
     Array.from({ length: m.sets }).forEach((_, setIdx) => {
       acc[`${mIdx}-${setIdx}`] = {
@@ -14088,6 +14098,12 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
           }
         : entry
     )));
+  };
+
+  const addSet = () => {
+    const k = `${moveIdx}-${move.sets}`;
+    setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
+    setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: String(move.rpe || '8') } }));
   };
 
   const startSet = (setIdx) => {
@@ -14268,6 +14284,7 @@ function BSSession({ moves, onBack, title = 'Live session' }) {
             </div>
           );
         })}
+        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 8, width: '100%', padding: '11px', borderRadius: 12, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
       </div>
 
       {/* Primary log CTA */}
