@@ -74,6 +74,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Fix: restored missing RLS policies (DMs + engagement were deny-all)
+- Supabase security advisors flagged `messages`, `conversation_participants`,
+  `community_likes`, `community_comments` as **RLS enabled but 0 policies** —
+  deny-all for normal roles. This was silently breaking real 1:1 DM sends/reads
+  and the like/comment engagement writes (the optimistic UI showed them; the DB
+  insert was denied). `conversations` was also down to 1 of its 3 policies
+  (missing insert + update).
+- **Migration `2026-06-09-restore-missing-rls-policies.sql`** (**applied via MCP +
+  in repo**): recreates the missing policies verbatim from their originals
+  (`2026-05-02-conversations-messages.sql`, `2026-05-02-community-feed.sql`).
+  Deliberately surgical — does NOT touch `community_posts` (preserves the
+  2026-06-09 'profile' visibility read policy) and redefines no functions.
+  Verified after apply: messages 2, conversation_participants 2, conversations 3,
+  community_likes 3, community_comments 3 — and **zero** public tables remain in
+  the RLS-on/no-policy (deny-all) state.
+
 ### 2026-06-09 — Profile Music tab: personal playlist library (public/share) — Spotify & Apple Music
 - **Migration `2026-06-09-member-playlists.sql`** (**run on Supabase**): `member_playlists`
   table (owner-scoped; provider spotify|apple|other, url, cover, track_count, is_public,
