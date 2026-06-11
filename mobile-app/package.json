@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
@@ -16,6 +17,7 @@
     "sync:ios": "npm run build && npx cap sync ios"
   },
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^7.3.2",
     "@capacitor/android": "^7.6.2",
     "@capacitor/browser": "^7.0.0",
     "@capacitor/core": "^7.4.4",
@@ -34,7 +36,8 @@
     "vite": "^7.2.7"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.4"
+    "@capacitor/cli": "^7.4.4",
+    "patch-package": "^8.0.1"
   },
   "overrides": {
     "ws": "^8.21.0",

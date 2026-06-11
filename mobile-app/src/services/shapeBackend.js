@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
+import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
@@ -3353,6 +3354,16 @@ async function uploadCoachMedia(file) {
   return { url: data?.publicUrl || null, type: isVideo ? 'video' : 'image', name: file.name || '' };
 }
 window.ShapeCoachMedia = { upload: uploadCoachMedia };
+
+// Live Bluetooth heart-rate monitor (standard HR profile straps/watches).
+// Readings broadcast as `shape:hrm` window events; see services/hrm.js.
+window.ShapeHRM = {
+  available: hrmAvailable,
+  connected: hrmConnected,
+  current: hrmCurrent,
+  connect: hrmConnect,
+  disconnect: hrmDisconnect,
+};
 
 // Marketplace plan feed — published, priced coach_plans across ALL coaches,
 // tabbed program | workout | meal. Public read (anon ok). Returns [] on no-data.

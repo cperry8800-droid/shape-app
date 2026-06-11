@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Shape connects to your Bluetooth heart-rate monitor to show your live heart rate during workouts and Shape Radio.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Shape uses your camera for in-app video calls with your coach.</string>
 	<key>NSHealthShareUsageDescription</key>

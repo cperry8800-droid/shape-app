@@ -660,25 +660,57 @@ function BSRadioScreen({ onBack }) {
   const tr = r.LIVE.tracks[r.trackIdx];
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [demoHr, setDemoHr] = useStateBR(114);
+  const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
   const [showSets, setShowSets] = useStateBR(false);
   const trackBpm = tr.bpm;
-  const signedDelta = demoHr - trackBpm;
+  const youHr = liveHr != null ? liveHr : demoHr;
+  const signedDelta = youHr - trackBpm;
   const syncDelta = Math.abs(signedDelta);
   const isSynced = hrmConnected && syncDelta <= 4;
   // HR sync stage machine: off → free (connected) → matching → synced
   const hrStage = !hrmConnected ? 'off' : (matching ? (isSynced ? 'synced' : 'matching') : 'free');
-  const hrStatus = { off: 'Not connected', free: 'Free', matching: 'Matching…', synced: 'In sync' }[hrStage];
-  // Beat-matching — ease YOU heart-rate toward the track BPM while matching is on
+  const hrStatus = { off: 'Not connected', free: liveHr != null ? 'Live' : 'Free', matching: 'Matching…', synced: 'In sync' }[hrStage];
+  // Real readings stream in as shape:hrm events while a monitor is connected.
+  // These events only ever come from a real device (demo mode never emits), so
+  // connected:false means the monitor dropped — fully disconnect the card
+  // rather than silently reverting to demo numbers under a "connected" stage.
   useEffectBR(() => {
-    if (!matching) return undefined;
+    const onHr = (e) => {
+      const d = e.detail || {};
+      if (d.connected === false) {
+        setLiveHr(null); setMatching(false); setHrmConnected(false); setDemoHr(114);
+        return;
+      }
+      if (Number.isFinite(d.bpm)) setLiveHr(d.bpm);
+    };
+    window.addEventListener('shape:hrm', onHr);
+    return () => window.removeEventListener('shape:hrm', onHr);
+  }, []);
+  // Beat-matching (demo only) — ease YOU toward the track BPM while matching is
+  // on. A real monitor reading always wins; we never fake live data.
+  useEffectBR(() => {
+    if (!matching || liveHr != null) return undefined;
     const id = setInterval(() => {
       setDemoHr(prev => (prev === trackBpm ? prev : prev + (prev < trackBpm ? 1 : -1)));
     }, 200);
     return () => clearInterval(id);
-  }, [matching, trackBpm]);
-  const connectMonitor = () => { setHrmConnected(true); setMatching(false); setDemoHr(114); };
-  const disconnectHrm = () => { setMatching(false); setHrmConnected(false); setDemoHr(114); };
+  }, [matching, trackBpm, liveHr]);
+  const connectMonitor = async () => {
+    setMatching(false);
+    if (window.ShapeHRM?.available?.()) {
+      try {
+        await window.ShapeHRM.connect();
+        setHrmConnected(true);
+        return;
+      } catch { /* user cancelled or no strap in range — fall back to the demo */ }
+    }
+    setLiveHr(null); setDemoHr(114); setHrmConnected(true);
+  };
+  const disconnectHrm = () => {
+    try { window.ShapeHRM?.disconnect?.(); } catch { /* no-op */ }
+    setMatching(false); setHrmConnected(false); setLiveHr(null); setDemoHr(114);
+  };
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
@@ -877,8 +909,8 @@ function BSRadioScreen({ onBack }) {
                 </div>
               )}
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>You</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: hrStage === 'off' ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrStage === 'off' ? '— —' : demoHr}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: liveHr != null ? TEAL : CREAM50, fontWeight: 700 }}>{liveHr != null ? 'You · live' : 'You'}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: hrStage === 'off' ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{hrStage === 'off' ? '— —' : youHr}</div>
               </div>
             </div>
 
