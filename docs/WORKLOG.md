@@ -100,6 +100,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — Dependabot (monthly grouped minor/patch) + API security audit clean
+- **`.github/dependabot.yml`**: monthly **grouped** version updates for root npm,
+  mobile-app npm, and github-actions — **minor/patch only** (majors are deliberate
+  projects; alerts still fire). Dependabot PRs run through the CI gate; mobile-dep
+  bumps will fail the `public/m` sync check until republished (by design — handle
+  in session, don't auto-merge). *Manual:* enable **Dependabot security updates**
+  in GitHub Settings → Advanced Security (alerts are on by default for public
+  repos). Note: the bluetooth-le patch-package patch must be regenerated if that
+  package is ever bumped.
+- **Full API security audit (all 99 routes): zero vulnerabilities.** Verified:
+  proxy membership gate (28 routes), per-route auth + RLS scoping (41), the 18
+  service-role routes all webhook-gated or auth-checked first, 3 webhooks verify
+  signatures, 14 public-by-design routes leak nothing. No IDOR on any dynamic-ID
+  route. Secrets scan clean — only the by-design `sb_publishable_` key is
+  committed; no service-role/Stripe/webhook secret values in the repo.
+
 ### 2026-06-11 — Live heart-rate monitor (Bluetooth LE) + Radio HR-sync wired real
 - **New `mobile-app/src/services/hrm.js`** (`window.ShapeHRM`): connects to any
   standard Bluetooth Heart Rate profile device (service 0x180D — Polar/Garmin/
