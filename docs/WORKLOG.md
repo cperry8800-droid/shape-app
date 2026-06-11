@@ -119,8 +119,14 @@ changelog whenever something ships.
   (`onOpenProgress` threaded from both Me containers: Goal closes → Progress
   opens). Kept: goal hero card, 4-up goal stats, milestones, Your plans, This
   week targets, Your why. Dead `consist` loader removed.
-- Website untouched (its goal page keeps the fuller dashboard — no separate
-  mobile-style Progress hub exists there).
+- **Website parity (same pass, follow-up PR):** `coachClientDetail.jsx` — the
+  Analysis tab was FULLY redundant on the web (its 6-up grid + trendline both
+  duplicated Overview's own KPI grid + weight chart), so the tab bar is gone
+  and the page is single-view (`?v=20260611` added on TrainerClient.html +
+  NutritionistClient.html, which had no cache tag). `ClientGoal.html` Overall —
+  same treatment as mobile: trend chart → compact row (latest weight + so-far +
+  log count, keeps Log weigh-in) linking to `ClientProgress.html`; consistency
+  heatmap removed; dead `TrendChart`/`consist` code deleted.
 
 ### 2026-06-11 — Assign to client: coach catalogue plans → the client's Train/Eat
 - **The missing middle of the core loop** (flagged in the flow review): a coach

@@ -43,7 +43,6 @@ function CoachClientDetailPage() {
   const [data, setData] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const [tab, setTab] = React.useState("overview");
 
   React.useEffect(() => {
     if (!clientId) { setErr("Missing client id."); return; }
@@ -152,26 +151,6 @@ function CoachClientDetailPage() {
     { label: "PRS", value: prs != null ? prs : 3, sub: "this block", color: gold },
   ];
 
-  const aKpis = isNutri ? [
-    { label: "ADHERENCE", value: adherencePct != null ? adherencePct : 92, small: "%", sub: "this week", color: gold },
-    { label: "AVG INTAKE", value: kcalStr || "2,040", sub: "kcal / day", color: gold },
-    { label: "PROTEIN", value: avgP != null ? avgP : 165, small: "g", sub: "avg / day", color: teal },
-    { label: "WEIGHT Δ", value: bwDelta, small: bwUnit, sub: "vs start", color: rust },
-    { label: "DAYS LOGGED", value: days30 != null ? days30 : 27, small: "/30", sub: "last 30 days", color: gold },
-    { label: "BODYWEIGHT", value: bwNow, small: bwUnit, sub: `${bwWeeks} weigh-ins`, color: gold },
-  ] : [
-    { label: "ATTENDANCE", value: attendancePct != null ? attendancePct : 96, small: "%", sub: "this block", color: teal },
-    { label: "SESSIONS", value: sDone != null ? sDone : 38, sub: `of ${sPlan != null ? sPlan : 41} planned`, color: teal },
-    { label: "AVG RPE", value: avgRpe != null ? avgRpe.toFixed(1) : "8.0", sub: "effort logged", color: rust },
-    { label: "TOTAL PRS", value: prs != null ? prs : 3, sub: "this block", color: gold },
-    { label: "WORKOUTS", value: ckNum(L.workoutsLogged42d) != null ? ckNum(L.workoutsLogged42d) : 24, sub: "last 42 days", color: teal },
-    { label: "BODYWEIGHT", value: bwNow, small: bwUnit, sub: `${bwDelta} · ${bwWeeks}w`, color: accent },
-  ];
-
-  const TabBtn = ({ k, label }) => (
-    <button onClick={() => setTab(k)} style={{ padding: "9px 18px", borderRadius: 999, cursor: "pointer", border: `1px solid ${tab === k ? accent : "rgba(242,237,228,0.14)"}`, background: tab === k ? accent + "1c" : "transparent", color: tab === k ? accent : "rgba(242,237,228,0.7)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</button>
-  );
-
   return (
     <DashPage
       navItems={navItems}
@@ -180,13 +159,7 @@ function CoachClientDetailPage() {
       title={data.client.name}
       subtitle={counterparts.length ? `Care team of ${data.careTeam.length}` : `You are this client's only coach right now.`}
     >
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <TabBtn k="overview" label="Overview" />
-        <TabBtn k="analysis" label="Analysis" />
-      </div>
-
-      {tab === "overview" && (
-        <React.Fragment>
+      <React.Fragment>
           <Card style={{ marginBottom: 16 }}>
             <CKSecHead>{isNutri ? "ADHERENCE · THIS WEEK" : "TRAINING · THIS BLOCK"}</CKSecHead>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
@@ -299,26 +272,7 @@ function CoachClientDetailPage() {
               ) : past.map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
             </Card>
           </div>
-        </React.Fragment>
-      )}
-
-      {tab === "analysis" && (
-        <React.Fragment>
-          <Card style={{ marginBottom: 16 }}>
-            <CKSecHead>ANALYSIS · LAST 30 DAYS</CKSecHead>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-              {aKpis.map((s, i) => <CKStat key={i} {...s} />)}
-            </div>
-          </Card>
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-              <CKSecHead>TRENDLINE</CKSecHead>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{isNutri ? "WEIGHT" : "BODYWEIGHT"}</span>
-            </div>
-            <CKTrend vals={bwSeries} color={accent} h={90} />
-          </Card>
-        </React.Fragment>
-      )}
+      </React.Fragment>
     </DashPage>
   );
 }
