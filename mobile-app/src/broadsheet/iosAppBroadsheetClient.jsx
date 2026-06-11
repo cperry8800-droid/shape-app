@@ -6556,6 +6556,18 @@ function bsSpotifyEmbed(url) {
 }
 const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
 const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
+// Climb-graph background presets (profile_custom.climbBg) — gradient washes
+// rendered behind the public profile's ridgeline; visitors see the choice via
+// get_public_profile.custom. 'default' keeps the plain surface.
+const BS_CLIMB_BGS = [
+  { key: '',       label: 'Paper',  css: null },
+  { key: 'dawn',   label: 'Dawn',   css: 'linear-gradient(165deg, rgba(224,165,68,0.30), rgba(224,100,75,0.12) 55%, rgba(224,165,68,0.04) 92%)' },
+  { key: 'dusk',   label: 'Dusk',   css: 'linear-gradient(165deg, rgba(138,92,246,0.30), rgba(46,111,160,0.14) 60%, rgba(138,92,246,0.04) 92%)' },
+  { key: 'alpine', label: 'Alpine', css: 'linear-gradient(180deg, rgba(94,200,224,0.28), rgba(52,214,197,0.10) 55%, rgba(94,200,224,0.04) 92%)' },
+  { key: 'forest', label: 'Forest', css: 'linear-gradient(165deg, rgba(123,191,90,0.28), rgba(47,107,58,0.12) 60%, rgba(123,191,90,0.04) 92%)' },
+  { key: 'ember',  label: 'Ember',  css: 'linear-gradient(165deg, rgba(224,81,138,0.26), rgba(224,100,75,0.14) 55%, rgba(224,81,138,0.04) 92%)' },
+  { key: 'storm',  label: 'Storm',  css: 'linear-gradient(165deg, rgba(91,141,249,0.28), rgba(33,40,52,0.16) 60%, rgba(91,141,249,0.05) 92%)' },
+];
 const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
 const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
 const BS_PROFILE_LINKS = [
@@ -7104,6 +7116,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: BS_PROFILE_PROMPTS[0], a: '' }]);
   const [coverUrl, setCoverUrl] = useStateBSC((init.cover && init.cover.image) || '');
   const [accent, setAccent] = useStateBSC(init.accent || '');
+  const [climbBg, setClimbBg] = useStateBSC(init.climbBg || '');
   const [pinKind, setPinKind] = useStateBSC((init.pinned && init.pinned.kind) || 'PR');
   const [pinTitle, setPinTitle] = useStateBSC((init.pinned && init.pinned.title) || '');
   const [pinNote, setPinNote] = useStateBSC((init.pinned && init.pinned.note) || '');
@@ -7136,6 +7149,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
+      climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
     };
@@ -7197,6 +7211,21 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
         </div>
         <div style={{ marginBottom: 18 }}>
+          <span style={label}>Climb background</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
+            {BS_CLIMB_BGS.map((b) => {
+              const on = (climbBg || '') === b.key;
+              return (
+                <button key={b.key || 'default'} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 12, cursor: 'pointer', border: `2px solid ${on ? INK : bsTHexA(INK, 0.18)}`, background: 'transparent', padding: 3 }}>
+                  <span style={{ display: 'block', height: 30, borderRadius: 8, background: b.css || bsTHexA(INK, 0.05), border: b.css ? 'none' : `1px dashed ${bsTHexA(INK, 0.25)}` }} />
+                  <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.55), fontWeight: 700 }}>{b.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>The wash behind your Climb graph — everyone who views your profile sees it.</div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
           <span style={label}>Headline stats · pick up to 3</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {BS_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
@@ -7255,6 +7284,16 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             ))}
           </div>
         </div>
+        {/* Identity fields (name · @handle · photo · pronouns · goal · link)
+            live in the Settings editor — linked here so this sheet is the one
+            complete hub for everything the public profile shows. */}
+        <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), padding: '13px 15px', cursor: 'pointer', marginBottom: 16 }}>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: SERIF, fontSize: 15.5, fontWeight: 700, color: INK }}>Name, @handle, photo & details</span>
+            <span style={{ display: 'block', marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Pronouns · goal · link — edit in Settings</span>
+          </span>
+          <span style={{ color: c, fontSize: 15, fontWeight: 700 }}>→</span>
+        </button>
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
           <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 50, borderRadius: 16, background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
         </div>
@@ -8057,6 +8096,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   </div>
                 </div>
               )}
+              {/* The graph + level labels sit on the owner's chosen wash
+                  (profile_custom.climbBg) — visitors get it via the public RPC. */}
+              <div style={{ position: 'relative' }}>
+              {(() => {
+                const bg = BS_CLIMB_BGS.find((b) => b.key === ((custom && custom.climbBg) || '')) || BS_CLIMB_BGS[0];
+                return bg.css ? <div aria-hidden style={{ position: 'absolute', inset: '-8px -8px -4px', borderRadius: 16, background: bg.css, pointerEvents: 'none' }} /> : null;
+              })()}
               {(() => {
                 // The "now" dot height tracks the selected aspect's progress (pct),
                 // so the ridgeline visibly adjusts when you switch Climb tabs.
@@ -8084,6 +8130,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                     <div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.85), marginTop: 4 }}>{a[1]}</div>
                   </div>
                 ))}
+              </div>
               </div>
             </div>
 
