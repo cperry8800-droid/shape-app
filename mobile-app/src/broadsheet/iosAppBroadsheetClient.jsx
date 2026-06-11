@@ -9,7 +9,7 @@ const { useState: useStateBSC } = React;
 const {
   useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
-  BSTabBar, BSFooter, BSLogo,
+  BSTabBar, BSFooter, BSLogo, BSPlate,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
   BSRadioProvider, useBSRadio, BSRadioPrompt, BSRadioScreen, BSNowPlaying,
   BSMarketplaceScreen,
@@ -939,14 +939,15 @@ function BSCoachAdjustBanner({ detail, kind }) {
     ? [d.calories != null ? `${d.calories} kcal` : null, d.protein != null ? `${d.protein}P` : null, d.carbs != null ? `${d.carbs}C` : null, d.fat != null ? `${d.fat}F` : null, d.meals != null ? `${d.meals} meals` : null]
     : [d.intensity ? ({ deload: 'Deload', maintain: 'Maintain', progress: 'Progress' }[d.intensity] || cap(d.intensity)) : null, d.sessions != null ? `${d.sessions}×/week` : null, ...(Array.isArray(d.focus) ? d.focus.slice(0, 2).map(cap) : [])]
   ).filter(Boolean);
+  const BSPlateRef = window.BSPlate;
   return (
-    <div style={{ margin: `12px ${t.padX}px 0`, borderRadius: 14, border: `1px solid ${accent}55`, background: `linear-gradient(160deg, ${accent}1c, ${t.PAPER2} 70%)`, padding: '12px 14px' }}>
+    <BSPlateRef c={accent} notch={10} pad="12px 14px 12px 18px" style={{ margin: `12px ${t.padX}px 0` }}>
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: accent, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
       <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '4px 9px' }}>{c}</span>)}
+        {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '4px 9px' }}>{c}</span>)}
       </div>
       {d.note ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
-    </div>
+    </BSPlateRef>
   );
 }
 
@@ -2197,17 +2198,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                   ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
                   : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
                 return (
-                  <div key={it.id} style={{
-                    padding: '10px 12px',
-                    background: t.PAPER,
-                    border: `1px solid ${t.RULE}`,
-                    borderRadius: t.RADIUS_SM,
-                    marginBottom: 6,
-                  }}>
+                  <BSPlate key={it.id} c={isMeal ? (t.isLight ? '#0a8f87' : '#34d6c5') : t.RUST} notch={8} spine={2.5} pad="10px 12px 10px 16px" style={{ marginBottom: 6 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 500, color: t.INK }}>{p.name}</div>
                     {meta && <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.06em', color: t.INK50, marginTop: 2 }}>{meta}</div>}
                     {(p.cue || p.note) && <div style={{ fontSize: 12, color: t.INK50, marginTop: 4, fontStyle: 'italic' }}>"{p.cue || p.note}"</div>}
-                  </div>
+                  </BSPlate>
                 );
               })}
             </div>
@@ -2268,20 +2263,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const rust = t.RUST;
-        // "Up next" card chrome — instrument-panel plate: clipped top-right
-        // corner, hard accent spine with a pulsing status tick, corner bracket.
-        // Two stacked clipped layers fake the border (clip-path eats a real one).
-        const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+        // "Up next" cards ride the shared instrument plate (chrome's BSPlate).
         const AgendaCard = ({ c, children }) => (
-          <div style={{ position: 'relative', margin: `0 ${t.padX}px 12px` }}>
-            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(13), background: `${c}77` }} />
-            <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(12), background: `linear-gradient(165deg, ${c}1f, ${c}06 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
-            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />
-            <div aria-hidden style={{ position: 'absolute', left: 8, top: 16, width: 6, height: 6, borderRadius: 1.5, background: c, boxShadow: `0 0 9px ${c}`, animation: 'bsCardPulse 2.6s ease-in-out infinite' }} />
-            <div aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: `1.5px solid ${c}`, borderBottom: `1.5px solid ${c}`, opacity: 0.65 }} />
-            <div style={{ position: 'relative', padding: '14px 16px 14px 22px' }}>{children}</div>
-            <style>{`@keyframes bsCardPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}</style>
-          </div>
+          <BSPlate c={c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `0 ${t.padX}px 12px` }}>{children}</BSPlate>
         );
         const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
         const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
@@ -2468,13 +2452,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
               {weekTotals.map(s => {
                 const pct = Math.max(0, Math.min(1, s.v / s.max));
-                const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
                 return (
-                  <button key={s.l} onClick={() => setWeekStat(s)} style={{ textAlign: 'left', cursor: 'pointer', position: 'relative', border: 0, background: 'transparent', padding: 0 }}>
-                    <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: `${s.c}55` }} />
-                    <span aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(9), background: `linear-gradient(165deg, ${s.c}12, ${s.c}05 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
-                    <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: s.c }} />
-                    <span style={{ position: 'relative', display: 'block', padding: '11px 11px 9px 13px' }}>
+                  <BSPlate key={s.l} c={s.c} notch={9} spine={2.5} pad="11px 11px 9px 13px" role="button" ariaLabel={`${s.l} — view detail`} onClick={() => setWeekStat(s)} style={{ textAlign: 'left' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
@@ -2484,8 +2463,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                       <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 2 }} />
                     </div>
                     <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>
-                    </span>
-                  </button>
+                  </BSPlate>
                 );
               })}
             </div>
@@ -3021,7 +2999,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always visible.
           Soft rust TINT (the app's tinted-chip language) instead of a solid filled bar —
           the role color rides the border/icon/eyebrow, the title stays theme ink. */}
-      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 11, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => goMarket('trainer')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#c0533b', 0.45)}`, borderLeft: `3px solid #c0533b`, background: bsTHexA('#c0533b', 0.09), cursor: 'pointer', textAlign: 'left' }}>
         <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#c0533b', 0.14), border: `1px solid ${bsTHexA('#c0533b', 0.4)}`, color: '#c0533b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" /></svg>
         </div>
@@ -3036,8 +3014,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
 
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
-      {/* Today hero — the session at a glance, with the coach + play. */}
-      <div style={{ margin: `14px ${t.padX}px 0`, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(160deg, rgba(10,197,168,0.10), ${t.PAPER2} 62%)`, padding: 15 }}>
+      {/* Today hero — the session at a glance, on the instrument plate. */}
+      <BSPlate c={t.ACCENT} tick bracket pad="15px 15px 15px 21px" style={{ margin: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
@@ -3064,7 +3042,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <span style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
         </div>
-      </div>
+      </BSPlate>
 
       {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
       {effMoves.length > 0 && (
@@ -5400,7 +5378,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       {/* Find a nutritionist — marketplace deep link, pinned to the TOP so it's always visible.
           Soft gold TINT (the app's tinted-chip language) instead of a solid filled bar —
           the role color rides the border/icon/eyebrow, the title stays theme ink. */}
-      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 11, border: `1px solid ${bsTHexA('#a07a2e', 0.5)}`, background: bsTHexA('#a07a2e', 0.1), cursor: 'pointer', textAlign: 'left' }}>
+      <button onClick={() => goMarket('nutritionist')} style={{ display: 'flex', alignItems: 'center', gap: 9, margin: `8px ${t.padX}px 0`, width: `calc(100% - ${t.padX * 2}px)`, boxSizing: 'border-box', padding: '6px 10px', borderRadius: 4, border: `1px solid ${bsTHexA('#a07a2e', 0.5)}`, borderLeft: '3px solid #a07a2e', background: bsTHexA('#a07a2e', 0.1), cursor: 'pointer', textAlign: 'left' }}>
         <div style={{ width: 23, height: 23, flexShrink: 0, borderRadius: 7, background: bsTHexA('#a07a2e', 0.16), border: `1px solid ${bsTHexA('#a07a2e', 0.45)}`, color: '#b8923f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></svg>
         </div>
@@ -13086,7 +13064,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         const arc = [[tier, `${curThr.toLocaleString()} pts`, 'start'], ['Now', `${scoreTotal.toLocaleString()} pts`, 'now'], [topTier ? 'Top' : nextTier, topTier ? '' : `${nextThr.toLocaleString()} pts`, 'target']];
         return (
           <div style={{ padding: `8px ${t.padX}px 0` }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 72% 18%, ${tc}24, transparent 55%), ${t.PAPER2}`, padding: 12 }}>
+            <BSPlate c={tc} tick bracket pad="12px 12px 12px 18px">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 74, height: 74, borderRadius: 999, flexShrink: 0, background: `conic-gradient(${tc} ${pct * 3.6}deg, ${t.HAIR} 0deg)`, display: 'grid', placeItems: 'center' }}>
                   <div style={{ width: 58, height: 58, borderRadius: 999, background: t.isLight ? t.PAPER : '#16140f', display: 'grid', placeItems: 'center' }}>
@@ -13135,7 +13113,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                   </div>
                 ))}
               </div>
-            </div>
+            </BSPlate>
           </div>
         );
       })()}
