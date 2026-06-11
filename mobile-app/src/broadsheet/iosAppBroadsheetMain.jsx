@@ -450,47 +450,51 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const insideItems = STATIC_INSIDE;
 
     const items = [...insideItems, ...STATIC_WORLD];
+    // FIXED night-sky palette — this splash's background is a hardcoded dark
+    // cosmos gradient, so its ink must NOT follow the paper theme (a saved
+    // light paper turned t.INK near-black → black-on-black at boot).
+    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.28)', ACCF = '#34d6c5';
     const _bgRGB = bgColor && bgColor !== 'auto' ? _hexToRGBmain(bgColor) : null;
     const inkRgbCl = _bgRGB || t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
     return (
-      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: t.INK, padding: '50px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
+      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, padding: '50px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
 
-        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={t.INK} /> Classifieds</span>
-          <span style={{ fontWeight: 700, color: t.INK }}>{dateShort}</span>
+        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={INKF} /> Classifieds</span>
+          <span style={{ fontWeight: 700, color: INKF }}>{dateShort}</span>
         </div>
 
         <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', paddingTop: 6 }}>
-          <div style={{ paddingBottom: 12, borderBottom: `1px solid ${t.INK}` }}>
-            <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${t.INK}` }}>
+          <div style={{ paddingBottom: 12, borderBottom: `1px solid ${INKF}` }}>
+            <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${INKF}` }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 15, width: '100%', lineHeight: 1 }}>
                 <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
                 <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block', transform: 'translateY(-3px)' }} />
                 <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>Daily.</span>
               </span>
             </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: t.INK }}>{dateLine}</span></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: INKF }}>{dateLine}</span></div>
           </div>
         </div>
 
         <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 4 }}>
           {[1, 2].map(col => (
             <React.Fragment key={col}>
-              {col === 2 && <div style={{ background: t.RULE }} />}
+              {col === 2 && <div style={{ background: RULEF }} />}
               <div style={{ paddingRight: col === 1 ? 10 : 0, paddingLeft: col === 2 ? 10 : 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.24em', color: t.INK, textTransform: 'uppercase', borderBottom: `2px solid ${t.INK}`, paddingBottom: 5 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.24em', color: INKF, textTransform: 'uppercase', borderBottom: `2px solid ${INKF}`, paddingBottom: 5 }}>
                   {col === 1 ? 'Inside Shape' : 'In the world'}
                 </div>
                 {items.filter(i => i.col === col).map((it, i) => {
-                  const tagColor = it.tag.startsWith('SHP') ? t.ACCENT
+                  const tagColor = it.tag.startsWith('SHP') ? ACCF
                                   : it.tag.startsWith('MND') ? '#a86bc4'
                                   : it.tag.startsWith('WLB') ? '#7ed4ff'
-                                  : t.INK;
+                                  : INKF;
                   return (
                     <div key={i}>
                       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: tagColor, fontWeight: 700, marginBottom: 3 }}>{it.tag}</div>
-                      <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 15, letterSpacing: '-0.012em', color: t.INK, lineHeight: 1.15 }}>{it.title}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, marginTop: 3, textTransform: 'uppercase' }}>{it.meta}</div>
+                      <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 15, letterSpacing: '-0.012em', color: INKF, lineHeight: 1.15 }}>{it.title}</div>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: INKF50, marginTop: 3, textTransform: 'uppercase' }}>{it.meta}</div>
                     </div>
                   );
                 })}
@@ -503,7 +507,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         <button onClick={onDone} style={{ borderRadius: 999,
           margin: '4px auto 0', width: 'fit-content',
           padding: '10px 26px', position: 'relative', zIndex: 1,
-          background: t.INK, color: t.PAPER, border: 0,
+          background: INKF, color: '#0b0e0c', border: 0,
           fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700,
           letterSpacing: '0.24em', textTransform: 'uppercase',
           cursor: 'pointer',
