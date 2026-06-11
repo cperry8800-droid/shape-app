@@ -509,6 +509,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Security & hardening (2026-06-09 review)',
+      items: [
+        { label: 'RLS ON for every public table — verified 66/66 enabled AND each has ≥1 policy (0 RLS-off, 0 deny-all)', status: 'done' },
+        { label: 'Fixed deny-all tables: messages / conversation_participants / community_likes / community_comments had RLS on but 0 policies (broke DMs + like/comment writes); conversations was missing insert+update. Restored via 2026-06-09-restore-missing-rls-policies.sql (applied live + in repo)', status: 'done' },
+        { label: 'Next.js 16.2.3 → 16.2.9 — clears the high-severity advisories (middleware/proxy bypass, cache poisoning, SSRF, image DoS, RSC XSS). Smoke-tested: tsc + next build clean both versions', status: 'done' },
+        { label: 'Transitive dep advisories cleared via npm overrides (postcss 8.5.15, ws 8.21.0, qs 6.15.2) — `npm audit --omit=dev` = 0 vulns on both root + mobile-app', status: 'done' },
+        { label: 'Leaked-password protection (HaveIBeenPwned) — Auth → Providers → Email. Pro-plan feature; DEFERRED until Supabase Pro upgrade', status: 'pending' },
+        { label: 'Advisor warnings noted, low-priority/by-design: SECURITY DEFINER RPCs callable by anon/authenticated (intentional gated-RPC pattern), function_search_path_mutable on ~18 older functions (new ones set search_path=public), 4 anon-insert "always true" policies on public intake tables (contact/applications — write-only by design), 2 public buckets allow listing (coach-media/community-photos)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Payments (Stripe)',
       items: [
         { label: 'Live secret key set', status: auto(stripeMode(process.env.STRIPE_SECRET_KEY) === 'live') },
