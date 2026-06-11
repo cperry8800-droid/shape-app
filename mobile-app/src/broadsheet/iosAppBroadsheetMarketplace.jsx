@@ -546,9 +546,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
 
   return (
     <BSPage>
-      {/* Hero */}
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
+      {/* Hero — standard masthead band (logo + Vol·No row at the 64px page
+          buffer, tools on the right), matching BSPageHeader on every other page. */}
+      <div style={{ padding: `64px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {window.BSLogo ? <window.BSLogo size={16} color={t.INK} /> : null}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
           {window.BSFacetAvatar ? (
             <window.BSFacetAvatar
@@ -561,8 +567,9 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
               onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }}
             />
           ) : null}
+          </div>
         </div>
-        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
+        <h1 style={{ margin: '14px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
           Find your<br /><span style={{ fontStyle: 'italic', color: teal }}>coach.</span>
         </h1>
       </div>
