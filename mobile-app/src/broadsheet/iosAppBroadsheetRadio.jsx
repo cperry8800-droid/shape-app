@@ -486,12 +486,14 @@ function BSNowPlaying({ onOpen }) {
   const tr = r.LIVE.tracks[r.trackIdx];
   const homeFeedback = r.trackFeedback[makeRadioTrackKey(tr)] || { vote: null, comments: [] };
 
+  const _npClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
     <div onClick={onOpen} style={{
-      position: 'relative', overflow: 'hidden', cursor: 'pointer', boxSizing: 'border-box',
-      margin: `10px ${t.padX}px`, border: `1.5px solid ${t.ACCENT}80`, borderRadius: 14,
-      background: t.PAPER, color: t.INK,
+      position: 'relative', cursor: 'pointer', boxSizing: 'border-box',
+      margin: `10px ${t.padX}px`, padding: 1.5,
+      clipPath: _npClip(13), background: `${t.ACCENT}80`, color: t.INK,
     }}>
+      <div style={{ position: 'relative', overflow: 'hidden', clipPath: _npClip(12), background: t.PAPER }}>
       {/* Light effects layer — accent (adapts to paper); stronger so it reads on light papers too */}
       <BSHalftoneAurora color={t.ACCENT} opacity={t.isLight ? 0.7 : 0.55} paused={r.paused} />
       <BSStageLight color={t.ACCENT} opacity={t.isLight ? 0.22 : 0.16} paused={r.paused} />
@@ -518,7 +520,7 @@ function BSNowPlaying({ onOpen }) {
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none', minWidth: 0 }}>
             <span style={{ color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.LIVE.listeners.toLocaleString()} listening</span>
-            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
+            <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>Open →</span>
           </span>
         </div>
 
@@ -574,7 +576,7 @@ function BSNowPlaying({ onOpen }) {
 
           {/* Pause/play */}
           <button onClick={(e) => { e.stopPropagation(); r.setPaused(p => !p); }} style={{
-            width: 30, height: 30, flexShrink: 0, borderRadius: 9,
+            width: 30, height: 30, flexShrink: 0, borderRadius: 4,
             background: `rgba(${t.inkRGB},0.34)`, color: t.PAPER, border: 0, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12,
@@ -582,6 +584,9 @@ function BSNowPlaying({ onOpen }) {
           }}>{r.paused ? '▶' : '❚❚'}</button>
         </div>
       </div>
+      </div>
+      {/* accent spine over the frame */}
+      <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: t.ACCENT }} />
     </div>
   );
 }
