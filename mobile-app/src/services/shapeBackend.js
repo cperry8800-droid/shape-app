@@ -358,6 +358,7 @@ async function getCurrentSession() {
 
 async function signOut() {
   if (supabase) await supabase.auth.signOut();
+  invalidateClientMetrics();
   return setCached({ user: null, session: null, profile: null });
 }
 
@@ -2141,6 +2142,7 @@ async function saveWorkoutSessionLog({
     sourceActivityId: `shape-session-${Date.now()}`,
   });
 
+  invalidateClientMetrics();
   return {
     ...feedPost,
     workoutSession: structured,
@@ -2775,6 +2777,30 @@ async function getJsonOrDefault(url, fallback, transform) {
     return fallback;
   }
 }
+
+// ── Shared client-metrics cache ──────────────────────────────────────────────
+// The client rollup endpoints (analytics / progress / train / nutrition / plan)
+// used to be fetched independently by every surface that shows them — home
+// ticker, Me profile, Progress hub, Goal page — duplicate requests AND
+// staleness races where two screens showed different numbers for the same
+// metric. Every reader now shares ONE in-flight promise + cached RAW response
+// per endpoint (60s TTL); callers apply their own transforms on top. Writes
+// that change the numbers (weigh-in, check-in, meal note, sign-in/out)
+// invalidate the cache so the next read is fresh.
+const _metricsCache = new Map(); // url → { at, promise }
+const METRICS_TTL_MS = 60_000;
+function cachedClientJson(path) {
+  const url = `${apiBaseUrl || ''}${path}`;
+  const uid = state.user?.id || 'anon';
+  const key = `${uid}:${url}`;
+  const hit = _metricsCache.get(key);
+  if (hit && Date.now() - hit.at < METRICS_TTL_MS) return hit.promise;
+  const entry = { at: Date.now(), promise: getJsonOrDefault(url, null) };
+  _metricsCache.set(key, entry);
+  return entry.promise;
+}
+function invalidateClientMetrics() { _metricsCache.clear(); }
+window.ShapeMetrics = { invalidate: invalidateClientMetrics };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }
@@ -2894,6 +2920,7 @@ async function logCheckin({ mood, stress, soreness } = {}) {
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not save check-in.');
+  invalidateClientMetrics();
   return d;
 }
 window.ShapeCheckin = { log: logCheckin };
@@ -2905,18 +2932,20 @@ async function getLeaderboard(period = 'month') {
 window.ShapeLeaderboard = { get: getLeaderboard };
 
 // Client analytics (home cards + ticker). Bearer in native, cookie on /m/.
+// Reads share the metrics cache — the ticker and the Progress hub consume the
+// SAME response now, so they can never disagree within a session.
 async function getAnalytics() {
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/analytics`, null);
+  return cachedClientJson('/api/client/analytics');
 }
 async function getProgress() {
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/progress`, null);
+  return cachedClientJson('/api/client/progress');
 }
 window.ShapeAnalytics = { get: getAnalytics, getProgress };
 
 // Prescribed plan — assigned training + meal plan. Bearer in native, cookie
 // on /m/. Returns null on any failure so callers fall back to demo content.
 async function getPlan() {
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/plan`, null);
+  return cachedClientJson('/api/client/plan');
 }
 window.ShapePlan = { get: getPlan };
 
@@ -3435,6 +3464,7 @@ async function logWeighIn({ weight, unit = 'kg' } = {}) {
     .select('logged_on, weight')
     .maybeSingle();
   if (error) throw error;
+  invalidateClientMetrics();
   return data;
 }
 window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };
@@ -3537,10 +3567,10 @@ window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars };
 // Progress hub — the same rollups the website Progress / Train / Nutrition pages
 // read (KPIs, trend series, PRs, volume, macros). Each returns null on no-data so
 // the mobile screen can fall back to its demo shape.
-async function getClientProgress() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/progress`, null, (d) => (d && d.ok ? d : null)); }
-async function getClientAnalytics() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/analytics`, null, (d) => (d && d.has_data ? d : null)); }
-async function getClientTrain() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/train`, null, (d) => (d && d.ok ? d : null)); }
-async function getClientNutrition() { return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/nutrition`, null, (d) => (d && d.ok ? d : null)); }
+async function getClientProgress() { return cachedClientJson('/api/client/progress').then((d) => (d && d.ok ? d : null)); }
+async function getClientAnalytics() { return cachedClientJson('/api/client/analytics').then((d) => (d && d.has_data ? d : null)); }
+async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
+async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
 window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
 
 // Coach sigil rings — live { habits, clientWorkouts, ownActivity } (0..1 or null)
