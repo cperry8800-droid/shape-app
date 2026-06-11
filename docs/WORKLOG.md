@@ -42,11 +42,20 @@ changelog whenever something ships.
   store/coach pages all live in `public/newdesign/`.
 - **Git / deploy:** develop on `claude/sleepy-feynman-RtyIr`. Per change: commit →
   push → open PR → **wait for the CI checks to go green** (`.github/workflows/ci.yml`:
-  Web typecheck+build, Mobile build + public/m sync) → squash-merge → re-sync the
-  branch to `main`
+  Web typecheck+build, Mobile build + public/m sync) → **review the PR diff** →
+  squash-merge → re-sync the branch to `main`
   (`git fetch origin main && checkout main && reset --hard origin/main && checkout <branch> && reset --hard origin/main && push --force-with-lease`).
   Don't merge on red — a failed check is exactly the broken-main it exists to stop.
   CI also fails when `public/m` is stale (mobile source edited without republishing).
+- **Diff review before merge (standard practice).** For any non-trivial change
+  (logic, data flow, theming, anything touching shared components), give the PR
+  diff a dedicated review pass before squash-merging — hunting specifically for:
+  logic bugs/regressions, missed `?v=` cache-bust bumps on edited referenced
+  `.jsx`, theme-token violations (hardcoded ink/paper on themed surfaces, theme
+  tokens on fixed-background screens), demo-vs-live data leaks, and changes to
+  shared code that other profiles/pages also render. Docs/copy-only tweaks can
+  skip it. Riskier changes additionally go to `staging` for a click-through
+  before merging.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -98,7 +107,9 @@ changelog whenever something ships.
   when the mobile source was edited without copying the bundle, a recurring
   break-main mistake). All four checks verified green at current HEAD before
   shipping. Merge discipline updated in "How we work": open PR → **wait for CI
-  green** → squash-merge. *Manual (optional, GitHub Settings → Branches):* add a
+  green** → **review the diff** (standard pre-merge pass for non-trivial changes:
+  logic bugs, missed `?v=` bumps, theme-token violations, shared-component blast
+  radius) → squash-merge. *Manual (optional, GitHub Settings → Branches):* add a
   protection rule on `main` requiring the two checks, which makes the gate hard
   even for manual merges.
 
