@@ -1,0 +1,80 @@
+# Main-branch gate: blocks PR merges when the web app or mobile bundle is
+# broken, and catches the classic "edited mobile-app/ but forgot to republish
+# public/m" mistake (the deployed app at /m/ is the committed copy, not a
+# build artifact).
+#
+# Runs on every PR into main + pushes to main/staging. To make it a hard
+# gate, add a branch protection rule on main requiring the "Web (typecheck
+# + build)" and "Mobile (build + public/m sync)" checks.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (typecheck + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx next build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  mobile:
+    name: Mobile (build + public/m sync)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Build (/m/ bundle)
+        working-directory: mobile-app
+        run: VITE_BASE=/m/ npm run build
+
+      - name: public/m matches the mobile build
+        run: |
+          if ! diff -qr mobile-app/dist public/m > /tmp/m-diff.txt 2>&1; then
+            echo "::error::public/m is OUT OF SYNC with mobile-app source."
+            echo "Republish it from the repo root:"
+            echo "  cd mobile-app && VITE_BASE=/m/ npm run build && cd .."
+            echo "  rm -rf public/m && cp -r mobile-app/dist public/m"
+            echo
+            echo "Differences:"
+            cat /tmp/m-diff.txt
+            exit 1
+          fi
+          echo "public/m is in sync ✓"

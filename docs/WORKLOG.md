@@ -41,8 +41,12 @@ changelog whenever something ships.
   `/dashboard`** (typecheck: `npx tsc --noEmit`); the public/marketing/profile/
   store/coach pages all live in `public/newdesign/`.
 - **Git / deploy:** develop on `claude/sleepy-feynman-RtyIr`. Per change: commit →
-  push → open PR → squash-merge → re-sync the branch to `main`
+  push → open PR → **wait for the CI checks to go green** (`.github/workflows/ci.yml`:
+  Web typecheck+build, Mobile build + public/m sync) → squash-merge → re-sync the
+  branch to `main`
   (`git fetch origin main && checkout main && reset --hard origin/main && checkout <branch> && reset --hard origin/main && push --force-with-lease`).
+  Don't merge on red — a failed check is exactly the broken-main it exists to stop.
+  CI also fails when `public/m` is stale (mobile source edited without republishing).
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -85,6 +89,18 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-11 — CI gate on main: typecheck + builds + public/m sync check
+- New **`.github/workflows/ci.yml`** runs on every PR into main (+ pushes to
+  main/staging): **Web** (root `npm ci` → `tsc --noEmit` → `next build`) and
+  **Mobile** (`mobile-app npm ci` → `VITE_BASE=/m/` build → **`diff` the fresh
+  dist against the committed `public/m`** — fails with republish instructions
+  when the mobile source was edited without copying the bundle, a recurring
+  break-main mistake). All four checks verified green at current HEAD before
+  shipping. Merge discipline updated in "How we work": open PR → **wait for CI
+  green** → squash-merge. *Manual (optional, GitHub Settings → Branches):* add a
+  protection rule on `main` requiring the two checks, which makes the gate hard
+  even for manual merges.
 
 ### 2026-06-11 — Test branch: long-lived `staging` → stable Vercel preview URL
 - Created the **`staging`** branch (from `main` @ 831ca84). Vercel preview
