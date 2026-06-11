@@ -21,9 +21,10 @@ changelog whenever something ships.
   duplicate commits, rebase conflicts, and lost work — it has cost real tokens
   multiple times. **Before making ANY edit:** run
   `git fetch origin main && git rev-parse --short HEAD origin/main` — if HEAD ≠
-  origin/main, run `git reset --hard origin/main` first. `main` and the dev branch
-  `claude/sleepy-feynman-RtyIr` are always kept identical (push both to the same
-  commit); treat `origin/main` as the single source of truth.
+  origin/main, run `git reset --hard origin/main` first. `main` and the session's
+  dev branch (the current `claude/*` working branch — it differs per session) are
+  always kept identical (push both to the same commit); treat `origin/main` as the
+  single source of truth.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
@@ -40,7 +41,7 @@ changelog whenever something ships.
   The Next.js app at the repo root (`src/`) is **API routes + the gated
   `/dashboard`** (typecheck: `npx tsc --noEmit`); the public/marketing/profile/
   store/coach pages all live in `public/newdesign/`.
-- **Git / deploy:** develop on `claude/sleepy-feynman-RtyIr`. Per change: commit →
+- **Git / deploy:** develop on the session's `claude/*` branch. Per change: commit →
   push → open PR → **wait for the CI checks to go green** (`.github/workflows/ci.yml`:
   Web typecheck+build, Mobile build + public/m sync) → **review the PR diff** →
   squash-merge → re-sync the branch to `main`
