@@ -601,18 +601,24 @@ function _bsBuildCard(type, ctx) {
 }
 
 function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, draggable, dragHandlers, dragging, dragOver }) {
+  const acc = model.accent;
+  const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
     <div
       draggable={draggable}
       {...(dragHandlers || {})}
       style={{
-        margin: `0 ${t.padX}px 6px`, borderRadius: 11, overflow: 'hidden',
-        border: dragOver ? `1.5px dashed ${model.accent}` : (pinned ? `1.5px solid ${model.accent}` : `1px solid ${t.RULE}`),
-        background: t.PAPER2,
+        position: 'relative', margin: `0 ${t.padX}px 6px`,
         opacity: dragging ? 0.5 : 1,
         transition: 'opacity 0.15s ease',
       }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px 0' }}>
+      {/* Instrument plate chrome — pinned cards get the full-strength frame. */}
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(10), background: pinned ? acc : `${acc}55` }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(9), background: `linear-gradient(165deg, ${acc}14, ${acc}05 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
+      <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2.5, background: acc }} />
+      {dragOver && <div aria-hidden style={{ position: 'absolute', inset: -2.5, border: `1.5px dashed ${acc}`, borderRadius: 7, pointerEvents: 'none' }} />}
+      <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px 0 14px' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: model.accent, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {draggable && <span title="Drag to reorder" style={{ cursor: 'grab', color: t.INK50, fontSize: 12, letterSpacing: 0 }}>⠿</span>}
           {model.kicker}{pinned ? ' · pinned' : ''}
@@ -639,6 +645,7 @@ function BSHomeCardItem({ slot, model, t, pinned, onPin, onRemove, onOpen, dragg
         )}
         {model.caption ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{model.caption}</div> : null}
       </button>
+      </div>
     </div>
   );
 }
@@ -775,7 +782,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       <div style={{ padding: `2px ${t.padX}px 6px` }}>
         <button onClick={() => setSectionHidden(false)} style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '7px 13px', borderRadius: 999, border: `1px dashed ${t.RULE}`, background: 'transparent',
+          padding: '7px 13px', borderRadius: 4, border: `1px dashed ${t.RULE}`, background: 'transparent',
           color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
         }}>▸ Show home cards</button>
       </div>
@@ -792,7 +799,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
         {/* Compact dropdown to choose which cards are visible */}
         <div>
           <button ref={cardsBtnRef} onClick={() => (menuOpen ? setMenuOpen(false) : openCardsMenu())} style={{
-            padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
+            padding: '8px 12px', borderRadius: 4, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
             color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>Cards ▾</button>
           {menuOpen && menuPos && createPortal(
@@ -839,7 +846,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
       </div>
 
       {ordered.length === 0 && (
-        <div style={{ margin: `0 ${t.padX}px 12px`, padding: '18px 16px', borderRadius: 14, border: `1px dashed ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1.4 }}>
+        <div style={{ margin: `0 ${t.padX}px 12px`, padding: '18px 16px', borderRadius: 5, border: `1px dashed ${t.RULE}`, borderLeft: `3px solid ${t.RULE}`, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1.4 }}>
           No cards on your home. Tap <span style={{ fontWeight: 700, color: t.INK70 }}>Cards ▾</span> to choose what to show.
         </div>
       )}
