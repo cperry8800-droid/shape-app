@@ -28,7 +28,7 @@ const PRODUCTS = [
   { id: 13, cat: "Nutrition", name: "Recipe archive pack", brand: "Shape nutrition templates", cost: 340, retail: 35, img: "recipes · pack", stock: "Unlimited" },
 
   // Shape Perks
-  { id: 16, cat: "Shape Perks", name: "Annual membership credit", brand: "$200 toward next year", cost: 3500, retail: 200, img: "annual · 200", tag: "Peak tier", stock: "Unlimited", locked: true },
+  { id: 16, cat: "Shape Perks", name: "Annual membership credit", brand: "$60 toward next year — a full year of Shape", cost: 1200, retail: 60, img: "annual · 60", tag: "Peak tier", stock: "Unlimited", locked: true },
 ];
 
 const COACH_LEAD_BOOST_PRODUCTS = [
