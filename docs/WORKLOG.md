@@ -2354,13 +2354,13 @@ changelog whenever something ships.
   War Room updated to reflect the above (routes, config, checklist).
 
 ### Next up (planned)
-- **Design-system pass (ON HOLD by choice — do not start unprompted):** the
-  instrument-plate look (clipped corner + accent spine, shipped on the home
-  cards/tiles/tab bar/radio bar 2026-06-11) vs the older rounded cards. Plan
-  when resumed: extract a shared `BSPlate` primitive, refactor the four inline
-  copies, then Phase 1 = Train/Eat heroes + deck/meal cards, Score hero, Store
-  tiles, coach-feed cards, find-a-coach bars (staging click-through); Phase 2 =
-  coach apps. Two-tier rule: plates = live/actionable; quiet rounded cards =
+- **Design-system pass — Phase 1 SHIPPED 2026-06-11** (`BSPlate` shared
+  primitive in the chrome, window-exposed; AgendaCard + weekly-totals tiles
+  refactored onto it; converted: Train hero, coach-adjust banner, home
+  coach-feed pushed items, find-a-coach bars, Score composite hero). Kept
+  quiet BY THE RULE: Eat hero (deliberately condensed strip), Eat/Train list
+  rows, Store catalog rows. **Phase 2 (coach apps) still parked — do not start
+  unprompted.** Two-tier rule: plates = live/actionable; quiet rounded cards =
   forms/sheets/lists; chat bubbles stay round.
 - **Client "Library" — save coach content to your profile** (NEW · priority):
   let clients save to their own profile/library: trainers' **workouts** and **paid

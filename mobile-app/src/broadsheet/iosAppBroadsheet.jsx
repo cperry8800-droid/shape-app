@@ -986,6 +986,28 @@ function BSTabIcon({ name, size = 22 }) {
   }
 }
 
+// ── Instrument plate — the boxy design signature ─────────────────────────────
+// Clipped top-right corner (two stacked clip layers fake the border, since a
+// real border gets eaten by clip-path), hard accent spine, optional pulsing
+// status tick + corner bracket. Two-tier rule: plates dress LIVE/ACTIONABLE
+// surfaces (heroes, up-next cards, stat tiles, CTAs); quiet rounded cards stay
+// for forms/sheets/lists, and chat bubbles stay round.
+function BSPlate({ c, notch = 12, spine = 3, tick = false, bracket = false, pad = '14px 16px', style, onClick, role, ariaLabel, children }) {
+  const t = useBS();
+  const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+  return (
+    <div onClick={onClick} role={role} aria-label={ariaLabel} style={{ position: 'relative', ...(onClick ? { cursor: 'pointer' } : null), ...style }}>
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(notch + 1), background: `${c}77` }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(notch), background: `linear-gradient(165deg, ${c}1f, ${c}06 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
+      {spine > 0 && <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: spine, background: c }} />}
+      {tick && <div aria-hidden style={{ position: 'absolute', left: 8, top: 16, width: 6, height: 6, borderRadius: 1.5, background: c, boxShadow: `0 0 9px ${c}`, animation: 'bsPlatePulse 2.6s ease-in-out infinite' }} />}
+      {bracket && <div aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: `1.5px solid ${c}`, borderBottom: `1.5px solid ${c}`, opacity: 0.65 }} />}
+      <div style={{ position: 'relative', padding: pad }}>{children}</div>
+      {tick && <style>{`@keyframes bsPlatePulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}</style>}
+    </div>
+  );
+}
+
 function BSTabBar({ tabs, active, onChange }) {
   const t = useBS();
   // Chat-tab unread badge — read from the app-wide ShapeUnread manager (the tab
@@ -1298,6 +1320,6 @@ function BSPhone({ children }) {
 Object.assign(window, {
   BSContext, BSProvider, useBS,
   BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
-  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark,
+  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
 });
