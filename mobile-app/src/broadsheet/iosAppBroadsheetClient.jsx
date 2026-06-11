@@ -2711,10 +2711,11 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [] }) {
       {DOWL.map((L, i) => {
         const on = i === activeIdx;
         return (
-          <button key={i} onClick={() => onSelect(i)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? 'rgba(10,197,168,0.08)' : 'transparent' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: on ? t.ACCENT : t.INK50 }}>{L}</span>
+          <button key={i} onClick={() => onSelect(i)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '5px 0 4px', borderRadius: 5, cursor: 'pointer', border: `1px solid ${on ? t.ACCENT : t.HAIR}`, background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : 'transparent' }}>
+            {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
+            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{L}</span>
             <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 15, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{dates[i]}</span>
-            <span style={{ width: 3.5, height: 3.5, borderRadius: 2, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
+            <span style={{ width: 4, height: 3, borderRadius: 1, background: restFlags[i] ? t.GREEN : (on ? t.ACCENT : 'transparent') }} />
           </button>
         );
       })}
@@ -5439,7 +5440,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
                 const mv = num(m.v), mg = num(m.g);
                 const mp = mg ? Math.min(100, (mv / mg) * 100) : 0;
                 return (
-                  <div key={m.l} style={{ padding: '7px 9px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                  <div key={m.l} style={{ padding: '7px 9px 7px 11px', borderRadius: 5, border: `1px solid ${m.c}55`, borderLeft: `2.5px solid ${m.c}`, background: `linear-gradient(165deg, ${m.c}12, ${m.c}04 50%, ${t.PAPER2} 90%), ${t.PAPER}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', color: m.c, fontWeight: 700 }}>{m.l}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>/ {mg}</span>
@@ -9787,9 +9788,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
-    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRadius: 9, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+    <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 4px', borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
-      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 3, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{badge > 9 ? '9+' : badge}</span>}
     </button>
   );
 
@@ -10155,8 +10156,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {CHIP_KEYS.map(k => {
               const on = filter === k;
               return (
-                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? ROLE[k].color : hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 3, background: ROLE[k].color }} />{chipLabel(k)}
+                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 5, border: `1px solid ${on ? ROLE[k].color : hair}`, borderLeft: on ? `3px solid ${ROLE[k].color}` : `1px solid ${hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: 1.5, background: ROLE[k].color }} />{chipLabel(k)}
                 </button>
               );
             })}
