@@ -146,8 +146,10 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Food-database free-text search in the logger', status: 'not-started', priority: 'P2' },
       { task: 'On-device macro-read from a meal photo', status: 'not-started', priority: 'P3' },
       { task: 'Some Progress sub-data still illustrative', status: 'not-started', priority: 'P3' },
+      { task: 'Home tab live wiring: day log / habits / meals / week strip + Calendar events are demo while the ticker, score chip and coach feed beside them are live — wire to real logged data', status: 'in-progress', priority: 'P2' },
+      { task: 'One shared data layer for client metrics — ticker (/api/client/analytics) and the ShapeProgress rollups are fetched independently per surface, so the same metric (RHR, sleep) can show different values; single fetch/cache + standardized metric definitions', status: 'not-started', priority: 'P3' },
     ] },
-    { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
+    { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Assign to client (catalogue → client Train/Eat)', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
       { task: 'Trainer "sell a plan" paid-checkout path — built on the Connect checkout: coach publishes a priced plan → "Plans for sale" + Buy on the coach profile → plan_id rides through checkout/webhook → unlocks in the buyer\'s Library. Needs live Stripe to verify the charge', status: 'in-progress', priority: 'P1' },
       { task: 'Adjust → full program/plan regeneration', status: 'not-started', priority: 'P2' },
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
@@ -509,6 +511,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Core-loop flow review (2026-06-11)',
+      items: [
+        { label: 'Assign to client — coach catalogue plans land on the client Train/Eat (BSProAssignPage: ASSIGN pill on every Plans-tab row + client profile Manage tab; outline→plan conversion; writes client_workouts/client_meal_plans, no migration; 1:1 note on assign; roster routes now Bearer-capable for native)', status: 'done' },
+        { label: 'Coach client profile de-dup: Profile/Analysis merged into one tab on the app (summary + trendline folded in) and the fully-redundant Analysis tab removed on the website (cache tags added to TrainerClient/NutritionistClient.html, which had none)', status: 'done' },
+        { label: 'One Progress home: Me→Stats no longer embeds a second Progress hub (KPI grid + link); Goal Overall slimmed to goal framing on app + website — trend chart/heatmap live only on Progress, Log weigh-in kept', status: 'done' },
+        { label: 'Home tab live wiring — in progress (see The Loop gaps)', status: 'pending' },
+        { label: 'Unified client-metrics data layer — tracked (see The Loop gaps)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Security & hardening (2026-06-09 review)',
       items: [
         { label: 'RLS ON for every public table — verified 66/66 enabled AND each has ≥1 policy (0 RLS-off, 0 deny-all)', status: 'done' },
@@ -552,6 +564,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Apps & Release',
       items: [
         { label: 'Mobile web build present (/m)', status: auto(mobileBuild) },
+        { label: 'CI gate on main (ci.yml): web typecheck+build, mobile build + public/m sync check — merge flow is PR → CI green → diff review → squash', status: 'done' },
+        { label: 'Staging test branch → stable Vercel preview (shape-app-git-staging-…vercel.app); force-pushable scratch pointer, shares prod Supabase', status: 'done' },
+        { label: 'Dependabot: monthly grouped minor/patch (root npm, mobile npm, actions); enable security updates in repo settings', status: 'pending' },
         { label: 'Android signed release secrets', status: 'manual' },
         { label: 'End-to-end smoke test passed', status: 'manual' },
       ],
