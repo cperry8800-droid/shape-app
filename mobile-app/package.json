@@ -35,5 +35,9 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.4"
+  },
+  "overrides": {
+    "ws": "^8.21.0",
+    "qs": "^6.15.2"
   }
 }

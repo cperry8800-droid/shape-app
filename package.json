@@ -24,5 +24,10 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.15",
+    "ws": "^8.21.0",
+    "qs": "^6.15.2"
   }
 }
