@@ -100,6 +100,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — De-duplication pass: coach Profile⇄Analysis merged + one Progress home
+- **Coach client profile is now 2 tabs (Profile / Manage).** The Analysis tab's
+  KPI grid duplicated the Profile tab's cards, so the tab is gone; its unique
+  pieces — the 30-day summary line + trendline chart — folded into Profile as an
+  "ANALYSIS · LAST 30 DAYS · The read" section (between Macros/Body and Recent
+  sessions). Same data, one tab. (`BSProClientFullProfilePage`; the dead
+  `analysisView`/`aKpis` block removed.)
+- **Me → Stats no longer embeds a second copy of the Progress hub.** It keeps
+  the compact `BSMeKpis` grid (now tappable → Progress via the existing
+  `onOpenProgress`) + a "Full progress & trends →" link card. The 3-tab
+  `BSClientProgress` renders ONLY on the Progress page now — no more two
+  instances racing the same fetches.
+- **Goal page Overall slimmed to goal-framing.** The weight trend chart (the
+  most-duplicated visual in the app) and the consistency heatmap moved out —
+  the Trend section is now a compact row (latest weight + so-far + log count,
+  keeps the **Log weigh-in** action) that links through to Progress
+  (`onOpenProgress` threaded from both Me containers: Goal closes → Progress
+  opens). Kept: goal hero card, 4-up goal stats, milestones, Your plans, This
+  week targets, Your why. Dead `consist` loader removed.
+- Website untouched (its goal page keeps the fuller dashboard — no separate
+  mobile-style Progress hub exists there).
+
 ### 2026-06-11 — Assign to client: coach catalogue plans → the client's Train/Eat
 - **The missing middle of the core loop** (flagged in the flow review): a coach
   could only sell a plan (marketplace) or hand-tune a client (Adjust) — there

@@ -2256,7 +2256,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
-  const [view, setView] = useStateBSP('profile'); // 'profile' | 'analysis'
+  const [view, setView] = useStateBSP('profile'); // 'profile' | 'manage'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   const [cLifts, setCLifts] = useStateBSP(null); // strength rollup (coach read)
   useEffectBSP(() => {
@@ -2414,8 +2414,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>ADJUST</button>
         <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>SCHEDULE</button>
       </div>
-      <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        {[['profile', isNutri ? 'Plan' : 'Profile'], ['analysis', 'Analysis'], ['manage', 'Manage']].map(([k, label]) => {
+      <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {[['profile', isNutri ? 'Plan' : 'Profile'], ['manage', 'Manage']].map(([k, label]) => {
           const on = view === k;
           return <button key={k} onClick={() => setView(k)} style={{ borderRadius: 999, padding: '9px 4px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center' }}>{label}</button>;
         })}
@@ -2497,6 +2497,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const note = isNutri
     ? 'Adherence excellent. Refeed Saturday to support training — bump carbs +40g.'
     : 'Knee valgus on heavy squats — cue knees out, film week 6 top set.';
+  // 30-day read — folded in from the old Analysis tab (its KPI grid duplicated
+  // the cards above, so only the unique pieces live on: summary + trendline).
+  const summaryLine = isNutri
+    ? 'Adherence high and weight tracking to goal — refeed timing is the next lever.'
+    : 'Strong block — attendance up, lifts trending, weight on plan.';
+  const trendSeries = isNutri ? bwSeries : [0.4, 0.5, 0.45, 0.6, 0.55, 0.72, 0.68, 0.85];
   const profileView = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
       {renderBigCard()}
@@ -2524,6 +2530,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         </div>
       )}
       <div>
+        <Section eyebrow="ANALYSIS · LAST 30 DAYS" title="The read" trailing={isNutri ? 'WEIGHT' : 'WEEKLY VOLUME'} />
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK, lineHeight: 1.3, letterSpacing: '-0.01em' }}>{summaryLine}</div>
+        <div style={{ marginTop: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>{lineChart(trendSeries, accent, 80)}</div>
+      </div>
+      <div>
         <Section eyebrow="ACTIVITY" title={isNutri ? 'Recent logs' : 'Recent sessions'} />
         {numberedList(recent)}
       </div>
@@ -2537,50 +2548,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
         </div>
       </div>
-    </div>
-  );
-
-  // ---- ANALYSIS tab ----
-  const aKpis = isNutri ? [
-    { label: 'ADHERENCE', big: adherencePct != null ? String(adherencePct) : '92', small: '%', sub: '+6pt vs last mo', c: accent },
-    { label: 'AVG INTAKE', big: kcalStr || '2,040', sub: 'target 2,180', c: accent },
-    { label: 'PROTEIN HIT', big: avgP != null ? String(avgP) : '88', small: avgP != null ? 'g' : '%', sub: avgP != null ? 'avg / day' : 'of target days', c: teal },
-    { label: 'WEIGHT Δ', big: String(bwDelta), small: bwUnit, sub: 'goal -4 kg', c: rust },
-    { label: 'DAYS LOGGED', big: days30 != null ? String(days30) : '27', small: '/30', sub: 'last 30 days', c: accent },
-    { label: 'CONSISTENCY', big: '90', small: '%', sub: 'cohort top 15%', c: teal },
-  ] : [
-    { label: 'ADHERENCE', big: attendancePct != null ? String(attendancePct) : '96', small: '%', sub: '+4pt vs last mo', c: accent },
-    { label: 'SESSIONS', big: sDone != null ? String(sDone) : '38', sub: `of ${sPlan != null ? sPlan : 41} planned`, c: accent },
-    { label: 'AVG RPE', big: avgRpe != null ? avgRpe.toFixed(1) : '8.0', sub: 'effort logged', c: rust },
-    { label: 'TOTAL PRS', big: prs != null ? String(prs) : '3', sub: 'this block', c: gold },
-    { label: 'VOLUME', big: '+12', small: '%', sub: 'week / week', c: teal },
-    { label: 'BODYWEIGHT', big: String(bwNow), small: bwUnit, sub: `${bwDelta} · ${bwWeeks}w`, c: accent },
-  ];
-  const summaryLine = isNutri
-    ? 'Adherence high and weight tracking to goal — refeed timing is the next lever.'
-    : 'Strong block — attendance up, lifts trending, weight on plan.';
-  const trendSeries = isNutri ? bwSeries : [0.4, 0.5, 0.45, 0.6, 0.55, 0.72, 0.68, 0.85];
-  const analysisView = (
-    <div style={{ marginTop: 22 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: `2px solid ${t.INK}` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>▌ ANALYSIS · LAST 30 DAYS</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'NUTRITION KPIS' : 'TRAINING KPIS'}</div>
-      </div>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK, lineHeight: 1.3, letterSpacing: '-0.01em' }}>{summaryLine}</div>
-      <div style={{ marginTop: 16, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, display: 'grid', gridTemplateColumns: '1fr 1fr', overflow: 'hidden' }}>
-        {aKpis.map((k, i) => (
-          <div key={i} style={{ padding: 15, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: k.c }}>{k.label}</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{k.big}{k.small && <span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>{k.small}</span>}</div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: k.c === rust ? rust : t.INK50 }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>▌ TRENDLINE</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'WEIGHT' : 'WEEKLY VOLUME'}</span>
-      </div>
-      <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>{lineChart(trendSeries, accent, 80)}</div>
     </div>
   );
 
@@ -2694,7 +2661,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {headerBlock}
-        {view === 'analysis' ? analysisView : view === 'manage' ? manageView : profileView}
+        {view === 'manage' ? manageView : profileView}
       </div>
       <BSFooter left={isNutri ? 'Client plan' : 'Full profile'} right={client.n} />
     </BSPage>

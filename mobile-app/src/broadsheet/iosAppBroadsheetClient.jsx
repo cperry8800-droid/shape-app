@@ -8253,7 +8253,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ marginBottom: 22 }}>
                 {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
                 {isSelf
-                  ? <><BSMeKpis embedded /><div style={{ marginTop: 16 }}><BSClientProgress embedded /></div></>
+                  ? <>
+                      <BSMeKpis embedded onOpen={onOpenProgress} />
+                      {/* The full 3-tab Progress hub used to be embedded here as a
+                          second copy — it now lives ONLY on the Progress page. */}
+                      <button onClick={onOpenProgress} style={{ width: '100%', marginTop: 16, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Full progress & trends</div>
+                          <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Overall · Training · Nutrition</div>
+                        </div>
+                        <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
+                      </button>
+                    </>
                   : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
@@ -11906,7 +11917,7 @@ function BSGoalsTrend({ teal, series, h = 92 }) {
 // The Overall tab — a body-comp dashboard for the headline goal. Editable fields
 // (start/now/target/title/why) come from `overall`; the trend, milestones,
 // week-targets and consistency are illustrative demo content for now.
-function BSGoalsOverall({ overall, onLog, consistency = null, plans: livePlans = null, weekTargets: liveWeekTargets = null }) {
+function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: livePlans = null, weekTargets: liveWeekTargets = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const purple = '#8a5cf6';
@@ -11918,7 +11929,6 @@ function BSGoalsOverall({ overall, onLog, consistency = null, plans: livePlans =
   const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
   const byD = overall.by ? new Date(overall.by) : null;
   const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
-  const series = bsGoalSeries(overall);
   // Weekly pace from the real weigh-in series (per-week change when dated, else
   // per-weigh-in delta); on-track = pace heading toward the target.
   const wPace = (() => {
@@ -12029,16 +12039,19 @@ function BSGoalsOverall({ overall, onLog, consistency = null, plans: livePlans =
         {stats.map(miniCard)}
       </div>
 
-      {/* Trend */}
+      {/* Trend — the chart itself lives on the Progress page (it was the most
+          duplicated visual in the app); this keeps the latest number + the
+          Log weigh-in action and links through for history. */}
       <SecHead kicker="Trend" title="Weight" action={{ label: 'Log weigh-in', onClick: onLog }} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+        <button onClick={onOpenProgress} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+          <div style={{ minWidth: 0 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: teal }}>{down} {unit} · {bsGoalWeighIns(overall).length} logs · target {target}</span>
+            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: teal }}>{down} {unit} · {bsGoalWeighIns(overall).length} logs · target {target}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Full trends & history · Progress</div>
           </div>
-          <BSGoalsTrend teal={teal} series={series} />
-        </div>
+          <span style={{ color: teal, fontSize: 16, fontWeight: 700 }}>→</span>
+        </button>
       </div>
 
       {/* Milestones */}
@@ -12077,27 +12090,8 @@ function BSGoalsOverall({ overall, onLog, consistency = null, plans: livePlans =
         {weekTargets.map(miniCard)}
       </div>
 
-      {/* Consistency — real workout days (last 7) from ShapeProgress; demo fallback */}
-      {(() => {
-        const cons = (consistency && Array.isArray(consistency.series) && consistency.series.length)
-          ? consistency
-          : { series: [0.9, 0.95, 0.8, 1, 0.7, 0.92, 0.88], avg: 84, label: 'last 7 weeks' };
-        return (
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Consistency · {cons.label}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{cons.avg}% avg</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cons.series.length}, 1fr)`, gap: 7 }}>
-            {cons.series.map((v, i) => (
-              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, background: teal, opacity: 0.18 + v * 0.72 }} />
-            ))}
-          </div>
-        </div>
-      </div>
-        );
-      })()}
+      {/* (The consistency heatmap moved to the Progress page — it duplicated
+          the Training volume-by-day data shown there.) */}
 
       {/* Your why */}
       <SecHead kicker="Your why" title="Stay with it" />
@@ -12482,7 +12476,7 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
-function BSClientGoals({ onBack }) {
+function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
@@ -12492,30 +12486,12 @@ function BSClientGoals({ onBack }) {
   const [editOverall, setEditOverall] = useStateBSC(false);
   const [logWeigh, setLogWeigh] = useStateBSC(false);
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
-  // Real workout consistency (last 7 logged days) for the Overall heatmap — from
-  // ShapeProgress.train.volumeByDay; null → BSGoalsOverall falls back to demo.
-  const [consist, setConsist] = useStateBSC(null);
   // Live "Your plans" + "This week targets" for the Overall dashboard (null →
   // BSGoalsOverall keeps its demo content). Built from the assigned plan + the
   // coach adjustment + real ShapeProgress rollups.
   const [livePlans, setLivePlans] = useStateBSC(null);
   const [liveWeek, setLiveWeek] = useStateBSC(null);
   const bsGoalProgram = useBSProgram();
-  React.useEffect(() => {
-    if (!window.ShapeProgress?.train) return undefined;
-    let on = true;
-    window.ShapeProgress.train().then((d) => {
-      if (!on) return;
-      const vbd = (d && Array.isArray(d.volumeByDay)) ? d.volumeByDay.slice(-7).map(Number).filter(Number.isFinite) : null;
-      if (vbd && vbd.length) {
-        const max = Math.max(...vbd, 1);
-        const series = vbd.map((v) => (v > 0 ? Math.max(0.45, v / max) : 0));
-        const active = vbd.filter((v) => v > 0).length;
-        setConsist({ series, avg: Math.round((active / vbd.length) * 100), label: 'last 7 days' });
-      }
-    }).catch(() => {});
-    return () => { on = false; };
-  }, []);
   React.useEffect(() => {
     if (!loggedIn || !window.ShapeProgress) return undefined;
     let on = true;
@@ -12654,7 +12630,7 @@ function BSClientGoals({ onBack }) {
       </div>
 
       {tab === 'overall' ? (
-        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} consistency={consist} plans={livePlans} weekTargets={liveWeek} />
+        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} onOpenProgress={onOpenProgress} plans={livePlans} weekTargets={liveWeek} />
       ) : tab === 'training' ? (
         <BSGoalsTraining onOpenProgram={() => {}} />
       ) : (
@@ -12833,7 +12809,7 @@ function BSClientMe(props) {
   const photo = bsMyPhoto() || null;
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
   if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
-  if (showGoals) return <BSClientGoals onBack={() => setShowGoals(false)} />;
+  if (showGoals) return <BSClientGoals onBack={() => setShowGoals(false)} onOpenProgress={() => { setShowGoals(false); setShowProgress(true); }} />;
   if (showScore) return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
   if (showStore) return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   return (
@@ -15420,7 +15396,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSClientProgress onBack={() => setShowProgress(false)} />;
   }
   if (showGoals) {
-    return <BSClientGoals onBack={() => setShowGoals(false)} />;
+    return <BSClientGoals onBack={() => setShowGoals(false)} onOpenProgress={() => { setShowGoals(false); setShowProgress(true); }} />;
   }
   if (showLibrary) {
     return <BSClientLibrary onBack={() => setShowLibrary(false)} goMarket={() => { setShowLibrary(false); try { window.dispatchEvent(new Event('shape:openMarket')); } catch (e) {} }} />;
