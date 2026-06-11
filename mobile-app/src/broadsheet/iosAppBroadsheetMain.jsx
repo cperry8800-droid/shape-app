@@ -944,7 +944,7 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Shape membership</div>
         <h1 style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '12px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5, color: t.INK70, margin: '16px 0 0' }}>Unlock training, nutrition, coaching, community, Shape Radio and rewards — everything Shape does — for $5/month.</p>
+        <p style={{ fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.5, color: t.INK70, margin: '16px 0 0' }}>Unlock training, nutrition, coaching, community, Shape Radio and rewards — everything Shape does.</p>
         <div style={{ margin: '18px 0 0', display: 'flex', flexDirection: 'column', gap: 9 }}>
           {['Personalized training & nutrition', 'Daily habits, streaks & check-ins', 'Recipes, meal logging & grocery lists', 'Message your coaches + the community', 'Shape Radio + the Shape Store', 'Progress, goals & your Shape Score'].map(x => (
             <div key={x} style={{ display: 'flex', gap: 10, alignItems: 'center', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>
