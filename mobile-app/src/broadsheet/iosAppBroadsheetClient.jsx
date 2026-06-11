@@ -1759,6 +1759,87 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   );
 }
 
+// ── Live home week ───────────────────────────────────────────────────────────
+// Builds the home day-log / week-dots / up-next models from the REAL assigned
+// plan (/api/client/plan — the same source the Train + Eat tabs read), so a
+// member with an assigned program sees their actual week on home. Returns null
+// shape pieces per day where nothing is assigned; callers fall back to the
+// shared demo week only when NO plan exists at all.
+function bsHomeLiveWeek(plan, t) {
+  const monday = new Date(); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  // Slot assigned workouts onto the week (same rules as the Train deck).
+  const wSlots = [null, null, null, null, null, null, null];
+  const unscheduled = [];
+  for (const w of ((plan.training && plan.training.workouts) || [])) {
+    if (w.scheduledDate) {
+      const dt = new Date(w.scheduledDate + 'T00:00:00');
+      const idx = Math.round((dt - monday) / 86400000);
+      if (idx >= 0 && idx <= 6 && !wSlots[idx]) { wSlots[idx] = w; continue; }
+    }
+    unscheduled.push(w);
+  }
+  for (let i = 0; i < 7 && unscheduled.length; i++) if (!wSlots[i]) wSlots[i] = unscheduled.shift();
+  // Slot meal-plan days (same rules as the Eat menu).
+  const mSlots = [null, null, null, null, null, null, null];
+  const mSeq = [];
+  for (const d of ((plan.meals && plan.meals.days) || [])) {
+    if (Number.isInteger(d.dow) && d.dow >= 0 && d.dow <= 6 && !mSlots[d.dow]) mSlots[d.dow] = d;
+    else mSeq.push(d);
+  }
+  for (let i = 0; i < 7 && mSeq.length; i++) if (!mSlots[i]) mSlots[i] = mSeq.shift();
+
+  const mealTimes = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get()) || {};
+  const days = [], dots = [], workoutByIdx = [], lunchByIdx = [];
+  for (let i = 0; i < 7; i++) {
+    const items = [];
+    const w = wSlots[i];
+    let wk = null;
+    if (w) {
+      const moves = (w.exercises || []).map((e) => ({
+        name: e.name,
+        scheme: [[e.sets, e.reps].filter(Boolean).join(' × '), e.rest].filter(Boolean).join(' · '),
+        load: e.load || '',
+      }));
+      const meta = [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+      wk = { time: '—', kind: 'TRN', title: w.title || 'Workout', sub: meta, detail: { moves, meta, note: w.description || '' } };
+      items.push({ time: '', tag: 'TRN', tagColor: t.AMBER, title: wk.title, sub: meta });
+    }
+    workoutByIdx.push(wk);
+    const md = mSlots[i];
+    let lunch = null;
+    if (md && Array.isArray(md.meals)) {
+      md.meals.forEach((meal, j) => {
+        const slot = String(meal.slot || 'MEAL').toUpperCase();
+        const time = meal.time || mealTimes[slot === 'BFAST' ? 'BREAKFAST' : slot] || '';
+        const sub = [meal.kcal ? `${meal.kcal} kcal` : null, meal.p ? `${meal.p}P` : null].filter(Boolean).join(' · ');
+        items.push({ time, tag: 'MEAL', tagColor: t.BLUE, title: meal.title || 'Meal', sub });
+        if (!lunch && (slot === 'LUNCH' || j === 1)) lunch = {
+          id: `home-live-${i}-${j}`, time: time || '12:40', tag: slot.slice(0, 5), tagColor: t.AMBER,
+          title: meal.title || 'Meal', sub: sub || '', kcal: meal.kcal || 0, p: meal.p || 0, c: meal.c || 0, f: meal.f || 0,
+          prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
+          hero: meal.hero || meal.brief || `${meal.title || 'Meal'}.`, brief: meal.brief || '',
+          ingredients: (meal.ingredients || []).map((ing) => ({ n: ing.qty || '', m: ing.name || '', k: ing.kcal != null ? `${ing.kcal} kcal` : '' })),
+          steps: meal.steps || [], coachNote: meal.coachNote || '',
+        };
+      });
+    }
+    lunchByIdx.push(lunch);
+    items.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    if (items.length) items[items.length - 1].last = true;
+    days.push(items);
+    const ds = [];
+    if (w) ds.push(t.AMBER);
+    if (md && (md.meals || []).length) ds.push(t.BLUE);
+    dots.push(ds);
+  }
+  return {
+    days, dots, workoutByIdx, lunchByIdx,
+    hasTraining: !!(plan.training && plan.training.hasPlan),
+    hasMeals: !!(plan.meals && plan.meals.hasPlan),
+  };
+}
+
 function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const bsHomeProgram = useBSProgram();
@@ -1768,9 +1849,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const _BS_DOWL = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const _now = new Date();
   const todayIdx = (_now.getDay() + 6) % 7;
-  // Today's workout from the shared week — drives the "Up next" card + its preview
-  // so the featured session matches the calendar/week strip (null on a rest day).
-  const todayWorkout = bsClientWorkoutForDay(todayIdx);
   const weekDates = (() => {
     const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
@@ -1785,9 +1863,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const nowTime = `${String(_now.getHours()).padStart(2, '0')}:${String(_now.getMinutes()).padStart(2, '0')}`;
   const fmtDate = (idx) => `${_BS_MON[weekDates[idx].getMonth()]} ${weekDates[idx].getDate()}`;
 
+  // The REAL assigned plan (same /api/client/plan the Train + Eat tabs read).
+  // When any plan exists the day log / dots / up-next cards build from it;
+  // the shared demo week remains the signed-out / no-plan fallback.
+  const [livePlan, setLivePlan] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    if (window.ShapePlan?.get) {
+      window.ShapePlan.get().then((p) => {
+        if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
+      }).catch(() => {});
+    }
+    return () => { on = false; };
+  }, []);
+  const liveWeek = React.useMemo(() => (livePlan ? bsHomeLiveWeek(livePlan, t) : null), [livePlan, t]);
+
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   // "Up next" follows the day you tap in the week strip (not just today).
-  const selWorkout = bsClientWorkoutForDay(selIdx);
+  // Live assigned workout for that day when a plan covers training.
+  const selWorkout = (liveWeek && liveWeek.hasTraining)
+    ? liveWeek.workoutByIdx[selIdx]
+    : bsClientWorkoutForDay(selIdx);
   const _selDelta = selIdx - todayIdx;
   const upNextLabel = _selDelta === 0 ? 'Today' : _selDelta === 1 ? 'Tomorrow' : _selDelta === -1 ? 'Yesterday'
     : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][selIdx];
@@ -1940,10 +2036,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   });
   const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
   const dataDay = 20 + selIdx;
-  const dayLog = DAY_LOGS[dataDay] || [];
-  // The selected day's lunch for the "Up next" nutrition card — today uses the
-  // full rich meal; other days derive title/macros from that day's meal row.
+  const dayLog = liveWeek ? liveWeek.days[selIdx] : (DAY_LOGS[dataDay] || []);
+  // The selected day's lunch for the "Up next" nutrition card — the assigned
+  // meal plan's meal when one exists (null on uncovered days hides the card);
+  // demo only when no meal plan is assigned at all.
   const selLunch = (() => {
+    if (liveWeek && liveWeek.hasMeals) return liveWeek.lunchByIdx[selIdx];
     if (selIdx === todayIdx) return HOME_LUNCH;
     const meals = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
     const row = meals.find((r) => { const h = parseInt(String(r.time).split(':')[0], 10); return h >= 11 && h <= 14; }) || meals[1] || meals[0];
@@ -2224,7 +2322,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           {weekDates.map((date, idx) => {
             const on    = idx === selIdx;
             const today = idx === todayIdx;
-            const dots  = WEEK_DOTS_BY_IDX[idx] || [];
+            const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
             return (
               <button key={idx} onClick={() => { setSelIdx(idx); setActiveDayLogKey(null); }} style={{ borderRadius: t.RADIUS_SM,
                 border: `1px solid ${on ? t.INK : t.HAIR}`,
@@ -2348,7 +2446,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             </div>
           </div>
         );
-        const mealCard = (
+        const mealCard = !selLunch ? null : (
           <div style={cardBase(teal)}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(teal)}>Lunch · {fmtAt(MEAL_AT)}</span>
