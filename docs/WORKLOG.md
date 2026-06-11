@@ -43,6 +43,18 @@ changelog whenever something ships.
 - **Git / deploy:** develop on `claude/sleepy-feynman-RtyIr`. Per change: commit →
   push → open PR → squash-merge → re-sync the branch to `main`
   (`git fetch origin main && checkout main && reset --hard origin/main && checkout <branch> && reset --hard origin/main && push --force-with-lease`).
+- **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
+  `staging` auto-deploys to the stable preview URL
+  **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
+  (`theshapecommunity.com`) is untouched. Use it for riskier changes you want to
+  click through before merging: `git push origin <branch-or-sha>:staging --force`
+  (it's a scratch pointer — force-resetting it is fine; merging to main still goes
+  through the normal PR flow). Every dev-branch push also gets its own preview at
+  `shape-app-git-claude-<branch>-….vercel.app`. **Caveats:** previews share the
+  PRODUCTION Supabase DB + env vars (no isolated test data; don't test destructive
+  migrations here — Supabase branch DBs need the Pro plan, currently deferred), and
+  if a preview URL asks you to log in, that's Vercel Deployment Protection
+  (Project Settings → Deployment Protection to relax it).
 - **Verify before committing:** parse-check changed JS, `tsc --noEmit` for TS, build, copy `public/m`.
 
 ## Architecture map (mobile broadsheet)
@@ -73,6 +85,15 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-11 — Test branch: long-lived `staging` → stable Vercel preview URL
+- Created the **`staging`** branch (from `main` @ 831ca84). Vercel preview
+  deployments were already enabled for the project, so no config was needed —
+  every push to `staging` now auto-builds at the permanent URL
+  **shape-app-git-staging-cperry8800-droids-projects.vercel.app** without touching
+  production. Workflow + caveats documented in "How we work" above (shared
+  production Supabase DB; treat `staging` as a force-pushable scratch pointer;
+  main merges still go through PRs).
 
 ### 2026-06-09 — Security: clear remaining transitive dep advisories (npm overrides)
 - Pinned the patched same-major versions of the transitive moderate-severity
