@@ -1,0 +1,44 @@
+# Dependabot version updates — monthly, grouped, minor/patch only.
+#
+# Goal: the security patch cadence runs itself without PR noise. One grouped
+# PR per ecosystem per month; major upgrades (Next 17, Capacitor 8, …) are
+# deliberate projects, so they're excluded here — Dependabot ALERTS still
+# fire for them. Every PR runs through the CI gate; mobile-dep bumps will
+# fail the public/m sync check until the bundle is republished (correct —
+# handle those in a session, don't auto-merge).
+#
+# Note: mobile-app pins a patch-package patch for
+# @capacitor-community/bluetooth-le@7.3.2 — if Dependabot bumps that
+# package, the patch file must be regenerated in the same PR.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      web-deps:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: "/mobile-app"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      mobile-deps:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
