@@ -100,6 +100,23 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — One data layer: shared client-metrics cache (no more dueling endpoints)
+- **`cachedClientJson(path)`** in `shapeBackend.js`: the 5 client rollup
+  endpoints — `/api/client/analytics · progress · train · nutrition · plan` —
+  now share **one in-flight promise + cached RAW response per endpoint**
+  (60s TTL, uid-scoped keys so account switches never see stale data). Callers
+  keep their own transforms (`ok`/`has_data` filters) on top, so every existing
+  call site works unchanged: `ShapeAnalytics.get/getProgress`, all four
+  `ShapeProgress.*`, and `ShapePlan.get` (Home + Train + Eat + Goal previously
+  fetched the plan 4×) all read through the cache.
+- **The ticker and the Progress hub now literally consume the same response** —
+  the audit's "RHR/sleep can differ between screens" race is gone, and the
+  duplicate per-surface fetch storm is collapsed to one request per endpoint
+  per minute.
+- **Invalidation**: weigh-in log, check-in log, workout-session save, and
+  sign-out clear the cache (`window.ShapeMetrics.invalidate()` exposed for
+  future writes). War Room gap closed.
+
 ### 2026-06-11 — War Room de-cluttered: 4 top-level views + collapsible checklist
 - **`/warroom` is now tabbed** (`WarRoomClient.tsx` only — data untouched):
   **Status** (stat row · P1 queue · live services · next steps · config) ·
