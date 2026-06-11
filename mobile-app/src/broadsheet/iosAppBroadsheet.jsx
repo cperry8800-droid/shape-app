@@ -39,6 +39,21 @@ function _hexToRGB(h) {
   return `${r},${g},${b}`;
 }
 
+// WCAG-ish relative luminance + contrast ratio over "r,g,b" strings — used to
+// guard saved customizations (ink override / black-white accents) so no combo
+// can render unreadable text on the chosen paper.
+function _relLum(rgbStr) {
+  const [r, g, b] = rgbStr.split(',').map(Number).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function _contrast(rgbA, rgbB) {
+  const a = _relLum(rgbA), b = _relLum(rgbB);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = null } = {}) {
   // Six paper modes — light/dark are the originals; teal/manila/blueprint/carbon
   // are tuned colored stocks. Each picks PAPER (base), PAPER2 (raised surface),
@@ -66,8 +81,12 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
   const PAPER2 = P.paper2;
   const PAPER3 = P.paper3;
   // Optional ink override — user-chosen text/foreground color from Tweaks.
-  // Only applied when it parses cleanly; otherwise fall back to paper default.
-  const _override = inkOverride && inkOverride !== 'default' ? _hexToRGB(inkOverride) : null;
+  // Applied only when it parses cleanly AND actually reads on this paper
+  // (contrast ≥ 3) — a saved dark override on the Black paper (or light on
+  // white) silently falls back to the paper's own ink instead of going blind.
+  const _paperRGB = _hexToRGB(PAPER);
+  let _override = inkOverride && inkOverride !== 'default' ? _hexToRGB(inkOverride) : null;
+  if (_override && _paperRGB && _contrast(_override, _paperRGB) < 3) _override = null;
   const INK    = _override ? inkOverride : P.ink;
   const inkRGB = _override || P.inkRGB;
   const INK85  = `rgba(${inkRGB},0.85)`;
@@ -95,7 +114,13 @@ function makePalette({ paperMode = 'dark', accentKey = 'blue', inkOverride = nul
     white: { light: '#ffffff', dark: '#ffffff' },
     black: { light: '#000000', dark: '#000000' },
   };
-  const ACCENT = accents[accentKey] ? accents[accentKey][isLight ? 'light' : 'dark'] : accents.blue.light;
+  let ACCENT = accents[accentKey] ? accents[accentKey][isLight ? 'light' : 'dark'] : accents.blue.light;
+  // The mono accents (black/white) are one hex for both modes — on a paper of
+  // the same tone they vanish. Keep the mono intent but flip to the readable side.
+  {
+    const _accRGB = _hexToRGB(ACCENT);
+    if (_accRGB && _paperRGB && _contrast(_accRGB, _paperRGB) < 1.6) ACCENT = isLight ? '#000000' : '#ffffff';
+  }
 
   // Companion accents (always available regardless of "primary" choice)
   const BLUE  = accents.blue [isLight ? 'light' : 'dark'];
