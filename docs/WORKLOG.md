@@ -100,6 +100,43 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — Instrument design run (home + dock + radio) · day-log → meal cards · store math
+- **Instrument plate look** (boxy · futuristic · less analog, per request) shipped
+  across: the home **up-next cards** (`AgendaCard` — clipped top-right corner via
+  two stacked clip-path layers, 3px accent spine, pulsing status tick, corner
+  bracket, squared buttons), the **weekly-totals tiles**, the **day/habit tag
+  badges** (angular, accent left edge) + habit checkbox, the section ledger rules
+  (2px ink → accent gradient fade), the **THIS WEEK strip** (angular day tiles,
+  active = accent plate w/ top tick, Month-view chip), the **tab bar** (instrument
+  dock: gradient hairline + gliding glow tick above the active tab, active tab on
+  a clipped plate, inactive = bare glyphs, squared badge), and the **radio
+  now-playing bar** (frame-layer clipped plate + spine; fx intact). A full
+  design-system rollout (`BSPlate` + two-tier rule) is **parked in Next up**.
+- **Home Day Log + quick-confirm sheet REMOVED** (by request): every meal of the
+  selected day now renders as its own agenda card (same anatomy as the workout
+  card — slot+time eyebrow, serif title, macros, byline, Log now → marks that
+  meal via the logger callback), time-sorted with the workout card. Live =
+  assigned plan (`bsHomeLiveWeek.mealsByIdx`); demo only with no plan. Habits
+  stays. `HOME_LUNCH` + day-log plumbing deleted (−360 lines). Preview banner in
+  demo mode also removed.
+- **Score page Rewards tab live-wired**: featured rows from the shared
+  `BS_STORE_PRODUCTS` catalogue (module scope; ids match the server's
+  `store-catalogue.ts`) with real-balance affordability ("✓ Redeemable" / "N to
+  go"), tap → the Shape Store (the one redemption flow).
+- **Annual membership credit math fixed**: a Shape year is $5/mo × 12 = **$60**,
+  not $200 → retail 60 / **1,200 pts** in all three catalogues (server + mobile +
+  website). The mobile retail→cost derivation (20 pts = $1) now runs ONCE at
+  module scope — the Store page used to mutate the shared list on mount, so the
+  Rewards tab disagreed until the Store was opened.
+- **Theme contrast guards** (Black-paper unreadable on phone): `makePalette`
+  ignores a saved ink override that can't read on the chosen paper (contrast < 3)
+  and flips the mono black/white accents to the readable side (contrast < 1.6).
+- **War Room**: North Star / mission panel restored to the default Status view
+  (it had moved to the Architecture tab in the split). "— for $5/month." removed
+  from the paywall intro + index meta description. Marketplace got the standard
+  masthead band; live-session sets default to 3 for schemeless strength moves
+  (duration lines stay 1) with a **＋ Add set** button mid-workout.
+
 ### 2026-06-11 — One data layer: shared client-metrics cache (no more dueling endpoints)
 - **`cachedClientJson(path)`** in `shapeBackend.js`: the 5 client rollup
   endpoints — `/api/client/analytics · progress · train · nutrition · plan` —
