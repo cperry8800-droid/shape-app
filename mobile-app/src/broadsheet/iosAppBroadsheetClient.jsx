@@ -3861,7 +3861,8 @@ function BSNutritionTopTabs({ active, onChange }) {
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
-          <button key={key} onClick={() => onChange(key)} style={{ borderRadius: t.RADIUS_SM,
+          <button key={key} onClick={() => onChange(key)} style={{ borderRadius: 5,
+            position: 'relative', overflow: 'hidden',
             padding: '8px 8px', border: `1px solid ${on ? teal : t.RULE}`,
             background: on ? teal : 'transparent', color: on ? '#04201d' : t.INK,
             fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase',
@@ -3992,9 +3993,9 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
           const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
           const coach = String(r.by || '').split(' ')[0];
           return (
-            <div key={`${r.title}-${i}`} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+            <BSPlate key={`${r.title}-${i}`} c={dc} notch={10} spine={2.5} pad="14px 14px 14px 18px">
               <button onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, display: 'grid', gridTemplateColumns: '62px 1fr', gap: 12, alignItems: 'center' }}>
-                <span style={{ width: 62, height: 62, borderRadius: 14, background: r.hero, flexShrink: 0, border: `1px solid ${t.HAIR}` }} />
+                <span style={{ width: 62, height: 62, borderRadius: 6, background: r.hero, flexShrink: 0, border: `1px solid ${t.HAIR}` }} />
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: dc, marginBottom: 4 }}>{cat} · {coach}</span>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
@@ -4002,10 +4003,10 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
                 </span>
               </button>
               <div style={{ display: 'flex', gap: 7, marginTop: 10 }}>
-                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
-                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '7px 11px', borderRadius: 999, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
+                <button onClick={() => onSendToGrocery(r)} style={{ flex: 1, padding: '7px 10px', borderRadius: 9, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Send to grocery list →</button>
+                <button onClick={() => bsLibToggle({ id, kind: 'recipe', title: r.title, meta: `${r.kcal} kcal · serves ${r.servings}`, coach: r.by })} style={{ flex: '0 0 auto', padding: '7px 11px', borderRadius: 9, border: `1px solid ${saved ? teal : t.RULE}`, background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: saved ? teal : t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
               </div>
-            </div>
+            </BSPlate>
           );
         })}
       </div>
@@ -14394,8 +14395,8 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
       }} />
 
       <div style={{ padding: `8px ${t.padX}px 24px` }}>
-        {/* Progress card */}
-        <div style={{ marginTop: 14, borderRadius: 16, border: `1px solid ${rust}33`, background: `linear-gradient(155deg, ${rust}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 13 }}>
+        {/* Progress card — instrument plate */}
+        <BSPlate c={rust} tick bracket pad="13px 13px 13px 19px" style={{ marginTop: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>PROGRESS</div>
@@ -14408,13 +14409,13 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
               <text x="28" y="29" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.MONO, fontSize: '12px', fontWeight: 800, fill: rust }}>{total ? pct : 0}%</text>
             </svg>
           </div>
-          <div style={{ marginTop: 10, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 999 }} /></div>
-          <button onClick={sendInstacart} style={{ width: '100%', marginTop: 12, borderRadius: 11, border: 0, background: rust, color: '#fff', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
+          <div style={{ marginTop: 10, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 2 }} /></div>
+          <button onClick={sendInstacart} style={{ width: '100%', marginTop: 12, borderRadius: 9, border: 0, background: rust, color: '#fff', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
           <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 999, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '8px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
-            <button onClick={shareList} style={{ borderRadius: 999, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '8px 16px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
+            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 9, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '8px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
+            <button onClick={shareList} style={{ borderRadius: 9, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '8px 16px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
           </div>
-        </div>
+        </BSPlate>
 
         {/* Aisle tabs — filter so the list doesn't fill the screen */}
         {list.aisles.length > 0 && (() => {
