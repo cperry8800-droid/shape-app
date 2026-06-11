@@ -2224,7 +2224,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
         </span>
-        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
+        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
       </div>
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 8 }}>
@@ -2233,17 +2233,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
             const today = idx === todayIdx;
             const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
             return (
-              <button key={idx} onClick={() => setSelIdx(idx)} style={{ borderRadius: t.RADIUS_SM,
-                border: `1px solid ${on ? t.INK : t.HAIR}`,
-                background: on ? t.INK : (today ? t.PAPER2 : 'transparent'),
-                color: on ? t.PAPER : t.INK,
-                padding: '5px 0 4px', cursor: 'pointer',
+              <button key={idx} onClick={() => setSelIdx(idx)} style={{ borderRadius: 5,
+                position: 'relative', overflow: 'hidden',
+                border: `1px solid ${on ? t.ACCENT : (today ? `rgba(${t.inkRGB},0.3)` : t.HAIR)}`,
+                background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : (today ? t.PAPER2 : 'transparent'),
+                color: t.INK,
+                padding: '6px 0 5px', cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
               }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 600, opacity: today && !on ? 1 : 0.7 }}>{_BS_DOWL[idx]}</span>
+                {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{_BS_DOWL[idx]}</span>
                 <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
                 <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
-                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 3.5, height: 3.5, borderRadius: '50%', background: c }} />)}
+                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 3, borderRadius: 1, background: c }} />)}
                 </span>
               </button>
             );
@@ -13195,12 +13197,18 @@ const BS_STORE_PRODUCTS = [
     { id: 'nutri_credit_25', cat: 'Nutrition', name: '$25 nutrition credit', brand: 'Any Shape nutritionist', cost: 500, retail: 25, stock: 'Unlimited' },
     { id: 'nutri_grocery_buildout', cat: 'Nutrition', name: 'Grocery list buildout', brand: 'Shape nutrition service', cost: 420, retail: 45, stock: 'Unlimited' },
     { id: 'nutri_recipe_pack', cat: 'Nutrition', name: 'Recipe archive pack', brand: 'Shape nutrition templates', cost: 340, retail: 35, stock: 'Unlimited' },
-    { id: 'perk_annual_credit', cat: 'Shape Perks', name: 'Annual membership credit', brand: '$200 toward next year', cost: 3500, retail: 200, tag: 'Peak tier', stock: 'Unlimited', locked: true },
+    // A Shape year is $5/mo × 12 = $60 — the credit covers exactly one year.
+    { id: 'perk_annual_credit', cat: 'Shape Perks', name: 'Annual membership credit', brand: '$60 toward next year — a full year of Shape', cost: 1200, retail: 60, tag: 'Peak tier', stock: 'Unlimited', locked: true },
     // Coach-only — Lead Boost (marketplace featured placement). Redeems via /api/lead-boosts.
     { id: 'lead_boost_7', cat: 'Coach Tools', name: 'Lead Boost · 7 days', brand: 'Marketplace featured placement', cost: 1580, retail: 79, stock: 'Activate now', kind: 'lead_boost', days: 7 },
     { id: 'lead_boost_14', cat: 'Coach Tools', name: 'Lead Boost · 14 days', brand: 'Marketplace featured placement', cost: 2780, retail: 139, tag: 'Popular', stock: 'Activate now', kind: 'lead_boost', days: 14 },
     { id: 'lead_boost_30', cat: 'Coach Tools', name: 'Lead Boost · 30 days', brand: 'Marketplace featured placement', cost: 4980, retail: 249, stock: 'Activate now', kind: 'lead_boost', days: 30 },
   ];
+
+// Uniform store value: 1 Shape point = $0.05 (20 points = $1) — derived ONCE
+// here so every consumer (Store page, Score Rewards tab) shows the same cost.
+const BS_SHAPE_PTS_PER_USD = 20;
+BS_STORE_PRODUCTS.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * BS_SHAPE_PTS_PER_USD); });
 
 function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
@@ -13232,10 +13240,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   // signed-out users see an upgrade prompt instead of the catalogue.
   const memberGate = useBSMembership();
   const products = BS_STORE_PRODUCTS;
-  // Uniform store value: 1 Shape point = $0.05 (20 points = $1). Every item is
-  // priced straight off its retail $, so the rate is consistent across the catalogue.
-  const SHAPE_PTS_PER_USD = 20;
-  products.forEach((p) => { if (p.retail) p.cost = Math.round(p.retail * SHAPE_PTS_PER_USD); });
+  const SHAPE_PTS_PER_USD = BS_SHAPE_PTS_PER_USD; // costs derive at module scope
   // Live redemption locker → falls back to demo codes for signed-out preview.
   const liveRedemptions = Array.isArray(store.redemptions) ? store.redemptions : null;
   const unlocked = liveRedemptions && liveRedemptions.length > 0

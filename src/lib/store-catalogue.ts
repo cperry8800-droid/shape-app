@@ -42,7 +42,8 @@ const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
   { id: 'nutri_recipe_pack', name: 'Recipe archive pack', cat: 'Nutrition', retail: 35, kind: 'service' },
 
   // Shape Perks
-  { id: 'perk_annual_credit', name: 'Annual membership credit', cat: 'Shape Perks', retail: 200, kind: 'credit', locked: true },
+  // A Shape year is $5/mo × 12 = $60 — the credit covers exactly one year.
+  { id: 'perk_annual_credit', name: 'Annual membership credit', cat: 'Shape Perks', retail: 60, kind: 'credit', locked: true },
 
   // Coach Tools (lead boosts have their own activation path, not point-redeemed)
   { id: 'lead_boost_7', name: 'Lead Boost · 7 days', cat: 'Coach Tools', retail: 79, kind: 'lead_boost' },
