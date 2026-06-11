@@ -74,6 +74,17 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-09 — Security: Next.js 16.2.3 → 16.2.9 (patch bump, smoke-tested)
+- Resolves the **high-severity** Next.js advisories (middleware/proxy bypass,
+  cache poisoning, SSRF on WS upgrades, image-API DoS, RSC XSS, …) — relevant
+  because the membership paywall is enforced in the proxy/middleware layer.
+- Same-major **patch** bump (not the 16.x major jump), so low risk. Smoke test:
+  `tsc --noEmit` clean and `next build` succeeds on BOTH 16.2.3 (baseline) and
+  16.2.9 — identical route output, proxy/middleware compiles. After the bump the
+  only remaining prod-dep advisories are moderate transitive (ws/qs/postcss).
+- Pinned exact (`"next": "16.2.9"`) to match the repo's existing style; lockfile
+  changes scoped to `next` + its `@next/*` sub-packages.
+
 ### 2026-06-09 — Fix: restored missing RLS policies (DMs + engagement were deny-all)
 - Supabase security advisors flagged `messages`, `conversation_participants`,
   `community_likes`, `community_comments` as **RLS enabled but 0 policies** —
