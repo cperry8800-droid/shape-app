@@ -672,10 +672,16 @@ function BSRadioScreen({ onBack }) {
   const hrStage = !hrmConnected ? 'off' : (matching ? (isSynced ? 'synced' : 'matching') : 'free');
   const hrStatus = { off: 'Not connected', free: liveHr != null ? 'Live' : 'Free', matching: 'Matching…', synced: 'In sync' }[hrStage];
   // Real readings stream in as shape:hrm events while a monitor is connected.
+  // These events only ever come from a real device (demo mode never emits), so
+  // connected:false means the monitor dropped — fully disconnect the card
+  // rather than silently reverting to demo numbers under a "connected" stage.
   useEffectBR(() => {
     const onHr = (e) => {
       const d = e.detail || {};
-      if (d.connected === false) { setLiveHr(null); return; }
+      if (d.connected === false) {
+        setLiveHr(null); setMatching(false); setHrmConnected(false); setDemoHr(114);
+        return;
+      }
       if (Number.isFinite(d.bpm)) setLiveHr(d.bpm);
     };
     window.addEventListener('shape:hrm', onHr);
