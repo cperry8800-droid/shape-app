@@ -100,6 +100,14 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-11 — War Room de-cluttered: 4 top-level views + collapsible checklist
+- **`/warroom` is now tabbed** (`WarRoomClient.tsx` only — data untouched):
+  **Status** (stat row · P1 queue · live services · next steps · config) ·
+  **Checklist** (sections are collapsible accordions with per-section `n/m`
+  progress, ✓-green when complete) · **Architecture** (North Star · flow map ·
+  diagram) · **API routes** (the browsable/probeable list). The stat cards +
+  view tabs stay pinned on every view — no more one endless scroll.
+
 ### 2026-06-11 — Home tab wired to the real assigned plan (day log · dots · up-next)
 - **New `bsHomeLiveWeek(plan, t)`**: builds the home week from the REAL assigned
   plan (`/api/client/plan` — the same source Train + Eat read). Workouts slot by

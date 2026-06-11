@@ -59,6 +59,10 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
   const [probes, setProbes] = useState<Record<string, ProbeResult>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState('');
+  // Top-level view tabs — the page was one long scroll; each area now gets its
+  // own focused view. Checklist sections collapse with per-section progress.
+  const [view, setView] = useState<'status' | 'checklist' | 'architecture' | 'api'>('status');
+  const [secOpen, setSecOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     try {
@@ -187,8 +191,26 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             color={snap.inventory.mobileBuild ? C.ok : C.bad} />
         </div>
 
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+          {([
+            ['status', 'Status'],
+            ['checklist', `Checklist · ${doneChecklist}/${totalChecklist}`],
+            ['architecture', 'Architecture'],
+            ['api', `API routes · ${snap.inventory.apiRoutes}`],
+          ] as const).map(([k, l]) => {
+            const on = view === k;
+            return (
+              <button key={k} onClick={() => setView(k)}
+                style={{ padding: '8px 16px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(90,169,255,0.14)' : 'transparent', color: on ? C.text : C.dim, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {l}
+              </button>
+            );
+          })}
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>
 
+          {view === 'architecture' && (<>
           {/* North Star — positioning / vision */}
           <Panel title="North Star — positioning" hint="coach marketplace + social" wide>
             <div style={{ background: C.panel2, border: `1px solid ${C.accent}`, borderLeft: `4px solid ${C.accent}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
@@ -237,8 +259,10 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             </div>
           </Panel>
 
+          </>)}
+
           {/* Up next — the P1 build queue across every layer */}
-          {(() => {
+          {view === 'status' && (() => {
             const p1 = snap.architecture.layers.flatMap((l) => l.gaps.filter((g) => g.priority === 'P1').map((g) => ({ ...g, layer: l.layer })));
             if (p1.length === 0) return null;
             return (
@@ -257,6 +281,7 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             );
           })()}
 
+          {view === 'architecture' && (<>
           {/* Architecture & flow — the "how Shape works" map */}
           <Panel title="Shape — architecture & flow" hint="how it works · who it serves" wide>
             <div style={{ fontSize: 13.5, color: C.dim, lineHeight: 1.6, marginBottom: 18 }}>{snap.architecture.summary}</div>
@@ -346,7 +371,9 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
           <Panel title="Flow diagram" hint="boxes + arrows" wide>
             <ArchDiagram arch={snap.architecture} />
           </Panel>
+          </>)}
 
+          {view === 'status' && (<>
           {/* Config & secrets */}
           <Panel title="Config & secrets" hint="wired? (values never shown)" wide>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
@@ -371,30 +398,50 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
               ))}
             </div>
           </Panel>
+          </>)}
 
-          {/* Go-live checklist */}
-          <Panel title="Go-live checklist" hint={`${doneChecklist}/${totalChecklist}`} wide>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
-              {checklistWithTicks.map((sec) => (
-                <div key={sec.section}>
-                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.5, color: C.accent, marginBottom: 6 }}>{sec.section}</div>
-                  {sec.items.map((it) => {
-                    const auto = it.status === 'done';
-                    return (
-                      <label key={it.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, padding: '4px 0', cursor: auto ? 'default' : 'pointer', opacity: it.done ? 0.65 : 1 }}>
-                        <input type="checkbox" checked={it.done} disabled={auto} onChange={() => toggleTick(it.label)} style={{ marginTop: 2, accentColor: C.ok }} />
-                        <span style={{ textDecoration: it.done ? 'line-through' : 'none' }}>
-                          {it.label}
-                          {auto ? <em style={{ fontSize: 10, color: C.ok, fontStyle: 'normal', marginLeft: 6 }}>auto</em> : null}
-                        </span>
-                      </label>
-                    );
-                  })}
+          {/* Go-live checklist — collapsible sections with per-section progress */}
+          {view === 'checklist' && (
+          <Panel title="Go-live checklist" hint={`${doneChecklist}/${totalChecklist} done`} wide>
+            {checklistWithTicks.map((sec) => {
+              const done = sec.items.filter((i) => i.done).length;
+              const complete = done === sec.items.length;
+              const isOpen = !!secOpen[sec.section];
+              return (
+                <div key={sec.section} style={{ border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
+                  <button onClick={() => setSecOpen((o) => ({ ...o, [sec.section]: !o[sec.section] }))}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: C.panel2, border: 'none', color: C.text, padding: '11px 13px', cursor: 'pointer', fontSize: 13.5 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                      <span style={{ color: C.dim, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s', display: 'inline-block', flexShrink: 0 }}>▶</span>
+                      <b style={{ textAlign: 'left' }}>{sec.section}</b>
+                    </span>
+                    <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: complete ? C.ok : C.warn }}>
+                      {complete ? '✓ ' : ''}{done}/{sec.items.length}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div style={{ padding: '6px 14px 12px', borderTop: `1px solid ${C.border}` }}>
+                      {sec.items.map((it) => {
+                        const auto = it.status === 'done';
+                        return (
+                          <label key={it.label} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, padding: '5px 0', cursor: auto ? 'default' : 'pointer', opacity: it.done ? 0.6 : 1, lineHeight: 1.45 }}>
+                            <input type="checkbox" checked={it.done} disabled={auto} onChange={() => toggleTick(it.label)} style={{ marginTop: 2, accentColor: C.ok }} />
+                            <span style={{ textDecoration: it.done ? 'line-through' : 'none' }}>
+                              {it.label}
+                              {auto ? <em style={{ fontSize: 10, color: C.ok, fontStyle: 'normal', marginLeft: 6 }}>auto</em> : null}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </Panel>
+          )}
 
+          {view === 'status' && (<>
           {/* Live services */}
           <Panel title="Live services" hint="real ping + latency">
             {snap.services.map((s) => (
@@ -436,7 +483,10 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             )}
           </Panel>
 
+          </>)}
+
           {/* ── ALL API ROUTES (browsable + probeable) ── */}
+          {view === 'api' && (
           <Panel title="All API routes" hint={`${snap.inventory.apiRoutes} endpoints`} wide>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by path or method…"
@@ -498,6 +548,7 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             })}
             {filteredGroups.length === 0 && <div style={{ color: C.dim, fontSize: 13, padding: '8px 2px' }}>No routes match “{filter}”.</div>}
           </Panel>
+          )}
 
         </div>
 
