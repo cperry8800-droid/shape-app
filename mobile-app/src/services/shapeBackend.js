@@ -1301,6 +1301,7 @@ async function assignClientWorkout({
   kind = 'custom',
   payload = {},
   playlistId = null,
+  scheduledDate = null,
 } = {}) {
   if (!clientId || !title) {
     throw new Error('Client and workout title are required.');
@@ -1318,6 +1319,7 @@ async function assignClientWorkout({
     kind: kind === 'template' ? 'template' : 'custom',
     payload: payload || {},
     playlist_id: playlistId || null,
+    scheduled_date: scheduledDate || null,
     status: 'published',
   };
 
@@ -2917,6 +2919,36 @@ async function getPlan() {
   return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/plan`, null);
 }
 window.ShapePlan = { get: getPlan };
+
+// Assignment — put a coach's catalogue plan onto a linked client's Train/Eat.
+// Writes the SAME tables the client's /api/client/plan reads: trainer →
+// client_workouts (direct Supabase via assignClientWorkout), nutritionist →
+// client_meal_plans (POST /api/nutritionist/meal-plan). The roster is the
+// coach's real linked clients (subscriptions + sessions); uuid-backed only.
+async function listAssignableClients(role) {
+  const path = role === 'nutritionist' ? '/api/nutritionist/clients' : '/api/trainer/clients';
+  const d = await getJsonOrDefault(`${apiBaseUrl || ''}${path}`, null);
+  const list = Array.isArray(d?.clients) ? d.clients : [];
+  return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0 }));
+}
+async function assignClientMealPlan({ clientId, title, weekStart, days }) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/nutritionist/meal-plan`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ clientId, title, weekStart: weekStart || null, days }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not assign the meal plan.');
+  return d;
+}
+window.ShapeAssign = {
+  clients: listAssignableClients,
+  // Reuses the existing client_workouts writer (direct Supabase, RLS-scoped),
+  // which the client's /api/client/plan reads back.
+  workout: (args) => assignClientWorkout({ ...args, kind: 'template' }),
+  mealPlan: assignClientMealPlan,
+};
 
 // ─── Shape Store (redeem points for real rewards) ────────────────────────────
 // GET returns the live points balance + redemption locker; POST redeems an

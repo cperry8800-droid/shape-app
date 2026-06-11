@@ -2012,6 +2012,230 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   );
 }
 
+// ── Assign a catalogue plan to a client ──────────────────────────────────────
+// Coach plans (coach_plans) store free-text outline blocks; these parsers map
+// them onto the shapes the client app already consumes — client_workouts
+// exercises (Train deck) and client_meal_plans days (Eat menu).
+const BS_ASSIGN_DOW = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+function bsAssignSplitBlock(text) {
+  const s = String(text || '').trim();
+  if (!s) return null;
+  const m = s.match(/^(.*?)\s*[—–:]\s*(.+)$/);
+  return { head: (m ? m[1] : s).trim(), tail: m ? m[2].trim() : '' };
+}
+// "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
+function bsAssignExercise(text) {
+  const p = bsAssignSplitBlock(text);
+  if (!p) return null;
+  let { head, tail } = p;
+  if (!tail) {
+    const dot = head.split(/\s*·\s*/);
+    if (dot.length > 1 && /\d/.test(dot.slice(1).join(''))) { head = dot[0].trim(); tail = dot.slice(1).join(' · '); }
+  }
+  const sx = tail.match(/(\d+)\s*[×x]\s*([\d–-]+)/);
+  return {
+    name: head,
+    sets: sx ? sx[1] : '',
+    reps: sx ? sx[2] : '',
+    rest: '',
+    load: sx ? tail.replace(sx[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') : tail,
+  };
+}
+// "Mon — Upper (push)" → { dow: 0, title, rest }; null when not a weekday line.
+function bsAssignDayLine(text) {
+  const p = bsAssignSplitBlock(text);
+  if (!p) return null;
+  const dow = BS_ASSIGN_DOW.indexOf(p.head.slice(0, 3).toLowerCase());
+  if (dow < 0) return null;
+  return { dow, title: p.tail || p.head, rest: /rest/i.test(p.tail || p.head) };
+}
+// "Breakfast — Greek yogurt bowl · 420 kcal" → meal-plan meal entry.
+function bsAssignMeal(text) {
+  const p = bsAssignSplitBlock(text);
+  if (!p) return null;
+  const lower = p.head.toLowerCase();
+  const slot = ['breakfast', 'lunch', 'dinner', 'snack'].find(w => lower.startsWith(w));
+  const kcal = ((p.tail || p.head).match(/(\d{2,4})\s*kcal/i) || [])[1];
+  return { slot: (slot || 'meal').toUpperCase(), title: p.tail || p.head, kcal: kcal ? Number(kcal) : 0 };
+}
+function bsAssignIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// The Assign page. Entered with a concrete plan (from the Plans catalogue) or
+// a fixed client (from the client profile's Manage tab) — whichever half is
+// missing gets an inline picker. Trainer assignments land as client_workouts
+// on real dates (a weekday split schedules across the week; an exercise
+// outline becomes one weekly session); nutritionist assignments publish a
+// client_meal_plans weekly menu. A short note lands in the client's 1:1.
+function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, onBack, onDone }) {
+  const t = useBS();
+  const accent = bsProAccent(t, role);
+  const isNutri = role === 'nutritionist';
+  const [plan, setPlan] = useStateBSP(planProp || null);
+  const [planList, setPlanList] = useStateBSP(null);
+  const [picked, setPicked] = useStateBSP(null); // { userId, name } from the live roster
+  const [clientList, setClientList] = useStateBSP(null);
+  const [dayIdx, setDayIdx] = useStateBSP(1);
+  const [weeks, setWeeks] = useStateBSP(4);
+  const [status, setStatus] = useStateBSP('');
+  const fixedClient = !!clientProp;
+  const uid = fixedClient ? clientUidProp : (picked && picked.userId);
+  const targetName = fixedClient ? (clientProp?.n || 'this client') : (picked ? picked.name : 'a client');
+  const first = String(targetName).split(' ')[0];
+
+  // Pickers — load only the half that wasn't handed in.
+  useEffectBSP(() => {
+    if (planProp || !window.ShapeCoachPlans?.list) return;
+    window.ShapeCoachPlans.list(isNutri ? 'meal_plan' : 'program').then(rows => setPlanList(rows || [])).catch(() => setPlanList([]));
+  }, []);
+  useEffectBSP(() => {
+    if (fixedClient || !window.ShapeAssign?.clients) { setClientList([]); return; }
+    window.ShapeAssign.clients(role).then(rows => setClientList(rows || [])).catch(() => setClientList([]));
+  }, []);
+
+  // Default the weekly repeat to the plan's authored length ("6 weeks").
+  useEffectBSP(() => {
+    const m = String(plan?.detail?.length || plan?.meta || '').match(/(\d+)\s*(?:wk|week)/i);
+    if (m) setWeeks(Math.max(1, Math.min(8, Number(m[1]))));
+  }, [plan]);
+
+  const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const today = new Date();
+  const dayCells = Array.from({ length: 7 }, (_, k) => { const d = new Date(today); d.setDate(today.getDate() + k); return d; });
+  const blocks = (plan && plan.detail && Array.isArray(plan.detail.blocks) ? plan.detail.blocks : [])
+    .map(b => (b && b.text != null) ? b.text : b).map(s => String(s || '').trim()).filter(Boolean);
+  const dayLines = blocks.map(bsAssignDayLine);
+  const isSplit = !isNutri && dayLines.filter(Boolean).length >= 3;
+  const planNote = (plan && plan.detail && plan.detail.note) || '';
+
+  const apply = async () => {
+    if (!plan || !uid || status === 'working' || status === 'done') return;
+    setStatus('working');
+    try {
+      const start = dayCells[dayIdx];
+      const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      if (isNutri) {
+        const meals = blocks.map(bsAssignMeal).filter(Boolean);
+        const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
+        const targets = calM ? { cal: Number(calM[1]) } : {};
+        const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
+        await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
+      } else if (isSplit) {
+        for (let w = 0; w < weeks; w++) {
+          for (const dl of dayLines) {
+            if (!dl || dl.rest) continue;
+            const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
+            if (d < start) continue;
+            await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [] } });
+          }
+        }
+      } else {
+        const exercises = blocks.map(bsAssignExercise).filter(Boolean);
+        for (let w = 0; w < weeks; w++) {
+          const d = new Date(start); d.setDate(d.getDate() + w * 7);
+          await window.ShapeAssign.workout({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises } });
+        }
+      }
+      // Tell the client — best-effort, the assignment already landed.
+      try {
+        if (window.ShapeMessages?.getOrCreateMemberConversation) {
+          const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
+          const cid = conv?.data;
+          if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body: `Put you on “${plan.name}” — it's live on your ${isNutri ? 'Eat' : 'Train'} tab now.`, metadata: { kind: 'plan_assigned' } });
+        }
+      } catch (e) {}
+      setStatus('done');
+      setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
+    } catch (e) { setStatus(String(e?.message || 'error')); }
+  };
+
+  const rowBtn = (key, title, sub, on, onClick) => (
+    <button key={key} onClick={onClick} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, padding: '13px 14px', cursor: 'pointer' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
+        {sub && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>{sub}</div>}
+      </div>
+      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: on ? accent : t.INK50 }}>{on ? '✓' : '○'}</span>
+    </button>
+  );
+  const emptyCard = (txt) => (
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>{txt}</div>
+  );
+  const working = status === 'working';
+  const ctaLabel = working ? 'Assigning…' : status === 'done' ? 'Assigned ✓' : 'Assign & notify →';
+  const summaryWhen = isNutri
+    ? 'This week · replaces their current menu from you'
+    : isSplit
+      ? `${dayLines.filter(d => d && !d.rest).length} sessions/wk · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}`
+      : `Weekly · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}`;
+
+  return (
+    <BSPage>
+      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+        <BSProActionHead eyebrow="ASSIGN" titleA="Put them on" titleB={isNutri ? 'a menu.' : 'a program.'} accent={accent} onBack={onBack} />
+        {fixedClient && <BSProClientMini client={clientProp} />}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
+          {!planProp && (
+            <div>
+              <BSProActionSec eyebrow="WHAT" title={isNutri ? 'Pick a meal plan' : 'Pick a program'} accent={accent} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {planList == null ? emptyCard('Loading your catalogue…')
+                  : planList.length === 0 ? emptyCard(`No saved ${isNutri ? 'meal plans' : 'programs'} yet — build one on the Plans tab first`)
+                  : planList.map(p => rowBtn(p.id, p.name, p.meta, plan && plan.id === p.id, () => setPlan(p)))}
+              </div>
+            </div>
+          )}
+          {!fixedClient && (
+            <div>
+              <BSProActionSec eyebrow="WHO" title="Pick a client" accent={accent} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {clientList == null ? emptyCard('Loading your clients…')
+                  : clientList.length === 0 ? emptyCard('No linked members yet — clients appear here once they subscribe or book')
+                  : clientList.map(c => rowBtn(c.userId, c.name, c.sessions ? `${c.sessions} session${c.sessions === 1 ? '' : 's'} together` : 'Linked member', picked && picked.userId === c.userId, () => setPicked(c)))}
+              </div>
+            </div>
+          )}
+          {!isNutri && (
+            <div>
+              <BSProActionSec eyebrow="WHEN" title="Starts" accent={accent} />
+              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {dayCells.map((d, i) => {
+                  const on = dayIdx === i;
+                  return (
+                    <button key={i} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, textAlign: 'center' }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
+                      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <BSProStepper label="WEEKS" sub={isSplit ? 'Repeats the weekly split' : 'Repeats the session weekly'} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
+              </div>
+            </div>
+          )}
+          <div>
+            <BSProActionSec eyebrow="SUMMARY" title="The assignment" accent={accent} />
+            <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? 'Pick a meal plan' : 'Pick a program')} · <span style={{ fontStyle: 'italic', color: accent }}>{first}</span></div>
+              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{summaryWhen}</div>
+            </div>
+            <button onClick={apply} disabled={!plan || !uid || working || status === 'done'} style={{ width: '100%', marginTop: 14, borderRadius: 14, border: 0, background: accent, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!plan || !uid || working) ? 0.6 : 1 }}>{ctaLabel}</button>
+            {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>Couldn't assign — {status}</div>}
+            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+              {uid
+                ? `On assign · lands on ${first}'s ${isNutri ? 'Eat' : 'Train'} tab + sends a note`
+                : fixedClient ? 'Demo client · assigns once linked to a live member' : 'Pick a linked client above'}
+            </div>
+          </div>
+        </div>
+      </div>
+      <BSFooter left="Assign" right={plan ? plan.name : 'Catalogue'} />
+    </BSPage>
+  );
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2031,6 +2255,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showAdjust, setShowAdjust] = useStateBSP(false);
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
+  const [showAssignPage, setShowAssignPage] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'analysis'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   const [cLifts, setCLifts] = useStateBSP(null); // strength rollup (coach read)
@@ -2070,6 +2295,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   if (!client) return null;
   if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
   if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
+  if (showAssignPage) return <BSProAssignPage role={role} client={client} clientUid={clientUid} onBack={() => setShowAssignPage(false)} onDone={() => setShowAssignPage(false)} />;
 
   // ---- theme + derived facts ----
   const accent = isNutri ? '#d8b25a' : teal;   // gold for nutrition, teal for training
@@ -2410,6 +2636,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const manageView = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
       <div>
+        <Section eyebrow={isNutri ? 'MEAL PLAN' : 'PROGRAM'} title={isNutri ? 'Put them on a menu' : 'Put them on a program'} />
+        <button onClick={() => setShowAssignPage(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: '15px 16px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Assign from your catalogue</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? `A saved meal plan → ${first}'s Eat tab` : `A saved program → ${first}'s Train tab`}</div>
+          </div>
+          <span style={{ color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
+        </button>
+      </div>
+      <div>
         <Section eyebrow="PROGRAM PHASE" title="Block & phase" />
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
           {phaseRow('trainingPhase', 'Training block', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'])}
@@ -2693,7 +2929,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Fat Loss 101', meta: '12 wk · 22 on it · 4.7 ★', price: '$160' },
     { n: 'Hypertrophy Block', meta: '8 wk · 19 on it · 4.8 ★', price: '$110' },
   ];
-  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true } : p);
+  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
   const programs = (() => {
     const list = [...customCards, ...basePrograms];
@@ -2717,6 +2953,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const BUILD_LABEL = { plan: 'plan', workout: 'workout', program: 'program' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
+  const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
   const publishDraft = async ({ name, blocks, note, media }) => {
     const typeName = BUILD_LABEL[buildType];
     const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note, media: media || [] } };
@@ -2749,6 +2986,9 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const libBuild = ({ plans: 'plan', workouts: 'workout', programs: 'program' })[libTab] || 'plan';
 
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
+
+  // ── Assign a catalogue plan to a linked client ──
+  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash('Assigned — it\'s on their Train tab'); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
@@ -2830,6 +3070,13 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
     </div>
   );
+  // Per-row trailing: price (when any) + an ASSIGN pill → the assign-to-client page.
+  const assignTrail = (it) => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      {it.price && <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50 }}>{it.price}</span>}
+      <button onClick={(e) => { e.stopPropagation(); setAssignPlan({ id: it.id || null, name: it.n, meta: it.meta, detail: it.detail || null }); }} style={{ borderRadius: 999, border: `1px solid ${teal}`, background: 'transparent', color: teal, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em' }}>ASSIGN</button>
+    </span>
+  );
 
   return (
     <BSPage>
@@ -2870,7 +3117,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {libTab === 'plans' && (<>
         {secHead('PAID PLANS', 'Catalogue', `SORT · ${sort.toUpperCase()} →`, cycleSort)}
-        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => openDraft('plan') }, i, p.price))}</div>
+        <div style={{ marginTop: 6 }}>{programs.map((p, i) => numRow({ ...p, onClick: () => openDraft('plan') }, i, assignTrail(p)))}</div>
         {secHead('ENROLLED', 'Clients on plans')}
         <div style={{ marginTop: 6 }}>
           {enrolled.map((e, i) => (
@@ -2909,7 +3156,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
         {/* Single day workouts */}
         {secHead('SESSIONS', 'Workouts', 'NEW →', () => openDraft('workout'))}
-        <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => openDraft('workout') }, i, '→'))}</div>
+        <div style={{ marginTop: 6 }}>{workouts.map((w, i) => numRow({ ...w, onClick: () => openDraft('workout') }, i, assignTrail(w)))}</div>
 
         {/* Video library — upload videos of the workouts in your plans */}
         {secHead('WORKOUT VIDEOS', 'Video library', 'UPLOAD →', () => flash('Upload a workout video — record or add from camera roll'))}
@@ -2943,7 +3190,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         </div>
         {/* Reusable weekly routines / templates */}
         {secHead('TEMPLATES', 'Programs', 'NEW →', () => openDraft('program'))}
-        <div style={{ marginTop: 6 }}>{routines.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, '→'))}</div>
+        <div style={{ marginTop: 6 }}>{routines.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, assignTrail(r)))}</div>
         </>)}
         </>)}
 
@@ -3627,7 +3874,7 @@ function BSNutriPlans() {
     setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash('Plan duplicated');
   };
 
-  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true } : p);
+  const customCards = (serverPlans || dupes).map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const plans = [...customCards,
     { n: 'Lean Cut', meta: '2,100 kcal · 12 on it · 4.9 ★', price: '$140' },
     { n: 'Performance', meta: '3,200 kcal · 8 on it · 4.8 ★', price: '$140' },
@@ -3652,6 +3899,7 @@ function BSNutriPlans() {
   const BUILD_LABEL = { mealplan: 'meal plan', program: 'program', diet: 'diet' };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
+  const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
   const publishDraft = async ({ name, blocks, note, media }) => {
     const typeName = BUILD_LABEL[buildType];
     const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note, media: media || [] } };
@@ -3677,6 +3925,9 @@ function BSNutriPlans() {
   ];
 
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
+
+  // ── Assign a catalogue meal plan to a linked client ──
+  if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash('Assigned — it\'s on their Eat tab'); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   if (editDraft) return <BSCoachDraftEditor t={t} accent={gold} accentInk="#241c08" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
@@ -3763,6 +4014,13 @@ function BSNutriPlans() {
       {trailing && <button onClick={onTrailing} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: teal, paddingBottom: 4 }}>{trailing}</button>}
     </div>
   );
+  // Per-row trailing: price (when any) + an ASSIGN pill → the assign-to-client page.
+  const assignTrail = (it) => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      {it.price && <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', color: t.INK50 }}>{it.price}</span>}
+      <button onClick={(e) => { e.stopPropagation(); setAssignPlan({ id: it.id || null, name: it.n, meta: it.meta, detail: it.detail || null }); }} style={{ borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', color: gold, padding: '6px 11px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em' }}>ASSIGN</button>
+    </span>
+  );
 
   return (
     <BSPage>
@@ -3803,7 +4061,7 @@ function BSNutriPlans() {
 
         {libTab === 'plans' && (<>
         {secHead('PAID PLANS', 'Catalogue')}
-        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => openDraft('mealplan') }, i, p.price))}</div>
+        <div style={{ marginTop: 6 }}>{plans.map((p, i) => numRow({ ...p, onClick: () => openDraft('mealplan') }, i, assignTrail(p)))}</div>
         {secHead('ENROLLED', 'Clients on plans')}
         <div style={{ marginTop: 6 }}>
           {enrolled.map((e, i) => (
@@ -3841,7 +4099,7 @@ function BSNutriPlans() {
           </div>
         </div>
         {secHead('LIFESTYLE', 'Programs', 'NEW →', () => openDraft('program'))}
-        <div style={{ marginTop: 6 }}>{nutriPrograms.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, '→'))}</div>
+        <div style={{ marginTop: 6 }}>{nutriPrograms.map((r, i) => numRow({ ...r, onClick: () => openDraft('program') }, i, assignTrail(r)))}</div>
         </>)}
 
         {libTab === 'diet' && (<>
@@ -3860,7 +4118,7 @@ function BSNutriPlans() {
           </div>
         </div>
         {secHead('DIET-SPECIFIC', 'Diet', 'NEW →', () => openDraft('diet'))}
-        <div style={{ marginTop: 6 }}>{diets.map((r, i) => numRow({ ...r, onClick: () => openDraft('diet') }, i, '→'))}</div>
+        <div style={{ marginTop: 6 }}>{diets.map((r, i) => numRow({ ...r, onClick: () => openDraft('diet') }, i, assignTrail(r)))}</div>
         </>)}
         </>)}
 

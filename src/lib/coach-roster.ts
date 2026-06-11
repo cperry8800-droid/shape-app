@@ -8,7 +8,7 @@
 // response key — all derived from `role` below.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { DAY_MS } from '@/lib/time';
 
 type ClientEntry = {
@@ -21,16 +21,15 @@ type ClientEntry = {
 };
 
 export async function coachClientsResponse(
-  role: 'trainer' | 'nutritionist'
+  role: 'trainer' | 'nutritionist',
+  request: Request
 ): Promise<NextResponse> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser(request);
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
+  const supabase = await clientForRequest(request);
 
   const roleKey = role === 'trainer' ? 'isTrainer' : 'isNutritionist';
   const table = role === 'trainer' ? 'trainers' : 'nutritionists';
