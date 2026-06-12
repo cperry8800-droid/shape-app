@@ -1841,7 +1841,7 @@ function bsHomeLiveWeek(plan, t) {
         load: e.load || '',
       }));
       const meta = [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
-      wk = { time: '—', kind: 'TRN', title: w.title || 'Workout', sub: meta, detail: { moves, meta, note: w.description || '' } };
+      wk = { time: w.time || '—', kind: 'TRN', title: w.title || 'Workout', sub: meta, detail: { moves, meta, note: w.description || '' } };
     }
     workoutByIdx.push(wk);
     const md = mSlots[i];
@@ -2841,6 +2841,12 @@ function bsBuildTrainProgram(workouts, t) {
       return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: e.load || '—' };
     });
     const isCustom = w.kind === 'custom';
+    const timeLabel = w.time ? (() => {
+      const [h, m] = String(w.time).split(':').map(Number);
+      if (Number.isNaN(h)) return '';
+      const ap = h >= 12 ? 'PM' : 'AM';
+      return `${h % 12 === 0 ? 12 : h % 12}:${String(m || 0).padStart(2, '0')} ${ap}`;
+    })() : '';
     return {
       d: label,
       kicker: 'The Training',
@@ -2848,6 +2854,8 @@ function bsBuildTrainProgram(workouts, t) {
       tag: isCustom ? 'CUSTOM' : 'FEATURE',
       tagColor: isCustom ? t.BLUE : t.AMBER,
       accent: ACCENTS[i % ACCENTS.length],
+      time: w.time || '',
+      timeLabel,
       headline: w.title || 'Workout',
       meta: [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · '),
       copy: w.description || 'Programmed by your coach.',
@@ -3184,13 +3192,13 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
       {/* Today hero — the session at a glance, on the instrument plate. */}
-      <BSPlate c={t.ACCENT} tick bracket pad="15px 15px 15px 21px" style={{ margin: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
+      <BSPlate c={t.ACCENT} tick bracket pad="11px 12px 11px 17px" style={{ margin: `12px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 26, lineHeight: 0.96, letterSpacing: '-0.04em', color: t.INK }}>{cur.headline}</div>
-        <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>
+        <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 21, lineHeight: 0.96, letterSpacing: '-0.035em', color: t.INK }}>{cur.headline}</div>
+        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.INK70, letterSpacing: '0.06em' }}>
           {effMoves.length > 0 ? cur.meta : cur.copy}
         </div>
         {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
@@ -3199,16 +3207,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '3px 8px' }}>Coach · {cur.intensityLabel}</span>}
           </div>
         )}
-        <div style={{ marginTop: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13 }}>J</div>
+        <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 999, background: '#c0533b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 11.5 }}>J</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, color: t.INK }}>Jordan Chen</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
           </div>
           {effMoves.length > 0 ? (
-            <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>▶</button>
+            <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
-            <span style={{ flexShrink: 0, padding: '10px 14px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
+            <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
         </div>
       </BSPlate>
@@ -12001,31 +12009,31 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
     <>
       {/* Featured — down so far (instrument plate) */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <BSPlate c={teal} tick bracket pad="16px 18px 16px 24px">
+        <BSPlate c={teal} tick bracket pad="12px 14px 12px 19px">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Down so far</div>
-              <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 32, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 14, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: teal, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
+              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 24, fontWeight: 600, color: teal, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>There</div>
             </div>
           </div>
-          <div style={{ position: 'relative', margin: '16px 0 14px', height: 6 }}>
+          <div style={{ position: 'relative', margin: '11px 0 10px', height: 5 }}>
             <div style={{ position: 'absolute', inset: 0, borderRadius: 2, background: t.HAIR }} />
             <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 2, background: teal }} />
-            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 3, background: '#fff', border: `3px solid ${teal}` }} />
+            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 6px)`, top: -3.5, width: 12, height: 12, borderRadius: 3, background: '#fff', border: `2.5px solid ${teal}` }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             {[[start, 'Start · ' + (overall.startMonth || ''), t.INK50], [now, 'Now', teal], [target, 'Target · ' + (byLabel || ''), t.AMBER]].map(([v, lab, c], i) => (
               <div key={i} style={{ textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center', minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{Number(v).toLocaleString()}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{Number(v).toLocaleString()}</div>
                 <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c }}>{lab}</div>
               </div>
             ))}
           </div>
-          <button onClick={onEdit} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Edit targets →</button>
+          <button onClick={onEdit} style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Edit targets →</button>
         </BSPlate>
       </div>
 
@@ -12343,26 +12351,26 @@ function BSGoalsNutrition({ overall, onLog }) {
     <>
       {/* Down so far (gold instrument plate) */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <BSPlate c={gold} tick bracket pad="16px 18px 16px 24px">
+        <BSPlate c={gold} tick bracket pad="12px 14px 12px 19px">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: gold }}>Down so far</div>
-              <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 18, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 32, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{down > 0 ? '+' : '−'}{Math.abs(down)}<span style={{ fontSize: 14, color: t.INK50, marginLeft: 3 }}>{unit}</span></div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 34, fontWeight: 600, color: gold, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
+              <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 24, fontWeight: 600, color: gold, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.round(pct * 100)}%</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>There</div>
             </div>
           </div>
-          <div style={{ position: 'relative', margin: '16px 0 14px', height: 6 }}>
+          <div style={{ position: 'relative', margin: '11px 0 10px', height: 5 }}>
             <div style={{ position: 'absolute', inset: 0, borderRadius: 2, background: t.HAIR }} />
             <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 2, background: gold }} />
-            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 3, background: '#fff', border: `3px solid ${gold}` }} />
+            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 6px)`, top: -3.5, width: 12, height: 12, borderRadius: 3, background: '#fff', border: `2.5px solid ${gold}` }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             {[[start, 'Start · ' + (overall.startMonth || ''), t.INK50], [now, 'Now', gold], [target, 'Target · ' + (byLabel || ''), t.INK50]].map(([v, lab, c], i) => (
               <div key={i} style={{ textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center', minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{Number(v).toLocaleString()}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{Number(v).toLocaleString()}</div>
                 <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: c }}>{lab}</div>
               </div>
             ))}

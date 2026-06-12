@@ -148,6 +148,7 @@ export async function GET(request: Request) {
     const payload = (w.payload && typeof w.payload === 'object') ? w.payload : null;
     const exCount = Array.isArray(payload?.exercises) ? (payload!.exercises as unknown[]).length : 0;
     const durMatch = payload?.duration != null ? String(payload.duration).match(/\d+/) : null;
+    const timeRaw = payload?.time != null ? String(payload.time) : '';
     return {
       id: `plan:${w.id}`,
       source: 'plan' as const,
@@ -155,7 +156,7 @@ export async function GET(request: Request) {
       title: w.title,
       sub: w.description || (exCount ? `${exCount} move${exCount === 1 ? '' : 's'}` : 'Assigned workout'),
       date: w.scheduled_date,
-      time: null as string | null,
+      time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
       with: '', location: '', accent: '',
       status: 'planned',

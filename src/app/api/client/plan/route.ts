@@ -58,12 +58,14 @@ export async function GET(request: Request) {
     const payload = (w.payload && typeof w.payload === 'object') ? (w.payload as Record<string, unknown>) : null;
     const durationRaw = payload?.duration;
     const durMatch = durationRaw != null ? String(durationRaw).match(/\d+/) : null;
+    const timeRaw = payload?.time != null ? String(payload.time) : '';
     return {
       id: w.id,
       title: w.title,
       description: w.description ?? '',
       kind: w.kind,
       scheduledDate: w.scheduled_date ?? null,
+      time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
       exercises: mapExercises(payload),
     };
