@@ -225,3 +225,4 @@ function LivingProfileCustomizer({ role = 'client' }) {
     </Card>
   );
 }
+Object.assign(window, { LivingProfileCustomizer });
