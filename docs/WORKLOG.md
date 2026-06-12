@@ -100,6 +100,34 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Stats accuracy: weight/body-fat/macros/volume get REAL sources (+ demo-data preview banner)
+- **Audit finding**: the Progress page read everything from `daily_health_snapshot`,
+  but `weight_lb`, `body_fat_pct`, `protein_g`, `hydration_l` had **no writer** —
+  the per-field demo fallback silently showed example numbers that looked live.
+  Demo data stays (it's the intended signed-out example); the fix is real sources
+  for signed-in accounts:
+- **(1) Weight**: `/api/client/progress` now builds the weight series from
+  **`client_weigh_ins`** (what Log-weigh-in writes), normalized to lb; snapshot
+  rows remain the fallback. Fixes the split-brain where Goals showed real
+  weigh-ins and Progress showed demo weight.
+- **(2) Body fat**: **migration `2026-06-12-weigh-in-body-fat.sql`** (**run on
+  Supabase**) adds `client_weigh_ins.body_fat_pct`; the weigh-in sheet gains an
+  optional **Body fat %** field (`ShapeWeighIns.log({ bodyFat })`, pre-migration
+  retry guard); the progress body-fat series reads it (select('*') so the route
+  works pre-migration).
+- **(3) Meal macros**: new **`POST /api/nutrition/meal-log`** accumulates
+  kcal/protein/carbs/fat (+ optional hydration) onto today's snapshot row —
+  called from the one-tap "Ate as planned" and the full logger's Log action
+  (`window.ShapeMealLog.log`). Nutrition "today vs target" + macro adherence now
+  track actual logging.
+- **(4) Volume**: in-app live-session saves roll `durationSeconds` into
+  `daily_health_snapshot.workout_minutes` (accumulating, best-effort) — the
+  Progress volume series counts app workouts alongside device-synced ones.
+- **Preview banner re-added** (was removed 2026-06-11): preview mode again shows
+  the dismissible bottom banner, reworded to "**Preview · demo data** — These
+  numbers are an example of a live account — not real tracking." with the $5/mo
+  Join CTA. Still hides under the Radio prompt.
+
 ### 2026-06-12 — Grocery page: source chip · Lists tab · small ＋ box (clutter removed)
 - **"+ NEW LIBRARY" and the "AUTO-BUILT FROM YOUR MEALS" eyebrow removed** from
   the grocery header. In their place: a **source chip** under the title that says

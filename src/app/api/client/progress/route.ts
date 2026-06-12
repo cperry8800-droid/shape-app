@@ -39,8 +39,31 @@ export async function GET(request: Request) {
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
 
-  const weightSeries = seriesFor('weight_lb');
-  const bodyFatSeries = seriesFor('body_fat_pct');
+  // Weight + body fat come from the dedicated weigh-in table (what the Goals
+  // page's "Log weigh-in" writes) — the snapshot columns have no writer, so
+  // without this the Progress page never saw a real weigh-in. Values are
+  // normalized to lb to match the page's labels; snapshot rows remain the
+  // fallback for any account that only has device-synced data.
+  // select('*') so the route keeps working before the body_fat_pct column
+  // migration is applied (PostgREST errors on unknown explicit columns).
+  const { data: weighRows } = await supabase
+    .from('client_weigh_ins')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('logged_on', { ascending: true })
+    .limit(400);
+  const weighIns = (weighRows ?? []) as Array<Record<string, unknown>>;
+  const toLb = (w: number, unit: unknown) =>
+    Math.round((unit === 'lb' ? w : w * 2.20462) * 10) / 10;
+  const weighInWeightSeries = weighIns
+    .filter((r) => Number.isFinite(Number(r.weight)))
+    .map((r) => ({ date: String(r.logged_on), value: toLb(Number(r.weight), r.unit) }));
+  const weighInBodyFatSeries = weighIns
+    .filter((r) => r.body_fat_pct != null && Number.isFinite(Number(r.body_fat_pct)))
+    .map((r) => ({ date: String(r.logged_on), value: Number(r.body_fat_pct) }));
+
+  const weightSeries = weighInWeightSeries.length ? weighInWeightSeries : seriesFor('weight_lb');
+  const bodyFatSeries = weighInBodyFatSeries.length ? weighInBodyFatSeries : seriesFor('body_fat_pct');
   const restingHrSeries = seriesFor('resting_hr');
   const sleepSeries = seriesFor('sleep_hours');
   const hrvSeries = seriesFor('hrv_ms');
