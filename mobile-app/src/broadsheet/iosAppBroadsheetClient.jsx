@@ -2485,7 +2485,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           <AgendaCard c={teal}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={eyebrow(teal)}>Meals · {mealsLogged}/{selMeals.length} logged</span>
-              <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Coach plan</span>
+              <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Nutri plan</span>
             </div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
               {mealsDayWord} <span style={{ fontStyle: 'italic', color: teal }}>meals.</span>
@@ -2513,7 +2513,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               })}
             </div>
             <div style={{ marginTop: 4, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Person init="M" name="Dr. Maya Patel" role="Nutritionist" fill={t.AMBER} />
+              {(() => {
+                // Credit the real assigning nutritionist when a live plan exists.
+                const who = (livePlan && livePlan.meals && livePlan.meals.coach) || 'Dr. Maya Patel';
+                return <Person init={who.replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase() || 'M'} name={who} role="Nutritionist" fill={t.AMBER} />;
+              })()}
               <button onClick={() => setPreviewMeal(selMeals.find(m => !mealLogged[m.id]) || selMeals[0])} style={pillOutline}>Preview →</button>
             </div>
           </AgendaCard>
@@ -4339,7 +4343,7 @@ function bsGroceryAisleFor(name) {
 // Roll the whole week's meal ingredients into one aisle-grouped grocery list,
 // deduped by ingredient name. This makes the shop list literally the meals'
 // ingredients, so the two always match up (no separate hardcoded list to drift).
-function bsBuildPlanGrocery(program, author) {
+function bsBuildPlanGrocery(program, author, name) {
   const byName = new Map();
   (program || []).forEach(dy => (dy.meals || []).forEach(meal => (meal.ingredients || []).forEach(ing => {
     const name = String(ing.m || '').trim();
@@ -4373,7 +4377,7 @@ function bsBuildPlanGrocery(program, author) {
     .map(a => ({ aisle: a, items: buckets.get(a).sort((x, y) => x.n.localeCompare(y.n)) }));
   return {
     id: 'plan-week',
-    name: "This week's plan",
+    name: name || "This week's plan",
     eyebrow: 'Auto-built from your meals',
     author: author || 'Dr. Maya Patel',
     note: '"Every item here comes straight from this week\'s meals — nothing extra, nothing missing."',
@@ -4414,6 +4418,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const [saveName, setSaveName] = useStateBSC('');
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
   const [liveProgram, setLiveProgram] = useStateBSC(null);
+  const [liveMealCoach, setLiveMealCoach] = useStateBSC(null); // real assigning nutritionist
+  const [liveMealTitle, setLiveMealTitle] = useStateBSC(null); // real plan title
   // Goal label for the "Your plan" header, read from the client's nutrition prefs.
   const [planGoal, setPlanGoal] = useStateBSC('maintain');
   React.useEffect(() => {
@@ -4524,6 +4530,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         const p = await window.ShapePlan?.get?.();
         if (cancelled || !p?.meals?.hasPlan) return;
         setLiveProgram(buildMealProgram(p.meals.days));
+        setLiveMealCoach(p.meals.coach || null);
+        setLiveMealTitle(p.meals.title || null);
         setDay(bsWeekdayIdx());
       } catch (e) { /* keep demo menu */ }
     })();
@@ -5301,7 +5309,16 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   const meals = cur.meals;
   // The default shop list is built straight from the week's meal ingredients, so
   // it always matches what the meals show. A user-selected list takes precedence.
-  const planGrocery = React.useMemo(() => bsBuildPlanGrocery(PROGRAM), [PROGRAM]);
+  // With a live assigned plan, the list is credited to the real nutritionist
+  // and named after their plan.
+  const planGrocery = React.useMemo(
+    () => bsBuildPlanGrocery(
+      PROGRAM,
+      liveProgram ? (liveMealCoach || 'Your nutritionist') : null,
+      liveProgram && liveMealTitle ? liveMealTitle : null,
+    ),
+    [PROGRAM, liveProgram, liveMealCoach, liveMealTitle],
+  );
   const activeGroceryList = selectedGroceryList || planGrocery;
   const activeGroceryCount = activeGroceryList.aisles
     ? activeGroceryList.aisles.reduce((sum, aisle) => sum + aisle.items.length, 0)
@@ -5487,7 +5504,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
-  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} /></>;
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -5669,7 +5686,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
             try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_meal_swaps', next); } catch (e) {}
             if (!o._keep) {
               window.__bsToast && window.__bsToast('Swapped to ' + o._alt.title, 'ok');
-              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: 'Dr. Maya Patel', provider_role: 'nutritionist' }, text: `Swapped ${base.title} → ${o._alt.title} · ${day === bsWeekdayIdx() ? 'today' : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}` }).catch(() => {}); } catch (e) {}
+              try { window.ShapeMessages && window.ShapeMessages.sendProviderMessage && window.ShapeMessages.sendProviderMessage({ coach: { name: liveMealCoach || 'Dr. Maya Patel', provider_role: 'nutritionist' }, text: `Swapped ${base.title} → ${o._alt.title} · ${day === bsWeekdayIdx() ? 'today' : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day]}` }).catch(() => {}); } catch (e) {}
             }
             setSwapMealId(null);
           }} />;
@@ -5680,12 +5697,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent', padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 999, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>M</div>
+            <div style={{ width: 34, height: 34, borderRadius: 999, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 14 }}>{(liveMealCoach || 'M').replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase()}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>Dr. Maya Patel</div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{liveMealCoach || 'Dr. Maya Patel'}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Nutritionist</div>
             </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Apr plan</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>{liveProgram ? 'This week' : 'Apr plan'}</span>
           </div>
           <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: t.INK }}>&ldquo;{cur.coachLine}&rdquo;</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
@@ -14848,7 +14865,7 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
   );
 }
 
-function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {} }) {
+function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
@@ -14994,7 +15011,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           ? { label: 'Recipe list', c: t.AMBER }
           : list.kind === 'custom'
           ? { label: 'Your library', c: '#8a5cf6' }
-          : { label: 'Coach plan · this week', c: rust };
+          : { label: 'Nutri plan · this week', c: rust };
         return (
           <div style={{ padding: `12px ${t.padX}px 0` }}>
             <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${bsTHexA(src.c, 0.35)}`, borderLeft: `3px solid ${src.c}`, background: `${src.c}0d`, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -15015,7 +15032,7 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
             {(() => {
               const isPlan = !list.kind || list.kind === 'plan';
               const rows = [
-                { key: '__plan__', name: "This week's plan", label: 'Coach plan', c: rust, on: isPlan, pick: () => onPickList && onPickList(null) },
+                { key: '__plan__', name: (planList && planList.name) || "This week's plan", label: 'Nutri plan', c: rust, on: isPlan, pick: () => onPickList && onPickList(null) },
                 ...recipeLists.map((l) => ({
                   key: l.id,
                   name: l.name,

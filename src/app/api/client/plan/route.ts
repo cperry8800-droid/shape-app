@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   // ── Training: assigned workouts (scheduled onto the calendar or not). ──
   const { data: cwRows } = await supabase
     .from('client_workouts')
-    .select('id, title, description, kind, payload, scheduled_date, created_at')
+    .select('id, title, description, kind, payload, scheduled_date, created_at, trainer_id')
     .eq('client_id', user.id)
     .eq('status', 'published')
     .order('scheduled_date', { ascending: true, nullsFirst: false })
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
   // ── Meals: the most recent published weekly menu. ──
   const { data: mpRows } = await supabase
     .from('client_meal_plans')
-    .select('id, title, week_start, payload, created_at')
+    .select('id, title, week_start, payload, created_at, nutritionist_id')
     .eq('client_id', user.id)
     .eq('status', 'published')
     .order('created_at', { ascending: false })
@@ -83,16 +83,30 @@ export async function GET(request: Request) {
     ? (mp.payload as Record<string, unknown>).days
     : [];
 
+  // ── Coach attribution: resolve the assigning provider names (public-read
+  // marketplace rows) so the client UI credits the real coach, not the demo. ──
+  const trainerId = (cwRows ?? []).find((w) => w.trainer_id != null)?.trainer_id ?? null;
+  const [trName, nuName] = await Promise.all([
+    trainerId != null
+      ? supabase.from('trainers').select('name').eq('id', trainerId).maybeSingle().then((r) => r.data?.name ?? null)
+      : Promise.resolve(null),
+    mp?.nutritionist_id != null
+      ? supabase.from('nutritionists').select('name').eq('id', mp.nutritionist_id).maybeSingle().then((r) => r.data?.name ?? null)
+      : Promise.resolve(null),
+  ]);
+
   return NextResponse.json({
     ok: true,
     weekStart,
     training: {
       hasPlan: workouts.length > 0,
+      coach: trName,
       workouts,
     },
     meals: {
       hasPlan: Array.isArray(mealDays) && mealDays.length > 0,
       title: mp?.title ?? null,
+      coach: nuName,
       weekStart: mp?.week_start ?? null,
       days: mealDays,
     },
