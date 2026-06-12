@@ -150,6 +150,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Assign to client (catalogue → client Train/Eat)', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
       { task: 'Trainer "sell a plan" paid-checkout path — built on the Connect checkout: coach publishes a priced plan → "Plans for sale" + Buy on the coach profile → plan_id rides through checkout/webhook → unlocks in the buyer\'s Library. Needs live Stripe to verify the charge', status: 'in-progress', priority: 'P1' },
+      { task: 'Coach credential verification (makes "vetted coaches" literally true + backs the liability story): the coach application requires (1) proof of a recognized certification (NASM/ACE/ISSA/NSCA; state-appropriate credentials for nutritionists — licensure applies in some states) and (2) proof of their own professional liability insurance (COI upload). Store doc uploads + expiry dates on the provider row, surface a "Verified" badge on marketplace/profile, admin review queue, and expiry re-verification reminders through the notifications spine', status: 'not-started', priority: 'P2' },
       { task: 'Adjust → full program/plan regeneration', status: 'not-started', priority: 'P2' },
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
@@ -820,6 +821,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Real coach accounts resolve on BOTH surfaces: app fetches live trainers/nutritionists + each real saved photo (get_public_profile.avatar); website marketplace now does the same — merges live coaches ahead of the demo directory (deduped), real cards link to the live profile (?u=<owner>), demo links pass &avatar= so derived profiles show the card photo. marketplace.jsx ?v=5', status: 'done' },
         { label: 'Website signed-out marketing: real face photos on the spotlight + grid; coach-customizable COVER image band behind the avatar (darkened/tinted; demo covers + real profile_custom.cover.image); facet gem avatars; filter dropdowns', status: 'done' },
         { label: 'Sweep now-dead marketplace constants + BSCoachDetailPublic/publicProfile.jsx (superseded by the living profile as the coach destination)', status: 'pending' },
+        { label: 'TO BUILD — coach credential verification: application requires proof of certification (NASM/ACE/ISSA/NSCA; state-appropriate for nutritionists — licensure applies in some states) + proof of professional liability insurance (COI upload). Private doc storage + expiry dates on the provider row, admin review queue, "Verified" badge on marketplace/profile, expiry re-verification reminders via the notifications spine. Backs the liability story; makes "vetted coaches" literally true', status: 'manual' },
       ],
     },
     {
