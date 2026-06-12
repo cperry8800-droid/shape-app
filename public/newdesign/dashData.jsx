@@ -68,6 +68,9 @@ function _dashRecordFromLive(row, ov) {
     streaks: null,             // not exposed to coaches yet
     lastContact: null,         // needs a thread-timestamp lookup (roadmap)
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || checkins[0].weekOf || null : null } : null,
+    nutrition: stats && (stats.avgCalories != null || stats.avgProtein != null)
+      ? { avgCalories: stats.avgCalories, targetCalories: null, avgProtein: stats.avgProtein, targetProtein: null }
+      : null,
     goal: goals && goals.overall && goals.overall.target != null
       ? { target: Number(goals.overall.target), unit: goals.overall.unit || "lb", now: goals.overall.now != null ? Number(goals.overall.now) : null }
       : null,
@@ -88,6 +91,7 @@ function _dashRecordFromSelf(dash, kit) {
     shapeScoreHistory: null,
     weighIns: null,
     streaks: k.streak != null ? { current: k.streak, best: k.streak, lastActiveOn: null } : null,
+    nutrition: null,
     goal: null,
     lastContact: null,
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || null : null } : null,

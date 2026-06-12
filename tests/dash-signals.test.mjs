@@ -229,3 +229,37 @@ test("queue over the mock personas: 7 ready, Jonah + Tess blocked", () => {
   assert.equal(q.filter((r) => r.state === "ready").length, 7);
   assert.deepEqual(q.filter((r) => r.state === "blocked").map((r) => r.client.profile.name).sort(), ["Jonah W.", "Tess B."]);
 });
+
+// ── nutrition rules (step 5 — nutritionist feed only) ───────────────────────
+test("ledger blown fires at +10% for the nutritionist, never the trainer", () => {
+  const c = clean({ nutrition: { avgCalories: 2310, targetCalories: 2100, avgProtein: 150, targetProtein: 150 } });
+  const n = evaluateClient(c, NOW, "nutritionist");
+  assert.deepEqual(keys(n), ["ledger_blown"]);
+  assert.equal(n.flags[0].label, "Ledger +10%");
+  assert.deepEqual(keys(evaluateClient(c, NOW, "trainer")), []);
+});
+test("ledger under +10% does not fire", () => {
+  const c = clean({ nutrition: { avgCalories: 2289, targetCalories: 2100, avgProtein: 150, targetProtein: 150 } });
+  assert.deepEqual(keys(evaluateClient(c, NOW, "nutritionist")), []);
+});
+test("protein under fires at -15% with value+target; skips without a target", () => {
+  const c = clean({ nutrition: { avgCalories: 2000, targetCalories: 2100, avgProtein: 127, targetProtein: 150 } });
+  const n = evaluateClient(c, NOW, "nutritionist");
+  assert.deepEqual(keys(n), ["protein_under"]);
+  assert.match(n.flags[0].reason, /127g protein vs a 150g target/);
+  const noTarget = clean({ nutrition: { avgCalories: 2000, targetCalories: null, avgProtein: 40, targetProtein: null } });
+  assert.deepEqual(keys(evaluateClient(noTarget, NOW, "nutritionist")), []);
+  assert.deepEqual(keys(evaluateClient(clean({ nutrition: null }), NOW, "nutritionist")), []);
+});
+test("nutritionist persona feed: Deandre red (logs+ledger), Priya amber (protein); trainer feed unchanged", () => {
+  const nf = getTriageFeed("nutritionist", buildMockClients(NOW), NOW);
+  const nby = Object.fromEntries(nf.map((r) => [r.client.profile.name, r]));
+  assert.equal(nby["Deandre K."].severity, "red");
+  assert.deepEqual(keys(nby["Deandre K."]), ["food_gap", "ledger_blown"]);
+  assert.equal(nby["Priya S."].severity, "amber");
+  assert.deepEqual(keys(nby["Priya S."]), ["protein_under"]);
+  const tf = getTriageFeed("trainer", buildMockClients(NOW), NOW);
+  const tby = Object.fromEntries(tf.map((r) => [r.client.profile.name, r.severity]));
+  assert.equal(tby["Deandre K."], "amber");
+  assert.equal(tby["Priya S."], "green");
+});

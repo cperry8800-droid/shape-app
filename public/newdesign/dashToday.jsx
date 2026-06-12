@@ -108,6 +108,10 @@ const DASH_TODAY_ROLES = {
 
   nutritionist: {
     flag: "isNutritionist",
+    triagePulse: true,      // nutrition-aware triage feed (step 5)
+    expandSchedule: true,   // consult rows expand w/ context + actions (step 5)
+    programmingQueue: true, // plan drops due (feeds the "Plans due" stat)
+    derivedKpis: true,      // true-Today stat bar from the data layer (step 5)
     mockName: "Rae",
     date: "WEDNESDAY APR 18",
     greeting: (n) => "Good morning, " + n + ".",
@@ -429,6 +433,26 @@ function CoachDashboardPage({ role }) {
         }))
       : [cfg.emptySchedule];
 
+  // True-Today stat bar (step 5): derived from the data layer — identical
+  // math for demo and live, so the bar is never fabricated.
+  let kpisOut = kpis;
+  if (cfg.derivedKpis) {
+    const consultRows = schedule.filter((s) => s.time !== "—");
+    const next = consultRows.find((s) => s.status === "NEXT" || s.status === "PENDING");
+    const ready = queue.filter((r) => r.state === "ready").length;
+    const withLogs = clients.filter((c) => c.foodLogs && c.foodLogs.daysLogged7d != null);
+    const compliance = withLogs.length
+      ? Math.round((withLogs.reduce((s, c) => s + Math.min(7, c.foodLogs.daysLogged7d), 0) / (withLogs.length * 7)) * 100)
+      : null;
+    const mrr = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
+    kpisOut = [
+      { k: String(consultRows.length), l: "Consults today", sub: next ? "next " + next.time : "all done" },
+      { k: String(queue.length), l: "Plans due", sub: ready + " ready" },
+      { k: compliance != null ? compliance + "%" : "—", l: "Roster compliance", sub: "food logs · 7d" },
+      { k: mrr ? dashMoney(mrr) : "—", l: "Monthly recurring", sub: clients.length + " client" + (clients.length === 1 ? "" : "s") },
+    ];
+  }
+
   const calendarEvents = live && Array.isArray(live.calendar)
     ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
     : cfg.mockCalendar;
@@ -450,7 +474,7 @@ function CoachDashboardPage({ role }) {
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}
       payoutCard={cfg.payoutCard()}
-      kpis={kpis}
+      kpis={kpisOut}
       scheduleTitle={cfg.scheduleTitle}
       calendarEvents={calendarEvents}
       schedule={schedule}

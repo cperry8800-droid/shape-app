@@ -20,6 +20,7 @@
 //     lastContact: { trainer: iso|null, nutritionist: iso|null } | null,
 //     checkIn:   { lastWeekOf: 'YYYY-MM-DD'|null } | null,   // Monday keys
 //     goal:      { target: n, unit, now: n|null } | null,     // body-comp goal
+//     nutrition: { avgCalories, targetCalories, avgProtein, targetProtein } | null,
 //     goalPhase: string | null,
 //     milestones: [{ key, label, hitAt? }] | null,
 //     payments:  { mrrCents, status? } | null,
@@ -40,6 +41,8 @@
     STREAK_MIN_BEST: 3,       // only call a streak "broken" if one existed
     CHECKIN_RED_WEEKS: 2,     // missed weeks that escalate to red on their own
     CHECKIN_GRACE_DAYS: 3,    // don't nag "due this week" before Thu
+    LEDGER_OVER_PCT: 10,      // avg kcal ≥ target+10% = ledger blown (nutritionist feed)
+    PROTEIN_UNDER_PCT: 15,    // avg protein ≤ target−15% = under target (nutritionist feed)
   };
 
   function toDate(v) {
@@ -143,6 +146,29 @@
     return null;
   }
 
+  // Nutritionist-feed rules: intake quality vs the plan's targets. Both need
+  // value AND target — live data carries averages today but no targets, so
+  // these skip on live until targets reach the overview (no false alarms).
+  function ruleLedgerBlown(c) {
+    var n = c.nutrition;
+    if (!n || n.avgCalories == null || n.targetCalories == null || !n.targetCalories) return null;
+    var overPct = Math.round(((n.avgCalories - n.targetCalories) / n.targetCalories) * 100);
+    if (overPct >= THRESHOLDS.LEDGER_OVER_PCT) {
+      return { key: "ledger_blown", label: "Ledger +" + overPct + "%", reason: "Averaging " + n.avgCalories + " kcal vs a " + n.targetCalories + " kcal target" };
+    }
+    return null;
+  }
+
+  function ruleProteinUnder(c) {
+    var n = c.nutrition;
+    if (!n || n.avgProtein == null || n.targetProtein == null || !n.targetProtein) return null;
+    var underPct = Math.round(((n.targetProtein - n.avgProtein) / n.targetProtein) * 100);
+    if (underPct >= THRESHOLDS.PROTEIN_UNDER_PCT) {
+      return { key: "protein_under", label: "Protein low", reason: "Averaging " + n.avgProtein + "g protein vs a " + n.targetProtein + "g target" };
+    }
+    return null;
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -158,6 +184,10 @@
     var ciFlag = ruleCheckinOverdue(c, now);
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
+    if (role === "nutritionist") {
+      if ((f = ruleLedgerBlown(c))) flags.push(f);
+      if ((f = ruleProteinUnder(c))) flags.push(f);
+    }
 
     var severity = "green";
     if (flags.length >= 2) severity = "red";
@@ -221,6 +251,7 @@
         lastContact: { trainer: ago(1), nutritionist: ago(2) },
         checkIn: { lastWeekOf: mondaysAgo(0) },
         goal: { target: 170, unit: "lb", now: 172.8 },
+        nutrition: { avgCalories: 2080, targetCalories: 2200, avgProtein: 142, targetProtein: 150 },
         goalPhase: "Build",
         milestones: [
           { key: "m25", label: "25% to goal", hitAt: ago(40) },
@@ -252,18 +283,22 @@
         lastContact: { trainer: ago(7), nutritionist: ago(7) },
         trainingAdherence: { pct: 64, done: 9, planned: 14 },
       }),
-      // green
+      // green for the trainer; amber on the nutritionist feed — protein is
+      // running 36% under her cut target
       person(5, "Priya S.", {
         goalPhase: "Cut",
+        nutrition: { avgCalories: 1840, targetCalories: 1900, avgProtein: 96, targetProtein: 150 },
         payments: { mrrCents: 22000, status: "active" },
       }),
       // amber — score slid 7 pts wk/wk, everything else fine
       person(6, "Elena R.", {
         shapeScoreHistory: history([48, 52, 55, 58, 61, 64, 66, 59]),
       }),
-      // amber — food logs stopped exactly at the 3-day line
+      // amber for the trainer (food gap); RED on the nutritionist feed — the
+      // logs that do exist average 21% over the calorie target
       person(7, "Deandre K.", {
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 4 },
+        nutrition: { avgCalories: 2540, targetCalories: 2100, avgProtein: 138, targetProtein: 150 },
       }),
       // red — three weeks without a check-in (red on its own)
       person(8, "Jonah W.", {

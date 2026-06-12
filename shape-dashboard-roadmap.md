@@ -124,6 +124,19 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Nutritionist = a true Today view** (step 5): all four panels flip on
+  via role config — nutrition-aware triage (`getTriageFeed('nutritionist')`
+  adds role-scoped rules: **ledger blown** avg ≥ target+10% ("Ledger +21%")
+  and **protein under** avg ≤ target−15% ("Protein low"); the trainer feed
+  is untouched), expandable consult schedule, programming queue, and a
+  **derived stat bar** (consults today + next time · plans due + ready ·
+  avg roster food-log compliance · real MRR from the roster) computed
+  identically for demo and live — no fabricated KPIs. The unified record
+  gains `nutrition { avgCalories, targetCalories, avgProtein,
+  targetProtein }`; live carries the averages now, targets land with the
+  plan-targets API gap. Demo: Deandre goes red on the nutritionist feed
+  (logs + ledger), Priya amber (protein) — both unchanged for the trainer.
+  Tests 28/28.
 - ✅ **Expandable schedule + Programming queue** (step 4, trainer):
   schedule rows expand to a pre-session context line ("2.8 lb from goal
   weight · check-in reviewed" — the unified record gained a `goal`
