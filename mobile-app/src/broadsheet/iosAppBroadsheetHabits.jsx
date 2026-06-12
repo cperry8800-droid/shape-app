@@ -508,4 +508,4 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   );
 }
 
-Object.assign(window, { BSHabitsPage, _bsDecodeHabits, _bsHabitPts, _BS_HABIT_DEMO_ROWS });
+Object.assign(window, { BSHabitsPage, _bsDecodeHabits, _bsEncodeHabits, _bsHabitPts, _BS_HABIT_DEMO_ROWS });

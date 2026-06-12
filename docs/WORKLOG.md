@@ -100,6 +100,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Home: one meals card · live habit check-off (+pts flash, rows leave) · compact goal card above the day
+- **All meals of the day are now ONE agenda card** (same chrome as the workout
+  card): "{Today/Weekday}'s meals." with each meal sectioned off inside — slot ·
+  time eyebrow, tappable title → its preview, macro subline, per-meal **Log → /
+  ✓ Logged** pill — plus a logged-count eyebrow and the nutritionist footer.
+  `mealCardFor` (one card per meal) is gone; the agenda sorts the meals card by
+  the earliest meal time vs the workout.
+- **Home habits card check-off is live**: each row's box toggles the habit right
+  on the card (stopPropagation — card tap still opens the habits page). Toggle
+  flips the selected day in the habit's history, mirrors into tweaks (instant
+  re-render) and POSTs the same `/api/client/habits` toggle the habits page uses.
+  On completion a **"✓ +N pts → Shape Score" chip flashes** (~2s) and the
+  **completed habit leaves the card** (rows = not-done only; "All done — +N pts
+  banked" state when everything's checked). Demo habits (signed-out) route to the
+  habits page. `_bsEncodeHabits` now window-exposed from the habits module.
+- **Featured goal card moved + compacted**: now sits right above the day's
+  agenda section (was below habits), with a `compact` mode on `BSMeGoalCard`
+  (tighter padding, 16px title, slimmer bar) — Me-page usage unchanged.
+
 ### 2026-06-12 — Goals: one Edit per tab (nav Edit removed) · per-tab goal cards · home goal link
 - **Goals header**: the nav-bar Edit button is GONE (it duplicated/confused with the
   goal card's Edit); the eyebrow ("Your goal · By …") is compacted (smaller, tighter
