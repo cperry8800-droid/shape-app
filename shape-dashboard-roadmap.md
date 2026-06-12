@@ -124,6 +124,22 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Client dashboard rebuilt** (step 7, restructure target d):
+  `dashClient.jsx` — the prototype's client view on real plumbing, first
+  page in the instrument-plate language (`dash.css` plate classes). Today
+  rail = `/api/client/plan` (workout w/ coach-set time + meals by dow);
+  **meal logging is real** — LOG posts `/api/nutrition/meal-log` and the
+  macro ledger (seeded from today's snapshot) ticks live, logged state
+  per-day in localStorage. Hero: Shape Score ring (tier progress) +
+  weekly delta + ledger-derived sparkline + plain-language "why it moved"
+  (top scoring category this week), streak alongside. Tonight's-workout
+  plate (exercises/schemes/loads + Shape Radio chip), weekly compliance
+  ring (workouts done/planned + days logged /7), team rows w/ unread
+  badges + Message, check-in-due banner (gold plate → ClientProgress),
+  secondary: grocery link · next session · membership status pill. Real
+  date in the masthead. Nothing business-flavored. Demo dataset is the
+  centralized fallback; the hook gained client extras
+  (plan/nutrition/score/membership, all independent fetches).
 - ✅ **Nutritionist roster v2 + quick-consult drawer** (step 6):
   `NutritionistClients.html` is hook-driven (`useDashboard`), rows are the
   triage feed, and **"Needs eyes" = signal-engine severity** (leads the

@@ -102,7 +102,7 @@ function _dashRecordFromSelf(dash, kit) {
 }
 
 function useDashboard(role) {
-  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null });
+  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null });
 
   React.useEffect(() => {
     let on = true;
@@ -110,15 +110,31 @@ function useDashboard(role) {
     // viewer is live; null otherwise (callers render their demo Today panels).
     // It resolves independently of the roster so one failing API can't take
     // down the other half of the page.
-    const demo = (today) => { if (on) setState({ loading: false, clients: DashSignals.buildMockClients(), source: "demo", today: today || null }); };
+    const demo = (today, clientExtras) => { if (on) setState({ loading: false, clients: DashSignals.buildMockClients(), source: "demo", today: today || null, client: clientExtras || null }); };
     (async () => {
       try {
         if (role === "client") {
-          const dash = await _dashJson("/api/client/dashboard").catch(() => null);
-          if (!dash || !dash.kpis) return demo(null);
-          let kit = null;
-          try { kit = await _dashJson("/api/client/checkin-kit"); } catch (e) {}
-          if (on) setState({ loading: false, clients: [_dashRecordFromSelf(dash, kit)], source: "live", today: dash });
+          // The client Today page needs the full picture: dashboard KPIs, the
+          // check-in kit, the assigned plan, today's nutrition ledger, the
+          // Shape Score rollup, and membership status. All resolve
+          // independently; absent pieces stay null (callers fall back to
+          // their demo dataset).
+          const [dash, kit, plan, nutrition, score, sub] = await Promise.all([
+            _dashJson("/api/client/dashboard").catch(() => null),
+            _dashJson("/api/client/checkin-kit").catch(() => null),
+            _dashJson("/api/client/plan").catch(() => null),
+            _dashJson("/api/client/nutrition").catch(() => null),
+            _dashJson("/api/client/score").catch(() => null),
+            _dashJson("/api/stripe/subscription").catch(() => null),
+          ]);
+          const extras = {
+            plan: plan && plan.ok ? plan : null,
+            nutrition: nutrition && nutrition.ok ? nutrition : null,
+            score: score && score.points_total != null ? score : null,
+            membership: sub && typeof sub.active === "boolean" ? sub : null,
+          };
+          if (!dash || !dash.kpis) return demo(null, extras);
+          if (on) setState({ loading: false, clients: [_dashRecordFromSelf(dash, kit)], source: "live", today: dash, client: extras });
           return;
         }
         const roleKey = role === "trainer" ? "isTrainer" : "isNutritionist";
@@ -155,7 +171,7 @@ function useDashboard(role) {
     () => DashSignals.buildProgrammingQueue(state.clients),
     [state.clients]
   );
-  return { loading: state.loading, clients: state.clients, triage, queue, today: state.today };
+  return { loading: state.loading, clients: state.clients, triage, queue, today: state.today, client: state.client };
 }
 
 Object.assign(window, { useDashboard });

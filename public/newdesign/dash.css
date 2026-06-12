@@ -5,3 +5,11 @@
 html, body { margin: 0; padding: 0; background: #1a1612; }
 * { box-sizing: border-box; }
 a { text-decoration: none; color: inherit; }
+
+/* ── Instrument plates (dashboard-v2 step 7 — prototype language) ─────────── */
+@keyframes dashTick { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
+.dash-plate { position:relative; background:linear-gradient(170deg, rgba(242,237,228,.05), rgba(242,237,228,.02) 70%), rgba(242,237,228,.02); border:1px solid rgba(242,237,228,.1); border-left:3px solid var(--dac, #2ee0c4); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); padding:18px 20px; }
+.dash-plate--tick::before { content:""; position:absolute; top:10px; left:8px; width:5px; height:5px; border-radius:1px; background:var(--dac, #2ee0c4); animation:dashTick 1.6s ease-in-out infinite; }
+.dash-plate--bracket::after { content:""; position:absolute; right:6px; bottom:6px; width:10px; height:10px; border-right:1.5px solid var(--dac, #2ee0c4); border-bottom:1.5px solid var(--dac, #2ee0c4); opacity:.55; }
+.dash-eyebrow { font-family:'JetBrains Mono', monospace; font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dac, #2ee0c4); }
+.dash-ledger { height:2px; background:linear-gradient(90deg, var(--dac, #2ee0c4), rgba(46,224,196,.18) 45%, transparent 85%); margin:7px 0 14px; }
