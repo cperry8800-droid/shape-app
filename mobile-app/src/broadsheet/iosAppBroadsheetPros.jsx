@@ -2277,6 +2277,18 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       .then(d => { const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setCareLoaded(true); })
       .catch(() => setCareLoaded(true));
   }, [clientUid]);
+  // Check-in kit (coach read): latest weekly check-in, health screening, girths.
+  const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [] });
+  useEffectBSP(() => {
+    if (!clientUid || !window.ShapeClientKit) return undefined;
+    let on = true;
+    Promise.all([
+      window.ShapeClientKit.checkins(clientUid, 2),
+      window.ShapeClientKit.health(clientUid),
+      window.ShapeClientKit.measurements(clientUid),
+    ]).then(([checkins, health, meas]) => { if (on) setCKit({ checkins: checkins || [], health: health || null, meas: meas || [] }); }).catch(() => {});
+    return () => { on = false; };
+  }, [clientUid]);
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
@@ -2538,6 +2550,36 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <Section eyebrow="ACTIVITY" title={isNutri ? 'Recent logs' : 'Recent sessions'} />
         {numberedList(recent)}
       </div>
+      {clientUid && cKit.checkins.length > 0 && (() => {
+        const ck = cKit.checkins[0];
+        const R = ck.ratings || {};
+        const items = [['trainingAdherence', 'Training'], ['nutritionAdherence', 'Nutrition'], ['sleep', 'Sleep'], ['energy', 'Energy'], ['stress', 'Stress'], ['hunger', 'Hunger']];
+        return (
+          <div>
+            <Section eyebrow="CHECK-IN" title={`Week of ${String(ck.week_of).slice(5)}`} />
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, background: t.PAPER2, padding: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {items.map(([k, l]) => (
+                  <div key={k}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: R[k] != null ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{R[k] != null ? `${R[k]}/10` : '—'}</div>
+                  </div>
+                ))}
+              </div>
+              {(ck.wins || ck.struggles || ck.question) && (
+                <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gap: 9 }}>
+                  {[['Wins', ck.wins, teal], ['Struggles', ck.struggles, t.RUST], ['Asked you', ck.question, accent]].map(([l, v, c]) => v ? (
+                    <div key={l}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>{l}</div>
+                      <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
+                    </div>
+                  ) : null)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       <div>
         <Section eyebrow="INBOX" title="Needs your eyes" />
         {numberedList(inbox)}
@@ -2648,6 +2690,46 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             })}
           </div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Coordinate {first}'s plan with the rest of the care team</div>
+        </div>
+      )}
+      {clientUid && (
+        <div>
+          <Section eyebrow="SCREENING" title="Health profile" />
+          {cKit.health ? (() => {
+            const h = cKit.health;
+            const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
+            return (
+              <div style={{ borderRadius: 6, border: `1px solid ${h.flagged ? `${t.RUST}66` : t.RULE}`, borderLeft: `3px solid ${h.flagged ? t.RUST : teal}`, background: t.PAPER2, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>PAR-Q screening</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.flagged ? t.RUST : teal }}>{h.flagged ? `${yesCount} flagged` : 'All clear'}</span>
+                </div>
+                {[['Injuries & surgeries', h.injuries], ['Medications & conditions', h.medications], ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null]].map(([l, v]) => v ? (
+                  <div key={l} style={{ marginTop: 10 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
+                  </div>
+                ) : null)}
+                <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Shared with linked coaches for safety · completed {h.consentAt ? new Date(h.consentAt).toLocaleDateString() : ''}</div>
+              </div>
+            );
+          })() : (
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>No health profile on file yet</div>
+          )}
+        </div>
+      )}
+      {clientUid && cKit.meas.length > 0 && (
+        <div>
+          <Section eyebrow="BODY" title="Latest measurements" />
+          <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, background: t.PAPER2, padding: '4px 14px' }}>
+            {cKit.meas.map((m, i) => (
+              <div key={m.site} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, textTransform: 'capitalize' }}>{m.site}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{String(m.measured_on).slice(5)}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{Number(m.value)} {m.unit}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div>

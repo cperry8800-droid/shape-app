@@ -384,6 +384,28 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
 
+  // Required one-time health profile (PAR-Q screening) for signed-in clients —
+  // checked after auth resolves; 'unknown' renders the app normally so the
+  // gate never flashes for members who already completed it.
+  const [healthGate, setHealthGate] = useStateBSC('unknown'); // unknown | needed | ok
+  React.useEffect(() => {
+    let on = true;
+    const check = async () => {
+      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+      if (!uid) { if (on) setHealthGate('ok'); return; } // signed-out preview skips
+      try {
+        const doc = await window.ShapeHealthProfile?.get?.();
+        if (on) setHealthGate(doc && doc.consentAt ? 'ok' : 'needed');
+      } catch (e) { if (on) setHealthGate('ok'); } // never lock out on a fetch error
+    };
+    check();
+    const tid = setTimeout(check, 1600); // auth may resolve after first paint
+    return () => { on = false; clearTimeout(tid); };
+  }, []);
+
+  if (healthGate === 'needed') {
+    return <BSHealthIntake onDone={() => setHealthGate('ok')} />;
+  }
   if (showSettings) {
     return (
       <BSSettings
@@ -1908,6 +1930,20 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
   const [habitFlash, setHabitFlash] = useStateBSC(null); // { name, pts } — transient credit after checking a habit
   const habitFlashTimer = React.useRef(null);
+  const [checkinPage, setCheckinPage] = useStateBSC(false);
+  const [checkinDue, setCheckinDue] = useStateBSC(false);
+  // Weekly check-in nudge — due when a signed-in client has no row this week.
+  React.useEffect(() => {
+    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!uid || !window.ShapeCheckins) return undefined;
+    let on = true;
+    window.ShapeCheckins.mine(1).then((rows) => {
+      if (!on) return;
+      const wk = window.ShapeCheckins.weekOf();
+      setCheckinDue(!(rows || []).some((r) => String(r.week_of) === wk));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, []);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
   const [showMood, setShowMood] = useStateBSC(false);
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
@@ -2166,6 +2202,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
+  }
+  if (checkinPage) {
+    return <BSWeeklyCheckin onBack={() => { setCheckinPage(false); setCheckinDue(false); }} />;
   }
   if (homeProgressPage) {
     return <BSClientProgress onBack={() => setHomeProgressPage(false)} />;
@@ -2526,6 +2565,20 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           </BSPlate>
         );
       })()}
+
+      {/* WEEKLY CHECK-IN — nudge plate when this week's check-in hasn't been sent */}
+      {checkinDue && (
+        <BSPlate c={t.ACCENT} tick pad="12px 16px 12px 22px" role="button" ariaLabel="Open the weekly check-in" onClick={() => setCheckinPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT }}>Weekly check-in · due</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Tell your coach how the week went.</div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Ratings · photos · measurements · 2 min</div>
+            </div>
+            <span style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 5, border: `1px solid ${t.ACCENT}`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Check in →</span>
+          </div>
+        </BSPlate>
+      )}
 
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
@@ -12760,6 +12813,261 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
 // The Me tab is PROFILE-FIRST: your living Terrain profile + score/goal/stats.
 // The header gear opens the single merged Settings screen (BSSettings) via the
 // shape:openProfile event; the goal card + Stats tab open the goal/progress pages.
+// ── WEEKLY CHECK-IN — the coaching-standard weekly ritual ────────────────────
+// Ratings (1–10) + wins/struggles/question + optional weight, girth
+// measurements and front/side/back progress photos. One per week (upserts on
+// the week's Monday); a linked coach reads it on the client profile.
+const BS_CHECKIN_RATINGS = [
+  ['trainingAdherence', 'Training adherence', '#c0533b'],
+  ['nutritionAdherence', 'Nutrition adherence', '#d8b25a'],
+  ['sleep', 'Sleep quality', '#8a5cf6'],
+  ['energy', 'Energy', '#34d6c5'],
+  ['stress', 'Stress · 10 = calm', '#7ed4ff'],
+  ['hunger', 'Hunger control', '#e8b14a'],
+];
+const BS_MEASURE_SITES = [['waist', 'Waist'], ['hips', 'Hips'], ['chest', 'Chest'], ['arm', 'Upper arm'], ['thigh', 'Thigh'], ['calf', 'Calf']];
+function BSWeeklyCheckin({ onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
+  const [ratings, setRatings] = useStateBSC({});
+  const [wins, setWins] = useStateBSC('');
+  const [struggles, setStruggles] = useStateBSC('');
+  const [question, setQuestion] = useStateBSC('');
+  const [weight, setWeight] = useStateBSC('');
+  const [meas, setMeas] = useStateBSC({});
+  const [photos, setPhotos] = useStateBSC({}); // pose → { file, url } until submit
+  const [busy, setBusy] = useStateBSC(false);
+  const [doneWeek, setDoneWeek] = useStateBSC(false);
+  // Prefill this week's check-in when it exists — saving again updates it.
+  React.useEffect(() => {
+    if (!loggedIn) return undefined;
+    let on = true;
+    window.ShapeCheckins?.mine?.(1).then((rows) => {
+      if (!on || !rows || !rows.length) return;
+      const r = rows.find((x) => String(x.week_of) === window.ShapeCheckins.weekOf());
+      if (!r) return;
+      setDoneWeek(true);
+      setRatings(r.ratings || {});
+      setWins(r.wins || ''); setStruggles(r.struggles || ''); setQuestion(r.question || '');
+      if (r.weight != null) setWeight(String(r.weight));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [loggedIn]);
+  const pickPhoto = (pose) => (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !/^image\//.test(file.type || '')) return;
+    setPhotos((p) => { try { if (p[pose] && p[pose].url) URL.revokeObjectURL(p[pose].url); } catch (err) {} return { ...p, [pose]: { file, url: URL.createObjectURL(file) } }; });
+  };
+  const submit = async () => {
+    if (!loggedIn) { window.__bsToast?.('Sign in to check in', 'err'); return; }
+    setBusy(true);
+    try {
+      await window.ShapeCheckins.submit({ ratings, wins, struggles, question, weight: weight || null, unit: t.isMetric ? 'kg' : 'lb' });
+      const entries = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v) }));
+      if (entries.length) { try { await window.ShapeMeasurements.log(entries, { unit: t.isMetric ? 'cm' : 'in' }); } catch (e) {} }
+      if (weight) { try { await window.ShapeWeighIns?.log?.({ weight: parseFloat(weight), unit: t.isMetric ? 'kg' : 'lb' }); } catch (e) {} }
+      for (const pose of ['front', 'side', 'back']) {
+        const p = photos[pose];
+        if (p && p.file) { try { await window.ShapeProgressPhotos.upload(p.file, { pose }); } catch (e) {} }
+      }
+      window.__bsToast?.('Check-in saved — your coach can see it', 'ok');
+      onBack();
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not save the check-in', 'err');
+    } finally { setBusy(false); }
+  };
+  const card = { borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, marginBottom: 12 };
+  const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
+  const ta = { width: '100%', boxSizing: 'border-box', minHeight: 62, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
+  const numIn = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, outline: 'none', textAlign: 'center' };
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow={`Week of ${(window.ShapeCheckins && window.ShapeCheckins.weekOf()) || ''}`} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
+      <div style={{ padding: `8px ${t.padX}px 28px` }}>
+        {doneWeek && (
+          <div style={{ ...card, borderLeft: `3px solid ${teal}`, background: `${teal}10`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Already checked in this week — saving again updates it.</div>
+        )}
+        <div style={card}>
+          <div style={lbl}>Rate the week · 1–10</div>
+          {BS_CHECKIN_RATINGS.map(([k, label, c], idx) => (
+            <div key={k} style={{ padding: '9px 0', borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{label}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: c, fontVariantNumeric: 'tabular-nums' }}>{ratings[k] || '—'}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const v = i + 1; const on = Number(ratings[k]) >= v; const sel = Number(ratings[k]) === v;
+                  return <button key={v} onClick={() => setRatings((r) => ({ ...r, [k]: v }))} aria-label={`${label} ${v} of 10`} style={{ height: 22, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent', cursor: 'pointer', padding: 0 }} />;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Body · optional</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 10 }}>
+            <label style={{ display: 'block' }}>
+              <span style={{ ...lbl, marginBottom: 5, display: 'block' }}>Weight ({t.isMetric ? 'kg' : 'lb'})</span>
+              <input value={weight} onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={numIn} />
+            </label>
+            <div />
+          </div>
+          <div style={{ ...lbl, marginBottom: 5 }}>Measurements ({t.isMetric ? 'cm' : 'in'})</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            {BS_MEASURE_SITES.map(([site, label]) => (
+              <label key={site} style={{ display: 'block' }}>
+                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>{label}</span>
+                <input value={meas[site] || ''} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ''); setMeas((m) => ({ ...m, [site]: v })); }} inputMode="decimal" placeholder="—" style={numIn} />
+              </label>
+            ))}
+          </div>
+        </div>
+        <div style={card}>
+          <div style={lbl}>Progress photos · optional</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            {['front', 'side', 'back'].map((pose) => (
+              <label key={pose} style={{ display: 'block', cursor: 'pointer' }}>
+                <input type="file" accept="image/*" onChange={pickPhoto(pose)} style={{ display: 'none' }} />
+                <span style={{ display: 'grid', placeItems: 'center', height: 92, borderRadius: 6, border: `1px ${photos[pose] ? 'solid' : 'dashed'} ${photos[pose] ? teal : t.RULE}`, background: photos[pose] ? `url(${photos[pose].url}) center/cover` : t.PAPER, overflow: 'hidden' }}>
+                  {!photos[pose] && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>＋ {pose}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Private — only you and your coaches can see these.</div>
+        </div>
+        <div style={card}>
+          <div style={lbl}>The week in words</div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ ...lbl, marginBottom: 5 }}>Wins — what went well?</div>
+            <textarea value={wins} onChange={(e) => setWins(e.target.value)} style={ta} />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ ...lbl, marginBottom: 5 }}>Struggles — what got in the way?</div>
+            <textarea value={struggles} onChange={(e) => setStruggles(e.target.value)} style={ta} />
+          </div>
+          <div>
+            <div style={{ ...lbl, marginBottom: 5 }}>A question for your coach</div>
+            <textarea value={question} onChange={(e) => setQuestion(e.target.value)} style={{ ...ta, minHeight: 46 }} />
+          </div>
+        </div>
+        <button onClick={submit} disabled={busy} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : 'Send check-in →'}</button>
+      </div>
+      <BSFooter right="Check-in" />
+    </BSPage>
+  );
+}
+
+// ── HEALTH PROFILE (intake) — required once per client account ───────────────
+// PAR-Q+ screening + injuries / medications / emergency contact. Stored in
+// user_goals('health_profile'); a LINKED coach always sees it via
+// get_client_health_profile — deliberately not share-gated (liability).
+const BS_PARQ = [
+  'Has a doctor ever said you have a heart condition and that you should only do activity recommended by a doctor?',
+  'Do you feel pain in your chest when you do physical activity?',
+  'In the past month, have you had chest pain while not doing physical activity?',
+  'Do you lose your balance because of dizziness, or do you ever lose consciousness?',
+  'Do you have a bone or joint problem that could be made worse by a change in your physical activity?',
+  'Is a doctor currently prescribing medication for your blood pressure or a heart condition?',
+  'Do you know of any other reason why you should not do physical activity?',
+];
+function BSHealthIntake({ onDone, onBack = null, initial = null }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  const [answers, setAnswers] = useStateBSC(() => (initial && Array.isArray(initial.parq) ? initial.parq : Array(BS_PARQ.length).fill(null)));
+  const [injuries, setInjuries] = useStateBSC((initial && initial.injuries) || '');
+  const [medications, setMedications] = useStateBSC((initial && initial.medications) || '');
+  const [emName, setEmName] = useStateBSC((initial && initial.emergency && initial.emergency.name) || '');
+  const [emPhone, setEmPhone] = useStateBSC((initial && initial.emergency && initial.emergency.phone) || '');
+  const [consent, setConsent] = useStateBSC(!!(initial && initial.consentAt));
+  const [busy, setBusy] = useStateBSC(false);
+  const allAnswered = answers.every((a) => a === true || a === false);
+  const canSave = allAnswered && consent && !busy;
+  const save = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    const doc = {
+      parq: answers,
+      flagged: answers.some((a) => a === true),
+      injuries: injuries.trim() || null,
+      medications: medications.trim() || null,
+      emergency: { name: emName.trim() || null, phone: emPhone.trim() || null },
+      consentAt: (initial && initial.consentAt) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const ok = await window.ShapeHealthProfile?.set?.(doc);
+    setBusy(false);
+    if (ok) { window.__bsToast?.('Health profile saved', 'ok'); onDone(doc); }
+    else window.__bsToast?.('Could not save — try again', 'err');
+  };
+  const card = { borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, marginBottom: 12 };
+  const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
+  const ta = { width: '100%', boxSizing: 'border-box', minHeight: 56, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none' };
+  return (
+    <BSPage>
+      <div style={{ padding: `62px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{onBack ? 'Settings · Health profile' : 'One-time setup · Required'}</span>
+          {onBack && <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>}
+        </div>
+        <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>Your health <span style={{ fontStyle: 'italic', color: teal }}>profile.</span></h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>
+          A quick safety screen (PAR-Q) before training starts. It lives on your profile and is shared with the coaches you hire — so they can program safely around your history.
+        </div>
+      </div>
+      <div style={{ padding: `16px ${t.padX}px 28px` }}>
+        <div style={card}>
+          <div style={lbl}>Health screening · answer all 7</div>
+          {BS_PARQ.map((q, i) => (
+            <div key={i} style={{ padding: '10px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4 }}>{i + 1}. {q}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                {[['No', false, teal], ['Yes', true, t.RUST]].map(([labelTxt, v, c]) => {
+                  const on = answers[i] === v;
+                  return <button key={labelTxt} onClick={() => setAnswers((a) => a.map((x, j) => (j === i ? v : x)))} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
+                })}
+              </div>
+            </div>
+          ))}
+          {answers.some((a) => a === true) && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 6, border: `1px solid ${t.RUST}55`, borderLeft: `3px solid ${t.RUST}`, background: `${t.RUST}10`, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>
+              You answered yes to a screening question — talk with your doctor before becoming much more physically active. Your coach will see this and program accordingly.
+            </div>
+          )}
+        </div>
+        <div style={card}>
+          <div style={lbl}>History · helps your coach program safely</div>
+          <div style={{ ...lbl, marginBottom: 5 }}>Injuries or surgeries (past & current)</div>
+          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" style={{ ...ta, marginBottom: 10 }} />
+          <div style={{ ...lbl, marginBottom: 5 }}>Medications & conditions</div>
+          <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="e.g. Blood-pressure medication · asthma inhaler" style={ta} />
+        </div>
+        <div style={card}>
+          <div style={lbl}>Emergency contact</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+            <input value={emName} onChange={(e) => setEmName(e.target.value)} placeholder="Name" style={field} />
+            <input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder="Phone" style={field} />
+          </div>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 3 }} />
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>
+            I confirm these answers are accurate, and I understand they're shared with coaches I hire on Shape for my safety.
+          </span>
+        </label>
+        <button onClick={save} disabled={!canSave} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : onBack ? 'Save health profile' : 'Save & enter Shape →'}</button>
+        {!allAnswered && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all 7 screening questions to continue</div>}
+      </div>
+    </BSPage>
+  );
+}
+
 function BSClientMe(props) {
   const [showProgress, setShowProgress] = useStateBSC(false);
   const [showGoals, setShowGoals] = useStateBSC(false);
@@ -14917,6 +15225,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showGoals, setShowGoals] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
   const [showHabits, setShowHabits] = useStateBSC(false);
+  const [showCheckin, setShowCheckin] = useStateBSC(false);
+  const [showHealth, setShowHealth] = useStateBSC(false);
+  const [healthDoc, setHealthDoc] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    window.ShapeHealthProfile?.get?.().then((d) => { if (on && d) setHealthDoc(d); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   // Nutrition + training preferences (merged in from the old Me page) — stored in
@@ -15456,6 +15772,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showHabits) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setShowHabits(false)} onOpenScore={() => { setShowHabits(false); setShowScore(true); }} />;
   }
+  if (showCheckin) {
+    return <BSWeeklyCheckin onBack={() => setShowCheckin(false)} />;
+  }
+  if (showHealth) {
+    return <BSHealthIntake initial={healthDoc} onBack={() => setShowHealth(false)} onDone={(doc) => { setHealthDoc(doc); setShowHealth(false); }} />;
+  }
   if (showLeaderboard) {
     return <BSLeaderboard onBack={() => setShowLeaderboard(false)} />;
   }
@@ -15505,6 +15827,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: 'Public profile', r: 'View', action: () => setShowPublicProfile(true) },
     { l: 'Goals', r: 'Track', action: () => setShowGoals(true) },
     { l: 'Habits', r: 'Daily', action: () => setShowHabits(true) },
+    { l: 'Weekly check-in', r: 'Ritual', action: () => setShowCheckin(true) },
+    { l: 'Health profile', r: 'Screening', action: () => setShowHealth(true) },
     { l: 'Library', r: 'Saved', action: () => setShowLibrary(true) },
     { l: 'Progress & stats', r: 'View', action: () => setShowProgress(true) },
     { l: 'Shape Score', r: 'Standing', action: () => setShowScore(true) },
@@ -16483,12 +16807,16 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const [train, setTrain] = useStateBSC(null);
   const [nutri, setNutri] = useStateBSC(null);
   const [trend, setTrend] = useStateBSC('weight');
+  const [measRows, setMeasRows] = useStateBSC([]);
+  const [photoRows, setPhotoRows] = useStateBSC([]);
   React.useEffect(() => {
     let on = true;
     window.ShapeProgress?.progress?.().then((d) => { if (on && d) setProg(d); }).catch(() => {});
     window.ShapeProgress?.analytics?.().then((d) => { if (on && d) setAna(d); }).catch(() => {});
     window.ShapeProgress?.train?.().then((d) => { if (on && d) setTrain(d); }).catch(() => {});
     window.ShapeProgress?.nutrition?.().then((d) => { if (on && d) setNutri(d); }).catch(() => {});
+    window.ShapeMeasurements?.mine?.().then((rows) => { if (on && Array.isArray(rows)) setMeasRows(rows); }).catch(() => {});
+    window.ShapeProgressPhotos?.mine?.().then((rows) => { if (on && Array.isArray(rows)) setPhotoRows(rows); }).catch(() => {});
     return () => { on = false; };
   }, []);
   const O = { ...BSPROG_DEMO.overall, ...(prog || {}), series: { ...BSPROG_DEMO.overall.series, ...((prog && prog.series) || {}) }, kpis: { ...BSPROG_DEMO.overall.kpis, ...((prog && prog.kpis) || {}) } };
@@ -16558,6 +16886,55 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
           </div>
         ))}
       </div>
+      {/* Measurements — latest per site + change since first log (live only) */}
+      {measRows.length > 0 && (
+        <div style={{ ...card, marginTop: 18 }}>
+          <Eyebrow>Measurements · from your check-ins</Eyebrow>
+          {(() => {
+            const bySite = new Map();
+            measRows.forEach((r) => {
+              const e = bySite.get(r.site) || { first: r, last: r };
+              if (String(r.measured_on) < String(e.first.measured_on)) e.first = r;
+              if (String(r.measured_on) >= String(e.last.measured_on)) e.last = r;
+              bySite.set(r.site, e);
+            });
+            const label = { waist: 'Waist', hips: 'Hips', chest: 'Chest', arm: 'Upper arm', thigh: 'Thigh', calf: 'Calf', neck: 'Neck', shoulders: 'Shoulders' };
+            return [...bySite.entries()].map(([site, e], i) => {
+              const delta = +(Number(e.last.value) - Number(e.first.value)).toFixed(1);
+              return (
+                <div key={site} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                  <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{label[site] || site}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{Number(e.last.value)} {e.last.unit}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : delta < 0 ? teal : t.AMBER, fontVariantNumeric: 'tabular-nums' }}>{delta === 0 ? '—' : `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`}</div>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
+      {/* Progress photos — date-stamped front/side/back timeline (live only) */}
+      {photoRows.length > 0 && (
+        <div style={{ ...card, marginTop: 18 }}>
+          <Eyebrow>Progress photos</Eyebrow>
+          {(() => {
+            const byDate = new Map();
+            photoRows.forEach((p) => { const l = byDate.get(p.taken_on) || []; l.push(p); byDate.set(p.taken_on, l); });
+            return [...byDate.entries()].slice(0, 6).map(([d, list], i) => (
+              <div key={d} style={{ padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 7 }}>{new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7 }}>
+                  {['front', 'side', 'back'].map((pose) => {
+                    const ph = list.find((x) => x.pose === pose);
+                    return ph
+                      ? <a key={pose} href={ph.url} target="_blank" rel="noreferrer" style={{ display: 'block', height: 96, borderRadius: 6, background: `url(${ph.url}) center/cover`, border: `1px solid ${t.RULE}` }} aria-label={`${pose} photo`} />
+                      : <div key={pose} style={{ height: 96, borderRadius: 6, border: `1px dashed ${t.HAIR}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{pose}</div>;
+                  })}
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+      )}
     </div>
   );
 
