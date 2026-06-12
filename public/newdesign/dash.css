@@ -1,0 +1,7 @@
+/* Shared dashboard boilerplate — the base reset every newdesign dashboard page
+   used to inline. One place to evolve (dashboard-v2 roadmap, Phase 1.1).
+   Component styling stays inline-in-JS; this file is page chrome only. */
+
+html, body { margin: 0; padding: 0; background: #1a1612; }
+* { box-sizing: border-box; }
+a { text-decoration: none; color: inherit; }
