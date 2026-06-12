@@ -13,3 +13,14 @@ a { text-decoration: none; color: inherit; }
 .dash-plate--bracket::after { content:""; position:absolute; right:6px; bottom:6px; width:10px; height:10px; border-right:1.5px solid var(--dac, #2ee0c4); border-bottom:1.5px solid var(--dac, #2ee0c4); opacity:.55; }
 .dash-eyebrow { font-family:'JetBrains Mono', monospace; font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dac, #2ee0c4); }
 .dash-ledger { height:2px; background:linear-gradient(90deg, var(--dac, #2ee0c4), rgba(46,224,196,.18) 45%, transparent 85%); margin:7px 0 14px; }
+
+/* ── Responsive (dashboard-v2 step 10) ────────────────────────────────────── */
+.dash-roster-scroll { overflow-x: auto; }
+.dash-roster-scroll > div { min-width: 640px; }
+@media (max-width: 1000px) {
+  .dash-cols { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 760px) {
+  .dash-shell-grid { grid-template-columns: 1fr !important; }
+  .dash-shell-grid > aside { display: none; }
+}

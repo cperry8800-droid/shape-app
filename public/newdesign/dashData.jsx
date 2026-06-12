@@ -176,7 +176,7 @@ function useDashboard(role) {
     () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients)),
     [role, state.clients]
   );
-  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client };
+  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source };
 }
 
 Object.assign(window, { useDashboard });

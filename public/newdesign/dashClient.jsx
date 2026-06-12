@@ -138,7 +138,7 @@ function DclRing({ pct, size = 92, stroke = 7, color = DCL_TEAL, children }) {
 
 // ── The page ────────────────────────────────────────────────────────────────
 function ClientDashboardPage() {
-  const { today: dash, clients, client: extras } = useDashboard("client");
+  const { today: dash, clients, client: extras, source } = useDashboard("client");
   const live = !!dash;
   const plan = extras && extras.plan;
   const nutrition = extras && extras.nutrition;
@@ -252,8 +252,9 @@ function ClientDashboardPage() {
 
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
+      {source === "demo" && <DashDemoBand />}
       <Header />
-      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
+      <div className="dash-shell-grid" style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
         <DashSidebar navItems={clientNavItems("today")} payoutCard={live && score
           ? { label: "SHAPE SCORE", amount: hero.total.toLocaleString(), sub: hero.tier + (hero.next ? " · " + hero.toNext + " to " + hero.next : "") }
           : clientPayoutCard} />
@@ -281,7 +282,7 @@ function ClientDashboardPage() {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 16, alignItems: "start" }}>
+          <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 16, alignItems: "start" }}>
             {/* ── Left column ── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
               {/* Hero — Shape Score ring + why it moved + streak */}

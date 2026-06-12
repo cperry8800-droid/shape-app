@@ -249,7 +249,7 @@ function ExpandableSchedule({ schedule, clients, role }) {
         const expandable = s.time !== "—"; // skip the "No sessions today" placeholder
         return (
           <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-            <div onClick={() => expandable && setOpenIdx(open ? null : i)} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", cursor: expandable ? "pointer" : "default" }}>
+            <div onClick={() => expandable && setOpenIdx(open ? null : i)} onKeyDown={(e) => { if (expandable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpenIdx(open ? null : i); } }} role={expandable ? "button" : undefined} tabIndex={expandable ? 0 : undefined} aria-expanded={expandable ? open : undefined} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", cursor: expandable ? "pointer" : "default" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{s.time}</div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
@@ -440,6 +440,18 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
 }
 
 
+// Demo-mode band — whenever the data layer fell back to the demo dataset
+// (signed out, wrong role, or the API is down) the page SAYS so, exactly like
+// the profiles' preview band. Demo data must never look like real tracking.
+function DashDemoBand() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(30,192,168,0.1)", borderBottom: "1px solid rgba(30,192,168,0.3)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
+      <span>Preview · demo data — an example of a live account</span>
+      <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "4px 12px", textDecoration: "none" }}>Sign in →</a>
+    </div>
+  );
+}
+
 // ── Step 8 business panels — real data or an honest "connects soon" state ───
 
 // 90-day growth: weekly subscriber adds + the MRR they brought. Live series
@@ -569,7 +581,7 @@ function DashNutriAggPanel({ clients, live }) {
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
-  const { today: live, triage, clients, queue, joint } = useDashboard(role);
+  const { today: live, triage, clients, queue, joint, source } = useDashboard(role);
 
   const firstName = live ? live.user.firstName : cfg.mockName;
   const kpis = live ? [
@@ -623,6 +635,8 @@ function CoachDashboardPage({ role }) {
       : [cfg.emptyPulse];
 
   return (
+    <React.Fragment>
+      {source === "demo" && <DashDemoBand />}
     <DashShell
       role={role}
       userName={firstName}
@@ -664,7 +678,8 @@ function CoachDashboardPage({ role }) {
         },
       ]}
     />
+    </React.Fragment>
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES });
+Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashMessageClient, dashClientSlugHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });

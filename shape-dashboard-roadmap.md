@@ -124,6 +124,20 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 10 — full review + fixes**: `scripts/dash-render-review.mjs`
+  (offline; Next's compiled Babel + ReactDOMServer) renders every v2 page
+  with pageShell stubbed — 35/35: all pages render error-free, role
+  isolation asserted (no leaked role UI either direction), client page
+  banned-word checks (no MRR / consults), joint banner + wins + drawer
+  render. Fixes shipped from the review: **demo-mode band** on all 4 v2
+  pages whenever the data layer falls back (signed out OR API down — demo
+  data is now always labelled, never fake-as-real), keyboard access on
+  roster + schedule row targets (tabIndex/Enter/Space/aria-expanded),
+  the dead "Invite client" button wired (→ public page), responsive
+  collapses for the client page (≤1000px one column, ≤760px sidebar
+  hides) + roster horizontal-scroll wrapper, and every cross-file dash
+  symbol explicitly window-exported (no reliance on babel-standalone
+  scope internals). Tags unified at `?v=20260613`.
 - ✅ **Milestones + coordinated action** (step 9): the unified record gains
   typed milestone events (`kind: pr|workout_count|streak|goal`) + lifetime
   `totals.workouts`; pure `buildMilestones(record)` derives "what they
@@ -255,3 +269,37 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 - Babel global scope: new files need unique top-level names
   (+ `Object.assign(window, …)` by convention).
 - Keep `source === 'event'` edit-gating when touching anything calendar.
+
+
+---
+
+## Still open after steps 1–10 (Phases 1–3)
+
+**Phase 1**
+- 1.1 visual: the prototype plate language ships on the CLIENT dashboard;
+  trainer/nutritionist Today + roster still wear the soft-card kit look.
+- 1.2: coach Today keeps "WEDNESDAY APR 18" (parity choice, step 2) — real
+  dates done on the client page only; coach first paint shows demo content
+  before the band confirms source.
+- 1.3: static payout/score sidebar cards remain on the ~30 NON-hook coach
+  pages (Programs/Score/Goal/…); real Stripe payout history API unbuilt
+  (growth panel uses real subscriber adds instead).
+- 1.4: dashboard meal logging is real, but the full ClientNutri/ClientHabits
+  PAGES still run on localStorage forks.
+- 1.5: demo band on the 4 v2 pages only.
+
+**Phase 2**
+- 2.4: TrainerClients roster not yet collapsed onto `dashRoster.jsx` (old
+  columns, name-slug links, dead buttons); id-based `?u=` client links.
+- Data-layer backend extensions: batch overview endpoint (N+1), coach-
+  readable weekly score history, lastContact thread timestamps, goalPhase
+  in the overview API, per-day food logs + last-logged date, plan
+  macro targets (unlocks ledger/protein rules on live), billing dates
+  (renewals due), profile-view tracking (funnel top).
+
+**Phase 3**
+- Instrument pass across the remaining dashboard pages; ticker port;
+  joint note → the coach↔coach thread (today it opens the client chat);
+  congratulate with prefilled message; check-in-due plate on coach Today.
+
+**Phase 4** — untouched by design (build-step decision after 1–3).

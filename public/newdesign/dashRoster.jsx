@@ -215,6 +215,7 @@ function DashRosterTable({ triage, role, filter, query }) {
   );
 
   return (
+    <div className="dash-roster-scroll">
     <div>
       <div style={{ display: "grid", gridTemplateColumns: DASH_ROSTER_COLS, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <span>CLIENT</span><span>LAST FOOD LOG</span><span>COMPLIANCE · 7D</span><span>GOAL PHASE</span><span>LAST CONSULT</span>
@@ -231,7 +232,9 @@ function DashRosterTable({ triage, role, filter, query }) {
           <div
             key={rec.profile.id || i}
             onClick={() => setOpen(r)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(r); } }}
             role="button"
+            tabIndex={0}
             aria-label={"Open " + rec.profile.name + " quick consult"}
             style={{ display: "grid", gridTemplateColumns: DASH_ROSTER_COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)", cursor: "pointer" }}
           >
@@ -249,6 +252,7 @@ function DashRosterTable({ triage, role, filter, query }) {
         );
       })}
       {open && <DashConsultDrawer row={open} role={role} onClose={() => setOpen(null)} />}
+    </div>
     </div>
   );
 }
