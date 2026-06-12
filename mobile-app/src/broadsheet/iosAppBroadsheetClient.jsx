@@ -3938,10 +3938,11 @@ function BSNutritionTopTabs({ active, onChange }) {
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
+    ['library', 'Lists'],
     ['recipes', 'Recipes'],
   ];
   return (
-    <div style={{ padding: `8px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
+    <div style={{ padding: `8px ${t.padX}px`, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, borderBottom: `1px solid ${t.RULE}` }}>
       {tabs.map(([key, label]) => {
         const on = active === key;
         return (
@@ -5405,7 +5406,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
   if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onProfile={onProfile} /></>;
-  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} /></>;
+  if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
     if (skRecipe) {
@@ -14528,15 +14529,26 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   return (
     <BSPage>
       <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
-      {/* Header */}
+      {/* Header — title + a small ＋ box (new custom list); the source chip below
+          says exactly WHICH list is loaded (coach plan / your library / recipe) */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: rust }}>{(list.eyebrow || 'Auto-built from plan').toUpperCase()}</div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
-          </div>
-          <button onClick={onLibrary} style={{ flexShrink: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: rust, paddingTop: 6 }}>+ NEW LIBRARY</button>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
+          <button onClick={onCreate} aria-label="New custom grocery list" style={{ flexShrink: 0, width: 34, height: 34, marginTop: 4, borderRadius: 5, border: `1px solid ${rust}66`, borderLeft: `3px solid ${rust}`, background: `${rust}14`, color: rust, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 16, fontWeight: 800, lineHeight: 1 }}>＋</button>
         </div>
+        {(() => {
+          const src = list.kind === 'recipe'
+            ? { label: 'Recipe list', c: t.AMBER }
+            : list.kind === 'custom'
+            ? { label: 'Your library · custom', c: '#8a5cf6' }
+            : { label: 'Coach plan · this week', c: rust };
+          return (
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: src.c, background: `${src.c}1a`, border: `1px solid ${src.c}66`, borderLeft: `3px solid ${src.c}`, borderRadius: 4, padding: '4px 9px' }}>{src.label}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+            </div>
+          );
+        })()}
       </div>
 
       <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
@@ -14687,7 +14699,7 @@ function bsNormalizeGroceryList(list) {
   };
 }
 
-function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [] }) {
+function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreate = () => {}, onEdit = () => {}, onDuplicate = () => {}, onDelete = () => {}, deletedIds = [], onChangeView = null }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const [filter, setFilter] = useStateBSC('all'); // all | custom | template | mealplan | recipe
@@ -14712,12 +14724,14 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
         title={<>Saved<br/>carts.</>}
       />
 
+      {onChangeView && <BSNutritionTopTabs active="library" onChange={onChangeView} />}
+
       {/* New list */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onCreate} style={{ width: '100%', borderRadius: 14,
+        <button onClick={onCreate} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)',
           padding: '14px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
-        }}>+ New grocery list</button>
+        }}>＋ New grocery list</button>
       </div>
 
       {/* Search saved lists */}

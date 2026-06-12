@@ -100,6 +100,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Grocery page: source chip · Lists tab · small ＋ box (clutter removed)
+- **"+ NEW LIBRARY" and the "AUTO-BUILT FROM YOUR MEALS" eyebrow removed** from
+  the grocery header. In their place: a **source chip** under the title that says
+  exactly which list is loaded — **"Coach plan · this week"** (teal, the default
+  plan-built list), **"Your library · custom"** (purple, a list from Saved carts),
+  or **"Recipe list"** (amber, sent from a recipe) — plus the list's name.
+- **`Lists` is now a first-class tab** in the eat-section rail (Day · Grocery ·
+  Lists · Recipes — `BSNutritionTopTabs` is 4-up): the grocery-list library
+  (Saved carts) opens from any eat view, and the library page itself renders the
+  rail (active = Lists) so navigation reads the same everywhere. Recipes already
+  had its tab.
+- **Small ＋ box** (squared, spine) top-right of the grocery header opens the
+  Build-a-list page for a new custom grocery list; the library's "＋ New grocery
+  list" CTA is squared/clipped to match.
+
 ### 2026-06-12 — Milestone Shape points · goals tabs live-wired · habits demo lock + more demo habits
 - **Migration `2026-06-12-goal-milestone-points.sql`** (**run on Supabase**):
   `award_my_goal_milestones()` — SECURITY INVOKER, self-scoped. Reads the Overall
