@@ -100,6 +100,24 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Living profile everywhere + signed-out demo mode (#1283)
+- **`LiveProfilePage` gains `demoRole`** — signed out, the page renders the
+  LV_PEOPLE demo persona on the real living layout under a "Preview · demo
+  profile — an example of a live account · Sign in →" band (the app's
+  preview concept), never a bare sign-in wall. Demo follow counts; Follow →
+  /login; Message → chat widget.
+- **`ClientMe.html` (dashboard Me) is profile-first**: the living Terrain
+  profile leads (own when signed in, demo when out); the full Account &
+  settings section (all rows/modals/health profile/danger zone, + back link,
+  Log out, Edit details) rides below via the `extras` slot. The redundant
+  `LivingProfileCustomizer` card removed and **`profileCustomizer.jsx`
+  deleted** (the profile's ✎ Customize modal edits the same doc).
+- **TrainerProfile / NutritionistProfile / MemberProfile** pass `demoRole`
+  (trainer/nutritionist/client) → signed-out shows the demo Signal/Terrain.
+- **Marketplace verified already-living**: real coaches → `MemberProfile
+  ?u=…`, demo coaches → `?name=…&role=…` derived profiles. No change.
+- `livingProfilePage.jsx?v=20260612b` on all 4 consumer pages.
+
 ### 2026-06-12 — Assign-time + hero-plate compaction (#1281) · dashboard Profile = the living profile itself (#1280)
 - **Trainer Assign page: optional "Session time"** chip row ("No set time"
   default) — a time agreed with the client rides in
