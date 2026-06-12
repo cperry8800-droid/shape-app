@@ -175,11 +175,20 @@ export async function GET(
 
   // The client's goals — only when they've left sharing on (the RPC gates on
   // is_coach_on_client + the `share` flag, using this coach's session).
-  // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client).
-  const [{ data: goals }, { data: stats }, { data: lifts }] = await Promise.all([
+  // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client),
+  // plus the check-in kit: latest weekly check-ins, girth measurements, progress
+  // photos, and the health profile (PAR-Q screening — never share-gated).
+  const [
+    { data: goals }, { data: stats }, { data: lifts },
+    { data: checkins }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
+  ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
     supabase.rpc('get_client_stats', { p_user_id: clientId }),
     supabase.rpc('get_client_lifts', { p_user_id: clientId }),
+    supabase.rpc('get_client_checkins', { p_user_id: clientId, p_limit: 4 }),
+    supabase.rpc('get_client_measurements', { p_user_id: clientId }),
+    supabase.rpc('get_client_progress_photos', { p_user_id: clientId, p_limit: 12 }),
+    supabase.rpc('get_client_health_profile', { p_user_id: clientId }),
   ]);
 
   return NextResponse.json({
@@ -193,5 +202,9 @@ export async function GET(
     goals: goals ?? null,
     stats: stats ?? null,
     lifts: lifts ?? null,
+    checkins: checkins ?? [],
+    measurements: measurements ?? [],
+    progressPhotos: progressPhotos ?? [],
+    healthProfile: healthProfile ?? null,
   });
 }

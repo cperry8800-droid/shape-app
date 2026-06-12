@@ -335,6 +335,8 @@ function ClientMePage() {
         </Card>
       </div>
 
+      <HealthProfileCard />
+
       <Card style={{ marginTop: 20 }}>
         <SectionTitle>Social &amp; links</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
@@ -380,6 +382,114 @@ function ClientMePage() {
     </DashPage>
   );
 }
+// ── HEALTH PROFILE (PAR-Q screening) — website parity with the mobile intake.
+// Reads/writes via /api/client/checkin-kit; shared with linked coaches for
+// safety & liability (not subject to the goals share toggle).
+const HP_PARQ = [
+  "Has a doctor ever said you have a heart condition and that you should only do activity recommended by a doctor?",
+  "Do you feel pain in your chest when you do physical activity?",
+  "In the past month, have you had chest pain while not doing physical activity?",
+  "Do you lose your balance because of dizziness, or do you ever lose consciousness?",
+  "Do you have a bone or joint problem that could be made worse by a change in your physical activity?",
+  "Is a doctor currently prescribing medication for your blood pressure or a heart condition?",
+  "Do you know of any other reason why you should not do physical activity?",
+];
+function HealthProfileCard() {
+  const [doc, setDoc] = React.useState(null);
+  const [loaded, setLoaded] = React.useState(false);
+  const [answers, setAnswers] = React.useState(Array(HP_PARQ.length).fill(null));
+  const [injuries, setInjuries] = React.useState("");
+  const [medications, setMedications] = React.useState("");
+  const [emName, setEmName] = React.useState("");
+  const [emPhone, setEmPhone] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [note, setNote] = React.useState("");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/client/checkin-kit", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled) { return; }
+        setLoaded(true);
+        const h = d && d.health;
+        if (!h) return;
+        setDoc(h);
+        if (Array.isArray(h.parq)) setAnswers(h.parq);
+        setInjuries(h.injuries || ""); setMedications(h.medications || "");
+        setEmName((h.emergency && h.emergency.name) || ""); setEmPhone((h.emergency && h.emergency.phone) || "");
+      }).catch(() => setLoaded(true));
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!loaded) return null;
+  const allAnswered = answers.every(a => a === true || a === false);
+
+  const save = async () => {
+    if (!allAnswered || busy) return;
+    setBusy(true); setNote("");
+    const next = {
+      parq: answers,
+      flagged: answers.some(a => a === true),
+      injuries: injuries.trim() || null,
+      medications: medications.trim() || null,
+      emergency: { name: emName.trim() || null, phone: emPhone.trim() || null },
+      consentAt: (doc && doc.consentAt) || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      const res = await fetch("/api/client/checkin-kit", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "health", doc: next }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
+      setDoc(next); setNote("Saved — visible to your linked coaches.");
+    } catch (e) { setNote(e.message || "Could not save."); }
+    finally { setBusy(false); }
+  };
+
+  const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 52, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
+  const lbl = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
+
+  return (
+    <Card style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <SectionTitle>Health profile</SectionTitle>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: doc ? (doc.flagged ? "#d2693f" : "#0ac5a8") : "rgba(242,237,228,0.5)" }}>
+          {doc ? (doc.flagged ? "PAR-Q · flagged" : "PAR-Q · all clear") : "Not completed yet"}
+        </span>
+      </div>
+      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.6, margin: "6px 0 14px" }}>
+        Safety screening shared with the coaches you hire (for programming + liability). Required in the app before training starts.
+      </div>
+      <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+        {HP_PARQ.map((q, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 130px", gap: 14, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{i + 1}. {q}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {[["No", false, "#0ac5a8"], ["Yes", true, "#d2693f"]].map(([labelTxt, v, c]) => {
+                const on = answers[i] === v;
+                return <button key={labelTxt} onClick={() => setAnswers(a => a.map((x, j) => (j === i ? v : x)))} style={{ padding: "7px 0", borderRadius: 8, border: `1px solid ${on ? c : "rgba(242,237,228,0.14)"}`, background: on ? c + "22" : "transparent", color: on ? c : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{labelTxt}</button>;
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
+        <div><div style={lbl}>Injuries &amp; surgeries</div><textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} style={taStyle} /></div>
+        <div><div style={lbl}>Medications &amp; conditions</div><textarea value={medications} onChange={(e) => setMedications(e.target.value)} style={taStyle} /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 200px", gap: 14, alignItems: "end" }}>
+        <div><div style={lbl}>Emergency contact · name</div><input value={emName} onChange={(e) => setEmName(e.target.value)} style={{ ...taStyle, minHeight: 0 }} /></div>
+        <div><div style={lbl}>Emergency contact · phone</div><input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} style={{ ...taStyle, minHeight: 0 }} /></div>
+        <button onClick={save} disabled={!allAnswered || busy} style={{ background: allAnswered ? "#0ac5a8" : "rgba(242,237,228,0.12)", color: allAnswered ? "#1a1612" : "rgba(242,237,228,0.45)", border: 0, padding: "12px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: allAnswered ? "pointer" : "default" }}>{busy ? "Saving…" : "Save health profile"}</button>
+      </div>
+      {note && <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</div>}
+    </Card>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.Fragment>
     <ClientMePage />
