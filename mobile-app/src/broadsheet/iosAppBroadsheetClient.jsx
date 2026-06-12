@@ -1896,6 +1896,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
+  const [goalsPage, setGoalsPage] = useStateBSC(false);
+  const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
   const [showMood, setShowMood] = useStateBSC(false);
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
@@ -2129,6 +2131,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
+  }
+  if (homeProgressPage) {
+    return <BSClientProgress onBack={() => setHomeProgressPage(false)} />;
+  }
+  if (goalsPage) {
+    return <BSClientGoals onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
   }
 
   return (
@@ -2450,6 +2458,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           </BSPlate>
         );
       })()}
+
+      {/* YOUR GOAL — featured goal card; taps through to the Goals page */}
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <BSMeGoalCard onOpen={() => setGoalsPage(true)} />
+      </div>
 
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
@@ -11728,7 +11741,7 @@ function BSGoalsTrend({ teal, series, h = 92 }) {
 // The Overall tab — a body-comp dashboard for the headline goal. Editable fields
 // (start/now/target/title/why) come from `overall`; the trend, milestones,
 // week-targets and consistency are illustrative demo content for now.
-function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: livePlans = null, weekTargets: liveWeekTargets = null }) {
+function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = () => {}, plans: livePlans = null, weekTargets: liveWeekTargets = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const purple = '#8a5cf6';
@@ -11842,6 +11855,7 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
               </div>
             ))}
           </div>
+          <button onClick={onEdit} style={{ marginTop: 12, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Edit targets →</button>
         </BSPlate>
       </div>
 
@@ -12404,13 +12418,12 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const hHead = hWords.join(' ');
   return (
     <BSPage>
-      {/* Header — eyebrow + serif goal title (+ subtitle) + Edit / Back */}
+      {/* Header — compact eyebrow + serif goal title (+ subtitle); edits live on the goal card */}
       <div style={{ padding: `62px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headInfo.eyebrow}</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headInfo.eyebrow}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
-            <button onClick={() => setEditOverall(true)} style={{ padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Edit</button>
             <BSMeCorner size={26} />
           </div>
         </div>
@@ -12429,22 +12442,32 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         </div>
       </div>
 
-      {/* Primary goal — synced with the edit-profile "Primary goal" chip */}
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 6, border: `1px solid ${teal}33`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}12, ${t.PAPER2} 70%)`, padding: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Primary goal</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{data.primaryGoal || 'Set a goal'}</div>
+      {/* The tab's goal — Overall = your primary goal (profile-synced); Training /
+          Nutrition carry their own headline goals. One Edit per tab, on the card. */}
+      {(() => {
+        const card = tab === 'overall'
+          ? { label: 'Overall goal', text: data.primaryGoal || overall.title || 'Set a goal', sub: 'Set in profile · syncs everywhere', onEdit: () => { try { window.dispatchEvent(new CustomEvent('shape:editProfile')); } catch (e) {} } }
+          : tab === 'training'
+          ? { label: 'Training goal', text: trainingMeta.title || 'Set a goal', sub: trainingMeta.subtitle || 'Tap edit to set your headline', onEdit: () => setEditOverall(true) }
+          : { label: 'Nutrition goal', text: nutritionMeta.title || 'Set a goal', sub: nutritionMeta.subtitle || 'Tap edit to set your headline', onEdit: () => setEditOverall(true) };
+        return (
+          <div style={{ padding: `12px ${t.padX}px 0` }}>
+            <div style={{ borderRadius: 6, border: `1px solid ${bsTHexA(accent, 0.2)}`, borderLeft: `3px solid ${accent}`, background: `linear-gradient(150deg, ${bsTHexA(accent, 0.07)}, ${t.PAPER2} 70%)`, padding: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>{card.label}</div>
+                  <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.text}</div>
+                </div>
+                <button onClick={card.onEdit} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 5, border: `1px solid ${accent}`, background: bsTHexA(accent, 0.08), color: accent, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Edit</button>
+              </div>
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.sub}</div>
             </div>
-            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:editProfile')); } catch (e) {} }} style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}14`, color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Edit</button>
           </div>
-          <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Set in profile · syncs everywhere</div>
-        </div>
-      </div>
+        );
+      })()}
 
       {tab === 'overall' ? (
-        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} onOpenProgress={onOpenProgress} plans={livePlans} weekTargets={liveWeek} />
+        <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} onEdit={() => setEditOverall(true)} onOpenProgress={onOpenProgress} plans={livePlans} weekTargets={liveWeek} />
       ) : tab === 'training' ? (
         <BSGoalsTraining onOpenProgram={() => {}} />
       ) : (
@@ -12551,7 +12574,7 @@ function BSMeGoalCard({ c, onOpen }) {
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
   return (
-    <button onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: onOpen ? 'pointer' : 'default', borderRadius: 16, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, background: bsTHexA(TEAL, 0.06), padding: '14px 16px', marginBottom: 14 }}>
+    <button onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: onOpen ? 'pointer' : 'default', borderRadius: 6, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, borderLeft: `3px solid ${TEAL}`, background: bsTHexA(TEAL, 0.06), padding: '14px 16px', marginBottom: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>

@@ -100,6 +100,22 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Goals: one Edit per tab (nav Edit removed) · per-tab goal cards · home goal link
+- **Goals header**: the nav-bar Edit button is GONE (it duplicated/confused with the
+  goal card's Edit); the eyebrow ("Your goal · By …") is compacted (smaller, tighter
+  tracking) so it doesn't truncate.
+- **Per-tab goal cards** (replacing the single "Primary goal" card): **Overall =
+  the primary goal** (profile-synced text, Edit → profile editor — per request
+  "overall can be primary goal"); **Training** and **Nutrition** show their own
+  headline goals (Edit → the headline sheet). Card is accent-spined per tab.
+- **Overall body-comp targets stay editable**: a mono **"Edit targets →"** action
+  inside the "Down so far" hero plate opens the old overall sheet
+  (title/start/now/target/date/why) — the record the nav Edit used to open.
+- **Home → Goals link**: the Me page's featured goal card (`BSMeGoalCard`, now
+  squared w/ teal spine — shared, so Me matches) renders on HOME under the habits
+  card and opens the full Goals page (goals/progress early-return overlays added
+  to `BSClientHome`).
+
 ### 2026-06-12 — Home habits → one agenda card · habits page + goals page instrument pass
 - **Home HABITS section is now ONE agenda-style plate** (same `BSPlate` chrome as
   the workout/meal cards — green spine, tick, bracket): eyebrow `HABITS · n/m
