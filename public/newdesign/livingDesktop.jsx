@@ -636,6 +636,17 @@ const DK_LINKS = [
   { key: "youtube", label: "YouTube", pre: "youtube.com/@" },
   { key: "website", label: "Website", pre: "" },
 ];
+// Climb background atmospheres — same keys/gradients as the mobile customizer
+// (BS_CLIMB_BGS), so a pick on either surface renders on both.
+const DK_CLIMB_BGS = [
+  { key: "", label: "Paper", css: null },
+  { key: "dawn", label: "Dawn", css: "linear-gradient(165deg, rgba(224,165,68,0.30), rgba(224,100,75,0.12) 55%, rgba(224,165,68,0.04) 92%)" },
+  { key: "dusk", label: "Dusk", css: "linear-gradient(165deg, rgba(138,92,246,0.30), rgba(46,111,160,0.14) 60%, rgba(138,92,246,0.04) 92%)" },
+  { key: "alpine", label: "Alpine", css: "linear-gradient(180deg, rgba(94,200,224,0.28), rgba(52,214,197,0.10) 55%, rgba(94,200,224,0.04) 92%)" },
+  { key: "forest", label: "Forest", css: "linear-gradient(165deg, rgba(123,191,90,0.28), rgba(47,107,58,0.12) 60%, rgba(123,191,90,0.04) 92%)" },
+  { key: "ember", label: "Ember", css: "linear-gradient(165deg, rgba(224,81,138,0.26), rgba(224,100,75,0.14) 55%, rgba(224,81,138,0.04) 92%)" },
+  { key: "storm", label: "Storm", css: "linear-gradient(165deg, rgba(91,141,249,0.28), rgba(33,40,52,0.16) 60%, rgba(91,141,249,0.05) 92%)" },
+];
 function dkSpotifyEmbed(url) {
   if (!url) return null;
   const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/.exec(String(url));
@@ -727,6 +738,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   const [pinMetric, setPinMetric] = React.useState((init.pinned && init.pinned.metric) || "");
   const [heroStats, setHeroStats] = React.useState(Array.isArray(init.heroStats) && init.heroStats.length ? init.heroStats : ["score", "tier", "streak"]);
   const toggleStat = (k) => setHeroStats((prev) => { if (prev.includes(k)) return prev.length > 1 ? prev.filter((x) => x !== k) : prev; return prev.length >= 3 ? [...prev.slice(1), k] : [...prev, k]; });
+  const [climbBg, setClimbBg] = React.useState(init.climbBg || "");
   const [coverBusy, setCoverBusy] = React.useState(false);
   const coverRef = React.useRef(null);
   const [busy, setBusy] = React.useState(false);
@@ -758,6 +770,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: p.q, a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
+      climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: pinKind, title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
     };
@@ -793,6 +806,20 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
             {DK_ACCENTS.map((a) => <button key={a} onClick={() => setAccent(a)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${accent === a ? LV_INK : "transparent"}`, background: a, color: "#fff", fontSize: 12 }}>{accent === a ? "✓" : ""}</button>)}
           </div>
           <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Climb background</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+            {DK_CLIMB_BGS.map((b) => {
+              const on = (climbBg || "") === b.key;
+              return (
+                <button key={b.key || "paper"} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 10, cursor: "pointer", border: `2px solid ${on ? LV_INK : dHexA(LV_INK, 0.18)}`, background: "transparent", padding: 4 }}>
+                  <span style={{ display: "block", height: 30, borderRadius: 6, background: b.css || dHexA(LV_INK, 0.06), border: b.css ? "none" : `1px dashed ${dHexA(LV_INK, 0.25)}` }} />
+                  <span style={{ display: "block", marginTop: 5, fontFamily: dMono, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: on ? LV_INK : dHexA(LV_INK, 0.5) }}>{b.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Headline stats · pick up to 3</span>
@@ -850,7 +877,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   );
 }
 
-function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref }) {
+function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref, belowContent = null }) {
   const d = person || LV_PEOPLE[persona];
   const c = tierOf(d).color;
   const reduced = useReducedMotion();
@@ -930,6 +957,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             )}
           </React.Fragment>
         )}
+        {belowContent}
         <DesktopFooter />
       </div>
     </div>
