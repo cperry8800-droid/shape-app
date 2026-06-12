@@ -20,6 +20,7 @@
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
+<script type="text/babel" src="profileCustomizer.jsx?v=20260612"></script>
 <script type="text/babel">
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
@@ -333,6 +334,10 @@ function ClientMePage() {
           <Row label="Weekly digest" value={p.weeklyDigest || "—"} action="CHANGE" onAction={() => openField("weeklyDigest", "Weekly digest")} />
           <Row label="Marketing emails" value={p.marketingEmails ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("marketingEmails")} />
         </Card>
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <LivingProfileCustomizer role="client" />
       </div>
 
       <HealthProfileCard />
