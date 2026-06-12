@@ -877,7 +877,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   );
 }
 
-function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref, belowContent = null }) {
+function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref, belowContent = null, chrome = true }) {
   const d = person || LV_PEOPLE[persona];
   const c = tierOf(d).color;
   const reduced = useReducedMotion();
@@ -901,8 +901,9 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
       <div style={{ position: "relative" }}>
         {/* Use the real site header (same Shape look; shows the logged-in tabs
             when signed into an account). Falls back to the local nav if the
-            shared shell isn't loaded. */}
-        {typeof Header !== "undefined" ? <Header /> : <DesktopNav d={d} direction={direction} />}
+            shared shell isn't loaded. chrome=false (embedded in the dashboard
+            shell, which brings its own Header/Footer + sidebar) skips both. */}
+        {chrome ? (typeof Header !== "undefined" ? <Header /> : <DesktopNav d={d} direction={direction} />) : null}
         {locked ? (
           <DesktopLocked d={d} follow={follow} onMessage={onMessage} onFollow={onFollow} coachingHref={coachingHref} />
         ) : (
@@ -958,7 +959,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
           </React.Fragment>
         )}
         {belowContent}
-        <DesktopFooter />
+        {chrome ? <DesktopFooter /> : <div style={{ height: 34 }} />}
       </div>
     </div>
   );
