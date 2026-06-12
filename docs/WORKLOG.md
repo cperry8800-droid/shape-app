@@ -100,6 +100,26 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Dashboard Profile pages = living-profile editors (all account types) (#1276)
+- **The dashboard Profile pages were static mocks** (`TrainerProfile.html` /
+  `NutritionistProfile.html` — Maya/Rae demo data, fake pricing/payout/insurance
+  rows, a dead Edit button, a fictional "1-hour review window") in the old
+  design. Both rewritten: DashPage shell kept (nav · payout card · "Preview
+  public page →" to MemberProfile.html · Danger zone), body = the new
+  **`LivingProfileCustomizer`** (`public/newdesign/profileCustomizer.jsx`).
+- **The customizer reads/writes the SAME `user_goals('profile_custom')` doc**
+  as the mobile Profile Customizer and the MemberProfile edit modal — bio ·
+  cover upload (community-photos bucket) · accent · climb background ·
+  headline stats (≤3) · pinned highlight · profile song · prompts (≤4) ·
+  social links — so edits sync web ⇄ app. Saves spread over the loaded doc,
+  preserving fields other surfaces own. Signed-out renders a sign-in card.
+- **`ClientMe.html`** gains the same editor (`role="client"`, above the Health
+  profile card) — covers all three account types.
+- **Gotcha re-learned:** babel-standalone scripts do NOT share top-level
+  scope — every shared `newdesign/*.jsx` must `Object.assign(window, {…})`
+  its exports (pageShell/trainerDashboard/coachNav all do; the new file
+  initially didn't and the pages would have thrown).
+
 ### 2026-06-12 — Ticker + settings/customizer instrument passes · in-place goal edit · real GPS routes (PRs #1267–#1271)
 - **War Room**: coach credential verification (cert + insurance COI, expiry
   tracking, Verified badge, admin queue) registered as the liability-backing
