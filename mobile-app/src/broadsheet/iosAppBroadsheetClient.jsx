@@ -7030,6 +7030,9 @@ function bsActivityFromPost(p) {
   // filler on every post, which used to turn plain "hi" posts into fake cards.
   const hasSensor = !!p.hasRealStats;
   const route = !!p.route;
+  // Full route object (provider/points/area/privacy) when the post carries one —
+  // Strava (and Garmin, once approved) imports normalize points server-side.
+  const routeObj = (p.route && typeof p.route === 'object' && Array.isArray(p.route.points)) ? p.route : null;
   const at = String(p.workout || p.kind || '').toLowerCase();
   const isRun = route || /run|jog|ride|bike|cycl|cardio|walk|hike|row|swim/.test(at);
   const isActivity = (ws && ws.length) || hasSensor || route || p.kind === 'workout' || !!p.source_provider;
@@ -7063,6 +7066,7 @@ function bsActivityFromPost(p) {
     city: p.sourceProviderLabel ? `via ${p.sourceProviderLabel}` : '',
     statsRow,
     route,
+    routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
     replies: Array.isArray(p.comments) ? p.comments.length : 0,
   };
@@ -9891,6 +9895,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
     const showRoute = a.real ? !!a.route : a.kind === 'run';
+    // Real GPS points (Strava/Garmin imports normalize them server-side) draw
+    // the actual route; the tier-tinted tile is the fallback for routeless flags.
+    const routeObj = a.real && a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
     const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
     const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
     const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
@@ -9914,8 +9921,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           {/* title + note */}
           <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
           {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '4px 0 0' }}>{a.body}</p>}
-          {/* GPS route map (runs) — halftone dot grid in the member's tier color */}
-          {showRoute && (
+          {/* GPS route — the REAL polyline when the post carries points;
+              halftone tile in the member's tier color otherwise */}
+          {routeObj ? (
+            <BSActivityRoutePreview route={routeObj} />
+          ) : showRoute && (
             <div style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
               <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
             </div>
