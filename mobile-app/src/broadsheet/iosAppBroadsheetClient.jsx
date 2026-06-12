@@ -7297,11 +7297,15 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
   const MONO = "'JetBrains Mono', monospace";
   return (
     <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: '0 0 14px', padding: '6px 0', background: BG }}>
-      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 999, padding: 4 }}>
+      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 4 }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
-          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 6px', borderRadius: 999, border: 0, cursor: 'pointer',
+          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 6px', borderRadius: 5, border: 0, cursor: 'pointer',
+            position: 'relative', overflow: 'hidden',
             background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : bsTHexA(INK, 0.55),
-            fontFamily: MONO, fontSize: 9.5, fontWeight: on ? 800 : 600, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tb.label}</button>
+            fontFamily: MONO, fontSize: 9.5, fontWeight: on ? 800 : 600, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: c }} />}
+            {tb.label}
+          </button>
         ); })}
       </div>
     </div>
@@ -8128,7 +8132,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div style={{ marginBottom: 28 }}>
               <Kick>Living signals</Kick>
               <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
-                <div style={{ flex: 'none', width: 96, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 14, padding: '13px 14px' }}>
+                <div style={{ flex: 'none', width: 96, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.25)}`, borderLeft: `2.5px solid ${c}`, borderRadius: 5, padding: '13px 14px' }}>
                   <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1 }}>{streakEff}</div>
                   <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 6 }}>Day streak</div>
                 </div>
@@ -12469,8 +12473,13 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
   const toNext = next ? next[1] - pts : 0;
   const RAD = 30, CIRC = 2 * Math.PI * RAD;
   const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+  const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
-    <div onClick={onOpen} style={{ borderRadius: 15, border: `1px solid ${bsTHexA(c, 0.28)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.12)}, ${bsTHexA(INK, 0.02)})`, padding: '11px 12px', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
+    <div onClick={onOpen} style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: _clip(12), background: bsTHexA(c, 0.5) }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: _clip(11), background: `linear-gradient(165deg, ${bsTHexA(c, 0.14)}, ${bsTHexA(INK, 0.03)} 60%), ${t.PAPER}` }} />
+      <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />
+      <div style={{ position: 'relative', padding: '11px 12px 11px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Shape Score</div>
@@ -12495,6 +12504,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
             <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
@@ -12577,7 +12587,7 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {cards.map((s) => (
-          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${bsTHexA(t.INK, 0.12)}`, background: bsTHexA(t.INK, 0.04), padding: '10px 9px' }}>
+          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `2.5px solid ${s.c}`, background: bsTHexA(t.INK, 0.04), padding: '10px 9px 10px 11px' }}>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
             <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.c, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.l}</div>
           </button>
