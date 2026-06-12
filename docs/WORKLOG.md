@@ -100,6 +100,31 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — "Nutri plan" chip + push-to-client auto-sync (calendar · grocery · real coach names) (#1278)
+- **Grocery source chip + list-picker plan row renamed "Nutri plan"** (was
+  "Coach plan"); the home meals card's corner tag matches. The picker's plan
+  row shows the real assigned plan title when one exists.
+- **Push-to-client now lands on the client CALENDAR automatically** — closes
+  the "calendar events remain demo" gap (War Room, 2026-06-11). `/api/calendar`
+  GET gains two **derived read-only sources** (no duplicate rows to drift):
+  `client_workouts` with a `scheduled_date` in range → WORKOUT events
+  (trainer pushes), and the active `client_meal_plans` menu expanded by
+  day-of-week from **this week forward** → MEAL events ("Lunch · 620 kcal"
+  subs — the event sheet's kcal parser reads them). Mobile month view +
+  website CalendarOverlay both already gate editing on `source === 'event'`,
+  so plan events are view-only everywhere with zero front-end changes. RLS
+  scopes the coach `?clientId` view to plan rows they authored.
+- **Real coach attribution when logged in** — `/api/client/plan` returns
+  `training.coach` + `meals.coach` (resolved from the public-read trainers/
+  nutritionists rows; no migration). Mobile threads them through: home meals
+  card footer, Eat "Your plan" card (+ "This week" replaces the fake "Apr
+  plan"), the swap-note recipient, and the auto-built grocery list's
+  author + name (the nutritionist's real name + plan title). Demo names stay
+  strictly the signed-out / no-plan fallback.
+- **Grocery already synced** (verified, no change needed): the default shop
+  list is `bsBuildPlanGrocery(liveProgram || demo)` — a nutritionist push
+  flows menu → meals → grocery items on the next plan fetch (≤60s cache).
+
 ### 2026-06-12 — Dashboard Profile pages = living-profile editors (all account types) (#1276)
 - **The dashboard Profile pages were static mocks** (`TrainerProfile.html` /
   `NutritionistProfile.html` — Maya/Rae demo data, fake pricing/payout/insurance
