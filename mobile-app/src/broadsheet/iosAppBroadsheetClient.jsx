@@ -1060,8 +1060,9 @@ function BSSaveButton({ item, full = false }) {
   const saved = lib.some(x => x.id === item.id);
   return (
     <button onClick={() => bsLibToggle(item)} style={{
-      ...(full ? { flex: 1 } : {}), padding: '14px', borderRadius: t.RADIUS_SM, cursor: 'pointer',
+      ...(full ? { flex: 1 } : {}), padding: '14px', borderRadius: 5, cursor: 'pointer',
       border: `1px solid ${saved ? teal : t.RULE}`,
+      borderLeft: saved ? `3px solid ${teal}` : `1px solid ${t.RULE}`,
       background: saved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
       color: saved ? teal : t.INK,
       fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -1228,7 +1229,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   })();
   const [reminded, setReminded] = useStateBSC(false);
   const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
-  const footBtn = { flex: 1, padding: '14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
+  const footBtn = { flex: 1, padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -1245,7 +1246,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
 
       {/* Coach note card */}
       <div style={{ padding: `14px ${t.padX}px 4px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${rust}55`, background: `linear-gradient(155deg, ${rust}24, ${rust}08 45%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${rust}55`, borderLeft: `3px solid ${rust}`, background: `linear-gradient(155deg, ${rust}24, ${rust}08 45%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
               <BSAvatar init="J" size={34} fill={rust} ink={t.PAPER} />
@@ -1288,7 +1289,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', gap: 10 }}>
         <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
         <button onClick={onMove} style={footBtn}>Move session</button>
-        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, color: teal } : {}) }}>{reminded ? '✓ Reminder set' : 'Remind me'}</button>
+        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: teal } : {}) }}>{reminded ? '✓ Reminder set' : 'Remind me'}</button>
       </div>
 
       {/* Pre-workout playlist — tap the play button to open it in Spotify before training */}
@@ -1306,7 +1307,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       </div>
 
       <div style={{ padding: `16px ${t.padX}px 14px` }}>
-        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 999, border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Begin session →</button>
+        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Begin session →</button>
       </div>
       <BSFooter right="Preview" />
     </BSPage>
@@ -2988,11 +2989,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // actual session; segment-style cardio (no "× reps") falls back to one set.
   if (session) return <BSSession title={cur.title} moves={effMoves.map(m => {
     const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/);
-    // No authored scheme (assigned-plan outline lines): duration-style segments
-    // (cardio/warm-up) stay a single set; strength-style moves default to 3
-    // working sets. "+ Add set" in the session covers anything beyond.
-    const isDuration = /\d\s*(?:min|sec|km|mi)\b/i.test(`${m.s || ''} ${m.l || ''}`);
-    return { ...m, sets: mm ? Number(mm[1]) : (isDuration ? 1 : 3), reps: mm ? mm[2] : '' };
+    // No authored scheme (assigned-plan outline lines / cardio segments):
+    // every move starts at 3 sets. "+ Add set" covers anything beyond.
+    return { ...m, sets: mm ? Number(mm[1]) : 3, reps: mm ? mm[2] : '' };
   })} onBack={() => setSession(false)} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
@@ -3380,17 +3379,20 @@ function BSMealPreview({ meal, onBack, onLog }) {
         <BSMeCorner size={28} />
       </div>
 
-      {/* Hero photo — rounded (falls back to a halftone if the image fails) */}
+      {/* Hero photo — clipped instrument plate (falls back to a halftone if the image fails) */}
       <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: `1px solid ${t.RULE}`, height: 150, background: `${meal.tagColor || t.AMBER}22` }}>
-          <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
-          <img
-            src={bsMealPhoto(meal)}
-            alt={meal.title || 'Meal'}
-            loading="lazy"
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+        <div style={{ position: 'relative', height: 150 }}>
+          <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', background: t.RULE }} />
+          <div style={{ position: 'absolute', inset: 1, clipPath: 'polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 0 100%)', overflow: 'hidden', background: `${meal.tagColor || t.AMBER}22` }}>
+            <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
+            <img
+              src={bsMealPhoto(meal)}
+              alt={meal.title || 'Meal'}
+              loading="lazy"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </div>
         </div>
       </div>
 
@@ -3404,9 +3406,9 @@ function BSMealPreview({ meal, onBack, onLog }) {
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>{meal.title}</div>
       </div>
 
-      {/* Stats row — rounded card */}
+      {/* Stats row — squared instrument plate w/ accent spine */}
       <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {[
             { l: 'KCAL',    v: String(meal.kcal) },
             { l: 'PROTEIN', v: meal.p + 'g' },
@@ -3424,15 +3426,15 @@ function BSMealPreview({ meal, onBack, onLog }) {
       {/* Macro split bar — rounded */}
       <div style={{ padding: `10px ${t.padX}px 6px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
-        <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', background: t.HAIR }}>
+        <div style={{ display: 'flex', height: 12, borderRadius: 3, overflow: 'hidden', background: t.HAIR }}>
           <div style={{ width: `${pPct}%`, background: t.GREEN }} />
           <div style={{ width: `${cPct}%`, background: t.AMBER }} />
           <div style={{ width: `${fPct}%`, background: t.RUST }} />
         </div>
         <div style={{ display: 'flex', gap: 14, marginTop: 9, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
         </div>
       </div>
 
@@ -3467,7 +3469,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
         <>
           <BSSection title="Ingredients" meta={`${ingredients.length} items`} />
           <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
               {ingredients.map((ing, i) => (
                 <div key={i} style={{
                   padding: '12px 0', borderBottom: i === ingredients.length - 1 ? 0 : `1px solid ${t.HAIR}`,
@@ -3488,7 +3490,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
         <>
           <BSSection title="Method" meta={`${steps.length} steps`} />
           <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '4px 14px' }}>
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '4px 14px' }}>
               {steps.map((s, i) => (
                 <div key={i} style={{
                   padding: '14px 0', borderBottom: i === steps.length - 1 ? 0 : `1px solid ${t.HAIR}`,
@@ -3507,18 +3509,19 @@ function BSMealPreview({ meal, onBack, onLog }) {
         </>
       )}
 
-      {/* CTA row — compact, single-line */}
+      {/* CTA row — compact, single-line, squared instrument buttons */}
       <div style={{ padding: `16px ${t.padX}px 16px`, display: 'flex', gap: 8, alignItems: 'stretch' }}>
-        <button onClick={onBack} style={{ borderRadius: 11,
+        <button onClick={onBack} style={{ borderRadius: 5,
           padding: '0 14px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK,
           fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer',
         }}>Close</button>
-        <button onClick={() => bsLibToggle(mealLibItem)} style={{ borderRadius: 11,
-          padding: '0 14px', border: `1px solid ${mealSaved ? teal : t.RULE}`, background: mealSaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: mealSaved ? teal : t.INK, cursor: 'pointer',
+        <button onClick={() => bsLibToggle(mealLibItem)} style={{ borderRadius: 5,
+          padding: '0 14px', border: `1px solid ${mealSaved ? teal : t.RULE}`, borderLeft: mealSaved ? `3px solid ${teal}` : `1px solid ${t.RULE}`, background: mealSaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: mealSaved ? teal : t.INK, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
         }}>{mealSaved ? '✓ Saved' : '♡ Save'}</button>
         <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
-          flex: 1, border: 0, borderRadius: 11, background: teal, color: '#04201d', cursor: 'pointer',
+          flex: 1, border: 0, borderRadius: 5, background: teal, color: '#04201d', cursor: 'pointer',
+          clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)',
           padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: onLog ? 'center' : 'space-between', gap: 8,
         }}>
           {onLog ? <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Log Now</span> : (
@@ -4067,15 +4070,15 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
       {/* Macro split bar — % of kcal (shared with the meal page) */}
       <div style={{ padding: `10px ${t.padX}px 6px` }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', color: t.INK50, textTransform: 'uppercase', marginBottom: 8, fontWeight: 700 }}>Macro split · % of kcal</div>
-        <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', background: t.HAIR }}>
+        <div style={{ display: 'flex', height: 12, borderRadius: 3, overflow: 'hidden', background: t.HAIR }}>
           <div style={{ width: `${pPct}%`, background: t.GREEN }} />
           <div style={{ width: `${cPct}%`, background: t.AMBER }} />
           <div style={{ width: `${fPct}%`, background: t.RUST }} />
         </div>
         <div style={{ display: 'flex', gap: 14, marginTop: 9, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', color: t.INK70, fontWeight: 600 }}>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
-          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 999, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.GREEN, marginRight: 5 }} />P {pPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.AMBER, marginRight: 5 }} />C {cPct}%</span>
+          <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: t.RUST,  marginRight: 5 }} />F {fPct}%</span>
         </div>
       </div>
       {r.blurb && (
@@ -7634,7 +7637,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     { k: 'Run', t: 'Sunrise shakeout', b: '5.2 km easy. Legs felt springy after yesterday’s pulls.', metric: ['5K', '24:51'], time: '3d' },
   ];
   // Ridgeline hero fields (illustrative — wire to real program/coach/goal later).
-  const progressPct = 84, statusLabel = 'In training', summit = goal || '1.5× bodyweight';
+  const progressPct = 84, summit = goal || '1.5× bodyweight';
   const block = 'Week 6 of 12', program = 'Hypertrophy Block II', startLabel = "Feb ’25 — start";
   const coachName = 'Maya Okafor', coachInit = 'MO';
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
@@ -7946,7 +7949,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>{heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
-            <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: SANS, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.01em', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 9px', borderRadius: 999 }}>{curLevel} · now</div>
+            <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: SANS, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.01em', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 9px', borderRadius: 999 }}>{curLevel}</div>
             <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 42, fontFamily: SANS, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA(BG, 0.8), border: `1px solid ${bsTHexA(bsTierColor(String(nextLevel || curLevel).toLowerCase()), 0.4)}`, padding: '3px 10px', borderRadius: 999 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -7957,7 +7960,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               </div>
               <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                 <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
               </div>
             </div>
             {/* coached-by band */}
@@ -13366,7 +13368,10 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         }}>Score</button>}
       />
 
-      <div style={{ margin: `10px ${t.padX}px`, padding: '11px 14px', borderRadius: 14, background: t.INK, color: t.PAPER }}>
+      {/* Balance hero — instrument plate (clipped corner + accent spine) on the dark stock */}
+      <div style={{ margin: `10px ${t.padX}px`, position: 'relative' }}>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)', background: `${t.ACCENT}66` }} />
+        <div style={{ position: 'relative', margin: 1.25, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', background: t.INK, color: t.PAPER, padding: '11px 14px', borderLeft: `3px solid ${t.ACCENT}` }}>
         <BSEyebrow color={t.ACCENT}>Available balance</BSEyebrow>
         <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, lineHeight: 0.9, letterSpacing: '-0.05em' }}>{balance.toLocaleString()}</div>
@@ -13384,10 +13389,11 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             </div>
           ))}
         </div>
+        </div>
       </div>
 
       {(credit.session > 0 || credit.nutrition > 0) && (
-        <div style={{ margin: `0 ${t.padX}px 4px`, padding: '11px 14px', borderRadius: 14, border: `1px solid ${bsTHexA(t.ACCENT, 0.4)}`, background: bsTHexA(t.ACCENT, 0.08) }}>
+        <div style={{ margin: `0 ${t.padX}px 4px`, padding: '11px 14px', borderRadius: 6, border: `1px solid ${bsTHexA(t.ACCENT, 0.4)}`, borderLeft: `3px solid ${t.ACCENT}`, background: bsTHexA(t.ACCENT, 0.08) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <BSEyebrow color={t.ACCENT}>Coach credit wallet</BSEyebrow>
           </div>
@@ -13401,7 +13407,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
       {!!notice && (
         <div style={{ padding: `12px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 14, border: `1px solid ${t.ACCENT}55`, background: `${t.ACCENT}14`, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{notice}</div>
+          <div style={{ borderRadius: 6, border: `1px solid ${t.ACCENT}55`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{notice}</div>
         </div>
       )}
 
@@ -13412,23 +13418,25 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
         gap: 6,
       }}>
         {categories.map(c => (
-          <button key={c} onClick={() => setCat(c)} style={{ borderRadius: t.RADIUS_SM,
+          <button key={c} onClick={() => setCat(c)} style={{ borderRadius: 4,
             minWidth: 0,
             padding: '8px 6px',
-            border: `1px solid ${cat === c ? t.INK : t.RULE}`,
-            background: cat === c ? t.INK : 'transparent',
-            color: cat === c ? t.PAPER : t.INK,
+            border: `1px solid ${cat === c ? `${t.ACCENT}66` : t.RULE}`,
+            borderLeft: cat === c ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
+            background: cat === c ? `${t.ACCENT}1f` : 'transparent',
+            color: cat === c ? t.INK : t.INK70,
             fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
             whiteSpace: 'normal',
             lineHeight: 1.15,
           }}>{c}</button>
         ))}
-        <button onClick={() => setAffordable(!affordable)} style={{ borderRadius: t.RADIUS_SM,
+        <button onClick={() => setAffordable(!affordable)} style={{ borderRadius: 4,
           minWidth: 0,
           padding: '8px 6px',
-          border: `1px solid ${affordable ? t.ACCENT : t.RULE}`,
-          background: affordable ? t.ACCENT : 'transparent',
-          color: affordable ? t.PAPER : t.INK,
+          border: `1px solid ${affordable ? `${t.ACCENT}66` : t.RULE}`,
+          borderLeft: affordable ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
+          background: affordable ? `${t.ACCENT}1f` : 'transparent',
+          color: affordable ? t.INK : t.INK70,
           fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700,
           whiteSpace: 'normal',
           lineHeight: 1.15,
@@ -13711,11 +13719,11 @@ function BSWorkoutPreview({ program, onBack, onStart }) {
       {/* Sticky-ish CTA */}
       {!isRest && (
         <div style={{ padding: `22px ${t.padX}px 18px`, display: 'flex', gap: 8 }}>
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
+          <button onClick={onBack} style={{ borderRadius: 5,
             padding: '14px 18px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
           }}>Close</button>
-          <button onClick={onStart} style={{ borderRadius: t.RADIUS_SM,
+          <button onClick={onStart} style={{ borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)',
             flex: 1, padding: '14px', border: 0, background: t.INK, color: t.PAPER,
             fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer',
           }}>Start session →</button>
@@ -13918,9 +13926,9 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
       </div>
 
-      {/* Rest timer — pinned at the very top while resting between sets */}
+      {/* Rest timer — pinned at the very top while resting between sets (instrument plate) */}
       {restEnd && restLeft > 0 && (
-        <div style={{ margin: `12px ${t.padX}px 0`, padding: 16, borderRadius: 16, background: t.INK, color: t.PAPER }}>
+        <div style={{ margin: `12px ${t.padX}px 0`, padding: 16, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', borderLeft: `3px solid ${teal}`, background: t.INK, color: t.PAPER }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Rest</span>
             <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', fontWeight: 700 }}>Set {restAfterSet} of {move.sets} · done</span>
@@ -13933,8 +13941,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             <div style={{ width: `${Math.round(Math.max(0, Math.min(1, (restTotal - restLeft) / restTotal)) * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-            <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ flex: 1, padding: '11px', borderRadius: 999, background: 'transparent', color: t.PAPER, border: `1px solid rgba(255,255,255,0.4)`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>+30 sec</button>
-            <button onClick={() => setRestEnd(null)} style={{ flex: 1.4, padding: '11px', borderRadius: 999, background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Skip rest →</button>
+            <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ flex: 1, padding: '11px', borderRadius: 5, background: 'transparent', color: t.PAPER, border: `1px solid rgba(255,255,255,0.4)`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>+30 sec</button>
+            <button onClick={() => setRestEnd(null)} style={{ flex: 1.4, padding: '11px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', background: teal, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Skip rest →</button>
           </div>
         </div>
       )}
@@ -13963,12 +13971,12 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       {/* Plate math */}
       {perSide && (
         <div style={{ padding: `14px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+          <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: 14 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Per side ({activeLoad} lb)</div>
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, fontWeight: 700 }}>Bar +</span>
               {plates.length ? plates.map((p, i) => (
-                <span key={i} style={{ padding: '4px 9px', borderRadius: 8, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{p}</span>
+                <span key={i} style={{ padding: '4px 9px', borderRadius: 3, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{p}</span>
               )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>bar only</span>}
             </div>
           </div>
@@ -13988,7 +13996,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           const bc = isActive ? teal : t.HAIR;
           const cell = (field, ph) => (
             <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" disabled={done} aria-label={`Set ${i + 1} ${field}`}
-              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', borderRadius: 10, border: `1px solid ${done ? t.HAIR : bc}`, background: done ? 'transparent' : (isActive ? `${teal}12` : t.PAPER2), color: t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.6 : 1 }} />
+              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', borderRadius: 5, border: `1px solid ${done ? t.HAIR : bc}`, background: done ? 'transparent' : (isActive ? `${teal}12` : t.PAPER2), color: t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.6 : 1 }} />
           );
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '5px 0' }}>
@@ -13996,21 +14004,21 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
               {cell('load', 'lb')}
               {cell('reps', '—')}
               {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i); }} aria-label={done ? `Set ${i + 1} done` : `Mark set ${i + 1} done`} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 999, border: `1.5px solid ${(done || isActive) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : (isActive ? teal : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer' }}>✓</button>
+              <button onClick={() => { if (!done) logSet(i); }} aria-label={done ? `Set ${i + 1} done` : `Mark set ${i + 1} done`} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : (isActive ? teal : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer' }}>✓</button>
             </div>
           );
         })}
-        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 8, width: '100%', padding: '11px', borderRadius: 12, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
+        <button onClick={addSet} aria-label="Add a set to this exercise" style={{ marginTop: 8, width: '100%', padding: '11px', borderRadius: 5, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>＋ Add set</button>
       </div>
 
       {/* Primary log CTA */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         {activeIdx != null ? (
-          <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {activeRunning ? `Log set ${activeIdx + 1}${move.reps ? ` · ${move.reps} reps` : ''}` : `Start set ${activeIdx + 1}`}
           </button>
         ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else finishSession(); }} style={{ width: '100%', borderRadius: 999, border: 0, background: t.GREEN, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else finishSession(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.GREEN, color: '#04201d', cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {moveIdx < moves.length - 1 ? 'Next exercise →' : 'Finish workout ✓'}
           </button>
         )}
@@ -14018,8 +14026,8 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
       {/* Prev / next */}
       <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', gap: 8 }}>
-        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ padding: '13px 16px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.4 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← Previous</button>
-        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: moveIdx >= moves.length - 1 ? t.INK50 : t.INK, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', opacity: moveIdx >= moves.length - 1 ? 0.5 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? `Next: ${moves[moveIdx + 1].m}` : 'Last exercise'}</button>
+        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ padding: '13px 16px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.4 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>← Previous</button>
+        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ flex: 1, minWidth: 0, padding: '13px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: moveIdx >= moves.length - 1 ? t.INK50 : t.INK, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', opacity: moveIdx >= moves.length - 1 ? 0.5 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? `Next: ${moves[moveIdx + 1].m}` : 'Last exercise'}</button>
       </div>
 
       {/* Queue */}
@@ -14032,7 +14040,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           const mDone = Array.from({ length: mv.sets }).every((_, si) => completed[`${i}-${si}`]);
           const isCurrent = i === moveIdx;
           return (
-            <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: isCurrent ? t.PAPER2 : 'transparent', border: 0, borderRadius: 12, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
+            <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: isCurrent ? t.PAPER2 : 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${teal}` : '3px solid transparent', borderRadius: 5, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : t.INK50 }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{mv.m}</div>
@@ -14046,7 +14054,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
       {/* Live coach message */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RUST}55`, background: `linear-gradient(155deg, ${t.RUST}22, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${t.RUST}55`, borderLeft: `3px solid ${t.RUST}`, background: `linear-gradient(155deg, ${t.RUST}22, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
               <BSAvatar init="J" size={30} fill={t.RUST} ink={t.PAPER} />
@@ -14072,7 +14080,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           {[['loved', 'Loved it', t.GREEN], ['ok', 'It was OK', t.AMBER], ['nope', 'Not for me', t.RUST]].map(([key, label, c]) => {
             const on = reviewFeel === key;
             return (
-              <button key={key} onClick={() => setReviewFeel(on ? null : key)} style={{ borderRadius: 14, border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : t.PAPER2, cursor: 'pointer', padding: '14px 6px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : t.INK70 }}>{label}</button>
+              <button key={key} onClick={() => setReviewFeel(on ? null : key)} style={{ borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : t.PAPER2, cursor: 'pointer', padding: '14px 6px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : t.INK70 }}>{label}</button>
             );
           })}
         </div>
@@ -14084,7 +14092,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
             const on = reviewEffort === key;
             const c = i === 0 ? t.GREEN : i === 1 ? t.AMBER : t.RUST;
             return (
-              <button key={key} onClick={() => setReviewEffort(on ? null : key)} style={{ borderRadius: 999, border: `1px solid ${on ? c : t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', padding: '11px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>
+              <button key={key} onClick={() => setReviewEffort(on ? null : key)} style={{ borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', padding: '11px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>
             );
           })}
         </div>
@@ -14095,7 +14103,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
       {/* End workout early */}
       <div style={{ padding: `18px ${t.padX}px 90px` }}>
-        <button onClick={finishSession} style={{ width: '100%', padding: '14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
+        <button onClick={finishSession} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>End workout early</button>
       </div>
     </BSPage>
   );
@@ -16273,13 +16281,15 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const TR = { ...BSPROG_DEMO.train, ...(train || {}), stats: { ...BSPROG_DEMO.train.stats, ...((train && train.stats) || {}) } };
   const NU = { ...BSPROG_DEMO.nutri, ...(nutri || {}), targets: { ...BSPROG_DEMO.nutri.targets, ...((nutri && nutri.targets) || {}) }, today: { ...BSPROG_DEMO.nutri.today, ...((nutri && nutri.today) || {}) } };
 
-  const card = { borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent', padding: 14 };
+  // Instrument plate language: squared section cards with an accent spine;
+  // KPI tiles match the Me-page progress grid (squared, per-stat spine).
+  const card = { borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 14 };
   const Eyebrow = ({ children }) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 10 }}>{children}</div>;
   const kpiGrid = (cards) => (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
       {cards.map((c, i) => (
-        <div key={i} style={card}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em' }}>{c.k}</div>
+        <div key={i} style={{ borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `3px solid ${teal}`, background: bsTHexA(t.INK, 0.04), padding: '12px 13px' }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{c.k}</div>
           <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK70, marginTop: 8 }}>{c.l}</div>
           {c.sub && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{c.sub}</div>}
         </div>
@@ -16316,7 +16326,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
       <div style={{ ...card, marginBottom: 18 }}>
         <Eyebrow>Trends</Eyebrow>
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 12 }}>
-          {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', border: `1px solid ${on ? activeTrend.color : t.RULE}`, background: on ? `${x.color}1f` : 'transparent', color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{x.label}</button>; })}
+          {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, borderRadius: 4, padding: '6px 11px', cursor: 'pointer', border: `1px solid ${on ? `${x.color}66` : t.RULE}`, borderLeft: on ? `3px solid ${x.color}` : `1px solid ${t.RULE}`, background: on ? `${x.color}1f` : 'transparent', color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{x.label}</button>; })}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
           <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{activeTrend.label}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginLeft: 6 }}>{activeTrend.unit}</span></div>
@@ -16373,7 +16383,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <div><div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{p.lift}</div><div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2 }}>was {p.prev}{p.unit}</div></div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{p.value}<span style={{ fontSize: 10, color: t.INK50 }}>{p.unit}</span></div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: teal, border: `1px solid ${teal}66`, borderRadius: 999, padding: '3px 8px' }}>+{Number(p.deltaPct).toFixed(1)}%</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: teal, border: `1px solid ${teal}66`, borderLeft: `3px solid ${teal}`, borderRadius: 3, padding: '3px 8px', background: `${teal}14` }}>+{Number(p.deltaPct).toFixed(1)}%</div>
           </div>
         ))}
       </div>
@@ -16450,9 +16460,16 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   );
 
   const TABS = [['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']];
+  // Instrument segment rail (same anatomy as the profile tab rail): active tab
+  // sits on an accent-tinted plate with a top tick.
   const tabRow = (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {TABS.map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 999, cursor: 'pointer', border: on ? 0 : `1px solid ${t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>; })}
+    <div style={{ display: 'flex', gap: 6, background: bsTHexA(t.INK, 0.05), border: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderRadius: 7, padding: 4 }}>
+      {TABS.map(([k, l]) => { const on = tab === k; return (
+        <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 5, border: 0, cursor: 'pointer', position: 'relative', overflow: 'hidden', background: on ? bsTHexA(teal, 0.16) : 'transparent', color: on ? teal : bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9.5, fontWeight: on ? 800 : 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: teal }} />}
+          {l}
+        </button>
+      ); })}
     </div>
   );
   const tabBody = tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView;
