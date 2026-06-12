@@ -16,7 +16,11 @@ function liveTier(points, coach) {
   return { name: t[1], color: t[2], rank: t[3] };
 }
 
-function LiveProfilePage({ extras = null, demoRole = null }) {
+// `shell` ({ navItems, payoutCard }): renders the profile INSIDE the dashboard
+// chrome — site Header + DashSidebar (pageShell/trainerDashboard globals, only
+// referenced when the prop is passed) — so the side nav stays present on the
+// dashboard Profile/Me pages. The living page then drops its own header/footer.
+function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [st, setSt] = React.useState({ loading: true, status: "", row: null, isSelf: false, uid: null });
   const [follow, setFollow] = React.useState({ followers: 0, following: 0, isFollowing: false });
   const [busy, setBusy] = React.useState(false);
@@ -128,33 +132,45 @@ function LiveProfilePage({ extras = null, demoRole = null }) {
     if (st.uid) c.rpc("get_follow_stats", { p_user_id: st.uid }).then((r) => { if (r && !r.error) applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
   };
 
+  // Dashboard embedding — keep the side nav present on the Profile/Me pages.
+  const wrapShell = (node) => !shell ? node : (
+    <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
+      <Header />
+      <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
+        <DashSidebar navItems={shell.navItems} payoutCard={shell.payoutCard} />
+        <main style={{ minWidth: 0, overflowX: "hidden" }}>{node}</main>
+      </div>
+      <Footer />
+    </div>
+  );
+
   const center = (msg, cta) => (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 40, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif" }}>
+    <div style={{ minHeight: shell ? "60vh" : "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, padding: 40, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif" }}>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 30 }}>Profile</div>
       <div style={{ color: "rgba(242,237,228,0.6)", fontSize: 15 }}>{msg}</div>
       {cta}
     </div>
   );
-  if (st.loading) return center("Loading profile…");
+  if (st.loading) return wrapShell(center("Loading profile…"));
   if (st.status === "signin" || (st.status === "unavailable" && demoRole)) {
     // Demo mode — signed out renders the demo persona on the real living
     // layout (the app's preview concept), never a bare sign-in wall.
     if (demoRole) {
       const dDir = demoRole === "client" ? "terrain" : "signal";
       const demoFollow = { followers: 214, following: 167, posts: 24, canFollow: false };
-      return (
+      return wrapShell(
         <React.Fragment>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "9px 16px", background: "rgba(30,192,168,0.1)", borderBottom: "1px solid rgba(30,192,168,0.3)", fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
             <span>Preview · demo profile — an example of a live account</span>
             <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "5px 13px", textDecoration: "none" }}>Sign in →</a>
           </div>
-          <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} />
+          <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
         </React.Fragment>
       );
     }
-    return center("Sign in to view your public profile.", <a href="/login" style={{ background: "#1ec0a8", color: "#06110e", borderRadius: 999, padding: "12px 24px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 14 }}>Sign in →</a>);
+    return wrapShell(center("Sign in to view your public profile.", <a href="/login" style={{ background: "#1ec0a8", color: "#06110e", borderRadius: 999, padding: "12px 24px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 14 }}>Sign in →</a>));
   }
-  if (st.status !== "ok" && st.status !== "derived") return center(st.status === "notfound" ? "This profile isn't available." : "Profiles aren't available right now.");
+  if (st.status !== "ok" && st.status !== "derived") return wrapShell(center(st.status === "notfound" ? "This profile isn't available." : "Profiles aren't available right now."));
 
   // Derived profile (a named person with no real account) — synthesize a row so
   // the same DesktopProfile layout renders, with a stable name-hashed tier.
@@ -211,9 +227,9 @@ function LiveProfilePage({ extras = null, demoRole = null }) {
     return (<button key={key} onClick={() => setGroup(key)} style={{ flex: 1, borderRadius: 999, border: 0, cursor: "pointer", padding: "7px 6px", background: on ? "rgba(46,224,196,0.16)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: on ? 700 : 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</button>);
   };
 
-  return (
+  return wrapShell(
     <React.Fragment>
-      <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} />
+      <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
       {sheet && (
         <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", maxHeight: "76vh", overflowY: "auto", background: "#1b1714", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 22, fontFamily: "'Space Grotesk',sans-serif" }}>

@@ -40,11 +40,12 @@
 <script type="text/babel" src="chatWidget.jsx?v=20260609"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
-<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=22"></script>
-<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260612b"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=23"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260612c"></script>
 <script type="text/babel">
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
@@ -266,7 +267,6 @@ function ClientMeSettings() {
     <section style={{ maxWidth: 1240, margin: "0 auto", padding: "30px 40px 40px", fontFamily: sans, color: INK }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
         <div>
-          <a href="ClientDashboard.html" style={{ display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", marginBottom: 12 }}>← Back to dashboard</a>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Account · Settings · Billing</div>
           <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 4 }}>Settings.</div>
           <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{signedIn ? "Your plan, payments, preferences, and how Shape uses your data." : "Sample view — sign in to load your real settings."}</div>
@@ -500,7 +500,7 @@ function HealthProfileCard() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.Fragment>
-    <LiveProfilePage demoRole="client" extras={<ClientMeSettings />} />
+    <LiveProfilePage demoRole="client" shell={{ navItems: clientNavItems("profile"), payoutCard: clientPayoutCard }} extras={<ClientMeSettings />} />
     <ChatWidget tabs={clientChatTabs} />
   </React.Fragment>
 );

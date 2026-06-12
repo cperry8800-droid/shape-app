@@ -12,7 +12,7 @@ function clientNavItems(active) {
     { label: "Score",     href: "ClientScore.html" },
     { label: "Habits",    href: "ClientHabits.html" },
     { label: "Goal",      href: "ClientGoal.html" },
-    { label: "Me",        href: "ClientMe.html" },
+    { label: "Profile",   href: "ClientMe.html" },
   ];
   return items.map(n => ({ ...n, active: n.label.toLowerCase() === active.toLowerCase() }));
 }
