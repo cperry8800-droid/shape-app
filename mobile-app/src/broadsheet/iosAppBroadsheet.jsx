@@ -921,10 +921,17 @@ function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
   const rows = Array.isArray(items) ? items : [];
   return (
     <div style={{
+      position: 'relative',
       background: t.INK, color: t.PAPER,
+      clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)',
+      borderLeft: `3px solid ${t.ACCENT}`,
       padding: '8px 0', overflow: 'hidden', whiteSpace: 'nowrap',
       fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.12em',
     }}>
+      {/* fixed live tick — a solid cap the marquee scrolls beneath */}
+      <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 20, background: t.INK, zIndex: 1, display: 'grid', placeItems: 'center' }}>
+        <span style={{ width: 6, height: 6, borderRadius: 1.5, background: t.ACCENT, boxShadow: `0 0 8px ${t.ACCENT}`, animation: 'bstickerPulse 2.6s ease-in-out infinite' }} />
+      </span>
       <div style={{ display: 'inline-block', animation: `bsticker ${speedSec}s linear infinite`, paddingLeft: '100%' }}>
         {Array(2).fill(null).map((_, n) => (
           <span key={n}>
@@ -939,7 +946,7 @@ function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
           </span>
         ))}
       </div>
-      <style>{`@keyframes bsticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+      <style>{`@keyframes bsticker { from { transform: translateX(0); } to { transform: translateX(-50%); } } @keyframes bstickerPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}</style>
     </div>
   );
 }

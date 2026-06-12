@@ -904,6 +904,7 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
 const BS_TICKER_METRICS = [
   { key: 'CAL', name: 'Calories' },
   { key: 'PRO', name: 'Protein' },
+  { key: 'HAB', name: 'Habits' },
   { key: 'SLP', name: 'Sleep' },
   { key: 'HRV', name: 'HRV' },
   { key: 'RHR', name: 'Resting HR' },
@@ -2241,22 +2242,37 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         };
         const pct = tk.cal != null && tk.cal_target ? Math.round((tk.cal / tk.cal_target - 1) * 100) : null;
         const proColor = tk.protein_g != null && tk.protein_g >= 120 ? '#a3e09a' : undefined;
+        // Today's habits — live from the user's set (real date key, independent
+        // of the week-strip selection); demo numbers when no live habits yet.
+        const tkHab = (() => {
+          if (!_homeHabitsDec.length) return null;
+          const d = new Date();
+          const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const ptsOf = (h) => (typeof window !== 'undefined' && window._bsHabitPts) ? window._bsHabitPts(h) : (h.pts || 5);
+          const done = _homeHabitsDec.filter(h => (h.history || []).includes(k));
+          return { done: done.length, total: _homeHabitsDec.length, pts: done.reduce((a, h) => a + Math.round(ptsOf(h)), 0) };
+        })();
         const all = [
           { label: 'CAL',  value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
           { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? 'ON PACE' : 'BUILD UP', color: proColor },
+          { label: 'HAB',  value: tkHab ? `${tkHab.done}/${tkHab.total}` : '3/5', note: tkHab ? `+${tkHab.pts} PTS` : '+12 PTS', color: tkHab && tkHab.total > 0 && tkHab.done >= tkHab.total ? '#a3e09a' : undefined },
           { label: 'SLP',  value: fmtSleep(tk.sleep_hours) || '7H24M', note: fmtDelta(tk.sleep_delta_min, 'M VS YEST') || '+28M VS AVG', color: '#a3e09a' },
           { label: 'HRV',  value: tk.hrv_ms != null ? `${Math.round(tk.hrv_ms)}MS` : '62MS', note: tk.hrv_ms != null && tk.hrv_ms >= 50 ? 'GOOD' : 'LOW', color: tk.hrv_ms != null && tk.hrv_ms >= 50 ? '#a3e09a' : '#ffc56a' },
           { label: 'RHR',  value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? 'ELEV' : 'STEADY', color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
           { label: 'WGT',  value: tk.weight_lb != null ? `${t.convWeight(tk.weight_lb).toFixed(1)}${t.weightUnit.toUpperCase()}` : (t.isMetric ? '80.8KG' : '178.2LB'), note: tk.weight_delta_7d != null ? fmtDelta(Math.round(t.convWeight(tk.weight_delta_7d) * 10) / 10, ' 7D') : (t.isMetric ? '-0.2 7D' : '-0.4 7D') },
         ];
         const order = (tickerPrefs.order && tickerPrefs.order.length) ? tickerPrefs.order : all.map(i => i.label);
-        const out = order.map(k => all.find(i => i.label === k)).filter(Boolean).filter(it => !(tickerPrefs.hidden || []).includes(it.label));
+        // Append metrics added after the user's prefs were saved (e.g. HAB) so
+        // new live metrics show up without re-toggling in Settings.
+        const ordered = order.map(k => all.find(i => i.label === k)).filter(Boolean);
+        const extras = all.filter(i => !order.includes(i.label));
+        const out = [...ordered, ...extras].filter(it => !(tickerPrefs.hidden || []).includes(it.label));
         return out.length ? out : all;
       })()} />
 
       {/* Edition strip — moved below the ticker (which sits under the date masthead) */}
       <div style={{
-        padding: `8px ${t.padX}px 12px`,
+        padding: `7px ${t.padX}px 10px`,
         borderBottom: `1px solid ${t.RULE}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
         background: t.PAPER2,
@@ -12468,6 +12484,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const [tab, setTab] = useStateBSC('overall'); // overall | training | nutrition
   const [editing, setEditing] = useStateBSC(null); // goal-list edit: 'new' | index | null
   const [editOverall, setEditOverall] = useStateBSC(false);
+  const [editPrimary, setEditPrimary] = useStateBSC(false); // in-place primary-goal chips
   const [logWeigh, setLogWeigh] = useStateBSC(false);
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
   // Live "Your plans" + "This week targets" for the Overall dashboard (null →
@@ -12619,7 +12636,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           Nutrition carry their own headline goals. One Edit per tab, on the card. */}
       {(() => {
         const card = tab === 'overall'
-          ? { label: 'Overall goal', text: data.primaryGoal || overall.title || 'Set a goal', sub: 'Set in profile · syncs everywhere', onEdit: () => { try { window.dispatchEvent(new CustomEvent('shape:editProfile')); } catch (e) {} } }
+          ? { label: 'Overall goal', text: data.primaryGoal || overall.title || 'Set a goal', sub: 'Syncs with your profile', onEdit: () => setEditPrimary(true) }
           : tab === 'training'
           ? { label: 'Training goal', text: trainingMeta.title || 'Set a goal', sub: trainingMeta.subtitle || 'Tap edit to set your headline', onEdit: () => setEditOverall(true) }
           : { label: 'Nutrition goal', text: nutritionMeta.title || 'Set a goal', sub: nutritionMeta.subtitle || 'Tap edit to set your headline', onEdit: () => setEditOverall(true) };
@@ -12660,6 +12677,38 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         </div>
       </div>
       <div style={{ height: 28 }} />
+      {/* Primary-goal editor — edits IN PLACE (no Settings takeover, so back
+          always returns here). Saves to client_goals.primaryGoal and mirrors
+          the profile's client_identity.goal so the edit-profile chips agree. */}
+      {editPrimary && createPortal(
+        <div onClick={() => setEditPrimary(false)} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Edit · Overall goal</div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your primary <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+              {['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'].map((g) => {
+                const on = (data.primaryGoal || '') === g;
+                return (
+                  <button key={g} onClick={async () => {
+                    persist({ ...data, primaryGoal: g });
+                    try {
+                      const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
+                      await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: g });
+                      window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: g };
+                      try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+                    } catch (e) {}
+                    setEditPrimary(false);
+                    window.__bsToast?.(`Goal set · ${g}`, 'ok');
+                  }} style={{ padding: '9px 14px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Syncs with your profile · pick to save</div>
+            <button onClick={() => setEditPrimary(false)} style={{ marginTop: 14, width: '100%', padding: '13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Close</button>
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
       {logWeigh && <BSWeighInSheet overall={overall} onClose={() => setLogWeigh(false)} onSave={logWeighIn} />}
       {editOverall && (tab === 'overall'
         ? <BSOverallEditSheet overall={overall} onClose={() => setEditOverall(false)} onSave={(g) => { persist({ ...data, overall: g }); setEditOverall(false); }} />
@@ -15409,6 +15458,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.shapeDb.getUserGoals('client_ticker').then(s => {
       if (!alive || !s || typeof s !== 'object') return;
       const order = Array.isArray(s.order) && s.order.length ? s.order : BS_TICKER_METRICS.map(m => m.key);
+      // Metrics added after the prefs were saved (e.g. HAB) join at the end.
+      BS_TICKER_METRICS.forEach(m => { if (!order.includes(m.key)) order.push(m.key); });
       setTickerPrefs({ hidden: Array.isArray(s.hidden) ? s.hidden : [], order });
     }).catch(() => {});
     return () => { alive = false; };
