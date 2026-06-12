@@ -163,6 +163,7 @@ test("triage sorts red → amber → green, most-flagged first, with reasons", (
 });
 test("the mock personas hit their designed severities", () => {
   const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
+  assert.equal(feed.length, 9);
   const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
   assert.equal(by["Jordan M."].severity, "green");
   assert.equal(by["Priya S."].severity, "green");
@@ -175,6 +176,21 @@ test("the mock personas hit their designed severities", () => {
   assert.deepEqual(keys(by["Marcus T."]), ["score_drop", "streak_broken"]);
   assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "food_gap"]);
   assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue"]);
+  // Tess B. is the brand-new client: green, isNew, and her missing first
+  // check-in is excused by the new-client pass.
+  assert.equal(by["Tess B."].severity, "green");
+  assert.equal(by["Tess B."].client.profile.isNew, true);
+});
+
+test("flags carry short pill labels in the spec format", () => {
+  const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
+  const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
+  const labels = (r) => r.flags.map((f) => f.label).sort();
+  assert.deepEqual(labels(by["Marcus T."]), ["Score ↓8", "Streak broken"]);
+  assert.deepEqual(labels(by["Sam R."]), ["No logs 4d", "Quiet 7d"]);
+  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late"]);
+  assert.deepEqual(labels(by["Elena R."]), ["Score ↓7"]);
+  for (const r of feed) for (const f of r.flags) assert.ok(f.label && f.label.length <= 18, f.key + " label fits a pill");
 });
 test("mock personas are stable on any weekday (no grace-dependent flips)", () => {
   for (let d = 0; d < 7; d++) {

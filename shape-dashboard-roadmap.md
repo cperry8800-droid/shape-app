@@ -124,6 +124,14 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Trainer Client Pulse = the triage feed** (step 3): `TriagePulsePanel`
+  in `dashToday.jsx` renders `getTriageFeed('trainer')` regrouped at-risk →
+  new → on-track, with severity-colored reason pills (engine flags now carry
+  short `label`s — "Score ↓8", "No logs 4d"), streak · weekly pts + delta ·
+  last contact metas, and a one-tap Message per row (chat widget → global
+  chat → Messages page fallback). Gated by `cfg.triagePulse` (trainer only;
+  flip the nutritionist when ready). `DashShell` gained an optional
+  `pulseRender` slot; kit tag bumped to `?v=20260612b` everywhere.
 - ✅ TrainerDashboard/NutritionistDashboard merged into one role-parameterized
   page (`dashToday.jsx` — `CoachDashboardPage` + `DASH_TODAY_ROLES` config;
   the two HTML files are thin wrappers, URLs unchanged). Data flows through

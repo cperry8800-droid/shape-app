@@ -64,7 +64,7 @@
     var s = c.streaks;
     if (!s || s.current == null || s.best == null) return null;
     if (s.current === 0 && s.best >= THRESHOLDS.STREAK_MIN_BEST) {
-      return { key: "streak_broken", reason: "Streak broken — was " + s.best + " days" };
+      return { key: "streak_broken", label: "Streak broken", reason: "Streak broken — was " + s.best + " days" };
     }
     return null;
   }
@@ -76,7 +76,7 @@
     if (prev == null || last == null || prev.points == null || last.points == null) return null;
     var drop = prev.points - last.points;
     if (drop >= THRESHOLDS.SCORE_DROP_PTS) {
-      return { key: "score_drop", reason: "Shape Score down " + drop + " pts week-over-week" };
+      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week" };
     }
     return null;
   }
@@ -88,14 +88,14 @@
     if (last) {
       var gap = daysBetween(last, now);
       if (gap >= THRESHOLDS.FOOD_GAP_DAYS) {
-        return { key: "food_gap", reason: "No food logs in " + gap + " days" };
+        return { key: "food_gap", label: "No logs " + gap + "d", reason: "No food logs in " + gap + " days" };
       }
       return null;
     }
     // Live rollups only expose days-logged-this-week today (no last-logged
     // date) — approximate: a fully empty week flags, anything else skips.
     if (f.daysLogged7d === 0) {
-      return { key: "food_gap", reason: "No food logs in the last week" };
+      return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week" };
     }
     return null;
   }
@@ -108,7 +108,7 @@
     var last = toDate(ci.lastWeekOf);
     if (!last) {
       if (c.profile && c.profile.isNew) return null; // new clients get a pass
-      return { key: "checkin_overdue", missedWeeks: 99, reason: "Hasn't completed a first check-in" };
+      return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in" };
     }
     var missedWeeks = Math.max(0, Math.round(daysBetween(mondayOf(last), thisMonday) / 7));
     if (missedWeeks === 0) return null;
@@ -119,7 +119,7 @@
     var label = missedWeeks === 1
       ? "Check-in due — last was week of " + iso(mondayOf(last))
       : "No check-in for " + missedWeeks + " weeks";
-    return { key: "checkin_overdue", missedWeeks: missedWeeks, reason: label };
+    return { key: "checkin_overdue", missedWeeks: missedWeeks, label: missedWeeks === 1 ? "Check-in due" : "Check-in " + missedWeeks + "w late", reason: label };
   }
 
   function ruleContactGap(c, now, role) {
@@ -137,7 +137,7 @@
     if (!last) return null;
     var gap = daysBetween(last, now);
     if (gap >= THRESHOLDS.CONTACT_GAP_DAYS) {
-      return { key: "contact_gap", reason: "No contact in " + gap + " days" };
+      return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days" };
     }
     return null;
   }
@@ -267,6 +267,20 @@
       person(8, "Jonah W.", {
         checkIn: { lastWeekOf: mondaysAgo(3) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 },
+      }),
+      // green + NEW — joined this week; no first check-in yet (new-client pass)
+      person(9, "Tess B.", {
+        profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
+        trainingAdherence: { pct: 100, done: 2, planned: 2 },
+        foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 3 },
+        shapeScoreHistory: history([12, 27]),
+        weighIns: [{ on: ago(2), weight: 158, unit: "lb" }],
+        streaks: { current: 2, best: 2, lastActiveOn: ago(0) },
+        lastContact: { trainer: ago(0), nutritionist: null },
+        checkIn: { lastWeekOf: null },
+        goalPhase: "Build",
+        milestones: [],
+        payments: { mrrCents: 16000, status: "active" },
       }),
     ];
   }

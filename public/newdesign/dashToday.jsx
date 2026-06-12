@@ -33,6 +33,7 @@ const DASH_FLAT_TREND = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 const DASH_TODAY_ROLES = {
   trainer: {
     flag: "isTrainer",
+    triagePulse: true, // Client Pulse = the signal-engine triage feed (step 3)
     mockName: "Maya",
     date: "WEDNESDAY APR 18", // parity with the old page; real dates land with roadmap 1.2
     greeting: (n) => "Good morning, " + n + ".",
@@ -171,10 +172,96 @@ const DASH_TODAY_ROLES = {
   },
 };
 
+// ── Triage pulse panel (roadmap 2.3 → first visible use of the signal engine)
+// Replaces the old name+sparkline rows for roles with cfg.triagePulse. Rows
+// come from getTriageFeed(role) regrouped at-risk → new → on-track, each with
+// a severity-colored reason pill, streak / weekly score + delta / last
+// contact, and a one-tap Message. Visual language per the prototype: dark
+// panel, squared spine-left pills, mono metas, teal accents.
+
+const DASH_SEV_COLORS = { red: "#e0644b", amber: "#d8a23a", new: "#2ee0c4", green: "#7bbf5a" };
+
+function DashPill({ c, children }) {
+  return (
+    <span style={{ display: "inline-block", whiteSpace: "nowrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c, background: c + "1c", border: "1px solid " + c + "55", borderLeft: "3px solid " + c, borderRadius: 4, padding: "3px 8px" }}>
+      {children}
+    </span>
+  );
+}
+
+function dashRelDay(isoStr) {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(String(isoStr).length === 10 ? isoStr + "T00:00:00" : isoStr);
+    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    return days <= 0 ? "today" : days + "d ago";
+  } catch (e) { return null; }
+}
+
+function dashMessageClient(name, role) {
+  try { if (window.__openChat) { window.__openChat({ who: name }); return; } } catch (e) {}
+  const b = document.getElementById("shape-global-chat-button");
+  if (b) { b.click(); return; }
+  window.location.href = role === "nutritionist" ? "NutritionistMessages.html" : "TrainerMessages.html";
+}
+
+function TriagePulsePanel({ feed, role }) {
+  // Urgency order: at-risk (red, then amber — the feed is already sorted),
+  // then brand-new clients, then on-track.
+  const atRisk = feed.filter((r) => r.severity !== "green");
+  const fresh = feed.filter((r) => r.severity === "green" && r.client.profile.isNew);
+  const ok = feed.filter((r) => r.severity === "green" && !r.client.profile.isNew);
+  const rows = [...atRisk, ...fresh, ...ok];
+  const ink50 = "rgba(242,237,228,0.55)";
+
+  return (
+    <div>
+      <style>{"@keyframes dashTick{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}"}</style>
+      {rows.map((r, i) => {
+        const c = r.client;
+        const isNew = r.severity === "green" && c.profile.isNew;
+        const sevColor = isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS[r.severity];
+        const hist = c.shapeScoreHistory;
+        const wkPts = Array.isArray(hist) && hist.length ? hist[hist.length - 1].points : null;
+        const delta = Array.isArray(hist) && hist.length >= 2 ? hist[hist.length - 1].points - hist[hist.length - 2].points : null;
+        const streak = c.streaks && c.streaks.current != null ? c.streaks.current + "d streak" : null;
+        const contact = c.lastContact ? dashRelDay(role === "nutritionist" ? c.lastContact.nutritionist : c.lastContact.trainer) : null;
+        const pills = r.flags.slice(0, 2).map((f) => f.label);
+        const extra = r.flags.length - 2;
+        return (
+          <div key={c.profile.id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+            <span title={r.severity} style={{ width: 7, height: 7, borderRadius: 2, background: sevColor, animation: r.severity === "red" ? "dashTick 1.6s ease-in-out infinite" : "none" }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13.5, fontWeight: 500 }}>{c.profile.name}</span>
+                {pills.map((p, j) => <DashPill key={j} c={sevColor}>{p}</DashPill>)}
+                {extra > 0 && <DashPill c={sevColor}>+{extra}</DashPill>}
+                {isNew && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
+                {r.severity === "green" && !isNew && <DashPill c={DASH_SEV_COLORS.green}>On track</DashPill>}
+              </div>
+              <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {[
+                  streak,
+                  wkPts != null ? <span key="p">{wkPts} wk pts{delta != null && <span style={{ color: delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{" "}{delta >= 0 ? "▲+" + delta : "▼−" + Math.abs(delta)}</span>}</span> : null,
+                  contact ? "spoke " + contact : null,
+                ].filter(Boolean).map((part, j, arr) => <React.Fragment key={j}>{part}{j < arr.length - 1 ? " · " : ""}</React.Fragment>)}
+                {streak == null && wkPts == null && contact == null && "—"}
+              </div>
+            </div>
+            <button onClick={() => dashMessageClient(c.profile.name, role)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+              Message
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
-  const { today: live } = useDashboard(role);
+  const { today: live, triage } = useDashboard(role);
 
   const firstName = live ? live.user.firstName : cfg.mockName;
   const kpis = live ? [
@@ -223,6 +310,7 @@ function CoachDashboardPage({ role }) {
       schedule={schedule}
       pulseTitle="Client pulse"
       pulse={pulse}
+      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} /> : undefined}
       extraSections={[{
         title: "Recent payouts",
         render: () => <RecentPayouts rows={cfg.payoutRows} />,

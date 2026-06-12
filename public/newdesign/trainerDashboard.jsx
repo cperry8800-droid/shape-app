@@ -185,6 +185,7 @@ function DashShell({
   schedule,     // [{ time, who, sub, status }]
   pulseTitle,
   pulse,        // [{ who, sub, trend }]  trend = array of numbers 0-1
+  pulseRender,  // optional () => node — replaces the default pulse rows (panel + title kept)
   extraSections, // optional [{ title, render }]
   calendarEvents, // optional [{date,time,kind,title,sub}] — enables "Open calendar →"
 }) {
@@ -297,7 +298,7 @@ function DashShell({
 
           <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{pulseTitle}</div>
-            {pulse.map((p, i) => (
+            {pulseRender ? pulseRender() : pulse.map((p, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 60px", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
                 <div style={{ width: 32, height: 32, borderRadius: 999, background: "#efece6" }} />
                 <div>
