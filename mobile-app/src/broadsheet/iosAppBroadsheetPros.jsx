@@ -2078,6 +2078,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [clientList, setClientList] = useStateBSP(null);
   const [dayIdx, setDayIdx] = useStateBSP(1);
   const [weeks, setWeeks] = useStateBSP(4);
+  const [timeSel, setTimeSel] = useStateBSP(''); // '' = no set time, else 'HH:MM' (24h)
   const [status, setStatus] = useStateBSP('');
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
@@ -2122,19 +2123,21 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
         await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
       } else if (isSplit) {
+        const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
           for (const dl of dayLines) {
             if (!dl || dl.rest) continue;
             const d = new Date(monday); d.setDate(d.getDate() + w * 7 + dl.dow);
             if (d < start) continue;
-            await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [] } });
+            await window.ShapeAssign.workout({ clientId: uid, title: dl.title, description: planNote || plan.name, scheduledDate: bsAssignIso(d), payload: { exercises: [], ...basePayload } });
           }
         }
       } else {
         const exercises = blocks.map(bsAssignExercise).filter(Boolean);
+        const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
           const d = new Date(start); d.setDate(d.getDate() + w * 7);
-          await window.ShapeAssign.workout({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises } });
+          await window.ShapeAssign.workout({ clientId: uid, title: plan.name, description: planNote, scheduledDate: bsAssignIso(d), payload: { exercises, ...basePayload } });
         }
       }
       // Tell the client — best-effort, the assignment already landed.
@@ -2164,11 +2167,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   );
   const working = status === 'working';
   const ctaLabel = working ? 'Assigning…' : status === 'done' ? 'Assigned ✓' : 'Assign & notify →';
+  const timeLabel = timeSel ? (() => { const [h, m] = timeSel.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return ` · ${hh}:${String(m).padStart(2, '0')} ${ap}`; })() : '';
   const summaryWhen = isNutri
     ? 'This week · replaces their current menu from you'
     : isSplit
-      ? `${dayLines.filter(d => d && !d.rest).length} sessions/wk · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}`
-      : `Weekly · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}`;
+      ? `${dayLines.filter(d => d && !d.rest).length} sessions/wk · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`
+      : `Weekly · ${weeks} week${weeks === 1 ? '' : 's'} · from ${WD[dayCells[dayIdx].getDay()]} ${dayCells[dayIdx].getDate()}${timeLabel}`;
 
   return (
     <BSPage>
@@ -2212,6 +2216,19 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
               </div>
               <div style={{ marginTop: 12 }}>
                 <BSProStepper label="WEEKS" sub={isSplit ? 'Repeats the weekly split' : 'Repeats the session weekly'} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Session time · optional</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50 }}>Set the time you've agreed with your client — it shows on their calendar &amp; home card.</div>
+                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', marginTop: 9 }}>
+                  {['', '06:00', '07:00', '08:00', '09:00', '12:00', '16:00', '17:00', '17:45', '18:00', '19:00', '20:00'].map((tv) => {
+                    const on = timeSel === tv;
+                    const lbl = tv === '' ? 'No set time' : (() => { const [h, m] = tv.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; })();
+                    return (
+                      <button key={tv || 'none'} onClick={() => setTimeSel(tv)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>{lbl}</button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
