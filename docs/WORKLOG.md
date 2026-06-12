@@ -100,6 +100,42 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — The check-in kit: weekly check-in · measurements · progress photos · health intake (research-driven)
+- **Coach-metrics research** (5-agent web pass — Trainerize/Everfit/TrueCoach/
+  TeamBuildr/MyPTHub/PT Distinction/PN/WAG + ACE/NASM): full gap analysis
+  registered in the War Room ("Check-in kit & coach-metrics gaps"). Built the
+  three standard-of-care gaps now; steps/e1RM/energy·hunger/hydration UI and
+  the differentiators (cycle awareness, weekend-split adherence) tracked as
+  to-builds.
+- **Migration `2026-06-12-checkin-kit.sql`** (**run on Supabase**):
+  `client_measurements` (ACE sites, one row/user/day/site), `client_checkins`
+  (one/user/week, ratings jsonb + wins/struggles/question + weight),
+  `client_progress_photos` + PRIVATE `progress-photos` bucket, and 4 coach
+  RPCs (`get_client_checkins/measurements/progress_photos/health_profile`) —
+  all owner-RLS'd, coach read gated on `is_coach_on_client`. The health
+  profile is deliberately NOT share-gated (liability screening).
+- **`BSWeeklyCheckin`** (client): the weekly ritual — 6× 1–10 ratings
+  (training/nutrition adherence · sleep · energy · stress · hunger), optional
+  weight (also writes a weigh-in) + 6 girth measurements + front/side/back
+  photo uploads + wins/struggles/question. Upserts this week's row. Entries:
+  **home due-plate** ("Weekly check-in · due") when no row this week +
+  Settings → Weekly check-in.
+- **`BSHealthIntake`** (client): REQUIRED one-time gate after sign-in (PAR-Q+
+  7 yes/no + injuries + medications + emergency contact + consent; yes-answer
+  warning). Gates in `BSClientAppInner` (never flashes for completed accounts,
+  fails open on fetch errors); editable later via Settings → Health profile.
+- **Progress hub (Overall)**: live-only **Measurements** card (latest per site
+  + Δ since first) and **Progress photos** timeline (date rows of front/side/
+  back thumbs → tap to open).
+- **Coach client profile** (both roles): Profile tab gains **"Check-in · Week
+  of …"** (ratings grid + wins/struggles/asked-you); Manage tab gains **Health
+  profile** (PAR-Q all-clear/flagged + injuries/meds/emergency) and **Latest
+  measurements**. All live-only via `window.ShapeClientKit`.
+- **Backend**: `ShapeCheckins` / `ShapeMeasurements` / `ShapeProgressPhotos`
+  (private-bucket upload via **`/api/client/progress-photos`**, service-role +
+  1-yr signed URLs) / `ShapeHealthProfile` (user_goals 'health_profile') /
+  `ShapeClientKit` (coach reads). Website parity tracked as the next PR.
+
 ### 2026-06-12 — Stats accuracy: weight/body-fat/macros/volume get REAL sources (+ demo-data preview banner)
 - **Audit finding**: the Progress page read everything from `daily_health_snapshot`,
   but `weight_lb`, `body_fat_pct`, `protein_g`, `hydration_l` had **no writer** —

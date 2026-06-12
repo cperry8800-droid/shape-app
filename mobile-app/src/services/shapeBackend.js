@@ -3534,6 +3534,98 @@ async function awardGoalMilestones() {
 window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };
 window.ShapeGoalAwards = { check: awardGoalMilestones };
 
+// ── The check-in kit ─────────────────────────────────────────
+// Weekly check-ins, girth measurements, structured progress photos, and the
+// required health profile (PAR-Q+ screening). Tables are owner-RLS'd with
+// coach read via is_coach_on_client; photo files ride the PRIVATE bucket via
+// /api/client/progress-photos. Coach reads go through SECURITY DEFINER RPCs.
+function bsWeekOfMonday(d = new Date()) {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7)); // back to Monday
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+async function checkinSubmit({ ratings = {}, wins = '', struggles = '', question = '', weight = null, unit = 'kg' } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to check in.');
+  const w = Number(weight);
+  const row = {
+    user_id: state.user.id,
+    week_of: bsWeekOfMonday(),
+    ratings,
+    wins: wins || null,
+    struggles: struggles || null,
+    question: question || null,
+    weight: Number.isFinite(w) && w > 0 ? w : null,
+    unit,
+  };
+  const { data, error } = await supabase.from('client_checkins')
+    .upsert(row, { onConflict: 'user_id,week_of' }).select().maybeSingle();
+  if (error) throw error;
+  invalidateClientMetrics();
+  return data;
+}
+async function checkinMine(limit = 8) {
+  if (!supabase || !state.user?.id) return [];
+  const { data } = await supabase.from('client_checkins').select('*')
+    .eq('user_id', state.user.id).order('week_of', { ascending: false }).limit(limit);
+  return data || [];
+}
+window.ShapeCheckins = { submit: checkinSubmit, mine: checkinMine, weekOf: bsWeekOfMonday };
+
+async function measurementsLog(entries = [], { unit = 'cm', date = null } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  const day = date || new Date().toISOString().slice(0, 10);
+  const rows = (entries || [])
+    .filter((e) => e && e.site && Number.isFinite(Number(e.value)) && Number(e.value) > 0)
+    .map((e) => ({ user_id: state.user.id, measured_on: day, site: e.site, value: Number(e.value), unit: e.unit || unit }));
+  if (!rows.length) return [];
+  const { data, error } = await supabase.from('client_measurements')
+    .upsert(rows, { onConflict: 'user_id,measured_on,site' }).select();
+  if (error) throw error;
+  return data || [];
+}
+async function measurementsMine() {
+  if (!supabase || !state.user?.id) return [];
+  const { data } = await supabase.from('client_measurements').select('*')
+    .eq('user_id', state.user.id).order('measured_on', { ascending: true });
+  return data || [];
+}
+window.ShapeMeasurements = { log: measurementsLog, mine: measurementsMine };
+
+async function progressPhotosMine() {
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/progress-photos`, [], (d) => (Array.isArray(d.photos) ? d.photos : []));
+}
+async function progressPhotoUpload(file, { pose = 'front', takenOn = null } = {}) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in first.');
+  const fd = new FormData();
+  fd.append('photo', file);
+  fd.append('pose', pose);
+  if (takenOn) fd.append('takenOn', takenOn);
+  const res = await fetch(`${apiBaseUrl || ''}/api/client/progress-photos`, {
+    method: 'POST', credentials: 'same-origin', headers: sessionsAuthHeaders(), body: fd,
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Upload failed');
+  return d.photo;
+}
+window.ShapeProgressPhotos = { mine: progressPhotosMine, upload: progressPhotoUpload };
+
+async function healthProfileGet() {
+  try { return window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('health_profile') : null; } catch (e) { return null; }
+}
+async function healthProfileSet(doc) {
+  try { await window.shapeDb?.saveUserGoals?.('health_profile', doc); return true; } catch (e) { return false; }
+}
+window.ShapeHealthProfile = { get: healthProfileGet, set: healthProfileSet };
+
+// Coach-side reads for a linked client (RPCs gate on is_coach_on_client; the
+// health profile is deliberately NOT share-gated — liability screening).
+window.ShapeClientKit = {
+  checkins: async (userId, limit = 6) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_checkins', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
+  measurements: async (userId) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_measurements', { p_user_id: userId }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
+  photos: async (userId, limit = 30) => { if (!supabase) return []; try { const { data } = await supabase.rpc('get_client_progress_photos', { p_user_id: userId, p_limit: limit }); return Array.isArray(data) ? data : []; } catch (e) { return []; } },
+  health: async (userId) => { if (!supabase) return null; try { const { data } = await supabase.rpc('get_client_health_profile', { p_user_id: userId }); return data || null; } catch (e) { return null; } },
+};
+
 window.ShapeMessages = {
   getOrCreateDirectConversation,
   getOrCreateMemberConversation,
