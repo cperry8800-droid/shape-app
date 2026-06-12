@@ -12943,14 +12943,15 @@ function BSWeeklyCheckin({ onBack }) {
       window.__bsToast?.(e?.message || 'Could not save the check-in', 'err');
     } finally { setBusy(false); }
   };
-  const card = { borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, marginBottom: 12 };
+  // Full-bleed section bands — edge to edge, inner content keeps the page gutter.
+  const card = { borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2, padding: `14px ${t.padX}px`, marginBottom: 12 };
   const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
   const ta = { width: '100%', boxSizing: 'border-box', minHeight: 62, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
   const numIn = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, outline: 'none', textAlign: 'center' };
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow={`Week of ${(window.ShapeCheckins && window.ShapeCheckins.weekOf()) || ''}`} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
-      <div style={{ padding: `8px ${t.padX}px 28px` }}>
+      <div style={{ padding: '8px 0 28px' }}>
         {doneWeek && (
           <div style={{ ...card, borderLeft: `3px solid ${teal}`, background: `${teal}10`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Already checked in this week — saving again updates it.</div>
         )}
@@ -13019,7 +13020,7 @@ function BSWeeklyCheckin({ onBack }) {
             <textarea value={question} onChange={(e) => setQuestion(e.target.value)} style={{ ...ta, minHeight: 46 }} />
           </div>
         </div>
-        <button onClick={submit} disabled={busy} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : 'Send check-in →'}</button>
+        <button onClick={submit} disabled={busy} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : 'Send check-in →'}</button>
       </div>
       <BSFooter right="Check-in" />
     </BSPage>
@@ -13069,7 +13070,8 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
     if (ok) { window.__bsToast?.('Health profile saved', 'ok'); onDone(doc); }
     else window.__bsToast?.('Could not save — try again', 'err');
   };
-  const card = { borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, marginBottom: 12 };
+  // Full-bleed section bands — edge to edge, inner content keeps the page gutter.
+  const card = { borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2, padding: `14px ${t.padX}px`, marginBottom: 12 };
   const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
   const ta = { width: '100%', boxSizing: 'border-box', minHeight: 56, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
   const field = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none' };
@@ -13085,7 +13087,7 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
           A quick safety screen (PAR-Q) before training starts. It lives on your profile and is shared with the coaches you hire — so they can program safely around your history.
         </div>
       </div>
-      <div style={{ padding: `16px ${t.padX}px 28px` }}>
+      <div style={{ padding: '16px 0 28px' }}>
         <div style={card}>
           <div style={lbl}>Health screening · answer all 7</div>
           {BS_PARQ.map((q, i) => (
@@ -13119,13 +13121,13 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
             <input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} placeholder="Phone" style={field} />
           </div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: `0 ${t.padX}px 14px`, cursor: 'pointer' }}>
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: 3 }} />
           <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>
             I confirm these answers are accurate, and I understand they're shared with coaches I hire on Shape for my safety.
           </span>
         </label>
-        <button onClick={save} disabled={!canSave} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : onBack ? 'Save health profile' : 'Save & enter Shape →'}</button>
+        <button onClick={save} disabled={!canSave} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : onBack ? 'Save health profile' : 'Save & enter Shape →'}</button>
         {!allAnswered && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all 7 screening questions to continue</div>}
       </div>
     </BSPage>
@@ -15183,9 +15185,10 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
           const on = filter === k;
           return (
             <button key={k} onClick={() => setFilter(k)} style={{
-              flex: '0 0 auto', padding: '8px 14px', borderRadius: 999,
-              border: `1px solid ${on ? t.INK : t.RULE}`,
-              background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, cursor: 'pointer',
+              flex: '0 0 auto', padding: '8px 14px', borderRadius: 4,
+              border: `1px solid ${on ? `${t.ACCENT}66` : t.RULE}`,
+              borderLeft: on ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
+              background: on ? `${t.ACCENT}1f` : 'transparent', color: on ? t.INK : t.INK70, cursor: 'pointer',
               fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
             }}>{l}</button>
           );
@@ -15194,7 +15197,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
 
       <div style={{ padding: `4px ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.length === 0 && (
-          <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
+          <div style={{ padding: '22px 16px', borderRadius: 6, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
             {query.trim() ? 'No lists match your search.' : 'No saved lists yet.'}
           </div>
         )}
@@ -15203,11 +15206,11 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
           const btn = {
-            borderRadius: 999, padding: '9px 14px', cursor: 'pointer',
+            borderRadius: 5, padding: '9px 14px', cursor: 'pointer',
             fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
           };
           return (
-            <div key={l.id} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+            <div key={l.id} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${color}`, background: t.PAPER2, padding: 14 }}>
               <div onClick={() => setOpenList(open ? null : l.id)} style={{ cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 10 }}>
                   <BSEyebrow color={color}>{l.eyebrow}</BSEyebrow>
@@ -15220,7 +15223,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                 <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, color: t.INK70, letterSpacing: '0.06em' }}>{l.count} items · {l.preview}</div>
               </div>
               {open && previewItems && previewItems.length > 0 && (
-                <div style={{ borderRadius: 12, border: `1px solid ${t.HAIR}`, background: t.PAPER, margin: '12px 0 2px', overflow: 'hidden' }}>
+                <div style={{ borderRadius: 6, border: `1px solid ${t.HAIR}`, background: t.PAPER, margin: '12px 0 2px', overflow: 'hidden' }}>
                   {previewItems.map((it, idx) => (
                     <div key={it.id || idx} style={{
                       display: 'grid', gridTemplateColumns: '64px 1fr', gap: 10, padding: '10px 12px',
@@ -15236,7 +15239,7 @@ function BSGroceryLibrary({ onBack, onLoad = () => {}, recipeLists = [], onCreat
                 </div>
               )}
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 12 }}>
-                <button onClick={() => onLoad(l)} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0 }}>Load →</button>
+                <button onClick={() => onLoad(l)} style={{ ...btn, background: t.INK, color: t.PAPER, border: 0, clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}>Load →</button>
                 <button onClick={() => onEdit(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}` }}>Edit</button>
                 {l.kind === 'mealplan' && (
                   <button onClick={() => onDuplicate(l)} style={{ ...btn, background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}` }}>Duplicate</button>
