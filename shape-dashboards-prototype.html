@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shape · Dashboard v2 — visual reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Tokens (match the live site + app) ─────────────────────────────── */
+  :root{
+    --paper:#14110e; --paper2:#1a1612; --ink:#f2ede4; --ink50:rgba(242,237,228,.5);
+    --ink70:rgba(242,237,228,.7); --rule:rgba(242,237,228,.1); --hair:rgba(242,237,228,.07);
+    --teal:#1ec0a8; --tealb:#2ee0c4; --rust:#c0533b; --gold:#d8a23a;
+    --serif:'Fraunces',Georgia,serif; --sans:'Space Grotesk',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  @keyframes tick{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+
+  /* ── Instrument plate (ported from the app's BSPlate) ───────────────── */
+  .plate{position:relative;background:linear-gradient(170deg,rgba(242,237,228,.05),rgba(242,237,228,.02) 70%),var(--paper2);
+    border:1px solid var(--rule);border-left:3px solid var(--ac,var(--teal));
+    clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);padding:14px 16px 14px 19px}
+  .plate .tick{position:absolute;top:10px;left:8px;width:5px;height:5px;border-radius:1px;background:var(--ac,var(--teal));animation:tick 1.6s ease-in-out infinite}
+  .plate .bracket{position:absolute;right:6px;bottom:6px;width:10px;height:10px;border-right:1.5px solid var(--ac,var(--teal));border-bottom:1.5px solid var(--ac,var(--teal));opacity:.55}
+  .eyebrow{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac,var(--teal))}
+  .eyebrow.dim{color:var(--ink50)}
+  .big{font-family:var(--serif);font-size:30px;letter-spacing:-.02em;line-height:1;margin-top:7px}
+  .sub{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink50);margin-top:7px}
+  .ledger{height:2px;background:linear-gradient(90deg,var(--ac,var(--teal)),rgba(30,192,168,.2) 45%,transparent 85%);margin:6px 0 14px}
+  .chip{display:inline-block;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ac,var(--teal));background:color-mix(in srgb,var(--ac,var(--teal)) 11%,transparent);
+    border:1px solid color-mix(in srgb,var(--ac,var(--teal)) 40%,transparent);border-left:3px solid var(--ac,var(--teal));border-radius:4px;padding:4px 9px}
+  .src{display:inline-block;font-family:var(--mono);font-size:8px;letter-spacing:.06em;color:var(--ink50);border:1px dashed rgba(242,237,228,.22);border-radius:4px;padding:2px 7px;margin-top:10px}
+  .btn{display:inline-block;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
+    color:#06231f;background:var(--ac,var(--teal));border:0;border-radius:4px;padding:9px 14px;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
+  .btn.ghost{color:var(--ink);background:transparent;border:1px solid var(--rule);clip-path:none}
+
+  /* ── Page chrome ─────────────────────────────────────────────────────── */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 26px;border-bottom:1px solid var(--rule);position:sticky;top:0;background:rgba(20,17,14,.94);backdrop-filter:blur(8px);z-index:5}
+  .wordmark{font-family:var(--mono);font-weight:700;letter-spacing:.34em;font-size:13px}
+  .roletabs{display:flex;gap:6px}
+  .roletabs button{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
+    color:var(--ink50);background:transparent;border:1px solid var(--rule);border-radius:4px;padding:8px 14px}
+  .roletabs button.on{color:var(--ac);border-color:var(--ac);border-left:3px solid var(--ac);background:color-mix(in srgb,var(--ac) 10%,transparent)}
+  .demo-band{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:8px 16px;
+    background:rgba(30,192,168,.1);border-bottom:1px solid rgba(30,192,168,.3);
+    font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--tealb)}
+  .demo-band b{color:#06110e;background:var(--teal);border-radius:999px;padding:4px 12px;font-weight:700}
+
+  .shell{display:grid;grid-template-columns:228px 1fr;min-height:calc(100vh - 96px)}
+  .side{border-right:1px solid var(--rule);padding:22px 14px;display:flex;flex-direction:column;gap:4px}
+  .side a{font-size:13.5px;color:var(--ink70);padding:9px 12px;border-radius:6px;border-left:3px solid transparent}
+  .side a.on{color:var(--ink);background:color-mix(in srgb,var(--ac) 9%,transparent);border-left:3px solid var(--ac);font-weight:500}
+  .sidecard{margin-top:auto}
+  main{padding:28px 34px 60px;min-width:0}
+  .greet-date{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink50);text-transform:uppercase}
+  h1{font-family:var(--serif);font-weight:400;font-size:38px;letter-spacing:-.025em;margin:10px 0 0;line-height:1.02}
+  .greetrow{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:24px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:26px}
+  .cols{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;align-items:start}
+  .stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .row{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--hair)}
+  .row:first-of-type{border-top:0}
+  .row .t{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--ink50)}
+  .row .who{font-size:13.5px;font-weight:500}
+  .row .meta{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink50);margin-top:3px}
+  .status{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.1em}
+  .spark{display:flex;align-items:flex-end;gap:2px;height:22px;width:64px}
+  .spark i{flex:1;background:var(--ac);opacity:.75;border-radius:1px}
+  .role{display:none} .role.on{display:block}
+  @media(max-width:960px){.shell{grid-template-columns:1fr}.side{display:none}.kpis{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="wordmark">SHAPE</span>
+  <span style="font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink50)">Dashboard v2 · visual reference · roadmap phase 1</span>
+  <div class="roletabs" id="tabs">
+    <button data-role="client"   style="--ac:var(--teal)">Client</button>
+    <button data-role="trainer"  style="--ac:var(--rust)">Trainer</button>
+    <button data-role="nutri"    style="--ac:var(--gold)">Nutritionist</button>
+  </div>
+</div>
+
+<div class="demo-band">
+  <span>Preview · demo data — an example of a live account (signed-out state only; signed-in shows real numbers or “—”, never fakes)</span>
+  <b>Sign in →</b>
+</div>
+
+<!-- ════════════════ CLIENT ════════════════ -->
+<section class="role on" id="role-client" style="--ac:var(--teal)">
+<div class="shell">
+  <nav class="side">
+    <a class="on">Today</a><a>Progress</a><a>Train</a><a>Nutri</a><a>Library</a><a>Team</a><a>Community</a><a>Score</a><a>Habits</a><a>Goal</a><a>Profile</a>
+    <div class="sidecard plate"><span class="tick"></span>
+      <div class="eyebrow">Shape Score</div>
+      <div class="big">1,284</div>
+      <div class="sub">Tempo · 716 to Form</div>
+      <span class="src">src /api/client/score (live — replaces static card)</span>
+    </div>
+  </nav>
+  <main>
+    <div class="greetrow">
+      <div>
+        <div class="greet-date">FRIDAY · JUN 12 — real date, not hardcoded</div>
+        <h1>Welcome back, Priya.</h1>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn">Log workout</button><button class="btn ghost">Book session</button></div>
+    </div>
+
+    <div class="kpis">
+      <div class="plate"><span class="tick"></span><div class="eyebrow">Streak</div><div class="big">14d</div><div class="sub">best 22d</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow">Workouts · wk</div><div class="big">4/6</div><div class="sub">on track</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow">Adherence</div><div class="big">92%</div><div class="sub">last 30d</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow">Protein · avg</div><div class="big">168g</div><div class="sub">target 175g</div><span class="bracket"></span></div>
+    </div>
+    <span class="src" style="margin:-16px 0 18px;display:inline-block">src /api/client/dashboard via useDashData('client')</span>
+
+    <div class="cols">
+      <div class="stack">
+        <div class="plate"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow">Today · from your assigned plan</span><span class="eyebrow dim">Week 10 · D5</span></div>
+          <div class="ledger"></div>
+          <div class="row"><span class="t">5:45p</span><div><div class="who">Lower Push — Peak</div><div class="meta">54 min · 6 moves · coach-set session time · Jordan</div></div><button class="btn">Start →</button></div>
+          <div class="row"><span class="t">12:30</span><div><div class="who">Grilled chicken bowl</div><div class="meta">620 kcal · 52P · from the pushed menu</div></div><button class="btn ghost">Log meal</button></div>
+          <div class="row"><span class="t">6:30p</span><div><div class="who">Weekly with Maya</div><div class="meta">20 min · video</div></div><button class="btn ghost">Join</button></div>
+          <span class="src">src /api/client/plan (workouts + payload.time, meals by dow) · LOG → /api/nutrition/meal-log</span>
+          <span class="bracket"></span>
+        </div>
+
+        <div class="plate"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow">Nutrition today</span><span class="eyebrow dim">1,340 / 2,200 kcal</span></div>
+          <div class="ledger"></div>
+          <div class="row"><span class="t">PRO</span><div><div class="meta" style="margin:0">96 / 175 g ▮▮▮▮▮▯▯▯</div></div><span class="status" style="color:var(--teal)">55%</span></div>
+          <div class="row"><span class="t">CARB</span><div><div class="meta" style="margin:0">142 / 240 g ▮▮▮▮▮▮▯▯</div></div><span class="status" style="color:var(--gold)">59%</span></div>
+          <div class="row"><span class="t">FAT</span><div><div class="meta" style="margin:0">48 / 70 g ▮▮▮▮▮▮▮▯</div></div><span class="status" style="color:var(--rust)">69%</span></div>
+          <span class="src">src daily_health_snapshot via /api/client/nutrition — kills the localStorage fork</span>
+          <span class="bracket"></span>
+        </div>
+
+        <div class="plate" style="--ac:#7bbf5a"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow" style="color:#7bbf5a">Habits · 3/5 done</span><span class="eyebrow dim">+45 / 75 pts</span></div>
+          <div class="ledger" style="background:linear-gradient(90deg,#7bbf5a,rgba(123,191,90,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t">01</span><div><div class="who">Protein at breakfast</div></div><span class="status" style="color:#7bbf5a">✓ +15</span></div>
+          <div class="row"><span class="t">02</span><div><div class="who">10k steps</div></div><span class="status" style="color:var(--ink50)">○ +15</span></div>
+          <span class="src">src /api/client/habits (live check-off, same as the app)</span>
+          <span class="bracket"></span>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="plate" style="--ac:var(--gold)"><span class="tick"></span>
+          <div class="eyebrow" style="color:var(--gold)">Weekly check-in · due</div>
+          <div class="big" style="font-size:22px">2 minutes, 6 sliders.</div>
+          <div class="sub">your coaches see it · week of Jun 8</div>
+          <div style="margin-top:12px"><button class="btn" style="--ac:var(--gold)">Check in →</button></div>
+          <span class="src">src /api/client/checkin-kit (hide when this week's row exists)</span>
+          <span class="bracket"></span>
+        </div>
+        <div class="plate"><span class="tick"></span>
+          <div class="eyebrow">Your team</div>
+          <div class="ledger"></div>
+          <div class="row"><span class="t" style="color:var(--rust)">TRN</span><div><div class="who">Maya Okafor</div><div class="meta">replied 2m ago</div></div><button class="btn ghost">Msg</button></div>
+          <div class="row"><span class="t" style="color:var(--gold)">NUT</span><div><div class="who">Rae Lindqvist</div><div class="meta">plan updated today</div></div><button class="btn ghost">Msg</button></div>
+          <span class="src">src /api/client/dashboard.team</span>
+          <span class="bracket"></span>
+        </div>
+        <div class="plate"><span class="tick"></span>
+          <div class="eyebrow">Calendar</div>
+          <div class="sub" style="margin-top:8px">Month view — plan events derive automatically (view-only); booked sessions editable.</div>
+          <span class="src">src /api/calendar (sources: event · session · plan · meal)</span>
+          <span class="bracket"></span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</section>
+
+<!-- ════════════════ TRAINER ════════════════ -->
+<section class="role" id="role-trainer" style="--ac:var(--rust)">
+<div class="shell">
+  <nav class="side">
+    <a class="on">Today</a><a>Clients</a><a>Programs</a><a>Playlists</a><a>Community</a><a>Goal</a><a>Score</a><a>Profile</a>
+    <div class="sidecard plate"><span class="tick"></span>
+      <div class="eyebrow" style="color:var(--rust)">Next payout</div>
+      <div class="big">—</div>
+      <div class="sub">connects to Stripe · honest until live</div>
+      <span class="src">src /api/trainer/payouts (Phase 1.3 — no fake $)</span>
+    </div>
+  </nav>
+  <main>
+    <div class="greetrow">
+      <div>
+        <div class="greet-date">FRIDAY · JUN 12</div>
+        <h1>Good morning, Maya.</h1>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn">+ Program</button><button class="btn ghost">Assign to client</button></div>
+    </div>
+
+    <div class="kpis">
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--rust)">Active clients</div><div class="big">34</div><div class="sub">+3 this month</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--rust)">Monthly · net</div><div class="big">—</div><div class="sub">after 15% fee · stripe rollup</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--rust)">Sessions · wk</div><div class="big">29</div><div class="sub">96% completion</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--rust)">Upcoming</div><div class="big">7</div><div class="sub">next · 2:00 pm</div><span class="bracket"></span></div>
+    </div>
+    <span class="src" style="margin:-16px 0 18px;display:inline-block">src /api/trainer/dashboard via useDashData('trainer')</span>
+
+    <div class="cols">
+      <div class="stack">
+        <div class="plate"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow" style="color:var(--rust)">Today's schedule</span><span class="eyebrow dim">5 sessions</span></div>
+          <div class="ledger" style="background:linear-gradient(90deg,var(--rust),rgba(192,83,59,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t">07:00</span><div><div class="who">Priya S.</div><div class="meta">Lower pull · remote · 60 min</div></div><span class="status" style="color:var(--ink50)">DONE</span></div>
+          <div class="row"><span class="t">14:00</span><div><div class="who">Sam O.</div><div class="meta">Intake call · new client</div></div><span class="status" style="color:var(--rust)">● NEXT</span></div>
+          <div class="row"><span class="t">17:30</span><div><div class="who">Priya S.</div><div class="meta">Upper push · remote</div></div><span class="status" style="color:var(--ink50)">—</span></div>
+          <span class="src">src live.today (sessions table)</span><span class="bracket"></span>
+        </div>
+        <div class="plate" style="--ac:var(--gold)"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow" style="color:var(--gold)">Needs your eyes</span><span class="eyebrow dim">3 flags</span></div>
+          <div class="ledger" style="background:linear-gradient(90deg,var(--gold),rgba(216,162,58,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t">CHK</span><div><div class="who">Jonah W. — no check-in 2 weeks</div></div><button class="btn ghost">Open</button></div>
+          <div class="row"><span class="t">PARQ</span><div><div class="who">Jen K. — flagged health intake</div></div><button class="btn ghost">Review</button></div>
+          <span class="src">src check-in kit RPCs (Phase 2 plate)</span><span class="bracket"></span>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="plate"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow" style="color:var(--rust)">Client pulse</span><span class="eyebrow dim">7-day real trends</span></div>
+          <div class="ledger" style="background:linear-gradient(90deg,var(--rust),rgba(192,83,59,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t"><span class="spark"><i style="height:30%"></i><i style="height:50%"></i><i style="height:45%"></i><i style="height:70%"></i><i style="height:65%"></i><i style="height:85%"></i><i style="height:80%"></i></span></span><div><div class="who">Rae</div><div class="meta">6 workouts · 10d streak</div></div><span class="status" style="color:var(--teal)">▲</span></div>
+          <div class="row"><span class="t"><span class="spark"><i style="height:70%"></i><i style="height:60%"></i><i style="height:50%"></i><i style="height:40%"></i><i style="height:45%"></i><i style="height:35%"></i><i style="height:30%"></i></span></span><div><div class="who">Diego</div><div class="meta">slipping · 1 workout this wk</div></div><span class="status" style="color:var(--rust)">▼</span></div>
+          <span class="src">src real per-client 7d series (replaces flat-line fake)</span><span class="bracket"></span>
+        </div>
+        <div class="plate"><span class="tick"></span>
+          <div class="eyebrow" style="color:var(--rust)">Recent payouts</div>
+          <div class="sub" style="margin-top:8px">Real rows from Stripe, or this card hides. Never the fake $2,612.</div>
+          <span class="src">src /api/trainer/payouts (Phase 1.3)</span><span class="bracket"></span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</section>
+
+<!-- ════════════════ NUTRITIONIST ════════════════ -->
+<section class="role" id="role-nutri" style="--ac:var(--gold)">
+<div class="shell">
+  <nav class="side">
+    <a class="on">Today</a><a>Clients</a><a>Plans</a><a>Playlists</a><a>Community</a><a>Goal</a><a>Score</a><a>Profile</a>
+    <div class="sidecard plate"><span class="tick"></span>
+      <div class="eyebrow" style="color:var(--gold)">Next payout</div>
+      <div class="big">—</div>
+      <div class="sub">connects to Stripe</div>
+      <span class="src">src /api/nutritionist/payouts</span>
+    </div>
+  </nav>
+  <main>
+    <div class="greetrow">
+      <div>
+        <div class="greet-date">FRIDAY · JUN 12</div>
+        <h1>Good morning, Rae.</h1>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn" style="--ac:var(--gold)">+ Meal plan</button><button class="btn ghost">Push to client</button></div>
+    </div>
+
+    <div class="kpis">
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--gold)">Active clients</div><div class="big">28</div><div class="sub">+2 this month</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--gold)">Monthly · net</div><div class="big">—</div><div class="sub">after 15% fee · stripe rollup</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--gold)">Consults · wk</div><div class="big">17</div><div class="sub">32 active plans</div><span class="bracket"></span></div>
+      <div class="plate"><span class="tick"></span><div class="eyebrow" style="color:var(--gold)">Plan drops due</div><div class="big">5</div><div class="sub">this week</div><span class="bracket"></span></div>
+    </div>
+    <span class="src" style="margin:-16px 0 18px;display:inline-block">src /api/nutritionist/dashboard — same page body as trainer, role-parameterized (Phase 2)</span>
+
+    <div class="cols">
+      <div class="stack">
+        <div class="plate"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow" style="color:var(--gold)">Today's consults</span><span class="eyebrow dim">4 booked</span></div>
+          <div class="ledger" style="background:linear-gradient(90deg,var(--gold),rgba(216,162,58,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t">08:30</span><div><div class="who">Elena R.</div><div class="meta">weekly check · remote</div></div><span class="status" style="color:var(--ink50)">DONE</span></div>
+          <div class="row"><span class="t">13:30</span><div><div class="who">Priya S.</div><div class="meta">sleep + macros · 30 min</div></div><span class="status" style="color:var(--gold)">● NEXT</span></div>
+          <span class="src">src live.today (sessions)</span><span class="bracket"></span>
+        </div>
+        <div class="plate" style="--ac:var(--rust)"><span class="tick"></span>
+          <div class="sec-head"><span class="eyebrow" style="color:var(--rust)">Adherence flags</span><span class="eyebrow dim">from real logs</span></div>
+          <div class="ledger" style="background:linear-gradient(90deg,var(--rust),rgba(192,83,59,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t">PRO</span><div><div class="who">Marcus L. — protein short 5 days</div></div><button class="btn ghost">Adjust plan</button></div>
+          <div class="row"><span class="t">LOG</span><div><div class="who">Jonah W. — 2 days unlogged</div></div><button class="btn ghost">Nudge</button></div>
+          <span class="src">src daily_health_snapshot rollups (get_client_stats)</span><span class="bracket"></span>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="plate"><span class="tick"></span>
+          <div class="eyebrow" style="color:var(--gold)">Client pulse</div>
+          <div class="ledger" style="background:linear-gradient(90deg,var(--gold),rgba(216,162,58,.2) 45%,transparent 85%)"></div>
+          <div class="row"><span class="t"><span class="spark" style="--ac:var(--gold)"><i style="height:30%"></i><i style="height:45%"></i><i style="height:55%"></i><i style="height:50%"></i><i style="height:65%"></i><i style="height:75%"></i><i style="height:85%"></i></span></span><div><div class="who">Elena R.</div><div class="meta">7 days logged · −14% BF</div></div><span class="status" style="color:var(--teal)">▲</span></div>
+          <span class="src">src real 7d log series</span><span class="bracket"></span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</section>
+
+<script>
+  const tabs = document.querySelectorAll('#tabs button');
+  const show = (r) => {
+    document.querySelectorAll('.role').forEach(s => s.classList.toggle('on', s.id === 'role-' + r));
+    tabs.forEach(b => b.classList.toggle('on', b.dataset.role === r));
+  };
+  tabs.forEach(b => b.addEventListener('click', () => show(b.dataset.role)));
+  show('client');
+</script>
+</body>
+</html>
