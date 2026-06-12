@@ -5,7 +5,13 @@
 //      -> { events: [...] } merging:
 //         * calendar_events rows (planned workouts/meals/check-ins/etc.)
 //         * the sessions table (coaching bookings) as read-only events
-//      RLS scopes both: a coach may pass ?clientId to view a client's calendar.
+//         * DERIVED read-only plan events — assigned workouts
+//           (client_workouts.scheduled_date) and the active weekly menu
+//           (client_meal_plans, expanded by day-of-week from this week
+//           forward) — so a coach "push to client" shows up on the client's
+//           calendar automatically, no duplicate event rows to drift.
+//      RLS scopes all of it: a coach may pass ?clientId to view a client's
+//      calendar (and sees only the plan rows they authored).
 //
 // POST   { userId?, kind, title, sub?, date, time?, durationMin?, with?,
 //          location?, accent?, metadata? }  -> create (userId defaults to self;
@@ -120,7 +126,105 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ events: [...events, ...sessions] });
+  // 3) Assigned workouts with a scheduled date (trainer "push to client").
+  //    RLS: the client sees their own; a coach viewing ?clientId sees the
+  //    rows they assigned. Read-only here — reschedule via the plan, not
+  //    the calendar.
+  const { data: cwRows } = await supabase
+    .from('client_workouts')
+    .select('id, title, description, payload, scheduled_date')
+    .eq('client_id', targetUserId)
+    .eq('status', 'published')
+    .not('scheduled_date', 'is', null)
+    .gte('scheduled_date', dFrom)
+    .lte('scheduled_date', dTo)
+    .order('scheduled_date', { ascending: true })
+    .limit(120);
+
+  const planWorkouts = (cwRows ?? []).map((w: {
+    id: string; title: string; description: string | null;
+    payload: Record<string, unknown> | null; scheduled_date: string;
+  }) => {
+    const payload = (w.payload && typeof w.payload === 'object') ? w.payload : null;
+    const exCount = Array.isArray(payload?.exercises) ? (payload!.exercises as unknown[]).length : 0;
+    const durMatch = payload?.duration != null ? String(payload.duration).match(/\d+/) : null;
+    return {
+      id: `plan:${w.id}`,
+      source: 'plan' as const,
+      kind: 'WORKOUT',
+      title: w.title,
+      sub: w.description || (exCount ? `${exCount} move${exCount === 1 ? '' : 's'}` : 'Assigned workout'),
+      date: w.scheduled_date,
+      time: null as string | null,
+      durationMin: durMatch ? Number(durMatch[0]) : null,
+      with: '', location: '', accent: '',
+      status: 'planned',
+      createdByRole: 'trainer',
+      editable: false,
+    };
+  });
+
+  // 4) The active weekly menu (nutritionist "push to client"), expanded onto
+  //    real dates by day-of-week — from this week forward only (the current
+  //    menu says nothing about what past weeks were).
+  const { data: mpRows } = await supabase
+    .from('client_meal_plans')
+    .select('id, title, week_start, payload')
+    .eq('client_id', targetUserId)
+    .eq('status', 'published')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  type MenuMeal = { slot?: unknown; title?: unknown; time?: unknown; kcal?: unknown };
+  type MenuDay = { dow?: unknown; meals?: MenuMeal[] };
+  const mp = (mpRows ?? [])[0] ?? null;
+  const menuDays: MenuDay[] = mp && mp.payload && Array.isArray((mp.payload as Record<string, unknown>).days)
+    ? ((mp.payload as Record<string, unknown>).days as MenuDay[])
+    : [];
+  const byDow: (MenuDay | null)[] = [null, null, null, null, null, null, null];
+  const seq: MenuDay[] = [];
+  for (const d of menuDays) {
+    const dow = Number(d?.dow);
+    if (Number.isInteger(dow) && dow >= 0 && dow <= 6 && !byDow[dow]) byDow[dow] = d;
+    else if (d) seq.push(d);
+  }
+  for (let i = 0; i < 7 && seq.length; i++) if (!byDow[i]) byDow[i] = seq.shift()!;
+
+  const planMeals: Array<Record<string, unknown>> = [];
+  if (menuDays.length) {
+    const monday = new Date(today); monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const startISO = monday.toISOString().slice(0, 10);
+    const cursor = new Date(`${dFrom < startISO ? startISO : dFrom}T00:00:00Z`);
+    const end = new Date(`${dTo}T00:00:00Z`);
+    while (cursor <= end && planMeals.length < 250) {
+      const date = cursor.toISOString().slice(0, 10);
+      const dow = (cursor.getUTCDay() + 6) % 7; // Mon=0..Sun=6
+      const day = byDow[dow];
+      (day?.meals ?? []).forEach((meal, j) => {
+        if (!meal || meal.title == null) return;
+        const slot = meal.slot != null ? String(meal.slot) : 'Meal';
+        const kcal = Number(meal.kcal);
+        planMeals.push({
+          id: `meal:${mp!.id}:${date}:${j}`,
+          source: 'meal' as const,
+          kind: 'MEAL',
+          title: String(meal.title),
+          sub: `${slot.charAt(0).toUpperCase()}${slot.slice(1).toLowerCase()}${Number.isFinite(kcal) && kcal > 0 ? ` · ${kcal} kcal` : ''}`,
+          date,
+          time: meal.time != null && /^\d{1,2}:\d{2}$/.test(String(meal.time)) ? String(meal.time) : null,
+          durationMin: null,
+          with: '', location: '', accent: '',
+          status: 'planned',
+          createdByRole: 'nutritionist',
+          editable: false,
+        });
+      });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+  }
+
+  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals] });
 }
 
 // ── POST ─────────────────────────────────────────────────────────────────────
