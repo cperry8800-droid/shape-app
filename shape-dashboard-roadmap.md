@@ -124,6 +124,20 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Nutritionist roster v2 + quick-consult drawer** (step 6):
+  `NutritionistClients.html` is hook-driven (`useDashboard`), rows are the
+  triage feed, and **"Needs eyes" = signal-engine severity** (leads the
+  filter row with a live count; replaces the stale-sessions heuristic).
+  Columns: Last Food Log · 7-day Compliance % · Goal Phase · Last Consult —
+  every cell is a real value or a labelled honest empty state ("Not
+  shared", "No consults yet"), never a bare dash. Last Consult is real
+  live (roster `lastAt` from the sessions table) and the personas carry
+  `payments.lastSessionAt`. **Row click opens the quick-consult slide-over**
+  (`dashRoster.jsx` — shared so the trainer roster can reuse it): last 3
+  days of logs (`recentLogs`, mock-only until per-day logs reach the
+  overview API), macros vs targets with over/under coloring, weigh-in
+  trend polyline + delta, read-only training context (volume 42d + weekly
+  Shape Score), Send note + Full profile →. No navigation on row click.
 - ✅ **Nutritionist = a true Today view** (step 5): all four panels flip on
   via role config — nutrition-aware triage (`getTriageFeed('nutritionist')`
   adds role-scoped rules: **ledger blown** avg ≥ target+10% ("Ledger +21%")

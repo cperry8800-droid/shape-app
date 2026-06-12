@@ -23,7 +23,8 @@
 //     nutrition: { avgCalories, targetCalories, avgProtein, targetProtein } | null,
 //     goalPhase: string | null,
 //     milestones: [{ key, label, hitAt? }] | null,
-//     payments:  { mrrCents, status? } | null,
+//     payments:  { mrrCents, status?, lastSessionAt? } | null,  // lastSessionAt = last consult/session
+//     recentLogs: [{ on: 'YYYY-MM-DD', kcal, protein }] | null,  // newest first, ≤3 (drawer)
 //   }
 
 (function (root, factory) {
@@ -257,7 +258,12 @@
           { key: "m25", label: "25% to goal", hitAt: ago(40) },
           { key: "m50", label: "50% to goal", hitAt: ago(12) },
         ],
-        payments: { mrrCents: 18000, status: "active" },
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(2) },
+        recentLogs: [
+          { on: ago(0), kcal: 2105, protein: 148 },
+          { on: ago(1), kcal: 2210, protein: 139 },
+          { on: ago(2), kcal: 1980, protein: 151 },
+        ],
       };
       Object.keys(over || {}).forEach(function (k) { base[k] = over[k]; });
       return base;
@@ -268,6 +274,7 @@
       person(1, "Jordan M.", {}),
       // red — streak broken AND a 8-pt wk/wk score drop
       person(2, "Marcus T.", {
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(6) },
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
         goalPhase: "Cut",
@@ -279,6 +286,8 @@
       }),
       // red — no food logs in 4 days + no contact in 7
       person(4, "Sam R.", {
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(9) },
+        recentLogs: [],
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },
         lastContact: { trainer: ago(7), nutritionist: ago(7) },
         trainingAdherence: { pct: 64, done: 9, planned: 14 },
@@ -288,7 +297,12 @@
       person(5, "Priya S.", {
         goalPhase: "Cut",
         nutrition: { avgCalories: 1840, targetCalories: 1900, avgProtein: 96, targetProtein: 150 },
-        payments: { mrrCents: 22000, status: "active" },
+        payments: { mrrCents: 22000, status: "active", lastSessionAt: ago(1) },
+        recentLogs: [
+          { on: ago(0), kcal: 1815, protein: 92 },
+          { on: ago(1), kcal: 1870, protein: 101 },
+          { on: ago(2), kcal: 1790, protein: 95 },
+        ],
       }),
       // amber — score slid 7 pts wk/wk, everything else fine
       person(6, "Elena R.", {
@@ -297,17 +311,25 @@
       // amber for the trainer (food gap); RED on the nutritionist feed — the
       // logs that do exist average 21% over the calorie target
       person(7, "Deandre K.", {
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(4) },
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 4 },
         nutrition: { avgCalories: 2540, targetCalories: 2100, avgProtein: 138, targetProtein: 150 },
+        recentLogs: [
+          { on: ago(3), kcal: 2680, protein: 132 },
+          { on: ago(4), kcal: 2515, protein: 141 },
+          { on: ago(5), kcal: 2430, protein: 140 },
+        ],
       }),
       // red — three weeks without a check-in (red on its own)
       person(8, "Jonah W.", {
+        payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(13) },
         checkIn: { lastWeekOf: mondaysAgo(3) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 },
       }),
       // green + NEW — joined this week; no first check-in yet (new-client pass)
       person(9, "Tess B.", {
         profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
+        payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1) },
         goal: { target: 150, unit: "lb", now: 158 },
         trainingAdherence: { pct: 100, done: 2, planned: 2 },
         foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 3 },
@@ -318,7 +340,6 @@
         checkIn: { lastWeekOf: null },
         goalPhase: "Build",
         milestones: [],
-        payments: { mrrCents: 16000, status: "active" },
       }),
     ];
   }
