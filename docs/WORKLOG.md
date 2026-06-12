@@ -100,6 +100,25 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Home habits → one agenda card · habits page + goals page instrument pass
+- **Home HABITS section is now ONE agenda-style plate** (same `BSPlate` chrome as
+  the workout/meal cards — green spine, tick, bracket): eyebrow `HABITS · n/m
+  done` + `+pts / possible`, serif "Daily habits." title, compact numbered rows
+  (DO/AVOID chip · name · status · +pts · ✓ state), footer rule + View →.
+  **Tapping anywhere on the card opens the habits page** — check-off now lives
+  there (the per-row home checkboxes are display-only state). The old BSSection
+  ledger + numbered-row list is gone.
+- **Daily habits page instrument pass** (`iosAppBroadsheetHabits.jsx`): the
+  Earned-today card is a `BSPlate` (tick + bracket, squared bars), habit rows are
+  squared cards w/ a do/avoid accent spine (squared checkbox), empty-state add
+  row squared. Add-sheet stays a quiet rounded form by the two-tier rule.
+- **Goals page instrument pass** (Overall / Training / Nutrition): all three tab
+  heroes are `BSPlate`s (teal/rust/gold — squared sliders + heatmap tiles), stat
+  mini-cards are squared tiles w/ per-stat spines (Me-grid recipe), the tab rail
+  is the instrument segment (per-tab accent tint + top tick, solid-fill INKON
+  dropped), trend/plans/program/plan/why/primary-goal cards squared w/ accent
+  spines, Open → buttons squared. Edit/weigh-in sheets stay quiet forms.
+
 ### 2026-06-12 — Instrument pass: progress · store · meal preview · live session · calendar (+ polish batch)
 - **Design rollout extended to the remaining client pages** (screenshot-driven):
   **Progress hub** (squared KPI tiles + section cards w/ teal spines, instrument
