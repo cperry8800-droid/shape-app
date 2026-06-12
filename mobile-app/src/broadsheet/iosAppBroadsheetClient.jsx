@@ -7287,7 +7287,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     catch (err) { window.__bsToast?.(err?.message || 'Could not upload cover.', 'err'); }
     finally { setCoverBusy(false); }
   };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', borderRadius: 9, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), color: INK, fontFamily: SANS, fontSize: 14, outline: 'none' };
   const label = { fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: c, fontWeight: 700, marginBottom: 9, display: 'block' };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: BS_PROFILE_PROMPTS[prev.length % BS_PROFILE_PROMPTS.length], a: '' }]);
@@ -7312,16 +7312,21 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     onSave(doc);
   };
   return createPortal(
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 220, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: `20px 18px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '90%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div><div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>Your profile</div><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em', marginTop: 3 }}>Customize.</div></div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 20, cursor: 'pointer', padding: 4 }}>×</button>
+    // Full-page takeover (was a bottom sheet) — the customizer owns the screen.
+    <div className="bs-scroll" style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: 'auto' }}>
+      <div style={{ padding: `0 18px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '58px 0 4px' }}>
+          <div>
+            <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>Your profile · Editor</div>
+            <div style={{ fontFamily: SERIF, fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 6, lineHeight: 1 }}>Customize<span style={{ fontStyle: 'italic', color: c }}>.</span></div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ marginTop: 4, width: 32, height: 32, borderRadius: 5, border: `1px solid ${bsTHexA(c, 0.4)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(c, 0.08), color: INK, fontSize: 15, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', lineHeight: 1 }}>×</button>
         </div>
+        <div style={{ margin: '10px 0 18px', height: 2, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.2)} 45%, transparent 85%)` }} />
         {coach && (
           /* What the Signal sigil rings mean — moved off the public profile to here
              (coach-only). Explains the instrument on the coach's own profile. */
-          <div style={{ marginBottom: 18, padding: '14px 15px', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(c, 0.06) }}>
+          <div style={{ marginBottom: 18, padding: '14px 15px', borderRadius: 6, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(c, 0.06) }}>
             <span style={label}>Your Signal · what the rings mean</span>
             <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.7), lineHeight: 1.5, marginBottom: 10 }}>The instrument on your profile reads your coaching at a glance. The <strong style={{ color: INK }}>outer ring</strong> is your progress to the next coach tier; the three inner rings each track a contribution and fill as you keep them up:</div>
             {[
@@ -7345,12 +7350,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
-          <div style={{ position: 'relative', height: 130, borderRadius: 16, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
+          <div style={{ position: 'relative', height: 130, borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)', overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${bsTHexA(accent || c, 0.8)}`, background: coverUrl ? '#000' : `linear-gradient(135deg, ${bsTHexA(accent || c, 0.4)}, ${bsTHexA(accent || c, 0.08)})` }}>
             {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: 'none' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: '7px 13px', borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.6)}`, background: bsTHexA('#000', 0.5), color: INK, cursor: coverBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{coverBusy ? 'Uploading…' : coverUrl ? 'Replace' : 'Upload cover'}</button>
-              {coverUrl && <button onClick={() => setCoverUrl('')} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.4)}`, background: bsTHexA('#000', 0.5), color: bsTHexA(INK, 0.8), cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Remove</button>}
+              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: '7px 13px', borderRadius: 5, border: `1px solid ${bsTHexA(INK, 0.6)}`, background: bsTHexA('#000', 0.5), color: INK, cursor: coverBusy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{coverBusy ? 'Uploading…' : coverUrl ? 'Replace' : 'Upload cover'}</button>
+              {coverUrl && <button onClick={() => setCoverUrl('')} style={{ padding: '7px 11px', borderRadius: 5, border: `1px solid ${bsTHexA(INK, 0.4)}`, background: bsTHexA('#000', 0.5), color: bsTHexA(INK, 0.8), cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Remove</button>}
             </div>
           </div>
         </div>
@@ -7370,8 +7375,8 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             {BS_CLIMB_BGS.map((b) => {
               const on = (climbBg || '') === b.key;
               return (
-                <button key={b.key || 'default'} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 12, cursor: 'pointer', border: `2px solid ${on ? INK : bsTHexA(INK, 0.18)}`, background: 'transparent', padding: 3 }}>
-                  <span style={{ display: 'block', height: 30, borderRadius: 8, background: b.css || bsTHexA(INK, 0.05), border: b.css ? 'none' : `1px dashed ${bsTHexA(INK, 0.25)}` }} />
+                <button key={b.key || 'default'} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 5, cursor: 'pointer', border: `2px solid ${on ? INK : bsTHexA(INK, 0.18)}`, background: 'transparent', padding: 3 }}>
+                  <span style={{ display: 'block', height: 30, borderRadius: 3, background: b.css || bsTHexA(INK, 0.05), border: b.css ? 'none' : `1px dashed ${bsTHexA(INK, 0.25)}` }} />
                   <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.55), fontWeight: 700 }}>{b.label}</span>
                 </button>
               );
@@ -7383,7 +7388,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={label}>Headline stats · pick up to 3</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {BS_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
-              <button key={s.key} onClick={() => toggleStat(s.key)} style={{ padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{on ? '✓ ' : ''}{s.label}</button>
+              <button key={s.key} onClick={() => toggleStat(s.key)} style={{ padding: '6px 12px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${on ? bsTHexA(c, 0.5) : bsTHexA(INK, 0.18)}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{on ? '✓ ' : ''}{s.label}</button>
             ); })}
           </div>
         </div>
@@ -7391,7 +7396,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={label}>Pin a highlight</span>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}>
             {BS_PIN_KINDS.map((k) => (
-              <button key={k} onClick={() => setPinKind(k)} style={{ padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${pinKind === k ? c : bsTHexA(INK, 0.18)}`, background: pinKind === k ? bsTHexA(c, 0.14) : 'transparent', color: pinKind === k ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{k}</button>
+              <button key={k} onClick={() => setPinKind(k)} style={{ padding: '6px 12px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${pinKind === k ? bsTHexA(c, 0.5) : bsTHexA(INK, 0.18)}`, borderLeft: pinKind === k ? `3px solid ${c}` : `1px solid ${bsTHexA(INK, 0.18)}`, background: pinKind === k ? bsTHexA(c, 0.14) : 'transparent', color: pinKind === k ? c : bsTHexA(INK, 0.5), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{k}</button>
             ))}
           </div>
           <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
@@ -7411,7 +7416,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <div style={{ marginTop: -3, marginBottom: 10, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.04em', color: bsTHexA(INK, 0.45) }}>Pick a question, write a short answer — they show on your profile so people get a feel for you.</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {prompts.map((p, i) => (
-              <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 14, padding: 12, background: bsTHexA(INK, 0.025) }}>
+              <div key={i} style={{ border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 8, padding: 12, background: bsTHexA(INK, 0.025) }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 9 }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <select value={p.q} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...field, padding: '10px 30px 10px 13px', fontSize: 12.5, fontFamily: MONO, letterSpacing: '0.04em', color: c, fontWeight: 700, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}>
@@ -7425,7 +7430,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
               </div>
             ))}
           </div>
-          {prompts.length < 4 && <button onClick={addPrompt} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add prompt</button>}
+          {prompts.length < 4 && <button onClick={addPrompt} style={{ marginTop: 10, background: 'transparent', border: `1px dashed ${bsTHexA(c, 0.5)}`, color: c, borderRadius: 5, padding: '8px 14px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add prompt</button>}
         </div>
         <div style={{ marginBottom: 22 }}>
           <span style={label}>Social links</span>
@@ -7441,7 +7446,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
         {/* Identity fields (name · @handle · photo · pronouns · goal · link)
             live in the Settings editor — linked here so this sheet is the one
             complete hub for everything the public profile shows. */}
-        <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.14)}`, background: bsTHexA(INK, 0.045), padding: '13px 15px', cursor: 'pointer', marginBottom: 16 }}>
+        <button onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 6, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(INK, 0.045), padding: '13px 15px', cursor: 'pointer', marginBottom: 16 }}>
           <span style={{ minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: SERIF, fontSize: 15.5, fontWeight: 700, color: INK }}>Name, @handle, photo & details</span>
             <span style={{ display: 'block', marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Pronouns · goal · link — edit in Settings</span>
@@ -7449,7 +7454,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
           <span style={{ color: c, fontSize: 15, fontWeight: 700 }}>→</span>
         </button>
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
-          <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 50, borderRadius: 16, background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
+          <button onClick={save} disabled={busy} style={{ width: '100%', minHeight: 50, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', background: c, color: '#08120f', border: 0, cursor: busy ? 'wait' : 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, boxShadow: `0 6px 20px ${bsTHexA(c, 0.35)}` }}>{busy ? 'Saving…' : 'Save profile'}</button>
         </div>
       </div>
     </div>,
@@ -15687,9 +15692,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Lighter, floating section header (no teal bar / no 2px box border) —
   // matches the Me-page style: big serif title + small right-side meta.
   const SectionHead = ({ title, meta }) => (
-    <div style={{ padding: `20px ${t.padX}px 4px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{title}</div>
-      {meta ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{meta}</span> : null}
+    <div style={{ padding: `20px ${t.padX}px 4px` }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{title}</div>
+        {meta ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{meta}</span> : null}
+      </div>
+      <div style={{ marginTop: 7, height: 2, background: `linear-gradient(90deg, ${t.ACCENT}, ${t.ACCENT}33 45%, transparent 85%)` }} />
     </div>
   );
 
@@ -15697,8 +15705,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const HubCard = ({ icon, title, summary, onClick, accent, last }) => (
     <button onClick={onClick} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 13,
-      padding: '13px 2px', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`, background: 'transparent',
+      padding: '13px 2px 13px 11px', cursor: 'pointer', textAlign: 'left',
+      border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`,
+      borderLeft: `3px solid ${accent || bsTHexA(t.INK, 0.16)}`, background: 'transparent',
     }}>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: accent || t.INK, letterSpacing: '-0.02em' }}>{title}</span>
@@ -15746,11 +15755,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 {s.segmented.map((opt, j) => {
                   const on = prefs[s.key] === opt;
                   return (
-                    <button key={opt} onClick={() => setPref(s.key, opt)} style={{ borderRadius: t.RADIUS_SM,
+                    <button key={opt} onClick={() => setPref(s.key, opt)} style={{ borderRadius: 5,
                       flex: 1, padding: '9px 8px', cursor: 'pointer',
-                      border: `1px solid ${on ? t.INK : t.RULE}`,
-                      background: on ? t.INK : 'transparent',
-                      color: on ? t.PAPER : t.INK,
+                      border: `1px solid ${on ? `${t.ACCENT}66` : t.RULE}`,
+                      borderLeft: on ? `3px solid ${t.ACCENT}` : `1px solid ${t.RULE}`,
+                      background: on ? `${t.ACCENT}1f` : 'transparent',
+                      color: on ? t.INK : t.INK70,
                       fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
                     }}>{(s.segLabels && s.segLabels[j]) || opt}</button>
                   );
@@ -16484,8 +16494,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* Sign out — pushed down with breathing room before the footer */}
       <div style={{ padding: `28px ${t.padX}px 32px` }}>
-        <button onClick={onLogout} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%', padding: '14px', background: 'transparent', color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
+        <button onClick={onLogout} style={{ borderRadius: 5, borderLeft: `3px solid ${t.RUST}`,
+          width: '100%', padding: '14px', background: `${t.RUST}10`, color: t.RUST, border: `1px solid ${t.RUST}`, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
         }}>Sign out</button>
       </div>
