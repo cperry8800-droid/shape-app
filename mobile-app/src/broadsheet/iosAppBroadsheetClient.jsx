@@ -799,8 +799,8 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
         {/* Compact dropdown to choose which cards are visible */}
         <div>
           <button ref={cardsBtnRef} onClick={() => (menuOpen ? setMenuOpen(false) : openCardsMenu())} style={{
-            padding: '8px 12px', borderRadius: 4, border: `1px solid ${t.INK}`, background: menuOpen ? t.INK : 'transparent',
-            color: menuOpen ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
+            padding: '8px 12px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: menuOpen ? `${t.ACCENT}33` : `${t.ACCENT}14`,
+            color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>Cards ▾</button>
           {menuOpen && menuPos && createPortal(
             <>
@@ -7299,10 +7299,10 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
     <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: '0 0 14px', padding: '6px 0', background: BG }}>
       <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 4 }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
-          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 6px', borderRadius: 5, border: 0, cursor: 'pointer',
+          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
             position: 'relative', overflow: 'hidden',
             background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : bsTHexA(INK, 0.55),
-            fontFamily: MONO, fontSize: 9.5, fontWeight: on ? 800 : 600, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            fontFamily: MONO, fontSize: 8.5, fontWeight: on ? 800 : 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
             {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: c }} />}
             {tb.label}
           </button>
@@ -7957,7 +7957,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               </div>
               <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                 <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}><span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL, flex: 'none' }} />{statusLabel}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: TEAL, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.4)}`, borderRadius: 999, padding: '4px 9px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
               </div>
             </div>
             {/* coached-by band */}
@@ -10912,12 +10912,12 @@ function _bsNotifAgo(iso) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-// Icon + accent per notification type (falls back to a bell).
+// Accent per notification type (falls back to the theme accent).
 function _bsNotifStyle(type, t) {
   const map = {
-    booking_request: ['🗓', t.AMBER], session_confirmed: ['✅', t.GREEN], session_declined: ['✕', t.RUST],
-    payment: ['💸', t.GREEN], message: ['💬', t.BLUE], workout: ['🏋', t.AMBER],
-    meal_plan: ['🍽', t.RUST], program: ['🗺', t.ACCENT], grocery: ['🛒', t.RUST], general: ['🔔', t.ACCENT],
+    booking_request: t.AMBER, session_confirmed: t.GREEN, session_declined: t.RUST,
+    payment: t.GREEN, message: t.BLUE, workout: t.AMBER,
+    meal_plan: t.RUST, program: t.ACCENT, grocery: t.RUST, general: t.ACCENT,
   };
   return map[type] || map.general;
 }
@@ -10976,15 +10976,14 @@ function BSNotifications({ onBack, onRoute = () => {} }) {
       {list.length > 0 && (
         <div style={{ padding: `12px ${t.padX}px 4px` }}>
           {list.map((n) => {
-            const [icon, accent] = _bsNotifStyle(n.type, t);
+            const accent = _bsNotifStyle(n.type, t);
             return (
               <button key={n.id} onClick={() => open(n)} style={{
-                width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'start', gap: 11,
+                width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 11,
                 padding: '12px 13px', marginBottom: 9, borderRadius: 13, cursor: n.route ? 'pointer' : 'default',
-                border: `1px solid ${n.read ? t.RULE : accent}`,
+                border: `1px solid ${n.read ? t.RULE : accent}`, borderLeft: `3px solid ${accent}`,
                 background: n.read ? 'transparent' : `${accent}14`,
               }}>
-                <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', fontSize: 17, background: `${accent}22`, border: `1px solid ${accent}55` }}>{icon}</span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0 }} />}
