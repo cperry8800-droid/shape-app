@@ -100,6 +100,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Ticker + settings/customizer instrument passes · in-place goal edit · real GPS routes (PRs #1267–#1271)
+- **War Room**: coach credential verification (cert + insurance COI, expiry
+  tracking, Verified badge, admin queue) registered as the liability-backing
+  to-build (P2 Coach tools + Marketplace checklist).
+- **Ticker** (`BSTicker`, shared client + coach Today): instrument plate —
+  clipped corner, accent spine, fixed pulsing live tick under the marquee.
+  New **HAB metric** (today's habits done/total + pts, live; green when all
+  done); saved ticker prefs auto-append new metrics (load + render + editor).
+- **Goals page**: the Overall card's Edit now opens an **in-place primary-goal
+  chip sheet** (saves `client_goals.primaryGoal` + mirrors
+  `client_identity.goal` + `shape:identity`) — it used to deep-link into the
+  Settings takeover, which unmounted Goals so back couldn't return. Audited:
+  that was the only context-losing Edit.
+- **Settings**: section heads get the accent ledger rule; hub rows carry 3px
+  spines (rust on Account actions); segmented prefs use accent-tint chips;
+  Sign out squared w/ rust tint. **Profile Customizer is now a FULL-PAGE
+  takeover** (was a 90% sheet) with the instrument pass throughout (clipped
+  cover plate, squared tiles/chips/save).
+- **Polish**: radio now-playing bar ~12px thinner; `BSFollowBlock` row aligns
+  center so the Follow pill sits on the counts line.
+- **Real GPS routes on feed cards**: posts carrying normalized points render
+  `BSActivityRoutePreview` (true polyline + start/end + provider/elevation/
+  privacy chip); halftone tile only when flagged routeless. Strava points
+  arrive privacy-zoned. War Room: Garmin route extraction once approved
+  (needs OUR OWN start/end privacy trimming — raw Garmin GPS has none);
+  **Whoop has no GPS** — strain/HR only, never routes.
+
 ### 2026-06-12 — Check-in kit website parity (client pages + coach client page)
 - **New `GET/POST /api/client/checkin-kit`** (cookie/Bearer, RLS-scoped): GET →
   my check-ins + measurements + health profile; POST `action:'checkin'`
