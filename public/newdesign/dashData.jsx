@@ -94,27 +94,35 @@ function _dashRecordFromSelf(dash, kit) {
 }
 
 function useDashboard(role) {
-  const [state, setState] = React.useState({ loading: true, clients: [], source: null });
+  const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null });
 
   React.useEffect(() => {
     let on = true;
-    const demo = () => { if (on) setState({ loading: false, clients: DashSignals.buildMockClients(), source: "demo" }); };
+    // `today` = the raw role dashboard feed (/api/{role}/dashboard) when the
+    // viewer is live; null otherwise (callers render their demo Today panels).
+    // It resolves independently of the roster so one failing API can't take
+    // down the other half of the page.
+    const demo = (today) => { if (on) setState({ loading: false, clients: DashSignals.buildMockClients(), source: "demo", today: today || null }); };
     (async () => {
       try {
         if (role === "client") {
-          const dash = await _dashJson("/api/client/dashboard");
-          if (!dash || !dash.kpis) return demo();
+          const dash = await _dashJson("/api/client/dashboard").catch(() => null);
+          if (!dash || !dash.kpis) return demo(null);
           let kit = null;
           try { kit = await _dashJson("/api/client/checkin-kit"); } catch (e) {}
-          if (on) setState({ loading: false, clients: [_dashRecordFromSelf(dash, kit)], source: "live" });
+          if (on) setState({ loading: false, clients: [_dashRecordFromSelf(dash, kit)], source: "live", today: dash });
           return;
         }
         const roleKey = role === "trainer" ? "isTrainer" : "isNutritionist";
-        const roster = await _dashJson("/api/" + role + "/clients");
-        if (!roster || !roster[roleKey]) return demo();
+        const [roster, todayRes] = await Promise.all([
+          _dashJson("/api/" + role + "/clients").catch(() => null),
+          _dashJson("/api/" + role + "/dashboard").catch(() => null),
+        ]);
+        const today = todayRes && todayRes[roleKey] ? todayRes : null;
+        if (!roster || !roster[roleKey]) return demo(today);
         // Roster first (fast paint for callers), then enrich rows with ids.
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null));
-        if (on) setState({ loading: false, clients: base, source: "live" });
+        if (on) setState({ loading: false, clients: base, source: "live", today });
         const rows = roster.clients || [];
         const overviews = await _dashPool(rows, (row) =>
           row.id ? _dashJson("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview") : null
@@ -124,8 +132,9 @@ function useDashboard(role) {
           loading: false,
           clients: rows.map((row, i) => _dashRecordFromLive(row, overviews[i])),
           source: "live",
+          today,
         });
-      } catch (e) { demo(); }
+      } catch (e) { demo(null); }
     })();
     return () => { on = false; };
   }, [role]);
@@ -134,7 +143,7 @@ function useDashboard(role) {
     () => DashSignals.getTriageFeed(role, state.clients),
     [role, state.clients]
   );
-  return { loading: state.loading, clients: state.clients, triage };
+  return { loading: state.loading, clients: state.clients, triage, today: state.today };
 }
 
 Object.assign(window, { useDashboard });

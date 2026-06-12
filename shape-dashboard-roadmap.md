@@ -123,10 +123,15 @@ inputs are SKIPPED — sparse live records can never false-flag.
 human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
-### 2.4 Twin collapse & rosters (next)
-- Merge TrainerDashboard/NutritionistDashboard into one role-parameterized
-  page body (URLs unchanged — the two HTML files become thin wrappers) on
-  `useDashboard` + the triage feed.
+### 2.4 Twin collapse & rosters
+- ✅ TrainerDashboard/NutritionistDashboard merged into one role-parameterized
+  page (`dashToday.jsx` — `CoachDashboardPage` + `DASH_TODAY_ROLES` config;
+  the two HTML files are thin wrappers, URLs unchanged). Data flows through
+  `useDashboard(role)`, which now also carries the `today` feed
+  (/api/{role}/dashboard, resolved independently of the roster so one
+  failing API can't take down the other). Pixel parity verified: all 415
+  data/label literals from the old pages survive into the role config; the
+  hardcoded "WEDNESDAY APR 18" date is intentionally kept until 1.2.
 - Unify TrainerClients/NutritionistClients the same way (server side is
   already shared via `coach-roster.ts`).
 - Roster rows link by real user id (`ClientProfile.html?u=<uuid>`), falling
