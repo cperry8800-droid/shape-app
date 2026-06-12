@@ -10912,12 +10912,12 @@ function _bsNotifAgo(iso) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-// Icon + accent per notification type (falls back to a bell).
+// Accent per notification type (falls back to the theme accent).
 function _bsNotifStyle(type, t) {
   const map = {
-    booking_request: ['🗓', t.AMBER], session_confirmed: ['✅', t.GREEN], session_declined: ['✕', t.RUST],
-    payment: ['💸', t.GREEN], message: ['💬', t.BLUE], workout: ['🏋', t.AMBER],
-    meal_plan: ['🍽', t.RUST], program: ['🗺', t.ACCENT], grocery: ['🛒', t.RUST], general: ['🔔', t.ACCENT],
+    booking_request: t.AMBER, session_confirmed: t.GREEN, session_declined: t.RUST,
+    payment: t.GREEN, message: t.BLUE, workout: t.AMBER,
+    meal_plan: t.RUST, program: t.ACCENT, grocery: t.RUST, general: t.ACCENT,
   };
   return map[type] || map.general;
 }
@@ -10976,15 +10976,14 @@ function BSNotifications({ onBack, onRoute = () => {} }) {
       {list.length > 0 && (
         <div style={{ padding: `12px ${t.padX}px 4px` }}>
           {list.map((n) => {
-            const [icon, accent] = _bsNotifStyle(n.type, t);
+            const accent = _bsNotifStyle(n.type, t);
             return (
               <button key={n.id} onClick={() => open(n)} style={{
-                width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'start', gap: 11,
+                width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 11,
                 padding: '12px 13px', marginBottom: 9, borderRadius: 13, cursor: n.route ? 'pointer' : 'default',
-                border: `1px solid ${n.read ? t.RULE : accent}`,
+                border: `1px solid ${n.read ? t.RULE : accent}`, borderLeft: `3px solid ${accent}`,
                 background: n.read ? 'transparent' : `${accent}14`,
               }}>
-                <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', fontSize: 17, background: `${accent}22`, border: `1px solid ${accent}55` }}>{icon}</span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0 }} />}
