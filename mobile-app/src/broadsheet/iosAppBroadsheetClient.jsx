@@ -3951,7 +3951,7 @@ function BSNutritionTopTabs({ active, onChange }) {
   const tabs = [
     ['eat', 'Day'],
     ['grocery', 'Grocery'],
-    ['library', 'Lists'],
+    ['library', 'Library'],
     ['recipes', 'Recipes'],
   ];
   return (
@@ -5418,7 +5418,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     </div>
   ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body) : null;
 
-  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onProfile={onProfile} /></>;
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -14474,10 +14474,11 @@ function BSCoachGroceryReview({ t, teal, onAdd }) {
   );
 }
 
-function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onProfile = () => {} }) {
+function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {} }) {
   const t = useBS();
   _bsScrollTopOnMount();
   const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
+  const [pickerOpen, setPickerOpen] = useStateBSC(false);
   const [newName, setNewName] = useStateBSC('');
   const [newQty, setNewQty] = useStateBSC('');
   const addItem = () => {
@@ -14549,29 +14550,70 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
   return (
     <BSPage>
       <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
-      {/* Header — title + a small ＋ box (new custom list); the source chip below
-          says exactly WHICH list is loaded (coach plan / your library / recipe) */}
+      {/* Header — title + a small ＋ box (new custom list) */}
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>Food<br /><span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
           <button onClick={onCreate} aria-label="New custom grocery list" style={{ flexShrink: 0, width: 34, height: 34, marginTop: 4, borderRadius: 5, border: `1px solid ${rust}66`, borderLeft: `3px solid ${rust}`, background: `${rust}14`, color: rust, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 16, fontWeight: 800, lineHeight: 1 }}>＋</button>
         </div>
-        {(() => {
-          const src = list.kind === 'recipe'
-            ? { label: 'Recipe list', c: t.AMBER }
-            : list.kind === 'custom'
-            ? { label: 'Your library · custom', c: '#8a5cf6' }
-            : { label: 'Coach plan · this week', c: rust };
-          return (
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: src.c, background: `${src.c}1a`, border: `1px solid ${src.c}66`, borderLeft: `3px solid ${src.c}`, borderRadius: 4, padding: '4px 9px' }}>{src.label}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
-            </div>
-          );
-        })()}
       </div>
 
       <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
+
+      {/* Which list is showing — source chip + name; tap to switch lists */}
+      {(() => {
+        const src = list.kind === 'recipe'
+          ? { label: 'Recipe list', c: t.AMBER }
+          : list.kind === 'custom'
+          ? { label: 'Your library', c: '#8a5cf6' }
+          : { label: 'Coach plan · this week', c: rust };
+        return (
+          <div style={{ padding: `12px ${t.padX}px 0` }}>
+            <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${bsTHexA(src.c, 0.35)}`, borderLeft: `3px solid ${src.c}`, background: `${src.c}0d`, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: src.c, background: `${src.c}1a`, border: `1px solid ${src.c}66`, borderRadius: 4, padding: '4px 9px' }}>{src.label}</span>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: src.c, letterSpacing: '0.1em' }}>SWITCH ▾</span>
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* List picker — coach plan + everything in the library, switch in place */}
+      {pickerOpen && createPortal(
+        <div onClick={() => setPickerOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '74%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Grocery · Switch list</div>
+            <div style={{ marginTop: 5, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Choose a <span style={{ fontStyle: 'italic', color: rust }}>list.</span></div>
+            {(() => {
+              const isPlan = !list.kind || list.kind === 'plan';
+              const rows = [
+                { key: '__plan__', name: "This week's plan", label: 'Coach plan', c: rust, on: isPlan, pick: () => onPickList && onPickList(null) },
+                ...recipeLists.map((l) => ({
+                  key: l.id,
+                  name: l.name,
+                  label: l.kind === 'recipe' ? 'Recipe' : l.kind === 'mealplan' ? 'Meal plan' : 'Custom',
+                  c: l.kind === 'recipe' ? t.AMBER : l.kind === 'mealplan' ? t.GREEN : '#8a5cf6',
+                  sub: `${l.count != null ? l.count + ' items' : ''}`,
+                  on: list.id === l.id,
+                  pick: () => onPickList && onPickList(l),
+                })),
+              ];
+              return rows.map((r) => (
+                <button key={r.key} onClick={() => { setPickerOpen(false); r.pick(); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px', marginBottom: 8, borderRadius: 6, border: `1px solid ${r.on ? r.c : t.RULE}`, borderLeft: `3px solid ${r.c}`, background: r.on ? `${r.c}14` : t.PAPER2 }}>
+                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: r.c, background: `${r.c}1a`, border: `1px solid ${r.c}55`, borderRadius: 4, padding: '3px 8px' }}>{r.label}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                    {r.sub ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{r.sub}</span> : null}
+                  </span>
+                  {r.on && <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: r.c }}>✓ SHOWING</span>}
+                </button>
+              ));
+            })()}
+            <button onClick={() => { setPickerOpen(false); onChangeView('library'); }} style={{ width: '100%', marginTop: 4, padding: '12px', borderRadius: 5, border: `1px solid ${rust}`, background: 'transparent', color: rust, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open the library →</button>
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
 
       {/* Coach-sent grocery list — review + swap items, then add to your list */}
       <BSCoachGroceryReview t={t} teal={teal} onAdd={(g) => {
