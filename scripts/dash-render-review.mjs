@@ -43,6 +43,8 @@ load("public/newdesign/dashData.jsx");
 load("public/newdesign/dashToday.jsx");
 load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashRoster.jsx");
+g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
+load("public/newdesign/dashBuilder.jsx");
 // The roster page components live inline in their HTML files.
 for (const page of ["NutritionistClients", "TrainerClients"]) {
   const html = readFileSync("public/newdesign/" + page + ".html", "utf8");
@@ -51,7 +53,8 @@ for (const page of ["NutritionistClients", "TrainerClients"]) {
   for (const block of blocks) if (block.trim()) (0, eval)(compile(block, page + "-inline"));
 }
 
-const render = (el) => ReactDOMServer.renderToString(el);
+// Strip React SSR text-separator comments so includes() sees natural text.
+const render = (el) => ReactDOMServer.renderToString(el).replace(/<!-- -->/g, "");
 const checks = [];
 const ok = (name, cond, detail) => { checks.push({ name, pass: !!cond, detail }); };
 
@@ -115,6 +118,24 @@ try {
   const wins = render(React.createElement(g.DashWinsPanel, { clients: mock, role: "trainer" }));
   ok("wins panel shows the 100th-workout brief", wins.includes("100th workout") && wins.includes("Congratulate"));
 } catch (e) { ok("joint + wins panels render", false, e.message); }
+
+// ── 4b. Programs page + builder + the shared client-card preview ────────────
+try {
+  // Page initial state = honest loading (templates land post-effect, which
+  // SSR doesn't run) — the library grid itself is covered by direct renders.
+  const lib = render(React.createElement(g.TrainerProgramsPage));
+  ok("TrainerPrograms page renders (initial = loading)", lib.includes("Programs") && lib.includes("Loading templates") && lib.includes("+ New program"));
+  const tpl = g.DashBuilder.demoTemplates()[0];
+  const builder = render(React.createElement(g.DbuBuilder, { template: tpl, clients: g.DashSignals.buildMockClients(), queue: [], live: false, playlists: [], onBack: () => {}, onSaved: () => {} }));
+  ok("Builder renders tree + editor + preview", builder.includes("Week 1") && builder.includes("Client preview") && builder.includes("Deload"));
+  ok("Builder preview shows verbatim cue + superset label", builder.includes("Brace before the walkout") && builder.includes("A1"));
+  const card = render(React.createElement(g.DashWorkoutCard, { workout: g.DashBuilder.dayToClientCard(tpl.detail.builder.weeks[0].days[0], { coach: "you" }), interactive: false, maxRows: 99 }));
+  ok("Shared client card renders cue + named playlist chip", card.includes("Brace before the walkout") && card.includes("Lower Push — Peak") && card.includes("A1"));
+  const perf = render(React.createElement(g.DbuPerformance, { template: tpl, live: false }));
+  ok("Performance zone renders retention bars + drop-off", perf.includes("Active subscribers") && perf.includes("drop-off at week"));
+  const perfLive = render(React.createElement(g.DbuPerformance, { template: { id: "real-1" }, live: true }));
+  ok("Performance is honest for live templates", perfLive.includes("tracks from your first assignment"));
+} catch (e) { ok("Programs page + builder render", false, e.message); }
 
 // ── 5. Console errors during render ─────────────────────────────────────────
 const realErrors = errors.filter((e) => !e.includes("useLayoutEffect"));

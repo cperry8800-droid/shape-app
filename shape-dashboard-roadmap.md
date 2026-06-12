@@ -124,6 +124,28 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 12 — trainer Programs + the workout builder**:
+  `TrainerPrograms.html` rebuilt on the v2 stack with two zones — **Library**
+  (versioned templates in `coach_plans.detail.builder`, goal-tag filters
+  cut/strength/hypertrophy/return-to-gym/5k-prep, Assign/Edit/Performance
+  per card) and **Performance** (subscribers · completion · per-week
+  retention bars + worst-drop-off callout; demo-rich, live shows the honest
+  "tracks from your first assignment" state). **Builder**
+  (`dashBuilderCore.js` pure+tested / `dashBuilder.jsx` UI): Program →
+  Weeks → Days → Blocks tree with day drag/▲▼ reorder, searchable
+  76-exercise library, per-row sets×reps · kg/%1RM/RPE · tempo · rest ·
+  verbatim cue, superset letter groups (A1/A2), per-exercise progression
+  rules that auto-fill duplicated weeks, deload toggle (−40% volume,
+  editable), day-level Shape Radio playlist, debounced autosave
+  (API ⇄ localStorage drafts), and an always-on **client preview that
+  renders the literal `DashWorkoutCard`** the client dashboard uses
+  (extracted shared). **Assign = snapshot publish**: multi-client +
+  start date via `/api/trainer/workout`, queue ready/blocked badges
+  inline, marks the programming queue done; template edits never
+  retro-change assigned weeks (tested). The plan API now passes
+  tempo/cue/superset/playlist through, so cues land on the client's card
+  exactly as typed and the playlist chip shows its real name. Tests
+  41/41 · render review 45/45.
 - ✅ **Step 11 — trainer roster + the SHARED drilldown drawer**:
   `TrainerClients.html` rebuilt on the v2 stack with training columns
   (Shape Score + wk delta · adherence % · program + week · streak · last

@@ -26,10 +26,10 @@ const DCL_DEMO = {
     title: "Lower Push — Peak", time: "5:45 PM", coach: "Maya",
     meta: "54 min · RPE 8",
     exercises: [
-      { name: "Back squat", scheme: "4 × 5 · 31X1 tempo", load: "185 lb" },
-      { name: "Front-foot split squat", scheme: "3 × 8 ea · slow eccentric", load: "40 lb" },
-      { name: "Leg press", scheme: "3 × 10 · 2s pause", load: "270 lb" },
-      { name: "Standing calf raise", scheme: "3 × 12 · full stretch", load: "95 lb" },
+      { name: "Back squat", scheme: "4 × 5 · 31X1 tempo · 150s", load: "110 kg", cue: "Brace before the walkout" },
+      { name: "Romanian deadlift", scheme: "3 × 8 · 3010 tempo · 120s", load: "90 kg", cue: "Push the hips back, bar on the thighs" },
+      { prefix: "A1", name: "Split squat", scheme: "3 × 8 ea · 90s", load: "18 kg", cue: "Slow eccentric, drive through the heel" },
+      { prefix: "A2", name: "Leg curl", scheme: "3 × 10 · 90s", load: "RPE 8" },
     ],
     playlist: { name: "Lower Push — Peak", meta: "95–138 BPM · 14 tracks", by: "Maya" },
   },
@@ -136,6 +136,51 @@ function DclRing({ pct, size = 92, stroke = 7, color = DCL_TEAL, children }) {
   );
 }
 
+
+// The client workout card — SHARED: the client dashboard renders it live, and
+// the trainer's builder preview renders this exact component, so "client
+// preview" is literally the client's card. Exercises: { prefix?, name,
+// scheme, load, cue? } — cues render verbatim, grouped rows show A1/A2.
+function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain.html", maxRows = 4, interactive = true }) {
+  const ink50 = "rgba(242,237,228,0.55)";
+  const mono = "'JetBrains Mono', monospace";
+  if (!workout) return <div style={{ fontSize: 13, color: ink50, marginTop: 8 }}>Rest day — recovery counts. An easy walk keeps the streak alive.</div>;
+  const rows = workout.exercises || [];
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+        <span className="dash-eyebrow" style={{ color: accent }}>Tonight's workout{workout.time ? " · " + workout.time : ""}</span>
+        <span style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.1em", color: ink50, textTransform: "uppercase" }}>{workout.meta || ""}</span>
+      </div>
+      <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.02em", margin: "8px 0 2px" }}>{workout.title}</div>
+      <div style={{ fontSize: 11.5, color: ink50, marginBottom: 6 }}>with {workout.coach}</div>
+      <div className="dash-ledger" style={{ "--dac": accent }} />
+      {rows.slice(0, maxRows).map((e, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 10, alignItems: "start", padding: "7px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+          <span style={{ fontFamily: mono, fontSize: 9.5, color: e.prefix ? accent : ink50, fontWeight: e.prefix ? 700 : 400, marginTop: 2 }}>{e.prefix || String(i + 1).padStart(2, "0")}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
+            <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.05em", color: ink50, marginTop: 2 }}>{e.scheme}</div>
+            {e.cue && <div style={{ fontSize: 11.5, fontStyle: "italic", color: "rgba(242,237,228,0.7)", marginTop: 3 }}>“{e.cue}”</div>}
+          </div>
+          <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{e.load}</span>
+        </div>
+      ))}
+      {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+        {workout.playlist && workout.playlist.name ? (
+          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1ED760", background: "rgba(30,215,96,0.08)", border: "1px solid rgba(30,215,96,0.35)", borderLeft: "3px solid #1ED760", borderRadius: 4, padding: "6px 10px" }}>
+            ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
+          </a>
+        ) : (
+          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4, padding: "6px 10px" }}>♪ Shape Radio</a>
+        )}
+        {interactive && <a href={startHref} style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff", background: accent, borderRadius: 4, padding: "9px 14px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Start →</a>}
+      </div>
+    </div>
+  );
+}
+
 // ── The page ────────────────────────────────────────────────────────────────
 function ClientDashboardPage() {
   const { today: dash, clients, client: extras, source } = useDashboard("client");
@@ -160,8 +205,14 @@ function ClientDashboardPage() {
     workout = w ? {
       title: w.title, time: dclFmt12(w.time), coach: plan.training.coach || "your coach",
       meta: [w.durationMin ? w.durationMin + " min" : null, (w.exercises || []).length + " moves"].filter(Boolean).join(" · "),
-      exercises: (w.exercises || []).map((e) => ({ name: e.name, scheme: [[e.sets, e.reps].filter(Boolean).join(" × "), e.rest].filter(Boolean).join(" · "), load: e.load || "" })),
-      playlist: null,
+      exercises: (w.exercises || []).map((e) => ({
+        prefix: e.group || null,
+        name: e.name,
+        scheme: [[e.sets, e.reps].filter(Boolean).join(" × "), e.tempo ? e.tempo + " tempo" : null, e.rest].filter(Boolean).join(" · "),
+        load: e.load || "",
+        cue: e.cue || "",
+      })),
+      playlist: w.playlist || null,
     } : null;
     const byDow = {}; const seq = [];
     for (const d of (plan.meals.days || [])) { if (Number.isInteger(d.dow) && byDow[d.dow] == null) byDow[d.dow] = d; else seq.push(d); }
@@ -309,40 +360,10 @@ function ClientDashboardPage() {
 
               {/* Tonight's workout */}
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#c0533b"), paddingLeft: 24 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                  <span className="dash-eyebrow" style={{ color: "#c0533b" }}>Tonight's workout{workout && workout.time ? " · " + workout.time : ""}</span>
-                  <span style={{ fontFamily: DCL_MONO, fontSize: 9, letterSpacing: "0.1em", color: DCL_INK50, textTransform: "uppercase" }}>{workout ? workout.meta : ""}</span>
-                </div>
-                {workout ? (
-                  <div>
-                    <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.02em", margin: "8px 0 2px" }}>{workout.title}</div>
-                    <div style={{ fontSize: 11.5, color: DCL_INK50, marginBottom: 6 }}>with {workout.coach}</div>
-                    <div className="dash-ledger" style={{ "--dac": "#c0533b" }} />
-                    {workout.exercises.slice(0, 4).map((e, i) => (
-                      <div key={i} style={{ display: "grid", gridTemplateColumns: "22px 1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
-                        <span style={{ fontFamily: DCL_MONO, fontSize: 9.5, color: DCL_INK50 }}>{String(i + 1).padStart(2, "0")}</span>
-                        <div>
-                          <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
-                          <div style={{ fontFamily: DCL_MONO, fontSize: 9, letterSpacing: "0.05em", color: DCL_INK50, marginTop: 2 }}>{e.scheme}</div>
-                        </div>
-                        <span style={{ fontFamily: DCL_MONO, fontSize: 10.5, color: "rgba(242,237,228,0.8)" }}>{e.load}</span>
-                      </div>
-                    ))}
-                    {workout.exercises.length > 4 && <div style={{ fontFamily: DCL_MONO, fontSize: 9, color: DCL_INK50, padding: "6px 0 0 32px" }}>+ {workout.exercises.length - 4} more</div>}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                      {workout.playlist ? (
-                        <a href="ClientPlaylists.html" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1ED760", background: "rgba(30,215,96,0.08)", border: "1px solid rgba(30,215,96,0.35)", borderLeft: "3px solid #1ED760", borderRadius: 4, padding: "6px 10px" }}>
-                          ♪ {workout.playlist.name} · {workout.playlist.meta}
-                        </a>
-                      ) : (
-                        <a href="ClientPlaylists.html" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: DCL_INK50, border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4, padding: "6px 10px" }}>♪ Shape Radio</a>
-                      )}
-                      <a href="ClientTrain.html" style={{ ...btn, background: "#c0533b", color: "#fff", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Start →</a>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: DCL_INK50, marginTop: 8 }}>Rest day — recovery counts. An easy walk keeps the streak alive.</div>
-                )}
+{(() => {
+                  const w = workout ? { ...workout, meta: workout.meta } : null;
+                  return <DashWorkoutCard workout={w} />;
+                })()}
               </div>
 
               {/* Today's meals + live macro ledger */}
@@ -490,4 +511,4 @@ function ClientDashboardPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage });
+Object.assign(window, { ClientDashboardPage, DashWorkoutCard });
