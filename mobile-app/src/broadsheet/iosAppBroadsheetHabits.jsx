@@ -108,10 +108,15 @@ const _BS_HABIT_DEMO_ROWS = [
   { id: 'demo_water', type: 'do', name: '3 L water', pattern: [1, 0, 1, 1, 1, 0, 0], pts: 14 },
   { id: 'demo_protein', type: 'do', name: 'Protein at every meal', pattern: [1, 1, 1, 0, 1, 1, 2], pts: 22 },
   { id: 'demo_mobility', type: 'do', name: '10 min mobility', pattern: [0, 1, 0, 1, 0, 1, 0], pts: 12 },
+  { id: 'demo_vitamins', type: 'do', name: 'Take vitamins', pattern: [1, 1, 1, 1, 1, 0, 2], pts: 13 },
+  { id: 'demo_sunlight', type: 'do', name: 'Morning sunlight', pattern: [1, 0, 1, 1, 0, 1, 0], pts: 11 },
+  { id: 'demo_journal', type: 'do', name: '5 min journal', pattern: [0, 1, 1, 0, 1, 0, 0], pts: 10 },
   { id: 'demo_alcohol', type: 'avoid', name: 'No alcohol', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 21 },
   { id: 'demo_screen', type: 'avoid', name: 'No screen after 10', pattern: [0, 1, 1, 0, 1, 1, 0], pts: 15 },
   { id: 'demo_soda', type: 'avoid', name: 'No soda or snacks', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 21 },
   { id: 'demo_meals', type: 'avoid', name: 'No skipped meals', pattern: [1, 1, 0, 1, 1, 1, 2], pts: 19 },
+  { id: 'demo_smoking', type: 'avoid', name: 'No smoking', pattern: [1, 1, 1, 1, 1, 1, 2], pts: 24 },
+  { id: 'demo_sugar', type: 'avoid', name: 'No added sugar', pattern: [1, 0, 1, 1, 0, 1, 0], pts: 16 },
 ];
 
 function _bsHabitGridModel(habits) {
@@ -290,8 +295,8 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
 }
 
 const _BS_HABIT_SUGGEST = {
-  do: ['Cold shower', 'Read 10 pages', 'Stretch', 'Meditate 5 min', 'Water 3L'],
-  avoid: ['No soda', 'No snooze', 'No skipping breakfast', 'No takeout', 'No screens 1h pre-bed'],
+  do: ['Cold shower', 'Read 10 pages', 'Stretch', 'Meditate 5 min', 'Water 3L', 'Take vitamins', '10k steps', 'Morning sunlight', 'Sleep by 10:30', '5 min journal'],
+  avoid: ['No soda', 'No snooze', 'No skipping breakfast', 'No takeout', 'No screens 1h pre-bed', 'No smoking', 'No added sugar', 'No alcohol weekdays', 'No phone in bed'],
 };
 
 // Bottom-sheet add flow — do / avoid variant, suggestion chips, points stepper.
