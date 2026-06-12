@@ -91,6 +91,7 @@ function _dashRecordFromSelf(dash, kit) {
     shapeScoreHistory: null,
     weighIns: null,
     streaks: k.streak != null ? { current: k.streak, best: k.streak, lastActiveOn: null } : null,
+    totals: k.totalWorkouts != null ? { workouts: k.totalWorkouts } : null,
     nutrition: null,
     goal: null,
     lastContact: null,
@@ -171,7 +172,11 @@ function useDashboard(role) {
     () => DashSignals.buildProgrammingQueue(state.clients),
     [state.clients]
   );
-  return { loading: state.loading, clients: state.clients, triage, queue, today: state.today, client: state.client };
+  const joint = React.useMemo(
+    () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients)),
+    [role, state.clients]
+  );
+  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client };
 }
 
 Object.assign(window, { useDashboard });

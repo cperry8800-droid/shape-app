@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { THRESHOLDS, evaluateClient, getTriageFeed, buildProgrammingQueue, buildMockClients } =
+const { THRESHOLDS, evaluateClient, getTriageFeed, buildProgrammingQueue, buildMilestones, findJointAttention, buildMockClients } =
   require("../public/newdesign/dashSignals.js");
 
 // Fixed reference clock: Friday 2026-06-12 (day-into-week 4 ≥ grace 3, so the
@@ -173,7 +173,7 @@ test("the mock personas hit their designed severities", () => {
   assert.equal(by["Marcus T."].severity, "red");
   assert.equal(by["Sam R."].severity, "red");
   assert.equal(by["Jonah W."].severity, "red");
-  assert.deepEqual(keys(by["Marcus T."]), ["score_drop", "streak_broken"]);
+  assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "score_drop", "streak_broken"]);
   assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "food_gap"]);
   assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue"]);
   // Tess B. is the brand-new client: green, isNew, and her missing first
@@ -186,7 +186,7 @@ test("flags carry short pill labels in the spec format", () => {
   const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
   const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
   const labels = (r) => r.flags.map((f) => f.label).sort();
-  assert.deepEqual(labels(by["Marcus T."]), ["Score ↓8", "Streak broken"]);
+  assert.deepEqual(labels(by["Marcus T."]), ["No logs 3d", "Score ↓8", "Streak broken"]);
   assert.deepEqual(labels(by["Sam R."]), ["No logs 4d", "Quiet 7d"]);
   assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late"]);
   assert.deepEqual(labels(by["Elena R."]), ["Score ↓7"]);
@@ -262,4 +262,45 @@ test("nutritionist persona feed: Deandre red (logs+ledger), Priya amber (protein
   const tby = Object.fromEntries(tf.map((r) => [r.client.profile.name, r.severity]));
   assert.equal(tby["Deandre K."], "amber");
   assert.equal(tby["Priya S."], "green");
+});
+
+// ── milestones (step 9.1) ───────────────────────────────────────────────────
+test("milestones: stored hits within 30d + streak landmark + nexts", () => {
+  const c = clean({
+    milestones: [
+      { key: "pr", kind: "pr", label: "Squat 245 lb PR", hitAt: ago(5) },
+      { key: "old", kind: "goal", label: "25% to goal", hitAt: ago(45) }, // too old
+    ],
+    streaks: { current: 9, best: 14 },
+    totals: { workouts: 96 },
+  });
+  const ms = buildMilestones(c, NOW);
+  const labels = ms.recent.map((m) => m.label);
+  assert.ok(labels.includes("Squat 245 lb PR"));
+  assert.ok(!labels.includes("25% to goal"), "stale hits filtered");
+  assert.ok(labels.includes("7-day streak"), "crossed streak landmark");
+  const nextLabels = ms.next.map((m) => m.label);
+  assert.ok(nextLabels.includes("14-day streak"));
+  assert.ok(nextLabels.includes("Workout #100"));
+});
+test("milestones skip cleanly on a sparse record", () => {
+  const bare = { profile: { id: "x", name: "Sparse" }, milestones: null, streaks: null, totals: null, goal: null, weighIns: null };
+  const ms = buildMilestones(bare, NOW);
+  assert.deepEqual(ms.recent, []);
+  assert.deepEqual(ms.next, []);
+});
+
+// ── joint attention (step 9.2) ──────────────────────────────────────────────
+test("joint attention requires a training-domain AND a nutrition-domain flag", () => {
+  const joint = clean({ streaks: { current: 0, best: 10 }, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
+  const trainingOnly = clean({ streaks: { current: 0, best: 10 } });
+  const nutritionOnly = clean({ foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
+  const res = findJointAttention([joint, trainingOnly, nutritionOnly], NOW);
+  assert.equal(res.length, 1);
+  assert.equal(res[0].client, joint);
+  assert.ok(res[0].trainingFlags.length && res[0].nutritionFlags.length);
+});
+test("personas: Marcus is the joint-attention case; Sam (no training flag) is not", () => {
+  const res = findJointAttention(buildMockClients(NOW), NOW);
+  assert.deepEqual(res.map((r) => r.client.profile.name), ["Marcus T."]);
 });

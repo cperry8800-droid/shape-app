@@ -44,6 +44,18 @@ const DCL_DEMO = {
     { name: "Rae Lindqvist", role: "Nutritionist", color: "#d8a23a" },
   ],
   nextSession: { when: "Thu · 6:30 PM", what: "Weekly with Maya · 20 min video" },
+  milestonesFeed: {
+    recent: [
+      { kind: "streak", label: "14-day streak", active: true },
+      { kind: "pr", label: "Squat 245 lb PR", hitAt: null, when: "5d ago" },
+      { kind: "goal", label: "50% to goal", hitAt: null, when: "2w ago" },
+    ],
+    next: [
+      { kind: "streak", label: "30-day streak", detail: "16 days to go", progress: 14 / 30 },
+      { kind: "workout_count", label: "Workout #100", detail: "14 away", progress: 86 / 100 },
+      { kind: "goal", label: "Goal weight", detail: "2.8 lb away" },
+    ],
+  },
   checkinDue: true,
   membership: "demo",
 };
@@ -225,6 +237,11 @@ function ClientDashboardPage() {
         ? { when: new Date(dash.upcoming[0].scheduledAt).toLocaleDateString([], { weekday: "short" }) + " · " + new Date(dash.upcoming[0].scheduledAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), what: dash.upcoming[0].topic || "Coaching session" }
         : null)
     : DCL_DEMO.nextSession;
+  // Milestones (step 9.1) — earned + what's next, derived from the self record.
+  const msFeed = live && selfRec
+    ? DashSignals.buildMilestones(selfRec)
+    : DCL_DEMO.milestonesFeed;
+
   const memberPill = live
     ? (membership ? (membership.active ? { text: "Membership · active", c: DCL_TEAL } : { text: "Membership · inactive", c: DCL_RED }) : { text: "Membership · —", c: DCL_INK50 })
     : { text: "Membership · demo", c: DCL_INK50 };
@@ -387,6 +404,39 @@ function ClientDashboardPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Milestones — what you earned, what's next */}
+              {(msFeed.recent.length > 0 || msFeed.next.length > 0) && (
+                <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#d8a23a"), paddingLeft: 24 }}>
+                  <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>Milestones</div>
+                  <div className="dash-ledger" style={{ "--dac": "#d8a23a", marginTop: 9 }} />
+                  {msFeed.recent.map((m, i) => (
+                    <div key={"r" + i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8, alignItems: "center", padding: "6px 0" }}>
+                      <span style={{ color: DCL_GREEN, fontSize: 12 }}>✓</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{m.label}</span>
+                      <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DCL_INK50 }}>{m.active ? "active" : (m.when || (m.hitAt ? (() => { const d = Math.floor((Date.now() - new Date(m.hitAt + (String(m.hitAt).length === 10 ? "T00:00:00" : "")).getTime()) / 86400000); return d <= 0 ? "today" : d + "d ago"; })() : "earned"))}</span>
+                    </div>
+                  ))}
+                  {msFeed.next.length > 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+                      <div style={{ fontFamily: DCL_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DCL_INK50, marginBottom: 6 }}>Next up</div>
+                      {msFeed.next.map((m, i) => (
+                        <div key={"n" + i} style={{ padding: "5px 0" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                            <span style={{ fontSize: 12.5 }}>{m.label}</span>
+                            <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DCL_INK50 }}>{m.detail}</span>
+                          </div>
+                          {m.progress != null && (
+                            <div style={{ position: "relative", height: 4, background: "rgba(242,237,228,0.08)", borderRadius: 2, marginTop: 4 }}>
+                              <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, Math.round(m.progress * 100)) + "%", background: "#d8a23a", borderRadius: 2 }} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Messages from your pros */}
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>

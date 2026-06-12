@@ -124,6 +124,19 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Milestones + coordinated action** (step 9): the unified record gains
+  typed milestone events (`kind: pr|workout_count|streak|goal`) + lifetime
+  `totals.workouts`; pure `buildMilestones(record)` derives "what they
+  earned" (stored hits ≤30d, crossed streak landmarks) and "what's next"
+  (next streak/workout landmark w/ progress, goal-weight distance). Client
+  dashboard renders the **Milestones plate** (✓ earned + Next-up progress
+  bars — live-derivable from streak/totals/goal); both pro Today pages get
+  the **Client wins** briefing ("Jordan M. — 100th workout · 2d ago") with
+  one-tap Congratulate. **Joint attention** (`findJointAttention`): a
+  client flagged in BOTH domains — training (streak) AND nutrition
+  (logs/ledger/protein) — surfaces ONE "Start joint note" banner atop both
+  pros' triage panels instead of two separate nudges (Marcus T. is the
+  demo case, per spec). Tests 32/32.
 - ✅ **Honest money + business panels** (step 8, restructure target e):
   the always-rendered fake "Recent payouts" tables are GONE from both pro
   Today pages. Trainer gains **Growth · 90 days** — a REAL weekly

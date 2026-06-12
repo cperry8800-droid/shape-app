@@ -22,7 +22,8 @@
 //     goal:      { target: n, unit, now: n|null } | null,     // body-comp goal
 //     nutrition: { avgCalories, targetCalories, avgProtein, targetProtein } | null,
 //     goalPhase: string | null,
-//     milestones: [{ key, label, hitAt? }] | null,
+//     milestones: [{ key, kind: 'pr'|'workout_count'|'streak'|'goal', label, hitAt? }] | null,
+//     totals:    { workouts: n } | null,                       // lifetime counts
 //     payments:  { mrrCents, status?, lastSessionAt? } | null,  // lastSessionAt = last consult/session
 //     recentLogs: [{ on: 'YYYY-MM-DD', kcal, protein }] | null,  // newest first, ≤3 (drawer)
 //   }
@@ -255,9 +256,10 @@
         nutrition: { avgCalories: 2080, targetCalories: 2200, avgProtein: 142, targetProtein: 150 },
         goalPhase: "Build",
         milestones: [
-          { key: "m25", label: "25% to goal", hitAt: ago(40) },
-          { key: "m50", label: "50% to goal", hitAt: ago(12) },
+          { key: "m25", kind: "goal", label: "25% to goal", hitAt: ago(40) },
+          { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(12) },
         ],
+        totals: { workouts: 64 },
         payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(2) },
         recentLogs: [
           { on: ago(0), kcal: 2105, protein: 148 },
@@ -270,12 +272,19 @@
     };
 
     return [
-      // green — the picture of health
-      person(1, "Jordan M.", {}),
+      // green — the picture of health; just hit workout #100
+      person(1, "Jordan M.", {
+        totals: { workouts: 102 },
+        milestones: [
+          { key: "w100", kind: "workout_count", label: "100th workout", hitAt: ago(2) },
+          { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(9) },
+        ],
+      }),
       // red — streak broken AND a 8-pt wk/wk score drop
       person(2, "Marcus T.", {
         payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(6) },
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
+        foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 3 },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
         goalPhase: "Cut",
       }),
@@ -296,6 +305,11 @@
       // running 36% under her cut target
       person(5, "Priya S.", {
         goalPhase: "Cut",
+        totals: { workouts: 86 },
+        milestones: [
+          { key: "pr-squat", kind: "pr", label: "Squat 245 lb PR", hitAt: ago(5) },
+          { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(20) },
+        ],
         nutrition: { avgCalories: 1840, targetCalories: 1900, avgProtein: 96, targetProtein: 150 },
         payments: { mrrCents: 22000, status: "active", lastSessionAt: ago(1) },
         recentLogs: [
@@ -340,6 +354,7 @@
         checkIn: { lastWeekOf: null },
         goalPhase: "Build",
         milestones: [],
+        totals: { workouts: 2 },
       }),
     ];
   }
@@ -372,9 +387,77 @@
       });
   }
 
+  // ── Milestones (step 9.1) ─────────────────────────────────────────────────
+  // Derives "what they earned" + "what's next" from the record. Pure; skips
+  // anything whose inputs are missing (live coach-side data is sparse today).
+  var STREAK_LANDMARKS = [7, 14, 30, 50, 100];
+  var WORKOUT_LANDMARKS = [25, 50, 100, 150, 200, 300];
+  function buildMilestones(c, now) {
+    now = now || new Date();
+    var recent = [];
+    var next = [];
+    var cutoff = now.getTime() - 30 * 86400000;
+    for (var i = 0; i < (c.milestones || []).length; i++) {
+      var m = c.milestones[i];
+      var hit = toDate(m.hitAt);
+      if (hit && hit.getTime() >= cutoff) recent.push({ kind: m.kind || "goal", label: m.label, hitAt: m.hitAt });
+    }
+    var s = c.streaks;
+    if (s && s.current != null) {
+      var crossed = null, upcoming = null;
+      for (var j = 0; j < STREAK_LANDMARKS.length; j++) {
+        if (s.current >= STREAK_LANDMARKS[j]) crossed = STREAK_LANDMARKS[j];
+        else if (!upcoming) upcoming = STREAK_LANDMARKS[j];
+      }
+      if (crossed) recent.push({ kind: "streak", label: crossed + "-day streak", active: true });
+      if (upcoming && s.current > 0) next.push({ kind: "streak", label: upcoming + "-day streak", detail: (upcoming - s.current) + " day" + (upcoming - s.current === 1 ? "" : "s") + " to go", progress: s.current / upcoming });
+    }
+    var w = c.totals && c.totals.workouts != null ? c.totals.workouts : null;
+    if (w != null) {
+      var wUp = null;
+      for (var k2 = 0; k2 < WORKOUT_LANDMARKS.length; k2++) {
+        if (w < WORKOUT_LANDMARKS[k2]) { wUp = WORKOUT_LANDMARKS[k2]; break; }
+      }
+      if (wUp) next.push({ kind: "workout_count", label: "Workout #" + wUp, detail: (wUp - w) + " away", progress: w / wUp });
+    }
+    if (c.goal && c.goal.target != null) {
+      var nowW = c.goal.now != null ? c.goal.now : (Array.isArray(c.weighIns) && c.weighIns.length ? c.weighIns[c.weighIns.length - 1].weight : null);
+      if (nowW != null) {
+        var dist = Math.round(Math.abs(nowW - c.goal.target) * 10) / 10;
+        next.push({ kind: "goal", label: "Goal weight", detail: dist + " " + (c.goal.unit || "lb") + " away" });
+      }
+    }
+    // Freshest first; streak "active" entries sort after dated hits.
+    recent.sort(function (a, b) { return String(b.hitAt || "").localeCompare(String(a.hitAt || "")); });
+    return { recent: recent.slice(0, 4), next: next.slice(0, 3) };
+  }
+
+  // ── Joint attention (step 9.2) ────────────────────────────────────────────
+  // A client slipping in BOTH domains — training (streak) AND nutrition
+  // (logs/ledger/protein) — should get ONE coordinated message, not two
+  // separate nudges. Evaluated with the nutritionist rule set (superset).
+  var TRAINING_KEYS = { streak_broken: true };
+  var NUTRITION_KEYS = { food_gap: true, ledger_blown: true, protein_under: true };
+  function findJointAttention(clients, now) {
+    now = now || new Date();
+    var out = [];
+    for (var i = 0; i < (clients || []).length; i++) {
+      var c = clients[i];
+      var r = evaluateClient(c, now, "nutritionist");
+      var training = r.flags.filter(function (f) { return TRAINING_KEYS[f.key]; });
+      var nutrition = r.flags.filter(function (f) { return NUTRITION_KEYS[f.key]; });
+      if (training.length && nutrition.length) {
+        out.push({ client: c, trainingFlags: training, nutritionFlags: nutrition });
+      }
+    }
+    return out;
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     evaluateClient: evaluateClient,
+    buildMilestones: buildMilestones,
+    findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,
     buildProgrammingQueue: buildProgrammingQueue,
     buildMockClients: buildMockClients,

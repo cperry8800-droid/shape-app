@@ -343,7 +343,37 @@ function ProgrammingQueuePanel({ queue, role }) {
   );
 }
 
-function TriagePulsePanel({ feed, role }) {
+// Client-wins briefing (step 9.1) — milestone hits across the roster, with a
+// one-tap congratulate. Live coach-side milestone data is sparse today, so
+// the empty state explains itself instead of inventing wins.
+function DashWinsPanel({ clients, role }) {
+  const ink50 = "rgba(242,237,228,0.55)";
+  const rows = [];
+  for (const c of clients) {
+    const ms = DashSignals.buildMilestones(c);
+    const hit = ms.recent.find((m) => m.hitAt); // dated hits only (not active-streak fills)
+    if (hit) rows.push({ client: c, hit });
+  }
+  rows.sort((a, b) => String(b.hit.hitAt).localeCompare(String(a.hit.hitAt)));
+  if (!rows.length) return <div style={{ fontSize: 13, color: ink50 }}>Milestones appear here as clients log and share progress.</div>;
+  return (
+    <div>
+      {rows.slice(0, 4).map((r, i) => (
+        <div key={r.client.profile.id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: "#7bbf5a" }} />
+          <div style={{ minWidth: 0 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.client.profile.name}</span>
+            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}> — {r.hit.label}</span>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, marginTop: 2 }}>{dashRelDay(r.hit.hitAt)}</div>
+          </div>
+          <button onClick={() => dashMessageClient(r.client.profile.name, role)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7bbf5a", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TriagePulsePanel({ feed, role, joint = [] }) {
   // Urgency order: at-risk (red, then amber — the feed is already sorted),
   // then brand-new clients, then on-track.
   const atRisk = feed.filter((r) => r.severity !== "green");
@@ -355,6 +385,19 @@ function TriagePulsePanel({ feed, role }) {
   return (
     <div>
       <style>{"@keyframes dashTick{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}"}</style>
+      {/* Joint attention (step 9.2): the same client is slipping on BOTH the
+          training and nutrition side — one coordinated message, not two nudges. */}
+      {joint.slice(0, 2).map((j, i) => (
+        <div key={"joint-" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10, padding: "10px 13px", background: "rgba(224,100,75,0.07)", border: "1px solid rgba(224,100,75,0.3)", borderLeft: "3px solid #e0644b", borderRadius: 4 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#e0644b" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}</div>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.85)", marginTop: 4, lineHeight: 1.45 }}>
+              <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
+            </div>
+          </div>
+          <button onClick={() => dashMessageClient(j.client.profile.name, role)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "#e0644b", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+        </div>
+      ))}
       {rows.map((r, i) => {
         const c = r.client;
         const isNew = r.severity === "green" && c.profile.isNew;
@@ -526,7 +569,7 @@ function DashNutriAggPanel({ clients, live }) {
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
-  const { today: live, triage, clients, queue } = useDashboard(role);
+  const { today: live, triage, clients, queue, joint } = useDashboard(role);
 
   const firstName = live ? live.user.firstName : cfg.mockName;
   const kpis = live ? [
@@ -597,13 +640,17 @@ function CoachDashboardPage({ role }) {
       schedule={schedule}
       pulseTitle="Client pulse"
       pulse={pulse}
-      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} /> : undefined}
+      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} /> : undefined}
       scheduleRender={cfg.expandSchedule ? () => <ExpandableSchedule schedule={schedule} clients={clients} role={role} /> : undefined}
       extraSections={[
         ...(cfg.programmingQueue ? [{
           title: "Programming queue",
           render: () => <ProgrammingQueuePanel queue={queue} role={role} />,
         }] : []),
+        {
+          title: "Client wins",
+          render: () => <DashWinsPanel clients={clients} role={role} />,
+        },
         ...(role === "nutritionist" ? [{
           title: "Roster health",
           render: () => <DashNutriAggPanel clients={clients} live={live} />,
