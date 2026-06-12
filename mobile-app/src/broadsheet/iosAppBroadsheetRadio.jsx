@@ -507,7 +507,7 @@ function BSNowPlaying({ onOpen }) {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ position: 'relative', zIndex: 2, padding: `10px ${t.padX}px 10px` }}>
+      <div style={{ position: 'relative', zIndex: 2, padding: `7px ${t.padX}px 8px` }}>
         {/* Eyebrow — single line (nowrap + tighter tracking so it fits the inset box) */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'nowrap',
@@ -525,11 +525,11 @@ function BSNowPlaying({ onOpen }) {
         </div>
 
         {/* Body */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <BSBeatRing bpm={r.LIVE.bpm} color={t.INK} size={32} paused={r.paused} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+          <BSBeatRing bpm={r.LIVE.bpm} color={t.INK} size={28} paused={r.paused} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 900, letterSpacing: '-0.025em',
+              fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 900, letterSpacing: '-0.025em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{tr.a}</div>
@@ -553,7 +553,7 @@ function BSNowPlaying({ onOpen }) {
                   onClick={(e) => { e.stopPropagation(); r.setTrackFeedback(tr, item.key); }}
                   style={{
                     width: 24,
-                    height: 30,
+                    height: 26,
                     flexShrink: 0,
                     border: 0,
                     background: 'transparent',
@@ -576,7 +576,7 @@ function BSNowPlaying({ onOpen }) {
 
           {/* Pause/play */}
           <button onClick={(e) => { e.stopPropagation(); r.setPaused(p => !p); }} style={{
-            width: 30, height: 30, flexShrink: 0, borderRadius: 4,
+            width: 28, height: 28, flexShrink: 0, borderRadius: 4,
             background: `rgba(${t.inkRGB},0.34)`, color: t.PAPER, border: 0, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12,
