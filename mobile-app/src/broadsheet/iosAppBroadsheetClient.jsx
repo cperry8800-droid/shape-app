@@ -14919,6 +14919,60 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
       await window.ShapeIntegrations?.sendGroceryToInstacart?.({ items, title: list.name });
     } catch (e) { window.__bsToast?.(e?.message || 'Could not send list.', 'error'); }
   };
+  // ── Voice add — speak the whole list ("chicken, 2 lbs of rice, olive oil…"),
+  // transcribe via /api/nutrition/voice (Whisper), parse into items and drop
+  // each into its aisle — no typing item by item.
+  const [vState, setVState] = useStateBSC('idle'); // 'idle' | 'rec' | 'busy'
+  const vRef = React.useRef({ rec: null, chunks: [], stream: null });
+  React.useEffect(() => () => { try { vRef.current.stream && vRef.current.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {} }, []);
+  const bsParseSpokenItems = (text) => String(text || '')
+    .split(/,| and | plus |\n|;/i)
+    .map((s) => s.trim().replace(/^(add|get|buy|grab|some|a|an)\s+/i, '').replace(/[.!?]+$/, ''))
+    .filter((s) => s.length > 1)
+    .map((part) => {
+      const m = part.match(/^(\d+(?:\.\d+)?\s*(?:x|lbs?|kg|g|oz|cans?|bags?|bunch(?:es)?|box(?:es)?|bottles?|cartons?|packs?|jars?|loaves?|loaf|dozen|ct)?)\s+(?:of\s+)?(.+)$/i);
+      return m ? { q: m[1].trim(), n: m[2].trim() } : { q: '1', n: part };
+    });
+  const addSpokenItems = (items) => {
+    if (!items.length) { window.__bsToast?.('Didn’t catch any items — try again', 'err'); return; }
+    const aisles = (list.aisles && list.aisles.length) ? list.aisles.map(a => ({ ...a, items: [...a.items] })) : [];
+    const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
+    items.forEach((it, n2) => { const ai = findAisle(it.n); aisles[ai].items.push({ id: `voice-${Date.now()}-${n2}`, n: it.n, q: it.q, meals: list.name, have: false }); });
+    onUpdate({ ...list, aisles });
+    window.__bsToast?.(`Added ${items.length} item${items.length === 1 ? '' : 's'} from voice`, 'ok');
+  };
+  const voiceTap = async () => {
+    if (vState === 'busy') return;
+    const v = vRef.current;
+    if (vState === 'rec') { try { v.rec && v.rec.stop(); } catch (e) {} return; }
+    if (!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined')) {
+      window.__bsToast?.('Voice input isn’t supported here yet', 'err'); return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      v.stream = stream; v.rec = rec; v.chunks = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
+      rec.onstop = async () => {
+        const blob = new Blob(v.chunks, { type: rec.mimeType || 'audio/webm' });
+        try { v.stream && v.stream.getTracks().forEach(tr => tr.stop()); } catch (e) {}
+        v.stream = null; v.rec = null; v.chunks = [];
+        if (!(blob.size > 0)) { setVState('idle'); return; }
+        setVState('busy');
+        try {
+          const fd = new FormData();
+          fd.append('audio', blob, 'list.webm');
+          const res = await fetch('/api/nutrition/voice', { method: 'POST', body: fd, credentials: 'same-origin' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error((data && data.error) || 'Could not transcribe');
+          addSpokenItems(bsParseSpokenItems(data.transcript));
+        } catch (e) { window.__bsToast?.(e?.message || 'Voice add failed', 'err'); }
+        finally { setVState('idle'); }
+      };
+      rec.start();
+      setVState('rec');
+    } catch (e) { window.__bsToast?.('Microphone unavailable', 'err'); setVState('idle'); }
+  };
   const RR = 22, RC = 2 * Math.PI * RR;
 
   return (
@@ -15061,15 +15115,33 @@ function BSGrocery({ list: activeList, onBack, onLibrary, recipeLists = [], onCh
           );
         })()}
 
-        {/* Add item (editable lists) */}
+        {/* Add item (editable lists) — type one, or speak the whole list */}
         {editable && (
           <div style={{ marginTop: 22 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust, marginBottom: 8 }}>Add item</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={{ flex: 1, minWidth: 0, height: 42, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '0 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-              <input value={newQty} onChange={(e) => setNewQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Qty" style={{ width: 72, height: 42, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '0 11px', fontFamily: t.MONO, fontSize: 12, outline: 'none' }} />
-              <button onClick={addItem} style={{ height: 42, borderRadius: 12, padding: '0 18px', background: rust, color: '#fff', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Add</button>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Add item</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: vState === 'rec' ? t.RUST : t.INK50, fontWeight: 700 }}>
+                {vState === 'rec' ? '● Listening — tap Stop when done' : vState === 'busy' ? 'Transcribing…' : 'Or speak the whole list'}
+              </div>
             </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={{ flex: 1, minWidth: 0, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${rust}66`, background: t.PAPER2, color: t.INK, padding: '0 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
+              <input value={newQty} onChange={(e) => setNewQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Qty" style={{ width: 64, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '0 11px', fontFamily: t.MONO, fontSize: 12, outline: 'none', textAlign: 'center' }} />
+              <button onClick={addItem} style={{ height: 42, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', padding: '0 16px', background: rust, color: '#fff', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Add</button>
+            </div>
+            <button onClick={voiceTap} disabled={vState === 'busy'} style={{
+              marginTop: 8, width: '100%', height: 42, borderRadius: 5, cursor: vState === 'busy' ? 'wait' : 'pointer',
+              border: `1px solid ${vState === 'rec' ? t.RUST : `${rust}66`}`,
+              borderLeft: `3px solid ${vState === 'rec' ? t.RUST : rust}`,
+              background: vState === 'rec' ? `${t.RUST}1f` : `${rust}10`,
+              color: vState === 'rec' ? t.RUST : rust,
+              fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}>
+              {vState === 'rec' && <span style={{ width: 7, height: 7, borderRadius: 2, background: t.RUST, animation: 'bsGrocBlink 1.1s ease-in-out infinite' }} />}
+              {vState === 'rec' ? 'Stop & add items' : vState === 'busy' ? 'Adding from voice…' : 'Speak your list — auto-adds each item'}
+            </button>
+            {vState === 'rec' && <style>{`@keyframes bsGrocBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>}
           </div>
         )}
       </div>
