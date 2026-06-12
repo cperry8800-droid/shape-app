@@ -100,6 +100,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Instrument pass: progress · store · meal preview · live session · calendar (+ polish batch)
+- **Design rollout extended to the remaining client pages** (screenshot-driven):
+  **Progress hub** (squared KPI tiles + section cards w/ teal spines, instrument
+  segment tab rail w/ top tick, squared per-series trend chips), **Shape Store**
+  (balance hero = clipped dark plate w/ accent spine; category/“Within balance”
+  pills = squared spine chips), **Meal preview** + recipe macro bar (clipped
+  hero-photo plate, plated macro stats, squared split bar/cards, clipped Log-now),
+  **Live session player** (clipped rest plate, squared set inputs/checks, clipped
+  Start/Next CTAs, queue current-row spine, squared review chips), **Calendar
+  month** (squared day cells w/ selected top tick, squared dots/legend; event-sheet
+  stat plates carry the event accent; sheet CTAs squared/clipped), **Home workout
+  preview** (squared action chips, clipped Begin-session, coach-note spine;
+  `BSSaveButton` squared app-wide).
+- **Live-session starting sets default to 3 for EVERY move** (duration/cardio
+  segments included — was 1; authored “N × reps” schemes still win).
+- **Terrain profile**: “In training” status bubble removed entirely; the climb’s
+  current-level label reads just the tier name (was “Tempo · now”).
+- **Notifications page emoji icon tiles removed** (#1255) — rows carry a 3px
+  accent spine instead; `_bsNotifStyle` returns just the accent color. Same PR:
+  profile tab rail fits one line, Cards ▾ trigger restyled to the accent chip,
+  status-chip dot dropped (chip then fully removed in this batch).
+
 ### 2026-06-11 — Instrument design run (home + dock + radio) · day-log → meal cards · store math
 - **Instrument plate look** (boxy · futuristic · less analog, per request) shipped
   across: the home **up-next cards** (`AgendaCard` — clipped top-right corner via

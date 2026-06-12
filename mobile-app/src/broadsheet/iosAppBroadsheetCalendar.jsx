@@ -565,7 +565,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
               const dotsAccents = dayEv.slice(0, 4).map(e => e.accent);
               return (
                 <button key={ci} onClick={() => setSelDay(d)} style={{
-                  borderRadius: 11,
+                  borderRadius: 4, position: 'relative',
                   border: isSel ? `1.5px solid ${teal}` : isToday ? `1px solid ${teal}88` : `1px solid ${t.HAIR}`,
                   background: isSel ? `${teal}1c` : t.PAPER2,
                   color: t.INK, boxSizing: 'border-box', overflow: 'hidden',
@@ -573,13 +573,14 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
                   display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 3,
                   fontFamily: t.DISPLAY,
                 }}>
+                  {isSel && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: teal }} />}
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 2 }}>
                     <span style={{ fontWeight: t.W.display, fontSize: 14, lineHeight: 1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', color: isToday ? teal : t.INK }}>{d}</span>
                     {dayEv.length > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50, letterSpacing: '0.02em' }}>{dayEv.length}</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 2.5, height: 5, overflow: 'hidden' }}>
                     {dotsAccents.map((c, k) => (
-                      <span key={k} style={{ width: 4.5, height: 4.5, borderRadius: 999, background: c, display: 'inline-block', flex: '0 0 auto' }} />
+                      <span key={k} style={{ width: 4.5, height: 4.5, borderRadius: 1, background: c, display: 'inline-block', flex: '0 0 auto' }} />
                     ))}
                   </div>
                 </button>
@@ -593,7 +594,7 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
       <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
         {[['Workout', t.AMBER], ['Meals', t.BLUE], ['Check-in', t.GREEN], ['Consult', t.RUST]].map(([l, c]) => (
           <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: c, display: 'inline-block' }} />{l}
+            <span style={{ width: 7, height: 7, borderRadius: 1.5, background: c, display: 'inline-block' }} />{l}
           </span>
         ))}
       </div>
@@ -738,10 +739,10 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
 }
 
 function primaryBtn(t) {
-  return { flex: 1, padding: 15, borderRadius: 12, background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
+  return { flex: 1, padding: 15, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', background: t.INK, color: t.PAPER, border: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
 }
 function secondaryBtn(t) {
-  return { padding: '15px 18px', borderRadius: 12, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
+  return { padding: '15px 18px', borderRadius: 5, background: 'transparent', color: t.INK, border: `1px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' };
 }
 
 function BSEventWorkoutBody({ event, role }) {
@@ -768,9 +769,9 @@ function BSEventWorkoutBody({ event, role }) {
 
   return (
     <>
-      {/* Stat row — rounded card */}
+      {/* Stat row — squared instrument plate w/ event-accent spine */}
       <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${event.accent || teal}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {stats.map(([l, v], i) => (
             <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
@@ -795,7 +796,7 @@ function BSEventWorkoutBody({ event, role }) {
         <>
           <div style={{ padding: `14px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> {cardio ? 'The session' : 'The card'}</div>
           <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
               {moves.map((r, i) => (
                 <div key={i} style={{
                   display: 'grid', gridTemplateColumns: cardio ? '24px 1fr' : '24px 1fr 70px', alignItems: 'center', padding: `${t.rowY + 2}px 0`,
@@ -855,9 +856,9 @@ function BSEventMealBody({ event }) {
 
   return (
     <>
-      {/* Macro card — rounded */}
+      {/* Macro card — squared instrument plate w/ event-accent spine */}
       <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${event.accent || teal}`, background: t.PAPER2, padding: '14px 6px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {macros.map(([l, v], i) => (
             <div key={l} style={{ borderLeft: i > 0 ? `1px solid ${t.HAIR}` : 0, paddingLeft: 10, paddingRight: 6 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, textTransform: 'uppercase' }}>{l}</div>
@@ -870,7 +871,7 @@ function BSEventMealBody({ event }) {
       {/* Macro split bar (by calories) */}
       {splitOk && (
         <div style={{ padding: `8px ${t.padX}px 2px` }}>
-          <div style={{ display: 'flex', height: 8, borderRadius: 999, overflow: 'hidden', border: `1px solid ${t.HAIR}` }}>
+          <div style={{ display: 'flex', height: 8, borderRadius: 3, overflow: 'hidden', border: `1px solid ${t.HAIR}` }}>
             <span style={{ width: `${(pCal / totCal) * 100}%`, background: teal }} />
             <span style={{ width: `${(cCal / totCal) * 100}%`, background: t.AMBER }} />
             <span style={{ width: `${(fCal / totCal) * 100}%`, background: t.RUST }} />
@@ -888,7 +889,7 @@ function BSEventMealBody({ event }) {
         <>
           <div style={{ padding: `14px ${t.padX}px 6px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span style={{ color: teal }}>▍</span> On the plate</div>
           <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '2px 14px' }}>
               {plate.map((p, i) => (
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr', alignItems: 'center', padding: `${t.rowY + 2}px 0`, borderBottom: i === plate.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50, fontWeight: 600 }}>{String(i + 1).padStart(2, '0')}</span>
