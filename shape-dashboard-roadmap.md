@@ -124,6 +124,41 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 13 (final) — nutritionist Plans + the meal-plan builder**:
+  `NutritionistPlans.html` rebuilt on the v2 stack with two zones —
+  **Library** (templates in `coach_plans.detail.mealBuilder`, goal-phase
+  tags cut/maintain/build with phase-default targets, Assign/Edit per
+  card) and **Plan lifecycle** (expiring this week = the plan queue's
+  ready set · ready for phase change = 50%-milestone or ≤3 units from
+  goal · intake pending = new/no first check-in; "Write plan" pre-fills
+  the assign modal with that client on the matching-phase template).
+  **Builder** (`dashMealCore.js` pure+tested / `dashMealBuilder.jsx` UI):
+  targets-first panel (kcal+P/C/F seeded per phase), meal slots filled
+  from the food/recipe search (LIVE-FILTERED by the plan's constraints —
+  allergy/exclusion tags + max prep; protein-floor warning on the bar),
+  a running macro bar that goes red when over EXACTLY like the client
+  ledger, **first-class day variants** (training/rest/travel as overlay
+  override-maps, never copies — editing the base asks "apply to
+  variants?" once per meal; declining freezes the approved old meal into
+  each variant), **swap groups** (≤3 approved alternates per meal → the
+  client card's ⇄ chip cycles them and logs the chosen alternate's
+  macros, so swapping never breaks ledger math), **auto-built editable
+  grocery** (removals + weekly-total rescales flow through the meals'
+  INGREDIENTS at assignment, so every client grocery surface matches),
+  week tools (duplicate day with remapped variant keys; one-step phase
+  shift e.g. −10% carbs across all days/variants/swaps with kcal
+  recomputed 4/4/9), debounced autosave (API ⇄ localStorage) + explicit
+  Publish vN. **Assign = scaled snapshot publish**: per-client portion
+  scale (×1.2 never edits the template), week start + training-day
+  picker (rest days get the rest variant), POSTs
+  `/api/nutritionist/meal-plan` per client with SCALED day targets in
+  the `{cal,p,c,f}` shape the client ledger reads (verified: the
+  dashboard ledger + mobile both measure against assigned-plan targets,
+  not defaults), marks the plan queue done. The client meals+ledger
+  plate is now the shared **`DashMealLedgerCard`** (swap chips + red
+  over-target states) and the builder's client preview renders that
+  literal component, playable (log/swap/reset). Tests 57/57 · render
+  review 53/53.
 - ✅ **Step 12 — trainer Programs + the workout builder**:
   `TrainerPrograms.html` rebuilt on the v2 stack with two zones — **Library**
   (versioned templates in `coach_plans.detail.builder`, goal-tag filters

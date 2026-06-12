@@ -45,6 +45,8 @@ load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashRoster.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
 load("public/newdesign/dashBuilder.jsx");
+g.DashMeals = require("../public/newdesign/dashMealCore.js");
+load("public/newdesign/dashMealBuilder.jsx");
 // The roster page components live inline in their HTML files.
 for (const page of ["NutritionistClients", "TrainerClients"]) {
   const html = readFileSync("public/newdesign/" + page + ".html", "utf8");
@@ -136,6 +138,29 @@ try {
   const perfLive = render(React.createElement(g.DbuPerformance, { template: { id: "real-1" }, live: true }));
   ok("Performance is honest for live templates", perfLive.includes("tracks from your first assignment"));
 } catch (e) { ok("Programs page + builder render", false, e.message); }
+
+// ── 4c. Nutritionist Plans page + meal builder + the shared meals card ──────
+try {
+  const lib = render(React.createElement(g.NutritionistPlansPage));
+  ok("NutritionistPlans page renders (initial = loading)", lib.includes("Plans") && lib.includes("Loading templates") && lib.includes("+ New meal plan"));
+  ok("Plans page shows the lifecycle groups", lib.includes("Expiring this week") && lib.includes("Ready for phase change") && lib.includes("Intake pending"));
+  const mock = g.DashSignals.buildMockClients();
+  const queue = g.DashSignals.buildProgrammingQueue(mock);
+  const lc = g.DashMeals.buildPlanLifecycle(mock, queue);
+  const lcHtml = render(React.createElement(g.DmbLifecyclePanel, { lifecycle: lc, onWritePlan: () => {} }));
+  ok("Lifecycle panel lists the personas", lcHtml.includes("Tess B.") && lcHtml.includes("Jordan M.") && lcHtml.includes("Write plan"));
+  const tpl = g.DashMeals.demoMealTemplates()[0];
+  const builder = render(React.createElement(g.DmbBuilder, { template: tpl, clients: mock, queue, lifecycle: lc, live: false, onBack: () => {}, onSaved: () => {} }));
+  ok("Meal builder renders targets-first + days + constraints + tools", builder.includes("set these first") && builder.includes("Day A") && builder.includes("Allergies") && builder.includes("−10% carbs"));
+  ok("Meal builder shows the running total + variant followers", builder.includes("running total") && builder.includes("VARIANTS FOLLOW"));
+  ok("Meal builder preview is the client meals card + grocery", builder.includes("Client preview · their meals card") && builder.includes("Grocery · auto-built weekly") && builder.includes("Chicken breast"));
+  // The shared meals card with an over-target ledger goes red + swap chip shows.
+  const meals = [{ id: "x1", slot: "Lunch", title: "Bowl", kcal: 700, p: 50, c: 70, f: 20, alts: [{ name: "Alt bowl", kcal: 650, p: 48, c: 60, f: 18 }] }];
+  const cardOver = render(React.createElement(g.DashMealLedgerCard, { meals, targets: { kcal: 1900, p: 165, c: 170, f: 60 }, ledger: { kcal: 2100, p: 100, c: 120, f: 40 }, logged: {}, onLog: () => {} }));
+  ok("Shared meals card: over-target reads red + swap chip renders", cardOver.includes("Over by 200 kcal") && cardOver.includes("⇄ Swap"));
+  const cardUnder = render(React.createElement(g.DashMealLedgerCard, { meals, targets: { kcal: 1900, p: 165, c: 170, f: 60 }, ledger: { kcal: 700, p: 50, c: 70, f: 20 }, logged: {}, onLog: () => {} }));
+  ok("Shared meals card: under-target shows kcal left", cardUnder.includes("1,200 kcal left"));
+} catch (e) { ok("Plans page + meal builder render", false, e.message); }
 
 // ── 5. Console errors during render ─────────────────────────────────────────
 const realErrors = errors.filter((e) => !e.includes("useLayoutEffect"));

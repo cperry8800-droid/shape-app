@@ -34,9 +34,9 @@ const DCL_DEMO = {
     playlist: { name: "Lower Push — Peak", meta: "95–138 BPM · 14 tracks", by: "Maya" },
   },
   meals: [
-    { id: "demo-m1", slot: "Lunch", time: "12:30 PM", title: "Grilled chicken bowl", kcal: 620, p: 52, c: 68, f: 18 },
+    { id: "demo-m1", slot: "Lunch", time: "12:30 PM", title: "Grilled chicken bowl", kcal: 620, p: 52, c: 68, f: 18, alts: [{ name: "Turkey & rice bowl", kcal: 610, p: 48, c: 66, f: 14 }, { name: "Tofu stir-fry + rice", kcal: 580, p: 34, c: 72, f: 16 }] },
     { id: "demo-m2", slot: "Snack", time: "4:00 PM", title: "Greek yogurt + berries", kcal: 240, p: 22, c: 28, f: 5 },
-    { id: "demo-m3", slot: "Dinner", time: "7:00 PM", title: "Salmon, rice & greens", kcal: 680, p: 46, c: 64, f: 24 },
+    { id: "demo-m3", slot: "Dinner", time: "7:00 PM", title: "Salmon, rice & greens", kcal: 680, p: 46, c: 64, f: 24, alts: [{ name: "Chicken thighs, rice & greens", kcal: 690, p: 45, c: 64, f: 26 }] },
   ],
   compliance: { workoutsDone: 4, workoutsPlanned: 6, mealsLogged: 6, mealDays: 7 },
   team: [
@@ -181,6 +181,90 @@ function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain
   );
 }
 
+// The client meals + macro ledger card — SHARED: the client dashboard renders
+// it live, and the nutritionist's meal-builder preview renders this exact
+// component. Meals: { id, slot, time?, title, kcal, p, c, f, alts?: [≤3
+// approved alternates {name,kcal,p,c,f}] }. A meal with alternates carries a
+// ⇄ Swap chip that cycles base → alt1 → … → base; the displayed macros AND
+// what gets logged follow the chosen alternate, so swapping never breaks the
+// ledger math. Bars go red when a macro runs over target (the builder's
+// running total mirrors this exact treatment).
+function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, headerNote, swapStorageKey, interactive = true }) {
+  const ink50 = "rgba(242,237,228,0.55)";
+  const mono = "'JetBrains Mono', monospace";
+  const teal = "#2ee0c4", green = "#7bbf5a", red = "#e0644b";
+  const [swapSel, setSwapSel] = React.useState(() => {
+    if (!swapStorageKey) return {};
+    try { return JSON.parse(localStorage.getItem(swapStorageKey) || "{}"); } catch (e) { return {}; }
+  });
+  const cycleSwap = (m) => {
+    const n = (m.alts || []).length;
+    const cur = swapSel[m.id] == null ? -1 : swapSel[m.id];
+    const nxt = cur + 1 >= n ? -1 : cur + 1; // -1 = the base meal
+    const next = { ...swapSel, [m.id]: nxt };
+    setSwapSel(next);
+    if (swapStorageKey) { try { localStorage.setItem(swapStorageKey, JSON.stringify(next)); } catch (e) {} }
+  };
+  // The effective meal — base, or the chosen approved alternate.
+  const effective = (m) => {
+    const i = swapSel[m.id];
+    const alt = i != null && i >= 0 && m.alts && m.alts[i];
+    return alt ? { ...m, title: alt.name, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f, _swapped: true } : m;
+  };
+  const remaining = targets.kcal - ledger.kcal;
+  const ghost = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+        <span className="dash-eyebrow">Today's meals{headerNote ? " · " + headerNote : ""}</span>
+        <span style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.08em", color: remaining > 0 ? ink50 : remaining < 0 ? red : green, textTransform: "uppercase" }}>
+          {remaining > 0 ? remaining.toLocaleString() + " kcal left" : remaining < 0 ? "Over by " + Math.abs(remaining).toLocaleString() + " kcal" : "Target hit"}
+        </span>
+      </div>
+      <div className="dash-ledger" style={{ marginTop: 9 }} />
+      {/* The ledger — ticks live as meals are logged; red when a macro runs over */}
+      {[["Calories", ledger.kcal, targets.kcal, teal], ["Protein", ledger.p, targets.p, "#7ed4ff"], ["Carbs", ledger.c, targets.c, "#f6c177"], ["Fat", ledger.f, targets.f, "#ff8a6d"]].map(([l, v, t, c2]) => {
+        const over = v > t;
+        return (
+          <div key={l} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 10, alignItems: "center", padding: "4px 0" }}>
+            <span style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50 }}>{l}</span>
+            <div style={{ position: "relative", height: 5, background: "rgba(242,237,228,0.08)", borderRadius: 2 }}>
+              <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, Math.round((v / Math.max(1, t)) * 100)) + "%", background: over ? red : c2, borderRadius: 2, transition: "width .35s ease, background .35s ease" }} />
+            </div>
+            <span style={{ fontFamily: mono, fontSize: 10, whiteSpace: "nowrap", color: over ? red : undefined }}>{Math.round(v)}<span style={{ color: ink50 }}>/{t}{l === "Calories" ? "" : "g"}</span></span>
+          </div>
+        );
+      })}
+      <div style={{ marginTop: 10 }}>
+        {meals.length ? meals.map((base) => {
+          const m = effective(base);
+          const isLogged = !!logged[m.id];
+          const canSwap = interactive && !isLogged && (base.alts || []).length > 0;
+          return (
+            <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: teal }}>{m.slot}{m.time ? " · " + m.time : ""}{m._swapped ? " · swapped" : ""}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 3, opacity: isLogged ? 0.55 : 1 }}>{m.title}</div>
+                <div style={{ fontFamily: mono, fontSize: 9, color: ink50, marginTop: 2 }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {canSwap && (
+                  <button onClick={() => cycleSwap(base)} title={"Approved alternates: " + base.alts.map((a) => a.name).join(", ")} style={{ ...ghost, padding: "8px 10px", borderColor: m._swapped ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.18)", color: m._swapped ? teal : "rgba(242,237,228,0.7)" }}>⇄ Swap</button>
+                )}
+                {isLogged
+                  ? <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: green, textTransform: "uppercase" }}>✓ Logged</span>
+                  : interactive && <button onClick={() => onLog && onLog(m)} style={ghost}>Log meal</button>}
+              </div>
+            </div>
+          );
+        }) : (
+          <div style={{ fontSize: 12.5, color: ink50, padding: "10px 0" }}>No meals assigned today — your nutritionist's next push lands here.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── The page ────────────────────────────────────────────────────────────────
 function ClientDashboardPage() {
   const { today: dash, clients, client: extras, source } = useDashboard("client");
@@ -221,6 +305,7 @@ function ClientDashboardPage() {
     meals = day && Array.isArray(day.meals) ? day.meals.map((m, j) => ({
       id: m.id || "live-" + j, slot: m.slot || "Meal", time: dclFmt12(m.time), title: m.title || "Meal",
       kcal: m.kcal || 0, p: m.p || 0, c: m.c || 0, f: m.f || 0,
+      alts: Array.isArray(m.alts) ? m.alts : [], // approved swap alternates from the plan
     })) : [];
     const tgt = day && day.targets;
     if (tgt && tgt.cal) targets = { kcal: Number(tgt.cal) || DCL_DEMO.targets.kcal, p: Number(tgt.p) || DCL_DEMO.targets.p, c: Number(tgt.c) || DCL_DEMO.targets.c, f: Number(tgt.f) || DCL_DEMO.targets.f };
@@ -250,8 +335,6 @@ function ClientDashboardPage() {
       }).catch(() => {});
     }
   };
-  const remaining = Math.max(0, targets.kcal - ledger.kcal);
-
   // ── Hero numbers ──
   const hero = live && score ? (() => {
     const cur = score.current_tier, next = score.next_tier;
@@ -366,42 +449,14 @@ function ClientDashboardPage() {
                 })()}
               </div>
 
-              {/* Today's meals + live macro ledger */}
+              {/* Today's meals + live macro ledger (shared card — the meal
+                  builder's client preview renders this exact component) */}
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                  <span className="dash-eyebrow">Today's meals{planLive ? " · from your plan" : ""}</span>
-                  <span style={{ fontFamily: DCL_MONO, fontSize: 9, letterSpacing: "0.08em", color: remaining > 0 ? DCL_INK50 : DCL_GREEN, textTransform: "uppercase" }}>{remaining > 0 ? remaining.toLocaleString() + " kcal left" : "Target hit"}</span>
-                </div>
-                <div className="dash-ledger" style={{ marginTop: 9 }} />
-                {/* The ledger — ticks live as meals are logged */}
-                {[["Calories", ledger.kcal, targets.kcal, DCL_TEAL], ["Protein", ledger.p, targets.p, "#7ed4ff"], ["Carbs", ledger.c, targets.c, "#f6c177"], ["Fat", ledger.f, targets.f, "#ff8a6d"]].map(([l, v, t, c2]) => (
-                  <div key={l} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 10, alignItems: "center", padding: "4px 0" }}>
-                    <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50 }}>{l}</span>
-                    <div style={{ position: "relative", height: 5, background: "rgba(242,237,228,0.08)", borderRadius: 2 }}>
-                      <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, Math.round((v / Math.max(1, t)) * 100)) + "%", background: c2, borderRadius: 2, transition: "width .35s ease" }} />
-                    </div>
-                    <span style={{ fontFamily: DCL_MONO, fontSize: 10, whiteSpace: "nowrap" }}>{Math.round(v)}<span style={{ color: DCL_INK50 }}>/{t}{l === "Calories" ? "" : "g"}</span></span>
-                  </div>
-                ))}
-                <div style={{ marginTop: 10 }}>
-                  {meals.length ? meals.map((m, i) => {
-                    const isLogged = !!logged[m.id];
-                    return (
-                      <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL }}>{m.slot}{m.time ? " · " + m.time : ""}</div>
-                          <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 3, opacity: isLogged ? 0.55 : 1 }}>{m.title}</div>
-                          <div style={{ fontFamily: DCL_MONO, fontSize: 9, color: DCL_INK50, marginTop: 2 }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F</div>
-                        </div>
-                        {isLogged
-                          ? <span style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: DCL_GREEN, textTransform: "uppercase" }}>✓ Logged</span>
-                          : <button onClick={() => logMeal(m)} style={ghost}>Log meal</button>}
-                      </div>
-                    );
-                  }) : (
-                    <div style={{ fontSize: 12.5, color: DCL_INK50, padding: "10px 0" }}>No meals assigned today — your nutritionist's next push lands here.</div>
-                  )}
-                </div>
+                <DashMealLedgerCard
+                  meals={meals} targets={targets} ledger={ledger} logged={logged}
+                  onLog={logMeal} headerNote={planLive ? "from your plan" : null}
+                  swapStorageKey={"shape.dashMealSwap." + todayIso}
+                />
               </div>
             </div>
 
@@ -511,4 +566,4 @@ function ClientDashboardPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage, DashWorkoutCard });
+Object.assign(window, { ClientDashboardPage, DashWorkoutCard, DashMealLedgerCard });
