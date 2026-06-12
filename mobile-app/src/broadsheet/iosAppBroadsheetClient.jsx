@@ -2404,39 +2404,52 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         return <>{agenda.map((x) => <React.Fragment key={x.k}>{x.node}</React.Fragment>)}</>;
       })()}
 
-      {/* HABITS — numbered rows; "View" → full habits page */}
-      <BSSection
-        title="Habits"
-        kicker={<>{selDayHabits.filter(h => h.done).length}/{selDayHabits.length} done · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0)} pts</span></>}
-        meta={<span onClick={() => setHabitsPage(true)} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>View →</span>}
-      />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ height: 2, background: `linear-gradient(90deg, ${t.ACCENT}, ${t.ACCENT}33 45%, transparent 85%)` }} />
-        {selDayHabits.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-            — No habits yet · tap View to add —
-          </div>
-        ) : (
-          selDayHabits.map((h, i) => {
-            const avoid = h.type === 'avoid';
-            const pillC = avoid ? t.RUST : t.GREEN;
-            return (
-              <div key={`${h.name}-${i}`} style={{ borderBottom: i === selDayHabits.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '26px 54px 1fr auto 26px', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK, letterSpacing: '-0.01em', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px' }}>{h.name}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: h.done ? pillC : t.INK50, marginTop: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: h.done ? pillC : t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                  <span style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${h.done ? pillC : t.RULE}`, background: h.done ? pillC : 'transparent', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 900 }}>{h.done ? '✓' : ''}</span>
-                </button>
+      {/* HABITS — one agenda-style plate (same chrome as the workout/meal cards);
+          tapping anywhere opens the full habits page (check-off lives there) */}
+      {(() => {
+        const done = selDayHabits.filter(h => h.done).length;
+        const pts = selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0);
+        const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
+        return (
+          <BSPlate c={t.GREEN} tick bracket pad="14px 16px 14px 22px" role="button" ariaLabel="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {done}/{selDayHabits.length} done</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
+            </div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+              Daily <span style={{ fontStyle: 'italic', color: t.GREEN }}>habits.</span>
+            </div>
+            {selDayHabits.length === 0 ? (
+              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
+                No habits yet — tap to add your first one.
               </div>
-            );
-          })
-        )}
-      </div>
+            ) : (
+              <div style={{ marginTop: 12 }}>
+                {selDayHabits.map((h, i, arr) => {
+                  const avoid = h.type === 'avoid';
+                  const pillC = avoid ? t.RUST : t.GREEN;
+                  return (
+                    <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 22px', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, opacity: h.done ? 0.5 : 1 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+                        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.done ? pillC : t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
+                      </div>
+                      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: h.done ? pillC : t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
+                      <span style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${h.done ? pillC : t.RULE}`, background: h.done ? pillC : 'transparent', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>{h.done ? '✓' : ''}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Check off on the habits page</span>
+              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${t.GREEN}`, background: 'transparent', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>View →</span>
+            </div>
+          </BSPlate>
+        );
+      })()}
 
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
@@ -11795,17 +11808,17 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
     </div>
   );
   const miniCard = (s, i) => (
-    <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+    <div key={i} style={{ borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `3px solid ${s.c}`, background: bsTHexA(t.INK, 0.04), padding: '13px 13px 13px 15px' }}>
       <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
-      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{s.u}</span> : null}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{s.u}</span> : null}</div>
       <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{s.sub}</div>
     </div>
   );
   return (
     <>
-      {/* Featured — down so far */}
+      {/* Featured — down so far (instrument plate) */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 18, border: `1px solid ${teal}44`, background: `linear-gradient(160deg, ${teal}22, ${teal}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+        <BSPlate c={teal} tick bracket pad="16px 18px 16px 24px">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Down so far</div>
@@ -11817,9 +11830,9 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
             </div>
           </div>
           <div style={{ position: 'relative', margin: '16px 0 14px', height: 6 }}>
-            <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: t.HAIR }} />
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 999, background: teal }} />
-            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 999, background: '#fff', border: `3px solid ${teal}` }} />
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 2, background: t.HAIR }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 2, background: teal }} />
+            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 3, background: '#fff', border: `3px solid ${teal}` }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             {[[start, 'Start · ' + (overall.startMonth || ''), t.INK50], [now, 'Now', teal], [target, 'Target · ' + (byLabel || ''), t.AMBER]].map(([v, lab, c], i) => (
@@ -11829,7 +11842,7 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
               </div>
             ))}
           </div>
-        </div>
+        </BSPlate>
       </div>
 
       {/* Stat grid */}
@@ -11842,7 +11855,7 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
           Log weigh-in action and links through for history. */}
       <SecHead kicker="Trend" title="Weight" action={{ label: 'Log weigh-in', onClick: onLog }} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onOpenProgress} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+        <button onClick={onOpenProgress} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: 14, display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
           <div style={{ minWidth: 0 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
             <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: teal }}>{down} {unit} · {bsGoalWeighIns(overall).length} logs · target {target}</div>
@@ -11871,8 +11884,7 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
       <SecHead kicker="Driving it" title="Your plans" />
       <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {plans.map((p, i) => (
-          <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ width: 6, height: 34, borderRadius: 3, background: p.c, flexShrink: 0 }} />
+          <div key={i} style={{ borderRadius: 5, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${p.c}`, background: t.PAPER2, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: p.c }}>{p.role}</div>
               <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.t}</div>
@@ -11894,7 +11906,7 @@ function BSGoalsOverall({ overall, onLog, onOpenProgress = () => {}, plans: live
       {/* Your why */}
       <SecHead kicker="Your why" title="Stay with it" />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${purple}44`, background: `linear-gradient(155deg, ${purple}22, ${purple}08 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${purple}44`, borderLeft: `3px solid ${purple}`, background: `linear-gradient(155deg, ${purple}22, ${purple}08 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
           <div style={{ fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontStyle: 'italic', fontSize: 16, lineHeight: 1.5, color: t.INK }}>“{overall.why}”</div>
           <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 28, height: 28, borderRadius: 999, background: teal, color: '#04201d', display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{bsMyInitials()[0]}</span>
@@ -11975,9 +11987,9 @@ function BSGoalsTraining({ onOpenProgram }) {
   );
   return (
     <>
-      {/* Featured — strength held */}
+      {/* Featured — strength held (instrument plate) */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 18, border: `1px solid ${rust}44`, background: `linear-gradient(160deg, ${rust}22, ${rust}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+        <BSPlate c={rust} tick bracket pad="16px 18px 16px 24px">
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: rust }}>Strength held</div>
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>4<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/4 lifts</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>none dropped · bench +5 kg</div>
@@ -11987,18 +11999,18 @@ function BSGoalsTraining({ onOpenProgram }) {
           </div>
           <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7 }}>
             {[0.6, 0.7, 0.65, 0.55, 0.7, 0.6, 1].map((v, i) => (
-              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 8, background: rust, opacity: 0.3 + v * 0.6 }} />
+              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 3, background: rust, opacity: 0.3 + v * 0.6 }} />
             ))}
           </div>
-        </div>
+        </BSPlate>
       </div>
 
       {/* Stat grid */}
       <div style={{ padding: `12px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
         {stats.map((s, i) => (
-          <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+          <div key={i} style={{ borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `3px solid ${s.c}`, background: bsTHexA(t.INK, 0.04), padding: '13px 13px 13px 15px' }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
-            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 1 }}>{s.u}</span> : null}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 1 }}>{s.u}</span> : null}</div>
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{s.sub}</div>
           </div>
         ))}
@@ -12013,7 +12025,7 @@ function BSGoalsTraining({ onOpenProgram }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{l.t}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{l.w} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>▲ {l.d}</span></span>
             </div>
-            <div style={{ marginTop: 7, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${l.pct * 100}%`, background: rust, borderRadius: 999 }} /></div>
+            <div style={{ marginTop: 7, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${l.pct * 100}%`, background: rust }} /></div>
           </div>
         ))}
       </div>
@@ -12036,7 +12048,7 @@ function BSGoalsTraining({ onOpenProgram }) {
       {/* Your program */}
       <SecHead kicker="Driving it" title="Your program" />
       <div style={{ padding: `12px ${t.padX}px 8px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${rust}44`, background: `linear-gradient(155deg, ${rust}1c, ${rust}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${rust}44`, borderLeft: `3px solid ${rust}`, background: `linear-gradient(155deg, ${rust}1c, ${rust}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Training</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>4× / week · W4</span>
@@ -12050,7 +12062,7 @@ function BSGoalsTraining({ onOpenProgram }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Coach · Hypertrophy</div>
               </div>
             </div>
-            <button onClick={onOpenProgram} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${rust}`, background: 'transparent', color: rust, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open →</button>
+            <button onClick={onOpenProgram} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 5, border: `1px solid ${rust}`, background: 'transparent', color: rust, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open →</button>
           </div>
         </div>
       </div>
@@ -12106,17 +12118,17 @@ function BSGoalsNutrition({ overall, onLog }) {
     </div>
   );
   const miniCard = (s, i) => (
-    <div key={i} style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+    <div key={i} style={{ borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `3px solid ${s.c}`, background: bsTHexA(t.INK, 0.04), padding: '13px 13px 13px 15px' }}>
       <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c }}>{s.l}</div>
-      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{s.u}</span> : null}</div>
+      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}{s.u ? <span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{s.u}</span> : null}</div>
       <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{s.sub}</div>
     </div>
   );
   return (
     <>
-      {/* Down so far (gold) */}
+      {/* Down so far (gold instrument plate) */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 18, border: `1px solid ${gold}44`, background: `linear-gradient(160deg, ${gold}22, ${gold}08 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 18 }}>
+        <BSPlate c={gold} tick bracket pad="16px 18px 16px 24px">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: gold }}>Down so far</div>
@@ -12128,9 +12140,9 @@ function BSGoalsNutrition({ overall, onLog }) {
             </div>
           </div>
           <div style={{ position: 'relative', margin: '16px 0 14px', height: 6 }}>
-            <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: t.HAIR }} />
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 999, background: gold }} />
-            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 999, background: '#fff', border: `3px solid ${gold}` }} />
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 2, background: t.HAIR }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct * 100}%`, borderRadius: 2, background: gold }} />
+            <div style={{ position: 'absolute', left: `calc(${pct * 100}% - 7px)`, top: -4, width: 14, height: 14, borderRadius: 3, background: '#fff', border: `3px solid ${gold}` }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             {[[start, 'Start · ' + (overall.startMonth || ''), t.INK50], [now, 'Now', gold], [target, 'Target · ' + (byLabel || ''), t.INK50]].map(([v, lab, c], i) => (
@@ -12140,7 +12152,7 @@ function BSGoalsNutrition({ overall, onLog }) {
               </div>
             ))}
           </div>
-        </div>
+        </BSPlate>
       </div>
 
       {/* Stat grid */}
@@ -12149,7 +12161,7 @@ function BSGoalsNutrition({ overall, onLog }) {
       {/* Trend */}
       <SecHead kicker="Trend" title="Weight" action={{ label: 'Log weigh-in', onClick: onLog }} />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${gold}`, background: t.PAPER2, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>{now.toLocaleString()}<span style={{ fontSize: 12, color: t.INK50, marginLeft: 2 }}>{unit}</span></span>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: gold }}>{down} {unit} · {bsGoalWeighIns(overall).length} logs · target {target}</span>
@@ -12167,7 +12179,7 @@ function BSGoalsNutrition({ overall, onLog }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{m.t}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{m.v} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: m.c }}>▲ {m.tgt}</span></span>
             </div>
-            <div style={{ marginTop: 7, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${m.pct * 100}%`, background: m.c, borderRadius: 999 }} /></div>
+            <div style={{ marginTop: 7, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${m.pct * 100}%`, background: m.c }} /></div>
           </div>
         ))}
       </div>
@@ -12190,7 +12202,7 @@ function BSGoalsNutrition({ overall, onLog }) {
       {/* Your plan */}
       <SecHead kicker="Driving it" title="Your plan" />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(155deg, ${gold}1c, ${gold}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(155deg, ${gold}1c, ${gold}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: gold }}>Nutrition</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>2,100 kcal</span>
@@ -12204,7 +12216,7 @@ function BSGoalsNutrition({ overall, onLog }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>Nutritionist · Cut</div>
               </div>
             </div>
-            <button onClick={onLog} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 999, border: `1px solid ${gold}`, background: 'transparent', color: gold, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open →</button>
+            <button onClick={onLog} style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 5, border: `1px solid ${gold}`, background: 'transparent', color: gold, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Open →</button>
           </div>
         </div>
       </div>
@@ -12381,7 +12393,6 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
   // Per-tab theme + headline.
   const ACCENT = { overall: teal, training: t.RUST, nutrition: '#a07a2e' };
-  const INKON = { overall: '#04201d', training: '#2b0d07', nutrition: '#241a08' };
   const accent = ACCENT[tab];
   const headInfo = tab === 'overall'
     ? { eyebrow: `Your goal${byLabel ? ` · By ${byLabel}` : ''}`, title: overall.title, subtitle: '' }
@@ -12406,16 +12417,21 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
         {headInfo.subtitle ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, color: t.INK50, lineHeight: 1.4 }}>{headInfo.subtitle}</div> : null}
       </div>
-      {/* Overall / Training / Nutrition tabs */}
+      {/* Overall / Training / Nutrition tabs — instrument segment rail (per-tab accent) */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, border: `1px solid ${t.RULE}`, borderRadius: 12, padding: 3 }}>
-          {[['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']].map(([k, l]) => { const on = tab === k; return <button key={k} onClick={() => setTab(k)} style={{ padding: '10px 4px', borderRadius: 9, border: 0, cursor: 'pointer', background: on ? ACCENT[k] : 'transparent', color: on ? INKON[k] : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>; })}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, background: bsTHexA(t.INK, 0.05), border: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderRadius: 7, padding: 4 }}>
+          {[['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']].map(([k, l]) => { const on = tab === k; return (
+            <button key={k} onClick={() => setTab(k)} style={{ padding: '10px 4px', borderRadius: 5, border: 0, cursor: 'pointer', position: 'relative', overflow: 'hidden', background: on ? bsTHexA(ACCENT[k], 0.16) : 'transparent', color: on ? ACCENT[k] : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: ACCENT[k] }} />}
+              {l}
+            </button>
+          ); })}
         </div>
       </div>
 
       {/* Primary goal — synced with the edit-profile "Primary goal" chip */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${teal}33`, background: `linear-gradient(150deg, ${teal}12, ${t.PAPER2} 70%)`, padding: 14 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${teal}33`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}12, ${t.PAPER2} 70%)`, padding: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Primary goal</div>
@@ -12437,7 +12453,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
 
       {/* Share with coaches — applies to all goal tabs */}
       <div style={{ padding: `20px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>Share with your coaches</div>
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{data.share ? 'Your coaches can see your goals' : 'Private — coaches can’t see your goals'}</div>

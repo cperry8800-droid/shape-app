@@ -184,12 +184,13 @@ function BSHabitRow({ habit, accent, onToggle, onRemove }) {
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
-      padding: '10px 12px', borderRadius: 13,
+      padding: '10px 12px', borderRadius: 5,
       border: `1px solid ${done ? `${c}66` : t.RULE}`,
+      borderLeft: `3px solid ${done ? c : `${c}55`}`,
       background: done ? (t.isLight ? `${c}12` : `${c}1c`) : t.PAPER2,
     }}>
       <button onClick={() => onToggle(habit.id)} aria-label={done ? 'Mark not done' : 'Mark done'} style={{
-        width: 25, height: 25, borderRadius: 8, cursor: 'pointer', flexShrink: 0,
+        width: 25, height: 25, borderRadius: 5, cursor: 'pointer', flexShrink: 0,
         border: `1.5px solid ${done ? c : t.RULE}`, background: done ? c : 'transparent',
         color: '#04201d', display: 'grid', placeItems: 'center',
         fontFamily: t.MONO, fontSize: 12, fontWeight: 900, padding: 0,
@@ -222,7 +223,7 @@ function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {habits.length === 0 ? (
-          <button onClick={onAdd} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '16px 14px', borderRadius: 16, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+          <button onClick={onAdd} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', padding: '16px 14px', borderRadius: 5, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
             + Add a {type === 'avoid' ? 'to-don’t' : 'to-do'}
           </button>
         ) : habits.map(h => (
@@ -249,8 +250,9 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
     { label: 'To do', c: teal, e: sumE(dos), p: sumP(dos) },
     { label: "To don't", c: t.RUST, e: sumE(donts), p: sumP(donts) },
   ];
+  const BSPlate = window.BSPlate;
   return (
-    <button onClick={onOpenScore} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 16, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}1f, ${teal}07 55%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 13, display: 'block' }}>
+    <BSPlate c={teal} tick bracket pad="13px 14px 13px 20px" role="button" ariaLabel="See your Shape Score" onClick={onOpenScore} style={{ textAlign: 'left' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Earned today</div>
@@ -264,8 +266,8 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
           <div style={{ width: 32, height: 32, borderRadius: 999, background: t.PAPER, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK }}>{pct}%</div>
         </div>
       </div>
-      <div style={{ height: 3, borderRadius: 999, background: t.HAIR, marginTop: 11, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: teal, borderRadius: 999 }} />
+      <div style={{ height: 3, borderRadius: 2, background: t.HAIR, marginTop: 11, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: teal }} />
       </div>
       {/* Breakdown — To do vs Don't do it */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
@@ -276,14 +278,14 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>+{b.e}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>/ {b.p} pts</span>
             </div>
-            <div style={{ height: 3, borderRadius: 999, background: t.HAIR, marginTop: 7, overflow: 'hidden' }}>
-              <div style={{ width: `${b.p ? Math.round((b.e / b.p) * 100) : 0}%`, height: '100%', background: b.c, borderRadius: 999 }} />
+            <div style={{ height: 3, borderRadius: 2, background: t.HAIR, marginTop: 7, overflow: 'hidden' }}>
+              <div style={{ width: `${b.p ? Math.round((b.e / b.p) * 100) : 0}%`, height: '100%', background: b.c }} />
             </div>
           </div>
         ))}
       </div>
       <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Tap to see your Shape Score →</div>
-    </button>
+    </BSPlate>
   );
 }
 
