@@ -49,10 +49,11 @@ same inline boilerplate. No build step — babel-standalone in the browser.
 Goal: one shared dashboard kit + one data layer, all three Today pages on it,
 no fake numbers, client today rail driven by the real assigned plan.
 
-1. **`dashKit.jsx` (versioned) + `dash.css`.**
-   - Add `?v=` cache tags to `trainerDashboard.jsx` references (39 pages) so
-     the kit can evolve safely; new shared pieces go in `dashKit.jsx`.
-   - Extract the per-page inline `<style>` boilerplate into one `dash.css`.
+1. **`dashKit.jsx` (versioned) + `dash.css`.** ✅ foundation shipped on
+   dashboard-v2: all 39 `trainerDashboard.jsx` references carry
+   `?v=20260612`, and the per-page inline `<style>` boilerplate is extracted
+   into `dash.css` (31 pages). Still to come in this item: the new
+   `DashPlate` etc. primitives land with the visual step.
    - New primitives, ported from the app: `DashPlate` (instrument KPI plate —
      clipped corner, accent spine, tick), `DashEyebrow`, `DashChip` (squared,
      spine-left), section ledger rules (ink → accent gradient fade).
@@ -86,16 +87,52 @@ on the client's website dashboard today rail without a deploy; signed-out
 still shows the full demo experience; all three Today pages consume
 `useDashData` + `DashPlate` (no per-page formatters/mocks).
 
-## Phase 2 — Twin collapse & rosters
+## Phase 2 — Data layer, signal engine & twin collapse
 
+### 2.1 The unified client record ✅ (shipped on dashboard-v2)
+One record shape for every dashboard surface, per client: `profile`,
+`trainingAdherence`, `foodLogs`, `shapeScoreHistory` (8 weeks), `weighIns`,
+`streaks`, `lastContact` (per pro), `checkIn`, `goalPhase`, `milestones`,
+`payments`. Every field nullable — live coverage grows into the contract.
+Documented in `public/newdesign/dashSignals.js`.
+
+Live-fillable today: profile/MRR (`/api/{role}/clients`), adherence +
+days-logged (`get_client_stats`), check-in status (check-in kit), weigh-ins
+(`get_client_goals`). Needs backend extensions (tracked): coach-readable
+weekly score history, lastContact thread timestamps, goalPhase in the
+overview API, exact last-food-log date.
+
+### 2.2 `useDashboard(role)` ✅ (shipped on dashboard-v2)
+`public/newdesign/dashData.jsx`. Single data hook: live roster +
+concurrency-capped (4) per-client enrichment via
+`/api/clients/{id}/shared-overview` with a 60s cache; `role:'client'`
+returns the one self record. Mock fallback (the 8 personas in
+`dashSignals.js` — Jordan M., Marcus T., Aisha K., Sam R., Priya S.,
+Elena R., Deandre K., Jonah W.) is centralized inside the hook; the UI never
+knows which source it got. Follow-up: a batch overview endpoint to kill the
+N+1 fetch at larger rosters.
+
+### 2.3 Rule-based signal engine ✅ (shipped on dashboard-v2)
+`public/newdesign/dashSignals.js` (pure UMD — browser + Node) +
+`tests/dash-signals.test.mjs` (`npm test`, node:test, zero deps). Rules:
+streak broken · score drop ≥5 pts wk/wk · no food logs 3+ days · check-in
+overdue (1 missed week nags from Thu, ≥2 weeks always) · no pro contact
+5+ days. All thresholds in one `THRESHOLDS` constant. Rules with missing
+inputs are SKIPPED — sparse live records can never false-flag.
+`getTriageFeed(role)` → clients sorted red → amber → green with a
+human-readable reason per flag. Severity: red = 2+ flags or check-in missed
+≥2 weeks; amber = 1 flag; green = clean.
+
+### 2.4 Twin collapse & rosters (next)
 - Merge TrainerDashboard/NutritionistDashboard into one role-parameterized
-  page body (URLs unchanged — the two HTML files become thin wrappers).
+  page body (URLs unchanged — the two HTML files become thin wrappers) on
+  `useDashboard` + the triage feed.
 - Unify TrainerClients/NutritionistClients the same way (server side is
   already shared via `coach-roster.ts`).
 - Roster rows link by real user id (`ClientProfile.html?u=<uuid>`), falling
   back to the name slug only for demo rows. Wire "Invite client".
-- "Needs your eyes" inbox plate on coach Today (missed check-ins, flagged
-  PAR-Q, stale clients — sources already exist in the check-in kit).
+- "Needs your eyes" inbox plate on coach Today = the triage feed's red/amber
+  rows (missed check-ins, flagged PAR-Q, stale clients).
 
 ## Phase 3 — Instrument pass & app-parity widgets
 
