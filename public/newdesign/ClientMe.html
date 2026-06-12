@@ -2,11 +2,32 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Me · Shape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>html,body{margin:0;padding:0;background:#1a1612}*{box-sizing:border-box}a{text-decoration:none;color:inherit}</style>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#100d0a;color:#f2ede4;-webkit-font-smoothing:antialiased}
+  ::selection{background:#1ec0a8;color:#06110e}
+  a{text-decoration:none;color:inherit}
+  @keyframes tdTide { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+  .td-tide{ animation: tdTide 6s ease-in-out infinite }
+  @keyframes lvPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.35;transform:scale(0.7)} }
+  .lv-pulse{ animation: lvPulse 1.6s ease-in-out infinite }
+  .lv-tabrow::-webkit-scrollbar{height:0;display:none}
+  @media (max-width: 1000px){
+    .dk-hero{ grid-template-columns: 1fr !important; }
+    .dk-grid{ grid-template-columns: 1fr !important; }
+    .dk-rail{ position: static !important; }
+  }
+  @media (max-width: 720px){
+    .dk-3up{ grid-template-columns: 1fr !important; }
+    .dk-feed{ grid-template-columns: 1fr !important; }
+  }
+  @media (prefers-reduced-motion: reduce){ .td-tide,.lv-pulse{ animation: none !important } }
+</style>
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
 <div id="root"></div>
@@ -19,8 +40,11 @@
 <script type="text/babel" src="chatWidget.jsx?v=20260609"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
 <script type="text/babel" src="trainerDashboard.jsx"></script>
-<script type="text/babel" src="clientNav.jsx"></script>
-<script type="text/babel" src="profileCustomizer.jsx?v=20260612"></script>
+<script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
+<script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
+<script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=22"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260612b"></script>
 <script type="text/babel">
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
@@ -161,7 +185,9 @@ function EditProfileModal({ initial, onClose, onSaved }) {
   );
 }
 
-function ClientMePage() {
+// Account & settings — rides BELOW the living profile (the page leads with
+// the profile itself, same concept as the app's Me tab; signed-out = demo).
+function ClientMeSettings() {
   const [profile, setProfile] = React.useState(SAMPLE_PROFILE);
   const [loaded, setLoaded] = React.useState(false);
   const [signedIn, setSignedIn] = React.useState(false);
@@ -237,40 +263,21 @@ function ClientMePage() {
 
   const p = profile;
   return (
-    <DashPage
-      navItems={clientNavItems("me")}
-      payoutCard={clientPayoutCard}
-      eyebrow="PROFILE · SETTINGS · BILLING"
-      title="Me"
-      subtitle={signedIn ? "Your profile, plan, payments, and how Shape uses your data." : "Sample view — sign in to load your real profile."}
-      actions={<>
-        <button onClick={handleLogout} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
-        <button onClick={() => window.location.href = "/newdesign/MemberProfile.html"} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>View public profile</button>
-        <button onClick={() => setEditOpen(true)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit profile</button>
-      </>}
-    >
-      {/* Hero identity card + cover + avatar */}
-      <ProfileHero
-        eyebrow={`MEMBER · ${(p.location || "—").toUpperCase()} · SINCE FEB '26`}
-        name={p.displayName || "—"}
-        pills={[
-          { label: "TEMPO · 1,284", tone: "teal" },
-          { label: "2 COACHES" },
-          { label: "14-DAY STREAK" },
-        ]}
-        score="1,284"
-        scoreLabel="SHAPE SCORE"
-        scoreCaption="+82 this week"
-        stats={[["14 mo","Training on Shape"],["+22 lb","Squat PR this block"],["4 / 5","Sessions this week"],["168g","Avg protein / day"]]}
-      />
+    <section style={{ maxWidth: 1240, margin: "0 auto", padding: "30px 40px 40px", fontFamily: sans, color: INK }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
+        <div>
+          <a href="ClientDashboard.html" style={{ display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", marginBottom: 12 }}>← Back to dashboard</a>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Account · Settings · Billing</div>
+          <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 4 }}>Settings.</div>
+          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{signedIn ? "Your plan, payments, preferences, and how Shape uses your data." : "Sample view — sign in to load your real settings."}</div>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+          <button onClick={handleLogout} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
+          <button onClick={() => setEditOpen(true)} style={{ background: INK, color: "#100d0a", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit details</button>
+        </div>
+      </div>
 
-      {/* Bio */}
-      <BioCard
-        charLimit={500}
-        body="Product designer by day, lifter by evening. Working with Maya on strength + hypertrophy and with Rae on protein targets that don't feel like homework. Goals this year: a real 1.5×BW squat, a credible 5K, and finally figuring out how to fuel a long ride without bonking at mile 40."
-      />
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div className="dk-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <Card>
           <SectionTitle>Profile</SectionTitle>
           <Row label="Name" value={p.displayName || "—"} action="EDIT" onAction={() => openField("displayName", "Name")} />
@@ -336,10 +343,6 @@ function ClientMePage() {
         </Card>
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <LivingProfileCustomizer role="client" />
-      </div>
-
       <HealthProfileCard />
 
       <Card style={{ marginTop: 20 }}>
@@ -356,7 +359,7 @@ function ClientMePage() {
 
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+        <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
           <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
           <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
           <button style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
@@ -382,9 +385,9 @@ function ClientMePage() {
         />
       )}
       {toast && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: INK, color: PAPER, padding: "12px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, zIndex: 10000, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>{toast}</div>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: INK, color: "#100d0a", padding: "12px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, zIndex: 10000, boxShadow: "0 10px 40px rgba(0,0,0,0.5)" }}>{toast}</div>
       )}
-    </DashPage>
+    </section>
   );
 }
 // ── HEALTH PROFILE (PAR-Q screening) — website parity with the mobile intake.
@@ -497,7 +500,7 @@ function HealthProfileCard() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.Fragment>
-    <ClientMePage />
+    <LiveProfilePage demoRole="client" extras={<ClientMeSettings />} />
     <ChatWidget tabs={clientChatTabs} />
   </React.Fragment>
 );

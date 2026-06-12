@@ -3,6 +3,11 @@
 // so the dashboard Profile pages (TrainerProfile / NutritionistProfile) render the
 // SAME living profile. Pass `extras` to append page-specific content (e.g. the
 // dashboard Danger zone) below the profile, above the footer.
+//
+// `demoRole` ("client" | "trainer" | "nutritionist"): when set, a signed-out
+// visitor gets DEMO MODE — the LV_PEOPLE demo persona rendered on the same
+// living layout under a "Preview · demo profile" band — instead of a sign-in
+// wall. Same concept as the app's signed-out preview.
 function liveTier(points, coach) {
   const member = [[0, "Base", "#8a93a0", "I"], [750, "Tempo", "#d8a23a", "II"], [2000, "Form", "#1ec0a8", "III"], [5000, "Peak", "#8a5cf6", "IV"], [15000, "Legend", "#e0518a", "V"]];
   const coachL = [[0, "Certified", "#8a93a0", "I"], [750, "Pro", "#d8a23a", "II"], [2000, "Elite", "#e0463c", "III"], [5000, "Master", "#8fe3e6", "IV"], [15000, "Icon", "#34d6c5", "V"]];
@@ -11,7 +16,7 @@ function liveTier(points, coach) {
   return { name: t[1], color: t[2], rank: t[3] };
 }
 
-function LiveProfilePage({ extras = null }) {
+function LiveProfilePage({ extras = null, demoRole = null }) {
   const [st, setSt] = React.useState({ loading: true, status: "", row: null, isSelf: false, uid: null });
   const [follow, setFollow] = React.useState({ followers: 0, following: 0, isFollowing: false });
   const [busy, setBusy] = React.useState(false);
@@ -131,7 +136,24 @@ function LiveProfilePage({ extras = null }) {
     </div>
   );
   if (st.loading) return center("Loading profile…");
-  if (st.status === "signin") return center("Sign in to view your public profile.", <a href="/login" style={{ background: "#1ec0a8", color: "#06110e", borderRadius: 999, padding: "12px 24px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 14 }}>Sign in →</a>);
+  if (st.status === "signin" || (st.status === "unavailable" && demoRole)) {
+    // Demo mode — signed out renders the demo persona on the real living
+    // layout (the app's preview concept), never a bare sign-in wall.
+    if (demoRole) {
+      const dDir = demoRole === "client" ? "terrain" : "signal";
+      const demoFollow = { followers: 214, following: 167, posts: 24, canFollow: false };
+      return (
+        <React.Fragment>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "9px 16px", background: "rgba(30,192,168,0.1)", borderBottom: "1px solid rgba(30,192,168,0.3)", fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
+            <span>Preview · demo profile — an example of a live account</span>
+            <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "5px 13px", textDecoration: "none" }}>Sign in →</a>
+          </div>
+          <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} />
+        </React.Fragment>
+      );
+    }
+    return center("Sign in to view your public profile.", <a href="/login" style={{ background: "#1ec0a8", color: "#06110e", borderRadius: 999, padding: "12px 24px", fontFamily: "'Space Grotesk',sans-serif", fontWeight: 600, fontSize: 14 }}>Sign in →</a>);
+  }
   if (st.status !== "ok" && st.status !== "derived") return center(st.status === "notfound" ? "This profile isn't available." : "Profiles aren't available right now.");
 
   // Derived profile (a named person with no real account) — synthesize a row so
