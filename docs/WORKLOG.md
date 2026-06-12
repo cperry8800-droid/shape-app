@@ -100,6 +100,31 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Assign-time + hero-plate compaction (#1281) · dashboard Profile = the living profile itself (#1280)
+- **Trainer Assign page: optional "Session time"** chip row ("No set time"
+  default) — a time agreed with the client rides in
+  `client_workouts.payload.time` on every scheduled workout. Surfaces
+  everywhere: calendar derived events, `/api/client/plan` (`time` field),
+  the home up-next card (label + agenda sort) + workout preview, and the
+  Train deck hero (live builder now sets `time`/`timeLabel` like the demo).
+- **Compaction (per screenshots)**: the Goals "Down so far" plates (teal
+  Overall + gold Nutrition — number 44→32, % 34→24, tighter slider/pads)
+  and the Train deck hero plate (headline 26→21, smaller coach row + ▶).
+- **#1280 — the dashboard Profile pages now RENDER the living profile**
+  (the #1276 editor form wasn't what was wanted): MemberProfile.html's live
+  wiring extracted into shared **`livingProfilePage.jsx`** (`LiveProfilePage`,
+  `extras` slot → `DesktopProfile.belowContent`); TrainerProfile/
+  NutritionistProfile are now the coach's actual Signal page (own variant,
+  "✎ Customize profile" modal) + back-to-dashboard link + Danger zone below.
+  The living Customize modal gained the **climb-background picker**
+  (`DK_CLIMB_BGS`, mobile parity). MemberProfile slimmed to 57 lines;
+  `livingDesktop.jsx?v=22`. ClientMe keeps the form editor.
+- **Scope-sharing correction**: babel-standalone executes via global eval —
+  top-level consts DO cross script files (that's how livingShared's
+  LV_* reach livingDesktop with no export). `Object.assign(window, …)` is
+  belt-and-braces convention, not a requirement; the #1276 gotcha note
+  overstated it.
+
 ### 2026-06-12 — "Nutri plan" chip + push-to-client auto-sync (calendar · grocery · real coach names) (#1278)
 - **Grocery source chip + list-picker plan row renamed "Nutri plan"** (was
   "Coach plan"); the home meals card's corner tag matches. The picker's plan
