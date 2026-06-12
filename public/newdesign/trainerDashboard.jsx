@@ -183,6 +183,7 @@ function DashShell({
   todayItems,   // optional [{ time, kind, title, sub, cta }]
   scheduleTitle,
   schedule,     // [{ time, who, sub, status }]
+  scheduleRender, // optional () => node — replaces the default schedule rows (panel + title kept)
   pulseTitle,
   pulse,        // [{ who, sub, trend }]  trend = array of numbers 0-1
   pulseRender,  // optional () => node — replaces the default pulse rows (panel + title kept)
@@ -278,7 +279,7 @@ function DashShell({
                 <a href="#" onClick={cal.open} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>OPEN CALENDAR <span style={{ fontSize: 12 }}>→</span></a>
               )}
             </div>
-            {schedule.map((s, i) => (
+            {scheduleRender ? scheduleRender() : schedule.map((s, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{s.time}</div>
                 <div>

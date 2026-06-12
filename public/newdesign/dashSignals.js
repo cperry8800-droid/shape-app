@@ -19,6 +19,7 @@
 //     streaks:   { current: n, best: n, lastActiveOn? } | null,
 //     lastContact: { trainer: iso|null, nutritionist: iso|null } | null,
 //     checkIn:   { lastWeekOf: 'YYYY-MM-DD'|null } | null,   // Monday keys
+//     goal:      { target: n, unit, now: n|null } | null,     // body-comp goal
 //     goalPhase: string | null,
 //     milestones: [{ key, label, hitAt? }] | null,
 //     payments:  { mrrCents, status? } | null,
@@ -219,6 +220,7 @@
         streaks: { current: 9, best: 14, lastActiveOn: ago(0) },
         lastContact: { trainer: ago(1), nutritionist: ago(2) },
         checkIn: { lastWeekOf: mondaysAgo(0) },
+        goal: { target: 170, unit: "lb", now: 172.8 },
         goalPhase: "Build",
         milestones: [
           { key: "m25", label: "25% to goal", hitAt: ago(40) },
@@ -271,6 +273,7 @@
       // green + NEW — joined this week; no first check-in yet (new-client pass)
       person(9, "Tess B.", {
         profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
+        goal: { target: 150, unit: "lb", now: 158 },
         trainingAdherence: { pct: 100, done: 2, planned: 2 },
         foodLogs: { lastLoggedOn: ago(0), daysLogged7d: 3 },
         shapeScoreHistory: history([12, 27]),
@@ -285,10 +288,39 @@
     ];
   }
 
+  // ── Programming queue (step 4.2) ──────────────────────────────────────────
+  // Who needs next week's plan written, derived from checkIn state:
+  //   ready   — this week's check-in is in (the coach has what they need)
+  //   blocked — waiting on this week's (or a first) check-in
+  // Records with unknown check-in state (sparse live data) are excluded
+  // rather than guessed. Sorted ready first, then blocked, name tiebreak.
+  function buildProgrammingQueue(clients, now) {
+    now = now || new Date();
+    var thisMonday = iso(mondayOf(now));
+    var rank = { ready: 0, blocked: 1 };
+    return (clients || [])
+      .filter(function (c) { return c.checkIn != null; })
+      .map(function (c) {
+        var last = c.checkIn.lastWeekOf || null;
+        if (last === thisMonday) {
+          return { client: c, state: "ready", reason: "Check-in reviewed — ready to program" };
+        }
+        var reason = !last
+          ? "Waiting on their first check-in"
+          : "Waiting on this week's check-in";
+        return { client: c, state: "blocked", reason: reason };
+      })
+      .sort(function (a, b) {
+        if (rank[a.state] !== rank[b.state]) return rank[a.state] - rank[b.state];
+        return String(a.client.profile.name).localeCompare(String(b.client.profile.name));
+      });
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     evaluateClient: evaluateClient,
     getTriageFeed: getTriageFeed,
+    buildProgrammingQueue: buildProgrammingQueue,
     buildMockClients: buildMockClients,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };

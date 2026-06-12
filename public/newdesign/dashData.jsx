@@ -68,6 +68,9 @@ function _dashRecordFromLive(row, ov) {
     streaks: null,             // not exposed to coaches yet
     lastContact: null,         // needs a thread-timestamp lookup (roadmap)
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || checkins[0].weekOf || null : null } : null,
+    goal: goals && goals.overall && goals.overall.target != null
+      ? { target: Number(goals.overall.target), unit: goals.overall.unit || "lb", now: goals.overall.now != null ? Number(goals.overall.now) : null }
+      : null,
     goalPhase: null,           // client_programs phase not in the overview yet
     milestones: null,
     payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null },
@@ -85,6 +88,7 @@ function _dashRecordFromSelf(dash, kit) {
     shapeScoreHistory: null,
     weighIns: null,
     streaks: k.streak != null ? { current: k.streak, best: k.streak, lastActiveOn: null } : null,
+    goal: null,
     lastContact: null,
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || null : null } : null,
     goalPhase: null,
@@ -143,7 +147,11 @@ function useDashboard(role) {
     () => DashSignals.getTriageFeed(role, state.clients),
     [role, state.clients]
   );
-  return { loading: state.loading, clients: state.clients, triage, today: state.today };
+  const queue = React.useMemo(
+    () => DashSignals.buildProgrammingQueue(state.clients),
+    [state.clients]
+  );
+  return { loading: state.loading, clients: state.clients, triage, queue, today: state.today };
 }
 
 Object.assign(window, { useDashboard });

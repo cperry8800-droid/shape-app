@@ -33,7 +33,9 @@ const DASH_FLAT_TREND = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 const DASH_TODAY_ROLES = {
   trainer: {
     flag: "isTrainer",
-    triagePulse: true, // Client Pulse = the signal-engine triage feed (step 3)
+    triagePulse: true,      // Client Pulse = the signal-engine triage feed (step 3)
+    expandSchedule: true,   // expandable schedule rows w/ context + actions (step 4.1)
+    programmingQueue: true, // who needs next week's plan (step 4.2)
     mockName: "Maya",
     date: "WEDNESDAY APR 18", // parity with the old page; real dates land with roadmap 1.2
     greeting: (n) => "Good morning, " + n + ".",
@@ -205,6 +207,150 @@ function dashMessageClient(name, role) {
   window.location.href = role === "nutritionist" ? "NutritionistMessages.html" : "TrainerMessages.html";
 }
 
+// Pre-session context from the unified record — the two most useful facts.
+// Priority: distance from goal weight → check-in state → streak → adherence.
+function dashContextLine(rec) {
+  if (!rec) return null;
+  const parts = [];
+  if (rec.goal && rec.goal.target != null) {
+    const now = rec.goal.now != null
+      ? rec.goal.now
+      : (Array.isArray(rec.weighIns) && rec.weighIns.length ? rec.weighIns[rec.weighIns.length - 1].weight : null);
+    if (now != null) {
+      const dist = Math.round(Math.abs(now - rec.goal.target) * 10) / 10;
+      parts.push(dist + " " + (rec.goal.unit || "lb") + " from goal weight");
+    }
+  }
+  if (rec.checkIn) {
+    const thisMonday = DashSignals._internals.mondayOf(new Date());
+    const mondayIso = thisMonday.getFullYear() + "-" + String(thisMonday.getMonth() + 1).padStart(2, "0") + "-" + String(thisMonday.getDate()).padStart(2, "0");
+    parts.push(rec.checkIn.lastWeekOf === mondayIso ? "check-in reviewed" : "no check-in this week");
+  }
+  if (parts.length < 2 && rec.streaks && rec.streaks.current != null) parts.push(rec.streaks.current + "d streak");
+  if (parts.length < 2 && rec.trainingAdherence && rec.trainingAdherence.pct != null) parts.push(rec.trainingAdherence.pct + "% adherence");
+  return parts.length ? parts.slice(0, 2).join(" · ") : null;
+}
+
+function dashFindRecord(clients, who) {
+  const key = String(who || "").trim().toLowerCase();
+  if (!key) return null;
+  return (clients || []).find((c) => String(c.client ? c.client.profile.name : c.profile.name).trim().toLowerCase() === key) || null;
+}
+
+function dashClientSlugHref(name) {
+  const slug = String(name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return "ClientProfile.html?client=" + encodeURIComponent(slug);
+}
+
+// Expandable schedule rows (step 4.1) — same anatomy as DashShell's default
+// rows (time / who+sub / DONE-NEXT pill), tap to reveal the pre-session
+// context line + inline actions: Message · Last notes · Start log.
+function ExpandableSchedule({ schedule, clients, role }) {
+  const [openIdx, setOpenIdx] = React.useState(null);
+  const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
+  return (
+    <div>
+      {schedule.map((s, i) => {
+        const open = openIdx === i;
+        const rec = dashFindRecord(clients, s.who);
+        const context = dashContextLine(rec);
+        const expandable = s.time !== "—"; // skip the "No sessions today" placeholder
+        return (
+          <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+            <div onClick={() => expandable && setOpenIdx(open ? null : i)} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", cursor: expandable ? "pointer" : "default" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{s.time}</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>
+                  {expandable && <span style={{ display: "inline-block", width: 14, color: "rgba(242,237,228,0.45)", fontSize: 10 }}>{open ? "▾" : "▸"}</span>}
+                  {s.who}
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2, paddingLeft: expandable ? 14 : 0 }}>{s.sub}</div>
+              </div>
+              {s.status && (
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4,
+                  background: s.status === "DONE" ? "rgba(242,237,228,0.08)" : s.status === "NEXT" ? TEAL : "rgba(242,237,228,0.08)",
+                  color: s.status === "NEXT" ? PAPER : "rgba(242,237,228,0.65)",
+                  border: s.status === "DONE" ? "1px solid rgba(242,237,228,0.12)" : "none",
+                }}>{s.status}</span>
+              )}
+            </div>
+            {open && (
+              <div style={{ padding: "0 4px 14px 80px" }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "#2ee0c4", marginBottom: 9 }}>
+                  {context || "No shared history yet"}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button onClick={() => dashMessageClient(s.who, role)} style={actionStyle}>Message</button>
+                  <a href={dashClientSlugHref(s.who)} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Last notes</a>
+                  <a href={role === "nutritionist" ? "NutritionistLiveConsole.html" : "TrainerLiveConsole.html"} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Start log</a>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Programming queue (step 4.2) — who needs next week's plan, from the hook's
+// checkIn-derived queue. "Write plan" marks the item done for this week
+// (localStorage, keyed by the week's Monday, so it survives reloads and
+// resets cleanly next week).
+function dashQueueWeekKey() {
+  const m = DashSignals._internals.mondayOf(new Date());
+  return "shape.dashQueueDone." + m.getFullYear() + "-" + String(m.getMonth() + 1).padStart(2, "0") + "-" + String(m.getDate()).padStart(2, "0");
+}
+function ProgrammingQueuePanel({ queue, role }) {
+  const [done, setDone] = React.useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(dashQueueWeekKey()) || "[]")); } catch (e) { return new Set(); }
+  });
+  const toggle = (id) => setDone((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    try { localStorage.setItem(dashQueueWeekKey(), JSON.stringify([...next])); } catch (e) {}
+    return next;
+  });
+  const ink50 = "rgba(242,237,228,0.55)";
+  const rows = [...queue].sort((a, b) => {
+    const da = done.has(a.client.profile.id) ? 1 : 0, db = done.has(b.client.profile.id) ? 1 : 0;
+    return da - db; // done items sink; the queue's ready→blocked order holds otherwise
+  });
+  if (!rows.length) return <div style={{ fontSize: 13, color: ink50 }}>No one in the queue — check-in data will populate it.</div>;
+  const remaining = rows.filter((r) => !done.has(r.client.profile.id) && r.state === "ready").length;
+  return (
+    <div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50, marginBottom: 10 }}>
+        {remaining} ready to program · week of {dashQueueWeekKey().slice(-10)}
+      </div>
+      {rows.map((r, i) => {
+        const id = r.client.profile.id;
+        const isDone = done.has(id);
+        const blocked = r.state === "blocked";
+        const c = isDone ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";
+        return (
+          <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", opacity: isDone ? 0.6 : 1 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: c }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13.5, fontWeight: 500, textDecoration: isDone ? "line-through" : "none" }}>{r.client.profile.name}</span>
+                <DashPill c={c}>{isDone ? "✓ Plan written" : blocked ? "Waiting on check-in" : "Ready"}</DashPill>
+              </div>
+              <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50 }}>{r.reason}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <a href={role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html"} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
+              <button onClick={() => toggle(id)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: isDone ? "rgba(242,237,228,0.55)" : "#06231f", background: isDone ? "transparent" : "#2ee0c4", border: isDone ? "1px solid rgba(242,237,228,0.18)" : "0", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+                {isDone ? "Undo" : "Write plan"}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TriagePulsePanel({ feed, role }) {
   // Urgency order: at-risk (red, then amber — the feed is already sorted),
   // then brand-new clients, then on-track.
@@ -261,7 +407,7 @@ function TriagePulsePanel({ feed, role }) {
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
-  const { today: live, triage } = useDashboard(role);
+  const { today: live, triage, clients, queue } = useDashboard(role);
 
   const firstName = live ? live.user.firstName : cfg.mockName;
   const kpis = live ? [
@@ -311,10 +457,17 @@ function CoachDashboardPage({ role }) {
       pulseTitle="Client pulse"
       pulse={pulse}
       pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} /> : undefined}
-      extraSections={[{
-        title: "Recent payouts",
-        render: () => <RecentPayouts rows={cfg.payoutRows} />,
-      }]}
+      scheduleRender={cfg.expandSchedule ? () => <ExpandableSchedule schedule={schedule} clients={clients} role={role} /> : undefined}
+      extraSections={[
+        ...(cfg.programmingQueue ? [{
+          title: "Programming queue",
+          render: () => <ProgrammingQueuePanel queue={queue} role={role} />,
+        }] : []),
+        {
+          title: "Recent payouts",
+          render: () => <RecentPayouts rows={cfg.payoutRows} />,
+        },
+      ]}
     />
   );
 }

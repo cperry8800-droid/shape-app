@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { THRESHOLDS, evaluateClient, getTriageFeed, buildMockClients } =
+const { THRESHOLDS, evaluateClient, getTriageFeed, buildProgrammingQueue, buildMockClients } =
   require("../public/newdesign/dashSignals.js");
 
 // Fixed reference clock: Friday 2026-06-12 (day-into-week 4 ≥ grace 3, so the
@@ -201,4 +201,31 @@ test("mock personas are stable on any weekday (no grace-dependent flips)", () =>
     assert.equal(by["Jonah W."], "red", "Jonah red on day " + d);
     assert.equal(by["Jordan M."], "green", "Jordan green on day " + d);
   }
+});
+
+// ── programming queue (step 4.2) ────────────────────────────────────────────
+test("queue: current-week check-in = ready; missing = blocked; null checkIn excluded", () => {
+  const rows = [
+    clean({ profile: { id: "a", name: "A", isNew: false }, checkIn: { lastWeekOf: mondaysAgo(0) } }),
+    clean({ profile: { id: "b", name: "B", isNew: false }, checkIn: { lastWeekOf: mondaysAgo(1) } }),
+    clean({ profile: { id: "c", name: "C", isNew: true },  checkIn: { lastWeekOf: null } }),
+    clean({ profile: { id: "d", name: "D", isNew: false }, checkIn: null }),
+  ];
+  const q = buildProgrammingQueue(rows, NOW);
+  assert.deepEqual(q.map((r) => [r.client.profile.id, r.state]), [["a", "ready"], ["b", "blocked"], ["c", "blocked"]]);
+  assert.match(q[1].reason, /this week's check-in/);
+  assert.match(q[2].reason, /first check-in/);
+});
+test("queue sorts ready before blocked with name tiebreak", () => {
+  const rows = [
+    clean({ profile: { id: "z", name: "Zed", isNew: false }, checkIn: { lastWeekOf: mondaysAgo(2) } }),
+    clean({ profile: { id: "m", name: "Mia", isNew: false }, checkIn: { lastWeekOf: mondaysAgo(0) } }),
+    clean({ profile: { id: "k", name: "Kai", isNew: false }, checkIn: { lastWeekOf: mondaysAgo(0) } }),
+  ];
+  assert.deepEqual(buildProgrammingQueue(rows, NOW).map((r) => r.client.profile.name), ["Kai", "Mia", "Zed"]);
+});
+test("queue over the mock personas: 7 ready, Jonah + Tess blocked", () => {
+  const q = buildProgrammingQueue(buildMockClients(NOW), NOW);
+  assert.equal(q.filter((r) => r.state === "ready").length, 7);
+  assert.deepEqual(q.filter((r) => r.state === "blocked").map((r) => r.client.profile.name).sort(), ["Jonah W.", "Tess B."]);
 });

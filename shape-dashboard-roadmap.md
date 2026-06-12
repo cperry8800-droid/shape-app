@@ -124,6 +124,17 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Expandable schedule + Programming queue** (step 4, trainer):
+  schedule rows expand to a pre-session context line ("2.8 lb from goal
+  weight · check-in reviewed" — the unified record gained a `goal`
+  field, live-fillable from `get_client_goals.overall.target`) + inline
+  Message / Last notes / Start log actions, DONE/NEXT preserved. New
+  Programming-queue panel from the pure `buildProgrammingQueue(clients)`
+  (exposed as `queue` on the hook): current-week check-in in → ready,
+  else blocked ("waiting on this/first check-in"); Template shortcut +
+  "Write plan" marks done (localStorage, keyed by week Monday, resets
+  next week). `DashShell` gained a `scheduleRender` slot; kit
+  `?v=20260612c`. Tests 24/24.
 - ✅ **Trainer Client Pulse = the triage feed** (step 3): `TriagePulsePanel`
   in `dashToday.jsx` renders `getTriageFeed('trainer')` regrouped at-risk →
   new → on-track, with severity-colored reason pills (engine flags now carry
