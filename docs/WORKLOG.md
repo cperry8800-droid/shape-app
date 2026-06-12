@@ -100,6 +100,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Milestone Shape points · goals tabs live-wired · habits demo lock + more demo habits
+- **Migration `2026-06-12-goal-milestone-points.sql`** (**run on Supabase**):
+  `award_my_goal_milestones()` — SECURITY INVOKER, self-scoped. Reads the Overall
+  goal (user_goals client_goals) + latest `client_weigh_ins` row, computes the
+  25/50/75/goal thresholds (cut or build), and credits **+50/+75/+100/+200 pts**
+  into `score_ledger` (category other, source_kind `goal_milestone`, deterministic
+  md5-uuid source_id → the existing dedupe index makes it idempotent). Returns
+  only newly credited milestones.
+- **Client wiring**: `window.ShapeGoalAwards.check` (shapeBackend) runs after every
+  weigh-in log AND on Goals-page open (catch-up) — each new credit toasts
+  "+N pts · {milestone}" and invalidates the metrics cache.
+- **Goals Training/Nutrition tabs wired to the real account** (demo stays the
+  fallback, per request): Training hero/stats/lifts/milestones derive from
+  `ShapeProgress.train` (PRs → done milestones + next target, avg RPE, streak);
+  Nutrition milestones use the live weigh-in trajectory (same auto-✓ math as
+  Overall). Overall milestones were already live.
+- **Home habits card**: demo-gated checkboxes now show a 🔒 (matching the app's
+  other gates) and route to the habits page; live accounts keep the working
+  check-off. **Demo habit set +5 rows** (vitamins · morning sunlight · journal ·
+  no smoking · no added sugar) and the add-sheet suggestion chips expanded
+  (10 do / 9 avoid).
+
 ### 2026-06-12 — Home: one meals card · live habit check-off (+pts flash, rows leave) · compact goal card above the day
 - **All meals of the day are now ONE agenda card** (same chrome as the workout
   card): "{Today/Weekday}'s meals." with each meal sectioned off inside — slot ·

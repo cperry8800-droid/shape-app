@@ -3467,7 +3467,21 @@ async function logWeighIn({ weight, unit = 'kg' } = {}) {
   invalidateClientMetrics();
   return data;
 }
+// Goal-milestone Shape points: the RPC checks the Overall goal trajectory
+// against the latest weigh-in and credits any newly reached 25/50/75/goal
+// milestone into score_ledger (idempotent — same pattern as award_tier_bonuses).
+// Returns [{ milestone, points }] for the milestones credited by THIS call.
+async function awardGoalMilestones() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase.rpc('award_my_goal_milestones');
+    if (error || !Array.isArray(data) || !data.length) return [];
+    invalidateClientMetrics();
+    return data;
+  } catch (e) { return []; }
+}
 window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };
+window.ShapeGoalAwards = { check: awardGoalMilestones };
 
 window.ShapeMessages = {
   getOrCreateDirectConversation,

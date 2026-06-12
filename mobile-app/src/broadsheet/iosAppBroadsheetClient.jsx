@@ -2505,7 +2505,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
                       </div>
                       <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={`Mark ${h.name} done`} style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${pillC}`, background: `${pillC}10`, cursor: 'pointer', padding: 0 }} />
+                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${pillC}`, background: `${pillC}10`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 9.5, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
                     </div>
                   );
                 })}
@@ -12025,23 +12025,36 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
 
 // The Training tab — a strength-held dashboard (rust). Lift targets, milestones,
 // program. Illustrative demo content; the headline title/subtitle are editable.
-function BSGoalsTraining({ onOpenProgram }) {
+function BSGoalsTraining({ onOpenProgram, train = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const rust = t.RUST, purple = '#8a5cf6';
+  // Live account data when present (ShapeProgress.train rollup — same source as
+  // the Progress hub), demo otherwise. Stats/lifts/milestones all live-or-demo.
+  const ts = (train && train.stats) || null;
+  const livePrs = (train && Array.isArray(train.prs) && train.prs.length) ? train.prs : null;
   const stats = [
-    { l: 'Sessions', c: rust, v: '14', u: '/16', sub: 'This block' },
-    { l: 'Streak', c: teal, v: '8d', u: '', sub: 'Consistency' },
-    { l: 'Avg RPE', c: t.AMBER, v: '7.5', u: '', sub: 'Effort logged' },
-    { l: 'PRs', c: purple, v: '1', u: '', sub: 'During cut' },
+    { l: 'Sessions', c: rust, v: ts && ts.completedCount != null ? String(ts.completedCount) : '14', u: ts ? '' : '/16', sub: ts ? 'Logged' : 'This block' },
+    { l: 'Streak', c: teal, v: ts && ts.currentStreak != null ? `${ts.currentStreak}d` : '8d', u: '', sub: 'Consistency' },
+    { l: 'Avg RPE', c: t.AMBER, v: ts && ts.avgRpe != null ? String(ts.avgRpe) : '7.5', u: '', sub: 'Effort logged' },
+    { l: 'PRs', c: purple, v: livePrs ? String(livePrs.length) : '1', u: '', sub: livePrs ? 'From your sets' : 'During cut' },
   ];
-  const lifts = [
-    { t: 'Bench Press', w: '90 kg', d: '+5.0', pct: 0.84 },
-    { t: 'Back Squat', w: '120 kg', d: '+5.0', pct: 0.72 },
-    { t: 'Barbell Row', w: '75 kg', d: '+2.5', pct: 0.6 },
-    { t: 'Deadlift', w: '150 kg', d: 'held', pct: 1 },
-  ];
-  const milestones = [
+  const lifts = livePrs
+    ? livePrs.slice(0, 4).map((p, i) => ({ t: p.lift, w: `${p.value} ${p.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held', pct: Math.max(0.45, 1 - i * 0.16) }))
+    : [
+      { t: 'Bench Press', w: '90 kg', d: '+5.0', pct: 0.84 },
+      { t: 'Back Squat', w: '120 kg', d: '+5.0', pct: 0.72 },
+      { t: 'Barbell Row', w: '75 kg', d: '+2.5', pct: 0.6 },
+      { t: 'Deadlift', w: '150 kg', d: 'held', pct: 1 },
+    ];
+  const milestones = livePrs ? (() => {
+    const out = [{ done: true, t: 'Baseline lifts logged', sub: livePrs.slice(0, 2).map(p => p.lift).join(' · ') || 'from your sets', when: '✓' }];
+    livePrs.slice(0, 3).forEach((p) => out.push({ done: true, t: `${p.lift} → ${p.value}${p.unit}`, sub: p.prev != null ? `was ${p.prev}${p.unit}` : 'new best', when: '✓' }));
+    const top = livePrs[0];
+    out.push({ n: String(out.length + 1).padStart(2, '0'), t: `${top.lift} +2.5${top.unit || ''}`, sub: 'next target off your best', when: 'Next', next: true });
+    out.push({ n: String(out.length + 1).padStart(2, '0'), t: 'Hold every lift through the block', sub: 'the whole point', when: 'End' });
+    return out;
+  })() : [
     { done: true, t: 'Baseline lifts logged', sub: 'bench 85 · squat 115', when: 'Feb' },
     { done: true, t: 'Bench +5 kg → 90 kg', sub: 'held form, no grind', when: 'Apr' },
     { n: '03', t: 'Squat 125 kg', sub: 'next · one plate away', when: 'Next', next: true },
@@ -12060,8 +12073,8 @@ function BSGoalsTraining({ onOpenProgram }) {
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <BSPlate c={rust} tick bracket pad="16px 18px 16px 24px">
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: rust }}>Strength held</div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>4<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/4 lifts</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>none dropped · bench +5 kg</div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{livePrs ? livePrs.length : 4}<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/{livePrs ? livePrs.length : 4} lifts</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>{livePrs ? `none dropped · ${livePrs[0].lift.toLowerCase()} +${Number(livePrs[0].deltaPct || 0).toFixed(1)}%` : 'none dropped · bench +5 kg'}</div>
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sessions / week</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Last 7 weeks</span>
@@ -12164,7 +12177,25 @@ function BSGoalsNutrition({ overall, onLog }) {
     { t: 'Carbs', v: '190 g', tgt: '200 g', c: gold, pct: 0.95 },
     { t: 'Fat', v: '60 g', tgt: '62 g', c: t.RUST, pct: 0.97 },
   ];
-  const milestones = [
+  // Milestones — the real weigh-in trajectory when the account has a series
+  // (same auto-✓ math as the Overall tab, nutrition-flavored subs); demo otherwise.
+  const milestones = (bsGoalWeighIns(overall).length > 1 && range !== 0 && Number.isFinite(start) && Number.isFinite(target)) ? (() => {
+    const fmt = (v) => `${Math.round(v * 10) / 10} ${unit}`;
+    const reached = (w) => range > 0 ? now <= w + 0.05 : now >= w - 0.05;
+    const defs = [
+      { w: start, t: 'Baseline', sub: 'plan + macros set' },
+      { w: start - range * 0.25, t: '25% there', sub: 'clean weeks' },
+      { w: start - range * 0.5, t: 'Halfway', sub: 'hold protein' },
+      { w: start - range * 0.75, t: '75% there', sub: 'closing in' },
+      { w: target, t: 'Goal', sub: 'then reverse, carefully' },
+    ];
+    let nextMarked = false;
+    return defs.map((m, i) => {
+      const done = reached(m.w);
+      const isNext = !done && !nextMarked; if (isNext) nextMarked = true;
+      return { done, next: isNext, n: String(i + 1).padStart(2, '0'), t: `${m.t} · ${fmt(m.w)}`, sub: m.sub, when: i === 0 ? (overall.startMonth || 'Start') : i === defs.length - 1 ? (byLabel || 'Goal') : (isNext ? 'Next' : '') };
+    });
+  })() : [
     { done: true, t: 'Baseline · 80.4 kg', sub: 'plan + macros set', when: 'Feb' },
     { done: true, t: 'First kilo down', sub: '79.4 kg · clean week', when: 'Mar' },
     { n: '03', t: 'Halfway · 78.2 kg', sub: 'add a refeed Saturdays', when: 'Next', next: true },
@@ -12370,6 +12401,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   // coach adjustment + real ShapeProgress rollups.
   const [livePlans, setLivePlans] = useStateBSC(null);
   const [liveWeek, setLiveWeek] = useStateBSC(null);
+  const [liveTrain, setLiveTrain] = useStateBSC(null);
   const bsGoalProgram = useBSProgram();
   React.useEffect(() => {
     if (!loggedIn || !window.ShapeProgress) return undefined;
@@ -12381,6 +12413,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       window.ShapePlan?.get ? window.ShapePlan.get().catch(() => null) : null,
     ]).then(([train, nutr, prog, plan]) => {
       if (!on) return;
+      setLiveTrain(train || null);
       const det = bsGoalProgram.detail || {};
       const tphase = bsGoalProgram.trainingPhase || 'Build';
       const nphase = bsGoalProgram.nutritionPhase || 'Cut';
@@ -12414,12 +12447,23 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
     const nextOverall = { ...overall, weighIns: wi, now: kg };
     if (loggedIn && window.ShapeWeighIns?.log) {
       setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
-      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg' }).catch(() => {});
+      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg' })
+        .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
+        .then((awards) => (awards || []).forEach(a => window.__bsToast?.(`+${a.points} pts · ${a.milestone}`, 'ok')))
+        .catch(() => {});
     } else {
       persist({ ...data, overall: nextOverall });              // signed out / demo → user_goals JSONB
     }
     setLogWeigh(false);
   };
+  // Catch-up milestone check on open (e.g. targets edited since the last
+  // weigh-in) — idempotent server-side, so repeat calls never double-credit.
+  React.useEffect(() => {
+    if (!loggedIn) return undefined;
+    let on = true;
+    window.ShapeGoalAwards?.check?.().then((awards) => { if (on) (awards || []).forEach(a => window.__bsToast?.(`+${a.points} pts · ${a.milestone}`, 'ok')); }).catch(() => {});
+    return () => { on = false; };
+  }, [loggedIn]);
   // Load the editable goal fields (user_goals) + the live weigh-in series. When
   // signed in, the dedicated client_weigh_ins table wins for weighIns/now.
   React.useEffect(() => {
@@ -12524,7 +12568,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
       {tab === 'overall' ? (
         <BSGoalsOverall overall={overall} onLog={() => setLogWeigh(true)} onEdit={() => setEditOverall(true)} onOpenProgress={onOpenProgress} plans={livePlans} weekTargets={liveWeek} />
       ) : tab === 'training' ? (
-        <BSGoalsTraining onOpenProgram={() => {}} />
+        <BSGoalsTraining onOpenProgram={() => {}} train={liveTrain} />
       ) : (
         <BSGoalsNutrition overall={overall} onLog={() => setLogWeigh(true)} />
       )}
