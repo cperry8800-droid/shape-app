@@ -43,12 +43,13 @@ load("public/newdesign/dashData.jsx");
 load("public/newdesign/dashToday.jsx");
 load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashRoster.jsx");
-// The roster page component lives inline in its HTML.
-const rosterHtml = readFileSync("public/newdesign/NutritionistClients.html", "utf8");
-const inline = [...rosterHtml.matchAll(/<script type="text\/babel"[^>]*>\n?([\s\S]*?)<\/script>/g)]
-  .map((m) => m[1]).filter((s) => !s.includes("ReactDOM.createRoot") || true)
-  .map((s) => s.replace(/ReactDOM\.createRoot[\s\S]*$/, ""));
-for (const block of inline) if (block.trim()) (0, eval)(compile(block, "NutritionistClients-inline"));
+// The roster page components live inline in their HTML files.
+for (const page of ["NutritionistClients", "TrainerClients"]) {
+  const html = readFileSync("public/newdesign/" + page + ".html", "utf8");
+  const blocks = [...html.matchAll(/<script type="text\/babel"[^>]*>\n?([\s\S]*?)<\/script>/g)]
+    .map((m) => m[1]).map((s) => s.replace(/ReactDOM\.createRoot[\s\S]*$/, ""));
+  for (const block of blocks) if (block.trim()) (0, eval)(compile(block, page + "-inline"));
+}
 
 const render = (el) => ReactDOMServer.renderToString(el);
 const checks = [];
@@ -64,14 +65,24 @@ try { clientHtml = render(React.createElement(g.ClientDashboardPage)); ok("Clien
 catch (e) { ok("ClientDashboard renders", false, e.message); }
 try { rosterPageHtml = render(React.createElement(g.NutritionistClientsPage)); ok("NutritionistClients renders", rosterPageHtml.length > 3000); }
 catch (e) { ok("NutritionistClients renders", false, e.message); }
+try { const t = render(React.createElement(g.TrainerClientsPage)); ok("TrainerClients renders", t.length > 3000 && t.includes("At-risk")); }
+catch (e) { ok("TrainerClients renders", false, e.message); }
 
 // Roster table + drawer with the demo feed.
 try {
   const triage = g.DashSignals.getTriageFeed("nutritionist", g.DashSignals.buildMockClients());
   const tbl = render(React.createElement(g.DashRosterTable, { triage, role: "nutritionist", filter: "all", query: "" }));
   ok("Roster table renders all personas", tbl.includes("Marcus T.") && tbl.includes("Tess B."));
-  const drawer = render(React.createElement(g.DashConsultDrawer, { row: triage[0], role: "nutritionist", onClose: () => {} }));
-  ok("Consult drawer renders", drawer.includes("Quick consult") && drawer.includes("Macros vs targets"));
+  const drawer = render(React.createElement(g.DashClientDrawer, { row: triage[0], role: "nutritionist", onClose: () => {} }));
+  ok("Nutritionist drawer renders her lens", drawer.includes("Quick consult") && drawer.includes("Macros vs targets") && drawer.includes("trainer side"));
+  // Trainer lens of the SAME shared drawer + trainer roster columns.
+  const tTriage = g.DashSignals.getTriageFeed("trainer", g.DashSignals.buildMockClients());
+  const tTbl = render(React.createElement(g.DashRosterTable, { triage: tTriage, role: "trainer", filter: "all", query: "" }));
+  ok("Trainer roster shows training columns", tTbl.includes("SCORE · WK") && tTbl.includes("PROGRAM") && tTbl.includes("Strength Block 3") && tTbl.includes("ADHERENCE"));
+  const jordanRow = tTriage.find((r) => r.client.profile.name === "Jordan M.");
+  const tDrawer = render(React.createElement(g.DashClientDrawer, { row: jordanRow, role: "trainer", onClose: () => {} }));
+  ok("Trainer drawer renders his lens", tDrawer.includes("Client drilldown") && tDrawer.includes("Coach notes") && tDrawer.includes("Milestones") && tDrawer.includes("nutritionist side") && tDrawer.includes("Open full profile"));
+  ok("Trainer drawer has no nutritionist-lens sections", !tDrawer.includes("Macros vs targets"));
 } catch (e) { ok("Roster table + drawer render", false, e.message); }
 
 // ── 2. Role isolation — no leaked role-specific UI ──────────────────────────

@@ -22,6 +22,8 @@
 //     goal:      { target: n, unit, now: n|null } | null,     // body-comp goal
 //     nutrition: { avgCalories, targetCalories, avgProtein, targetProtein } | null,
 //     goalPhase: string | null,
+//     program:   { name, week, weeks } | null,                 // current training block
+//     coachNotes: [{ on: 'YYYY-MM-DD', text }] | null,         // trainer console notes
 //     milestones: [{ key, kind: 'pr'|'workout_count'|'streak'|'goal', label, hitAt? }] | null,
 //     totals:    { workouts: n } | null,                       // lifetime counts
 //     payments:  { mrrCents, status?, lastSessionAt? } | null,  // lastSessionAt = last consult/session
@@ -255,6 +257,8 @@
         goal: { target: 170, unit: "lb", now: 172.8 },
         nutrition: { avgCalories: 2080, targetCalories: 2200, avgProtein: 142, targetProtein: 150 },
         goalPhase: "Build",
+        program: { name: "Strength Block 3", week: 6, weeks: 12 },
+        coachNotes: [{ on: ago(2), text: "Bar speed good at 185 — hold top sets, add a backoff." }],
         milestones: [
           { key: "m25", kind: "goal", label: "25% to goal", hitAt: ago(40) },
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(12) },
@@ -287,6 +291,11 @@
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 3 },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
         goalPhase: "Cut",
+        program: { name: "Hypertrophy Reset", week: 2, weeks: 8 },
+        coachNotes: [
+          { on: ago(4), text: "Deload next week if bar speed stays slow." },
+          { on: ago(10), text: "Knee niggle — swapped lunges for split squats." },
+        ],
       }),
       // amber — gone quiet: no coach contact in 6 days
       person(3, "Aisha K.", {
@@ -297,6 +306,7 @@
       person(4, "Sam R.", {
         payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(9) },
         recentLogs: [],
+        program: { name: "Foundations", week: 4, weeks: 8 },
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },
         lastContact: { trainer: ago(7), nutritionist: ago(7) },
         trainingAdherence: { pct: 64, done: 9, planned: 14 },
@@ -305,6 +315,7 @@
       // running 36% under her cut target
       person(5, "Priya S.", {
         goalPhase: "Cut",
+        program: { name: "Cut · Conditioning", week: 7, weeks: 10 },
         totals: { workouts: 86 },
         milestones: [
           { key: "pr-squat", kind: "pr", label: "Squat 245 lb PR", hitAt: ago(5) },
@@ -353,6 +364,7 @@
         lastContact: { trainer: ago(0), nutritionist: null },
         checkIn: { lastWeekOf: null },
         goalPhase: "Build",
+        program: { name: "Onboarding", week: 1, weeks: 4 },
         milestones: [],
         totals: { workouts: 2 },
       }),

@@ -381,6 +381,11 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
   const ok = feed.filter((r) => r.severity === "green" && !r.client.profile.isNew);
   const rows = [...atRisk, ...fresh, ...ok];
   const ink50 = "rgba(242,237,228,0.55)";
+  // Rows open the shared client drilldown (step 11) when dashRoster.jsx is
+  // loaded on the page; the Message button keeps working either way.
+  const [openRow, setOpenRow] = React.useState(null);
+  const drawerReady = typeof window !== "undefined" && typeof window.DashClientDrawer === "function";
+  const openDrawer = (r) => { if (drawerReady) setOpenRow(r); };
 
   return (
     <div>
@@ -410,7 +415,13 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
         const pills = r.flags.slice(0, 2).map((f) => f.label);
         const extra = r.flags.length - 2;
         return (
-          <div key={c.profile.id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+          <div key={c.profile.id || i}
+            onClick={() => openDrawer(r)}
+            onKeyDown={(e) => { if (drawerReady && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openDrawer(r); } }}
+            role={drawerReady ? "button" : undefined}
+            tabIndex={drawerReady ? 0 : undefined}
+            aria-label={drawerReady ? "Open " + c.profile.name + " drilldown" : undefined}
+            style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", cursor: drawerReady ? "pointer" : "default" }}>
             <span title={r.severity} style={{ width: 7, height: 7, borderRadius: 2, background: sevColor, animation: r.severity === "red" ? "dashTick 1.6s ease-in-out infinite" : "none" }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
@@ -429,12 +440,13 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
                 {streak == null && wkPts == null && contact == null && "—"}
               </div>
             </div>
-            <button onClick={() => dashMessageClient(c.profile.name, role)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+            <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
               Message
             </button>
           </div>
         );
       })}
+      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setOpenRow(null)} />}
     </div>
   );
 }

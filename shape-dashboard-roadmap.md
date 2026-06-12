@@ -124,6 +124,19 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 11 — trainer roster + the SHARED drilldown drawer**:
+  `TrainerClients.html` rebuilt on the v2 stack with training columns
+  (Shape Score + wk delta · adherence % · program + week · streak · last
+  contact — every cell real or labelled), triage filters with the
+  "At-risk" lead, demo band, honest MRR sidebar. `DashRosterTable` is now
+  role-configured (`DASH_ROSTER_VIEWS`), and the drawer is ONE shared
+  `DashClientDrawer` with role lenses (`DASH_DRAWER_VIEWS`): trainer =
+  score history · adherence · coach notes · milestones · read-only
+  nutrition summary; nutritionist keeps her consult lens. It opens from
+  any roster row AND from the Client Pulse rows on both Today pages
+  (Message buttons stopPropagation; keyboard accessible). Record gains
+  `program {name, week, weeks}` + `coachNotes` (live null → honest empty
+  states). Render review 39/39.
 - ✅ **Step 10 — full review + fixes**: `scripts/dash-render-review.mjs`
   (offline; Next's compiled Babel + ReactDOMServer) renders every v2 page
   with pageShell stubbed — 35/35: all pages render error-free, role
@@ -289,8 +302,8 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 - 1.5: demo band on the 4 v2 pages only.
 
 **Phase 2**
-- 2.4: TrainerClients roster not yet collapsed onto `dashRoster.jsx` (old
-  columns, name-slug links, dead buttons); id-based `?u=` client links.
+- 2.4: ~~TrainerClients roster~~ ✅ collapsed in step 11; id-based `?u=`
+  client links still open (rosters link by name slug).
 - Data-layer backend extensions: batch overview endpoint (N+1), coach-
   readable weekly score history, lastContact thread timestamps, goalPhase
   in the overview API, per-day food logs + last-logged date, plan
