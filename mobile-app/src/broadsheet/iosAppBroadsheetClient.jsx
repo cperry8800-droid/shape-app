@@ -1481,7 +1481,15 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         .catch(() => {});
     } catch (e) {}
   };
-  const doLog = () => { sendMealNote(); onLogged(); setLogged(true); };
+  const doLog = () => {
+    sendMealNote();
+    // Persist the logged macros onto today's health snapshot so the Nutrition
+    // stats (today vs target, adherence) reflect real logging — server-side
+    // accumulating write; no-ops when signed out.
+    try { window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F }); } catch (e) {}
+    onLogged();
+    setLogged(true);
+  };
   const primaryBtn = { width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' };
 
   const DayTotals = ({ compact }) => (
@@ -3600,7 +3608,12 @@ function BSMealPreview({ meal, onBack, onLog }) {
           padding: '0 14px', border: `1px solid ${mealSaved ? teal : t.RULE}`, borderLeft: mealSaved ? `3px solid ${teal}` : `1px solid ${t.RULE}`, background: mealSaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: mealSaved ? teal : t.INK, cursor: 'pointer',
           fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
         }}>{mealSaved ? '✓ Saved' : '♡ Save'}</button>
-        <button onClick={onLog ? onLog : () => setJustLogged(true)} style={{
+        <button onClick={onLog ? onLog : () => {
+          // One-tap "ate as planned" — also persist the meal's macros onto
+          // today's snapshot so the Nutrition stats track real logging.
+          try { window.ShapeMealLog?.log?.({ kcal: meal.kcal, protein: meal.p, carbs: meal.c, fat: meal.f }); } catch (e) {}
+          setJustLogged(true);
+        }} style={{
           flex: 1, border: 0, borderRadius: 5, background: teal, color: '#04201d', cursor: 'pointer',
           clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)',
           padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: onLog ? 'center' : 'space-between', gap: 8,
@@ -12362,9 +12375,11 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const unit = overall.unit || 'kg';
   const [kg, setKg] = useStateBSC(String(bsGoalNow(overall) || ''));
+  const [bf, setBf] = useStateBSC('');
   const inputRef = React.useRef(null);
   React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
   const val = parseFloat(kg);
+  const bfVal = parseFloat(bf);
   const ok = Number.isFinite(val) && val > 0;
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
@@ -12372,13 +12387,18 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log · Weigh-in</div>
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Today's <span style={{ fontStyle: 'italic', color: teal }}>weight.</span></div>
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '14px 16px' }}>
-          <input ref={inputRef} value={kg} onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em' }} />
+          <input ref={inputRef} value={kg} onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val, Number.isFinite(bfVal) ? bfVal : null); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em' }} />
           <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>{unit}</span>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '11px 16px' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, flexShrink: 0 }}>Body fat · optional</span>
+          <input value={bf} onChange={(e) => setBf(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="—" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', textAlign: 'right' }} />
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>%</span>
         </div>
         <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates your trend + progress · start {Number(overall.start).toLocaleString()} · target {Number(overall.target).toLocaleString()}</div>
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => ok && onSave(val)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? teal : t.RULE, color: ok ? '#04201d' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save weigh-in</button>
+          <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? teal : t.RULE, color: ok ? '#04201d' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save weigh-in</button>
         </div>
       </div>
     </div>
@@ -12441,14 +12461,14 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
     }).catch(() => {});
     return () => { on = false; };
   }, [loggedIn, bsGoalProgram.detail, bsGoalProgram.trainingPhase, bsGoalProgram.nutritionPhase]);
-  const logWeighIn = (kg) => {
+  const logWeighIn = (kg, bodyFat = null) => {
     const today = new Date().toISOString().slice(0, 10);
     const prev = bsGoalWeighIns(overall);
     const wi = (prev.length && prev[prev.length - 1].d === today) ? [...prev.slice(0, -1), { d: today, kg }] : [...prev, { d: today, kg }];
     const nextOverall = { ...overall, weighIns: wi, now: kg };
     if (loggedIn && window.ShapeWeighIns?.log) {
       setData(d => ({ ...d, overall: nextOverall }));          // optimistic; table is the source of truth
-      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg' })
+      window.ShapeWeighIns.log({ weight: kg, unit: overall.unit || 'kg', bodyFat })
         .then(() => window.ShapeGoalAwards?.check?.())         // credit any newly reached milestone
         .then((awards) => (awards || []).forEach(a => window.__bsToast?.(`+${a.points} pts · ${a.milestone}`, 'ok')))
         .catch(() => {});

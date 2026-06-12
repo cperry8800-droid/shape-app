@@ -2005,6 +2005,28 @@ async function saveStructuredWorkoutSession({
     if (error) throw error;
   }
 
+  // Roll the session into today's health snapshot so the Progress volume
+  // series counts in-app workouts (integrations write the same column for
+  // device-synced workouts). Accumulates — best-effort, never blocks the save.
+  try {
+    const day = String(sessionEndedAt || new Date().toISOString()).slice(0, 10);
+    const mins = Math.max(1, Math.round(Number(durationSeconds || 0) / 60));
+    const { data: snap } = await supabase
+      .from('daily_health_snapshot')
+      .select('workout_minutes')
+      .eq('user_id', state.user.id)
+      .eq('snapshot_date', day)
+      .maybeSingle();
+    if (snap) {
+      await supabase.from('daily_health_snapshot')
+        .update({ workout_minutes: Number(snap.workout_minutes || 0) + mins })
+        .eq('user_id', state.user.id).eq('snapshot_date', day);
+    } else {
+      await supabase.from('daily_health_snapshot')
+        .insert({ user_id: state.user.id, snapshot_date: day, workout_minutes: mins });
+    }
+  } catch (e) { /* snapshot rollup is best-effort */ }
+
   return {
     stored: 'supabase',
     data: {
@@ -3453,20 +3475,49 @@ async function listWeighIns() {
   if (error) return null;
   return (data || []).map(r => ({ d: r.logged_on, kg: Number(r.weight), unit: r.unit || 'kg' }));
 }
-async function logWeighIn({ weight, unit = 'kg' } = {}) {
+async function logWeighIn({ weight, unit = 'kg', bodyFat = null } = {}) {
   if (!supabase || !state.user?.id) return null;
   const w = Number(weight);
   if (!Number.isFinite(w)) return null;
   const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabase
+  const bf = Number(bodyFat);
+  const row = { user_id: state.user.id, logged_on: today, weight: w, unit };
+  if (Number.isFinite(bf) && bf > 0 && bf < 75) row.body_fat_pct = bf;
+  let { data, error } = await supabase
     .from('client_weigh_ins')
-    .upsert({ user_id: state.user.id, logged_on: today, weight: w, unit }, { onConflict: 'user_id,logged_on' })
+    .upsert(row, { onConflict: 'user_id,logged_on' })
     .select('logged_on, weight')
     .maybeSingle();
+  // Pre-migration safety: retry without body_fat_pct if the column is missing.
+  if (error && row.body_fat_pct != null && /body_fat_pct/.test(String(error.message || ''))) {
+    delete row.body_fat_pct;
+    ({ data, error } = await supabase
+      .from('client_weigh_ins')
+      .upsert(row, { onConflict: 'user_id,logged_on' })
+      .select('logged_on, weight')
+      .maybeSingle());
+  }
   if (error) throw error;
   invalidateClientMetrics();
   return data;
 }
+// Meal-log macros → today's daily_health_snapshot (accumulating server-side),
+// so the Nutrition tab / macro adherence reflect what was actually logged.
+async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/meal-log`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      body: JSON.stringify({ kcal, protein, carbs, fat, hydrationL }),
+    });
+    if (!res.ok) return null;
+    invalidateClientMetrics();
+    return res.json();
+  } catch (e) { return null; }
+}
+window.ShapeMealLog = { log: logMealMacros };
 // Goal-milestone Shape points: the RPC checks the Overall goal trajectory
 // against the latest weigh-in and credits any newly reached 25/50/75/goal
 // milestone into score_ledger (idempotent — same pattern as award_tier_bonuses).
