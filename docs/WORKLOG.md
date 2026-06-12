@@ -100,6 +100,18 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Dashboard side nav stays on Profile/Me + client "Me" → "Profile" (#1285)
+- **`LiveProfilePage` gains `shell`** (`{ navItems, payoutCard }`): the living
+  profile renders INSIDE the dashboard chrome (site Header + `DashSidebar` +
+  main) so the side nav + Shape Score card stay present on TrainerProfile /
+  NutritionistProfile / ClientMe. `DesktopProfile` gains a `chrome` flag
+  (drops its own header/footer when embedded — exactly one Header). All
+  states wrap (loading/sign-in/demo/live); in-page "Back to dashboard"
+  links removed. MemberProfile (public page) keeps standalone chrome.
+- **Client dashboard nav renamed "Me" → "Profile"** (`clientNav.jsx`);
+  ClientMe passes the `"profile"` active key.
+- Tags: `livingDesktop.jsx?v=23` · `livingProfilePage.jsx?v=20260612c`.
+
 ### 2026-06-12 — Living profile everywhere + signed-out demo mode (#1283)
 - **`LiveProfilePage` gains `demoRole`** — signed out, the page renders the
   LV_PEOPLE demo persona on the real living layout under a "Preview · demo
