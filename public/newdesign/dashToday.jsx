@@ -98,12 +98,6 @@ const DASH_TODAY_ROLES = {
       { date: "2026-04-28", time: "17:30", kind: "CHECKIN", title: "Monthly review · Priya", sub: "With Rae" },
       { date: "2026-04-30", time: "15:00", kind: "ADMIN",   title: "Month close-out", sub: "Admin" },
     ],
-    payoutRows: [
-      { date: "Apr 7, 2026",  mid: "32 subscribers", amount: "$2,612.00" },
-      { date: "Mar 31, 2026", mid: "31 subscribers", amount: "$2,530.50" },
-      { date: "Mar 24, 2026", mid: "30 subscribers", amount: "$2,449.00" },
-      { date: "Mar 17, 2026", mid: "30 subscribers", amount: "$2,449.00" },
-    ],
   },
 
   nutritionist: {
@@ -168,12 +162,6 @@ const DASH_TODAY_ROLES = {
       { date: "2026-04-24", time: "13:00", kind: "PLAN",    title: "Weekly plan drops", sub: "6 clients" },
       { date: "2026-04-28", time: "17:30", kind: "CONSULT", title: "Monthly review · Priya", sub: "With Maya" },
       { date: "2026-04-30", time: "11:00", kind: "ADMIN",   title: "Month close-out", sub: "Admin" },
-    ],
-    payoutRows: [
-      { date: "Apr 7, 2026",  mid: "26 subscribers", amount: "$1,820.00" },
-      { date: "Mar 31, 2026", mid: "25 subscribers", amount: "$1,750.00" },
-      { date: "Mar 24, 2026", mid: "24 subscribers", amount: "$1,680.00" },
-      { date: "Mar 17, 2026", mid: "24 subscribers", amount: "$1,680.00" },
     ],
   },
 };
@@ -408,6 +396,133 @@ function TriagePulsePanel({ feed, role }) {
   );
 }
 
+
+// ── Step 8 business panels — real data or an honest "connects soon" state ───
+
+// 90-day growth: weekly subscriber adds + the MRR they brought. Live series
+// is REAL (subscriptions.created_at); payout-flavored history stays "—" until
+// payouts go live. Demo shows the example series.
+const DASH_DEMO_GROWTH = {
+  trainer: { weeklyAdds: [1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 20000 })), momPct: 9 },
+  nutritionist: { weeklyAdds: [0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2].map((c, i) => ({ weekOf: "w" + i, count: c, addedCents: c * 16000 })), momPct: 12 },
+};
+function DashGrowthPanel({ live, role }) {
+  const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
+  const ink50 = "rgba(242,237,228,0.55)";
+  if (!g || !Array.isArray(g.weeklyAdds) || !g.weeklyAdds.length) {
+    return <div style={{ fontSize: 13, color: ink50 }}>Growth history connects when payouts go live — current numbers are in the stat bar.</div>;
+  }
+  const counts = g.weeklyAdds.map((w) => w.count);
+  const max = Math.max(...counts, 1);
+  const totalAdds = counts.reduce((s, c) => s + c, 0);
+  const addedCents = g.weeklyAdds.reduce((s, w) => s + (w.addedCents || 0), 0);
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 56, flex: 1, minWidth: 200 }}>
+          {counts.map((c, i) => (
+            <div key={i} title={c + " new"} style={{ flex: 1, height: Math.max(6, Math.round((c / max) * 100)) + "%", background: c ? "#2ee0c4" : "rgba(242,237,228,0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 22, flexShrink: 0 }}>
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{totalAdds}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>New subscribers · 90d</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{dashMoney(addedCents)}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>MRR added · gross</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, color: g.momPct == null ? ink50 : g.momPct >= 0 ? "#7bbf5a" : "#e0644b" }}>{g.momPct == null ? "—" : (g.momPct >= 0 ? "+" : "") + g.momPct + "%"}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>Adds · MoM</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", color: ink50, marginTop: 10 }}>
+        Weekly subscriber adds · payout history connects when payouts go live
+      </div>
+    </div>
+  );
+}
+
+// Marketplace funnel: profile views → consults → signed. Views aren't tracked
+// yet → honest "connects soon"; consults + signings are real on live.
+const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
+const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
+function DashFunnelPanel({ live }) {
+  const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
+  const ink50 = "rgba(242,237,228,0.55)";
+  if (!f) return <div style={{ fontSize: 13, color: ink50 }}>Funnel data connects soon.</div>;
+  const stages = [
+    { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
+    { l: "Consults · 90d", v: f.consults90 },
+    { l: "Signed clients · 90d", v: f.signed90 },
+  ];
+  const maxV = Math.max(...stages.map((s) => s.v || 0), 1);
+  const close = f.consults90 > 0 ? Math.round((f.signed90 / f.consults90) * 100) : null;
+  const insight = close != null
+    ? close >= DASH_FUNNEL_BENCHMARK
+      ? "Your consult→client close rate is " + close + "% — above the ~" + DASH_FUNNEL_BENCHMARK + "% marketplace benchmark. The lever now is more consults at the top."
+      : "Your consult→client close rate is " + close + "% vs the ~" + DASH_FUNNEL_BENCHMARK + "% benchmark — tightening the intake call converts more of the consults you already get."
+    : "Book consults from the marketplace to start the funnel — signings are tracked automatically.";
+  return (
+    <div>
+      {stages.map((s, i) => (
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "150px 1fr auto", gap: 12, alignItems: "center", padding: "7px 0" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50 }}>{s.l}</span>
+          <div style={{ position: "relative", height: 9, background: "rgba(242,237,228,0.07)", borderRadius: 2 }}>
+            {s.v != null && <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.max(3, Math.round((s.v / maxV) * 100)) + "%", background: "#2ee0c4", opacity: 0.45 + i * 0.27, borderRadius: 2 }} />}
+          </div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: s.v == null ? ink50 : "#f2ede4", fontStyle: s.v == null ? "italic" : "normal" }}>{s.v == null ? s.note : s.v.toLocaleString()}</span>
+        </div>
+      ))}
+      <div style={{ borderTop: "1px dashed rgba(242,237,228,0.16)", marginTop: 8, paddingTop: 9, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", color: ink50 }}>BENCHMARK · ~{DASH_FUNNEL_BENCHMARK}% CONSULT→SIGNED</span>
+        {close != null && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", color: close >= DASH_FUNNEL_BENCHMARK ? "#7bbf5a" : "#d8a23a" }}>YOU · {close}%</span>}
+      </div>
+      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)", lineHeight: 1.55, marginTop: 9 }}>{insight}</div>
+    </div>
+  );
+}
+
+// Nutritionist roster aggregates + the recipe-publishing insight.
+function DashNutriAggPanel({ clients, live }) {
+  const ink50 = "rgba(242,237,228,0.55)";
+  const withLogs = clients.filter((c) => c.foodLogs && c.foodLogs.daysLogged7d != null);
+  const avgCompliance = withLogs.length
+    ? Math.round((withLogs.reduce((s, c) => s + Math.min(7, c.foodLogs.daysLogged7d), 0) / (withLogs.length * 7)) * 100)
+    : null;
+  const pctLogged = withLogs.length
+    ? Math.round((withLogs.filter((c) => c.foodLogs.daysLogged7d > 0).length / withLogs.length) * 100)
+    : null;
+  const renewals = live ? null : 4; // billing dates aren't exposed yet
+  const cellStyle = { background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "13px 15px" };
+  const stat = (k, l, sub) => (
+    <div style={cellStyle}>
+      <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: k === "—" ? ink50 : "#f2ede4" }}>{k}</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 5 }}>{l}</div>
+      {sub && <div style={{ fontSize: 10, color: ink50, marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        {stat(avgCompliance != null ? avgCompliance + "%" : "—", "Avg compliance · 7d", avgCompliance == null ? "no shared logs yet" : null)}
+        {stat(pctLogged != null ? pctLogged + "%" : "—", "Logged this week", pctLogged == null ? "no shared logs yet" : null)}
+        {stat(renewals != null ? String(renewals) : "—", "Renewals due · 30d", renewals == null ? "connects when billing dates go live" : null)}
+      </div>
+      <div style={{ marginTop: 12, padding: "12px 15px", background: "rgba(216,162,58,0.07)", border: "1px solid rgba(216,162,58,0.25)", borderLeft: "3px solid #d8a23a", borderRadius: 4 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d8a23a" }}>Insight · recipes</div>
+        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.8)", lineHeight: 1.55, marginTop: 6 }}>
+          Clients with fresh recipes in their plan log meals more consistently — your lowest-compliance clients are the first place a new recipe drop pays off.
+        </div>
+        <a href="NutritionistPlans.html" style={{ display: "inline-block", marginTop: 9, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d8a23a", textDecoration: "none" }}>Publish a recipe →</a>
+      </div>
+    </div>
+  );
+}
+
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
@@ -473,7 +588,9 @@ function CoachDashboardPage({ role }) {
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}
-      payoutCard={cfg.payoutCard()}
+      payoutCard={live
+        ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }
+        : cfg.payoutCard()}
       kpis={kpisOut}
       scheduleTitle={cfg.scheduleTitle}
       calendarEvents={calendarEvents}
@@ -487,9 +604,16 @@ function CoachDashboardPage({ role }) {
           title: "Programming queue",
           render: () => <ProgrammingQueuePanel queue={queue} role={role} />,
         }] : []),
+        ...(role === "nutritionist" ? [{
+          title: "Roster health",
+          render: () => <DashNutriAggPanel clients={clients} live={live} />,
+        }] : [{
+          title: "Growth · 90 days",
+          render: () => <DashGrowthPanel live={live} role={role} />,
+        }]),
         {
-          title: "Recent payouts",
-          render: () => <RecentPayouts rows={cfg.payoutRows} />,
+          title: "Marketplace funnel",
+          render: () => <DashFunnelPanel live={live} />,
         },
       ]}
     />

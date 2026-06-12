@@ -17,11 +17,11 @@
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
 <script src="dashSignals.js?v=20260612d"></script>
 <script type="text/babel" src="dashData.jsx?v=20260612e"></script>
-<script type="text/babel" src="dashToday.jsx?v=20260612d"></script>
+<script type="text/babel" src="dashToday.jsx?v=20260612e"></script>
 <script type="text/babel" src="dashRoster.jsx?v=20260612"></script>
 <script type="text/babel">
 function NutritionistClientsPage() {
-  const { loading, clients, triage } = useDashboard("nutritionist");
+  const { loading, clients, triage, today: liveToday } = useDashboard("nutritionist");
   const [tab, setTab] = React.useState("all");
   const [sharedBadge, setSharedBadge] = React.useState(0);
   const [q, setQ] = React.useState("");
@@ -40,7 +40,9 @@ function NutritionistClientsPage() {
   return (
     <DashPage
       navItems={nutriNavItems("clients")}
-      payoutCard={nutriPayoutCard}
+      payoutCard={liveToday
+        ? { label: "MONTHLY · MRR", amount: dashMoney(mrrCents), sub: activeCount + " active subs · payouts connect soon" }
+        : nutriPayoutCard}
       eyebrow={activeCount + " ACTIVE CLIENT" + (activeCount === 1 ? "" : "S") + (eyesCount ? " · " + eyesCount + " NEED EYES" : "")}
       title="Clients"
       subtitle="Everyone you're feeding — tap a row for the quick consult: logs, macros, weigh-ins, training context."

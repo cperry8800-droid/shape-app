@@ -124,6 +124,23 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Honest money + business panels** (step 8, restructure target e):
+  the always-rendered fake "Recent payouts" tables are GONE from both pro
+  Today pages. Trainer gains **Growth · 90 days** — a REAL weekly
+  subscriber-adds sparkline + MRR-added + MoM% derived server-side from
+  `subscriptions.created_at` (new `src/lib/coach-growth.ts`, wired into
+  both dashboard routes; explicitly labelled adds, not payouts — payout
+  history stays "—" until Stripe payouts land). Both roles gain the
+  **Marketplace funnel** (views → consults → signed): consults + signings
+  are real 90-day counts; profile views aren't tracked yet → honest
+  "connects soon"; ~30% consult→signed benchmark line + a derived
+  coaching-insight sentence. Nutritionist gains **Roster health** (avg
+  compliance · % logged this week — real from records; renewals due "—"
+  until billing dates are exposed) + the recipe-publishing insight card.
+  Sidebar cards are honest when signed in: coach Today + roster show real
+  monthly net / MRR ("payouts connect soon" sub), the client dashboard
+  shows the real Shape Score; demo mode keeps the example cards. All
+  charts are inline SVG/divs — no chart dependency.
 - ✅ **Client dashboard rebuilt** (step 7, restructure target d):
   `dashClient.jsx` — the prototype's client view on real plumbing, first
   page in the instrument-plate language (`dash.css` plate classes). Today

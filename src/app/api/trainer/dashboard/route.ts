@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
+import { coachGrowthAndFunnel } from '@/lib/coach-growth';
 
 export const dynamic = 'force-dynamic';
 
@@ -179,6 +180,23 @@ export async function GET() {
       .map((c) => ({ name: c.name, sessions: c.sessions, lastAt: new Date(c.lastAt).toISOString() }));
   }
 
+  // Real 90-day growth + funnel (dashboard-v2 step 8) — derived from
+  // subscriptions/sessions we already scope by RLS; never fabricated.
+  let growth = null;
+  let funnel = null;
+  if (providerId != null) {
+    try {
+      const since90 = Date.now() - 90 * 86400000;
+      const consults90 = calendar.filter((c) => {
+        const t = new Date(c.at as string).getTime();
+        return t >= since90 && t <= Date.now() && c.kind !== 'NUTRITION' && c.kind !== 'TRAINING';
+      }).length;
+      const g = await coachGrowthAndFunnel(supabase, 'trainer', providerId, consults90);
+      growth = g.growth;
+      funnel = g.funnel;
+    } catch (e) { /* panels render their honest empty states */ }
+  }
+
   return NextResponse.json({
     user: { firstName, fullName },
     isTrainer: providerId != null,
@@ -186,5 +204,7 @@ export async function GET() {
     today,
     calendar,
     pulse,
+    growth,
+    funnel,
   });
 }

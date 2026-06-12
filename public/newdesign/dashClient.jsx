@@ -237,7 +237,9 @@ function ClientDashboardPage() {
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
       <Header />
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
-        <DashSidebar navItems={clientNavItems("today")} payoutCard={clientPayoutCard} />
+        <DashSidebar navItems={clientNavItems("today")} payoutCard={live && score
+          ? { label: "SHAPE SCORE", amount: hero.total.toLocaleString(), sub: hero.tier + (hero.next ? " · " + hero.toNext + " to " + hero.next : "") }
+          : clientPayoutCard} />
         <main style={{ padding: "36px 44px 80px", minWidth: 0 }}>
           {/* Greeting — real date, not a hardcoded one */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
