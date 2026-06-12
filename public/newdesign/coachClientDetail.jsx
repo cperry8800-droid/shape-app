@@ -258,6 +258,87 @@ function CoachClientDetailPage() {
 
           {data.goals && <GoalsCard data={data} teal={teal} rust={rust} gold={gold} />}
 
+          {Array.isArray(data.checkins) && data.checkins.length > 0 && (() => {
+            const ck = data.checkins[0];
+            const R = ck.ratings || {};
+            const items = [["trainingAdherence", "Training"], ["nutritionAdherence", "Nutrition"], ["sleep", "Sleep"], ["energy", "Energy"], ["stress", "Stress"], ["hunger", "Hunger"]];
+            return (
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                  <CKSecHead>LATEST CHECK-IN</CKSecHead>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Week of {String(ck.week_of)}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+                  {items.map(([k, l]) => (
+                    <div key={k} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{l}</div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{R[k] != null ? `${R[k]}/10` : "—"}</div>
+                    </div>
+                  ))}
+                </div>
+                {(ck.wins || ck.struggles || ck.question) && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "grid", gap: 10 }}>
+                    {[["WINS", ck.wins, teal], ["STRUGGLES", ck.struggles, rust], ["ASKED YOU", ck.question, accent]].map(([l, v, c]) => v ? (
+                      <div key={l}>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: c }}>{l}</div>
+                        <div style={{ marginTop: 3, fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>{v}</div>
+                      </div>
+                    ) : null)}
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
+
+          {data.healthProfile && (() => {
+            const h = data.healthProfile;
+            const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
+            return (
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                  <CKSecHead>HEALTH PROFILE · SCREENING</CKSecHead>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: h.flagged ? rust : teal, textTransform: "uppercase" }}>{h.flagged ? `PAR-Q · ${yesCount} flagged` : "PAR-Q · all clear"}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                  {[["INJURIES & SURGERIES", h.injuries], ["MEDICATIONS & CONDITIONS", h.medications], ["EMERGENCY CONTACT", h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ""} ${h.emergency.phone || ""}`.trim() : null]].map(([l, v]) => (
+                    <div key={l}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
+                      <div style={{ marginTop: 4, fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>{v || "— none noted"}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.4)", textTransform: "uppercase" }}>Shared with linked coaches for safety & liability{h.consentAt ? ` · completed ${new Date(h.consentAt).toLocaleDateString()}` : ""}</div>
+              </Card>
+            );
+          })()}
+
+          {((Array.isArray(data.measurements) && data.measurements.length > 0) || (Array.isArray(data.progressPhotos) && data.progressPhotos.length > 0)) && (
+            <Card style={{ marginBottom: 16 }}>
+              <CKSecHead>BODY · MEASUREMENTS & PHOTOS</CKSecHead>
+              {Array.isArray(data.measurements) && data.measurements.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: data.progressPhotos.length ? 14 : 0 }}>
+                  {data.measurements.map((m) => (
+                    <div key={m.site} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{m.site}</div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{Number(m.value)} <span style={{ fontSize: 12, color: "rgba(242,237,228,0.5)" }}>{m.unit}</span></div>
+                      <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "rgba(242,237,228,0.4)" }}>{String(m.measured_on)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {Array.isArray(data.progressPhotos) && data.progressPhotos.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
+                  {data.progressPhotos.slice(0, 6).map((p) => (
+                    <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+                      <div style={{ height: 110, borderRadius: 8, border: "1px solid rgba(242,237,228,0.1)", background: `url(${p.url}) center/cover` }} />
+                      <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Card>
               <CKSecHead>UPCOMING</CKSecHead>

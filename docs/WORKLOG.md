@@ -100,6 +100,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-12 — Check-in kit website parity (client pages + coach client page)
+- **New `GET/POST /api/client/checkin-kit`** (cookie/Bearer, RLS-scoped): GET →
+  my check-ins + measurements + health profile; POST `action:'checkin'`
+  (upsert this week's row + measurement entries) or `action:'health'` (upsert
+  user_goals 'health_profile'). Exists so the self-contained newdesign pages
+  don't need a supabase client; mobile stays direct.
+- **`ClientProgress.html`**: new `CheckinKitSection` under the Trends tab —
+  the full weekly check-in form (6× 1–10 ratings, weight + 6 girths,
+  front/side/back photo attach via `/api/client/progress-photos`,
+  wins/struggles/question, prefills this week's row) + **Measurements**
+  (latest per site + Δ) + **Progress photos** timeline cards. Renders nothing
+  signed-out / pre-migration.
+- **`ClientMe.html`**: new **Health profile** card (PAR-Q 7×Yes/No + injuries +
+  medications + emergency contact; all-clear/flagged status chip) saving via
+  the kit API.
+- **`coachClientDetail.jsx`** (`?v=20260612` on TrainerClient + Nutritionist
+  Client): `/api/clients/:id/shared-overview` now also returns `checkins`,
+  `measurements`, `progressPhotos`, `healthProfile` (the coach-gated RPCs);
+  the page renders **Latest check-in** (6 ratings + wins/struggles/asked-you),
+  **Health profile · screening** (liability card), and **Body · measurements &
+  photos**.
+
 ### 2026-06-12 — The check-in kit: weekly check-in · measurements · progress photos · health intake (research-driven)
 - **Coach-metrics research** (5-agent web pass — Trainerize/Everfit/TrueCoach/
   TeamBuildr/MyPTHub/PT Distinction/PN/WAG + ACE/NASM): full gap analysis

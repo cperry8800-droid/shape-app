@@ -277,6 +277,8 @@ function ClientProgressPage() {
         )}
       </Card>}
 
+      {topTab === "trends" && <CheckinKitSection />}
+
       {topTab === "records" && <Card>
         <SectionTitle right="FROM YOUR LOGGED SETS">Personal records</SectionTitle>
         {prs.length === 0 && (
@@ -302,6 +304,179 @@ function ClientProgressPage() {
     </DashPage>
   );
 }
+// ── THE CHECK-IN KIT (website parity with mobile) ──────────────────────────
+// Weekly check-in form (6 ratings + wins/struggles/question + weight +
+// measurements + front/side/back photos) plus measurement + photo timelines.
+// Talks to /api/client/checkin-kit and /api/client/progress-photos (cookie).
+const CK_RATINGS = [
+  ["trainingAdherence", "Training adherence", "#d2693f"],
+  ["nutritionAdherence", "Nutrition adherence", "#d8b25a"],
+  ["sleep", "Sleep quality", "#a86bc4"],
+  ["energy", "Energy", "#0ac5a8"],
+  ["stress", "Stress · 10 = calm", "#7ed4ff"],
+  ["hunger", "Hunger control", "#e8b14a"],
+];
+const CK_SITES = [["waist", "Waist"], ["hips", "Hips"], ["chest", "Chest"], ["arm", "Upper arm"], ["thigh", "Thigh"], ["calf", "Calf"]];
+function CheckinKitSection() {
+  const [kit, setKit] = React.useState(null);          // GET payload
+  const [photos, setPhotos] = React.useState([]);
+  const [ratings, setRatings] = React.useState({});
+  const [wins, setWins] = React.useState("");
+  const [struggles, setStruggles] = React.useState("");
+  const [question, setQuestion] = React.useState("");
+  const [weight, setWeight] = React.useState("");
+  const [meas, setMeas] = React.useState({});
+  const [files, setFiles] = React.useState({});        // pose → File
+  const [busy, setBusy] = React.useState(false);
+  const [note, setNote] = React.useState("");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/client/checkin-kit", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d || !d.ok) return;
+        setKit(d);
+        const cur = (d.checkins || []).find(c => String(c.week_of) === d.weekOf);
+        if (cur) {
+          setRatings(cur.ratings || {});
+          setWins(cur.wins || ""); setStruggles(cur.struggles || ""); setQuestion(cur.question || "");
+          if (cur.weight != null) setWeight(String(cur.weight));
+        }
+      }).catch(() => {});
+    fetch("/api/client/progress-photos", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d && d.ok) setPhotos(d.photos || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!kit) return null; // signed-out / pre-migration → keep the page as-is
+
+  const submit = async () => {
+    setBusy(true); setNote("");
+    try {
+      const measurements = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v), unit: "cm" }));
+      const res = await fetch("/api/client/checkin-kit", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: "kg", measurements }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
+      for (const pose of ["front", "side", "back"]) {
+        const f = files[pose];
+        if (!f) continue;
+        const fd = new FormData();
+        fd.append("photo", f); fd.append("pose", pose);
+        await fetch("/api/client/progress-photos", { method: "POST", credentials: "same-origin", body: fd }).catch(() => {});
+      }
+      setNote("Check-in saved — your coach can see it.");
+    } catch (e) {
+      setNote(e.message || "Could not save the check-in.");
+    } finally { setBusy(false); }
+  };
+
+  const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 56, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
+  const inStyle = { width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: serif, fontSize: 16, outline: "none", textAlign: "center" };
+  const lbl = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 8 };
+
+  // Latest measurement per site + first (for Δ).
+  const bySite = new Map();
+  (kit.measurements || []).forEach((r) => {
+    const e = bySite.get(r.site) || { first: r, last: r };
+    if (String(r.measured_on) < String(e.first.measured_on)) e.first = r;
+    if (String(r.measured_on) >= String(e.last.measured_on)) e.last = r;
+    bySite.set(r.site, e);
+  });
+
+  return (
+    <React.Fragment>
+      <Card style={{ marginBottom: 20 }}>
+        <SectionTitle right={`WEEK OF ${kit.weekOf}`}>Weekly check-in</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px 24px", marginBottom: 16 }}>
+          {CK_RATINGS.map(([k, label, c]) => (
+            <div key={k}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{label}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: c }}>{ratings[k] || "—"}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4 }}>
+                {Array.from({ length: 10 }).map((_, i) => {
+                  const v = i + 1; const on = Number(ratings[k]) >= v; const sel = Number(ratings[k]) === v;
+                  return <button key={v} onClick={() => setRatings(r => ({ ...r, [k]: v }))} style={{ height: 18, borderRadius: 3, border: `1px solid ${sel ? c : "rgba(242,237,228,0.14)"}`, background: on ? (sel ? c : c + "66") : "transparent", cursor: "pointer", padding: 0 }} />;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "120px repeat(6, 1fr)", gap: 10, marginBottom: 16 }}>
+          <div>
+            <div style={lbl}>Weight (kg)</div>
+            <input value={weight} onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="—" style={inStyle} />
+          </div>
+          {CK_SITES.map(([site, label]) => (
+            <div key={site}>
+              <div style={lbl}>{label} (cm)</div>
+              <input value={meas[site] || ""} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); setMeas(m => ({ ...m, [site]: v })); }} placeholder="—" style={inStyle} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+          {["front", "side", "back"].map((pose) => (
+            <label key={pose} style={{ cursor: "pointer" }}>
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) setFiles(p => ({ ...p, [pose]: f })); }} />
+              <div style={{ padding: "14px 10px", textAlign: "center", borderRadius: 10, border: `1px ${files[pose] ? "solid #0ac5a8" : "dashed rgba(242,237,228,0.18)"}`, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: files[pose] ? "#0ac5a8" : "rgba(242,237,228,0.5)" }}>
+                {files[pose] ? `✓ ${pose} attached` : `＋ ${pose} photo`}
+              </div>
+            </label>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+          <div><div style={lbl}>Wins</div><textarea value={wins} onChange={(e) => setWins(e.target.value)} style={taStyle} /></div>
+          <div><div style={lbl}>Struggles</div><textarea value={struggles} onChange={(e) => setStruggles(e.target.value)} style={taStyle} /></div>
+          <div><div style={lbl}>Question for your coach</div><textarea value={question} onChange={(e) => setQuestion(e.target.value)} style={taStyle} /></div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <button onClick={submit} disabled={busy} style={{ background: "#0ac5a8", color: "#1a1612", border: 0, padding: "11px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: busy ? "wait" : "pointer" }}>{busy ? "Saving…" : "Send check-in →"}</button>
+          {note && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</span>}
+        </div>
+      </Card>
+
+      {bySite.size > 0 && (
+        <Card style={{ marginBottom: 20 }}>
+          <SectionTitle right="FROM YOUR CHECK-INS">Measurements</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {[...bySite.entries()].map(([site, e]) => {
+              const delta = +(Number(e.last.value) - Number(e.first.value)).toFixed(1);
+              return (
+                <div key={site} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{site}</div>
+                  <div style={{ fontFamily: serif, fontSize: 24, marginTop: 4 }}>{Number(e.last.value)} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{e.last.unit}</span></div>
+                  <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: delta === 0 ? "rgba(242,237,228,0.4)" : delta < 0 ? "#0ac5a8" : "#e8b14a" }}>{delta === 0 ? "—" : `${delta > 0 ? "+" : "−"}${Math.abs(delta)} since start`}</div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {photos.length > 0 && (
+        <Card style={{ marginBottom: 20 }}>
+          <SectionTitle right="PRIVATE · YOU + YOUR COACHES">Progress photos</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+            {photos.slice(0, 12).map((p) => (
+              <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
+                <div style={{ height: 120, borderRadius: 10, border: "1px solid rgba(242,237,228,0.1)", background: `url(${p.url}) center/cover` }} />
+                <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
+    </React.Fragment>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.Fragment>
     <ClientProgressPage />
