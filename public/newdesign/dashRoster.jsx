@@ -313,12 +313,22 @@ function DashSecTrainingContext({ rec }) {
   );
 }
 
+// Goals (dashGoals.jsx) — pros SET goals from this drawer; loaded lazily so
+// pages without the goals module keep rendering the rest of the drawer.
+function DashSecGoals({ rec, role }) {
+  if (typeof window !== "undefined" && typeof window.DashGoalsSection === "function") {
+    return <DashGoalsSection rec={rec} role={role} />;
+  }
+  return <DashDrawerEmpty>Goal cards live on pages that load dashGoals.jsx.</DashDrawerEmpty>;
+}
+
 // Role section sets. The drawer is ONE component; the role decides the lens.
 const DASH_DRAWER_VIEWS = {
   trainer: {
     eyebrow: "Client drilldown",
     sections: [
       ["Shape Score · 8 weeks", DashSecScore],
+      ["Goals · projections", DashSecGoals],
       ["Session adherence", DashSecAdherence],
       ["Coach notes", DashSecNotes],
       ["Milestones", DashSecMilestones],
@@ -329,6 +339,7 @@ const DASH_DRAWER_VIEWS = {
     eyebrow: "Quick consult",
     sections: [
       ["Last 3 days · food logs", DashSecLogs],
+      ["Goals · projections", DashSecGoals],
       ["Macros vs targets · 7d avg", DashSecMacros],
       ["Weigh-in trend", DashSecWeighIns],
       ["From the trainer side · read-only", DashSecTrainingContext],
@@ -369,7 +380,7 @@ function DashClientDrawer({ row, role, onClose }) {
           {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
         </div>
         {view.sections.map(([title, Body], i) => (
-          <DashDrawerSection key={i} title={title}><Body rec={rec} /></DashDrawerSection>
+          <DashDrawerSection key={i} title={title}><Body rec={rec} role={role} /></DashDrawerSection>
         ))}
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
           <button onClick={() => dashMessageClient(rec.profile.name, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>

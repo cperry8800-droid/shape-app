@@ -42,6 +42,7 @@ g.DashSignals = require("../public/newdesign/dashSignals.js");
 load("public/newdesign/dashData.jsx");
 load("public/newdesign/dashToday.jsx");
 load("public/newdesign/dashClient.jsx");
+load("public/newdesign/dashGoals.jsx");
 load("public/newdesign/dashRoster.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
 load("public/newdesign/dashBuilder.jsx");
@@ -118,7 +119,9 @@ try {
   ok("pulse panel shows the joint banner", pulse.includes("Joint attention") && pulse.includes("Marcus T."));
   ok("joint banner names both domains", pulse.includes("streak broken") && pulse.includes("no logs"));
   const wins = render(React.createElement(g.DashWinsPanel, { clients: mock, role: "trainer" }));
-  ok("wins panel shows the 100th-workout brief", wins.includes("100th workout") && wins.includes("Congratulate"));
+  // Jordan's freshest win is now his ACHIEVED GOAL (1d ago) — it outranks the
+  // 100th workout (2d ago) in the one-win-per-client briefing by design.
+  ok("wins panel briefs the freshest win (achieved goal) per client", wins.includes("5k under 25:00") && wins.includes("Congratulate"));
 } catch (e) { ok("joint + wins panels render", false, e.message); }
 
 // ── 4b. Programs page + builder + the shared client-card preview ────────────
@@ -161,6 +164,45 @@ try {
   const cardUnder = render(React.createElement(g.DashMealLedgerCard, { meals, targets: { kcal: 1900, p: 165, c: 170, f: 60 }, ledger: { kcal: 700, p: 50, c: 70, f: 20 }, logged: {}, onLog: () => {} }));
   ok("Shared meals card: under-target shows kcal left", cardUnder.includes("1,200 kcal left"));
 } catch (e) { ok("Plans page + meal builder render", false, e.message); }
+
+// ── 4d. Goals page + the shared goal card + drawer editing + context line ───
+try {
+  const goalsPage = render(React.createElement(g.ClientGoalsPage));
+  ok("ClientGoals page renders (demo doc)", goalsPage.includes("Goals") && goalsPage.includes("Lean by August") && goalsPage.includes("How the projection works"));
+  ok("Goals page: projection is the hero (a date + pace per card)", /Projected · at/.test(goalsPage.replace(/<[^>]+>/g, " ")) || goalsPage.includes("Projected"));
+  ok("Goals page caps at 3 cards", (goalsPage.match(/% there/g) || []).length <= 3);
+  ok("Goals page is view-only for clients (no add/edit)", !goalsPage.includes("+ Add goal") && !goalsPage.includes(">Edit<"));
+  ok("Goals page keeps the migrated share toggle + weigh-in entry", goalsPage.includes("Share with your coaches") && goalsPage.includes("Log weigh-in"));
+  // Card states via the personas (exact engine output).
+  const mock = g.DashSignals.buildMockClients();
+  const jordan = mock.find((c) => c.client ? false : c.profile.name === "Jordan M.");
+  const cardOnPace = render(React.createElement(g.DashGoalCard, { goal: jordan.goals[0] }));
+  ok("Goal card: on-pace shows the projected date + rate", /Jul \d/.test(cardOnPace) && cardOnPace.includes("/wk") && cardOnPace.includes("% there"));
+  const cardDone = render(React.createElement(g.DashGoalCard, { goal: jordan.goals[2] }));
+  ok("Goal card: achieved reads as a win", cardDone.includes("✓ Hit"));
+  const nadia = mock.find((c) => c.profile.name === "Nadia P.");
+  const cardSlip = render(React.createElement(g.DashGoalCard, { goal: nadia.goals[0] }));
+  ok("Goal card: a slipped ETA carries the amber note", cardSlip.includes("ETA slipped +15 days this week"));
+  const marcus = mock.find((c) => c.profile.name === "Marcus T.");
+  const cardStall = render(React.createElement(g.DashGoalCard, { goal: marcus.goals[0] }));
+  ok("Goal card: stalled is honest (no fabricated date)", cardStall.includes("No ETA") && !/Jul \d/.test(cardStall));
+  // The slip reaches the pro pulse as an amber flag.
+  const feed = g.DashSignals.getTriageFeed("trainer", mock);
+  const pulse = render(React.createElement(g.TriagePulsePanel, { feed, role: "trainer", joint: [] }));
+  ok("Pulse: Nadia's goal slip reads as an amber reason pill", pulse.includes("Nadia P.") && pulse.includes("Goal ETA +15d"));
+  // Drawer: pros set goals (editor affordances), capped at 3.
+  const jRow = feed.find((r) => r.client.profile.name === "Jordan M.");
+  const drawer = render(React.createElement(g.DashClientDrawer, { row: jRow, role: "trainer", onClose: () => {} }));
+  ok("Drawer: Goals section renders with edit + cap note", drawer.includes("Goals · projections") && drawer.includes("3 max") && drawer.includes(">Edit<"));
+  const tRow = feed.find((r) => r.client.profile.name === "Tess B.");
+  const drawerEmpty = render(React.createElement(g.DashClientDrawer, { row: tRow, role: "nutritionist", onClose: () => {} }));
+  ok("Drawer: no goals yet → the set-the-first-one state", drawerEmpty.includes("No goals set") && drawerEmpty.includes("+ Add goal"));
+  // Pre-session context line + milestone feed carry goal proximity.
+  const ctx = g.dashContextLine(jordan);
+  ok("Context line leads with goal proximity + pace", /2\.8 lb to “Goal weight” · pace Jul \d+/.test(ctx), ctx);
+  const ms = g.DashSignals.buildMilestones(jordan);
+  ok("Milestone feed: goal proximity with pace leads 'next'", ms.next[0].kind === "goal" && /pace Jul \d+/.test(ms.next[0].detail));
+} catch (e) { ok("Goals page + card + drawer render", false, e.message); }
 
 // ── 5. Console errors during render ─────────────────────────────────────────
 const realErrors = errors.filter((e) => !e.includes("useLayoutEffect"));

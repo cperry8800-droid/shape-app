@@ -51,9 +51,9 @@ const DCL_DEMO = {
       { kind: "goal", label: "50% to goal", hitAt: null, when: "2w ago" },
     ],
     next: [
+      { kind: "goal", label: "Goal weight", detail: "2.8 lb away · pace Aug 3", progress: 0.8 },
       { kind: "streak", label: "30-day streak", detail: "16 days to go", progress: 14 / 30 },
       { kind: "workout_count", label: "Workout #100", detail: "14 away", progress: 86 / 100 },
-      { kind: "goal", label: "Goal weight", detail: "2.8 lb away" },
     ],
   },
   checkinDue: true,

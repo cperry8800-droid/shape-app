@@ -1,0 +1,116 @@
+// Per-client goals — pros SET them, clients VIEW them (Goals page).
+//
+// Stored at client_programs.detail.goals so they ride the existing
+// coach-writable RLS (2026-06-04/05 migrations: the client owns their row;
+// a coach with an active sub can read AND set it via is_coach_on_client) —
+// no new schema. The write merges over the row's other detail sections
+// (training/nutrition adjust payloads), never clobbering them.
+//
+// GET  -> { ok, goals }                       (coach or the client themself)
+// POST { goals: [≤3] } -> { ok, goals }       (coach or the client themself —
+//   RLS decides; in practice the dashboard only renders the editor to pros)
+//
+// Goal shape: { id, label, metric, unit, target, start, startedOn, setBy,
+//               now?, history: [{ on: 'YYYY-MM-DD', value: n }] }.
+//
+// Auth: cookie session OR Bearer token.
+
+import { NextResponse } from 'next/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const MAX_GOALS = 3;
+const MAX_HISTORY = 104; // ~2 years of weekly points
+
+function num(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function str(v: unknown, max = 80): string {
+  return String(v ?? '').trim().slice(0, max);
+}
+
+type GoalIn = Record<string, unknown>;
+
+// Whitelist + coerce — never store arbitrary client-supplied keys.
+function sanitizeGoal(g: GoalIn, i: number): Record<string, unknown> | null {
+  const label = str(g.label);
+  const target = num(g.target);
+  if (!label || target == null) return null;
+  const history = (Array.isArray(g.history) ? g.history : [])
+    .map((p) => {
+      const row = (p ?? {}) as Record<string, unknown>;
+      const on = str(row.on ?? row.date ?? row.d, 10);
+      const value = num(row.value ?? row.v ?? row.weight ?? row.kg);
+      return /^\d{4}-\d{2}-\d{2}$/.test(on) && value != null ? { on, value } : null;
+    })
+    .filter((p): p is { on: string; value: number } => p !== null)
+    .slice(-MAX_HISTORY);
+  return {
+    id: str(g.id, 40) || `goal-${Date.now().toString(36)}-${i}`,
+    label,
+    metric: str(g.metric, 20) || 'custom',
+    unit: str(g.unit, 12),
+    target,
+    start: num(g.start),
+    startedOn: /^\d{4}-\d{2}-\d{2}$/.test(str(g.startedOn, 10)) ? str(g.startedOn, 10) : null,
+    setBy: str(g.setBy, 20) || 'coach',
+    now: num(g.now),
+    history,
+  };
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: clientId } = await params;
+  const user = await currentUser(request);
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const supabase = await clientForRequest(request);
+  // RLS: returns the row only to the client themself or an active coach.
+  const { data } = await supabase
+    .from('client_programs')
+    .select('detail')
+    .eq('user_id', clientId)
+    .maybeSingle();
+  const detail = (data?.detail ?? {}) as Record<string, unknown>;
+  return NextResponse.json({ ok: true, goals: Array.isArray(detail.goals) ? detail.goals : null });
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: clientId } = await params;
+  const user = await currentUser(request);
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const supabase = await clientForRequest(request);
+
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const incoming = Array.isArray(body.goals) ? (body.goals as GoalIn[]) : null;
+  if (!incoming) return NextResponse.json({ error: 'goals[] is required.' }, { status: 400 });
+  const goals = incoming.map(sanitizeGoal).filter((g): g is NonNullable<typeof g> => g !== null);
+  if (goals.length > MAX_GOALS) {
+    return NextResponse.json({ error: `At most ${MAX_GOALS} goals per client.` }, { status: 422 });
+  }
+
+  // Merge over the existing detail so the Adjust payloads survive. The read
+  // is RLS-gated the same as the write, so a non-coach gets nothing here and
+  // the upsert below fails on RLS anyway.
+  const { data: row } = await supabase
+    .from('client_programs')
+    .select('detail')
+    .eq('user_id', clientId)
+    .maybeSingle();
+  const detail = { ...((row?.detail ?? {}) as Record<string, unknown>), goals };
+
+  const { error } = await supabase
+    .from('client_programs')
+    .upsert({ user_id: clientId, detail, updated_by: user.id }, { onConflict: 'user_id' });
+  if (error) {
+    const denied = /row-level security/i.test(error.message);
+    return NextResponse.json(
+      { error: denied ? 'Not a coach on this client.' : error.message },
+      { status: denied ? 403 : 500 }
+    );
+  }
+  return NextResponse.json({ ok: true, goals });
+}

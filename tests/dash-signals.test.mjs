@@ -163,13 +163,15 @@ test("triage sorts red → amber → green, most-flagged first, with reasons", (
 });
 test("the mock personas hit their designed severities", () => {
   const feed = getTriageFeed("trainer", buildMockClients(NOW), NOW);
-  assert.equal(feed.length, 9);
+  assert.equal(feed.length, 10);
   const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
   assert.equal(by["Jordan M."].severity, "green");
   assert.equal(by["Priya S."].severity, "green");
   assert.equal(by["Aisha K."].severity, "amber");
   assert.equal(by["Elena R."].severity, "amber");
   assert.equal(by["Deandre K."].severity, "amber");
+  assert.equal(by["Nadia P."].severity, "amber");
+  assert.deepEqual(keys(by["Nadia P."]), ["goal_slip"]);
   assert.equal(by["Marcus T."].severity, "red");
   assert.equal(by["Sam R."].severity, "red");
   assert.equal(by["Jonah W."].severity, "red");
@@ -190,6 +192,7 @@ test("flags carry short pill labels in the spec format", () => {
   assert.deepEqual(labels(by["Sam R."]), ["No logs 4d", "Quiet 7d"]);
   assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late"]);
   assert.deepEqual(labels(by["Elena R."]), ["Score ↓7"]);
+  assert.deepEqual(labels(by["Nadia P."]), ["Goal ETA +15d"]);
   for (const r of feed) for (const f of r.flags) assert.ok(f.label && f.label.length <= 18, f.key + " label fits a pill");
 });
 test("mock personas are stable on any weekday (no grace-dependent flips)", () => {
@@ -200,6 +203,7 @@ test("mock personas are stable on any weekday (no grace-dependent flips)", () =>
     assert.equal(by["Marcus T."], "red", "Marcus red on day " + d);
     assert.equal(by["Jonah W."], "red", "Jonah red on day " + d);
     assert.equal(by["Jordan M."], "green", "Jordan green on day " + d);
+    assert.equal(by["Nadia P."], "amber", "Nadia amber on day " + d + " (goal slip is date-relative)");
   }
 });
 
@@ -224,9 +228,9 @@ test("queue sorts ready before blocked with name tiebreak", () => {
   ];
   assert.deepEqual(buildProgrammingQueue(rows, NOW).map((r) => r.client.profile.name), ["Kai", "Mia", "Zed"]);
 });
-test("queue over the mock personas: 7 ready, Jonah + Tess blocked", () => {
+test("queue over the mock personas: 8 ready, Jonah + Tess blocked", () => {
   const q = buildProgrammingQueue(buildMockClients(NOW), NOW);
-  assert.equal(q.filter((r) => r.state === "ready").length, 7);
+  assert.equal(q.filter((r) => r.state === "ready").length, 8);
   assert.deepEqual(q.filter((r) => r.state === "blocked").map((r) => r.client.profile.name).sort(), ["Jonah W.", "Tess B."]);
 });
 

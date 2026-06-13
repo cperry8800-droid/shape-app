@@ -124,6 +124,44 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 14 — Goals page (migrated, not rebuilt) + pace projections**:
+  `ClientGoal.html` MIGRATED in place onto the v2 kit (same URL; keeps its
+  supabase wiring — the `user_goals('client_goals')` doc + legacy fallback,
+  the share-with-coaches toggle, and log-weigh-in, which now also upserts
+  `client_weigh_ins`). The page is one card per goal (≤3): target, current
+  value, time-proportional sparkline with a dashed target line, progress %,
+  and the **projected completion date at the current pace** as the card's
+  hero — plus an honest state machine (achieved ✓ / stalled "No ETA" / 1y+ /
+  stale / needs-history) and an amber in-card note when the ETA slipped this
+  week. Clients VIEW only (the old self-edit goal UI is gone by design);
+  the empty state routes them to their coach. **Engine** (dashSignals.js,
+  pure+tested): `projectGoal` (least-squares pace over the last
+  GOAL_RECENT_DAYS=56, run forward from the latest point; never projects
+  from <2 points or <7d span), `goalSlipDays` (re-projects with last week's
+  knowledge; Infinity = ETA lost), the **`goal_slip` rule** (slip ≥
+  GOAL_SLIP_DAYS=7 → one amber flag on BOTH pro feeds, worst goal named —
+  an always-stalled goal never had an ETA so never flags), `goalsFromDoc`
+  (normalizes coach goals + the legacy self doc + every weigh-in shape),
+  `goalBrief`, MAX_GOALS=3 cap (a hidden 4th goal can't flag). **Pros set
+  goals** in the shared drilldown drawer (both lenses gain a "Goals ·
+  projections" section, lazily via dashGoals.jsx): compact cards + editor
+  (label/metric/unit/target/start + "current" logs a dated history point),
+  + Add disabled at 3 ("3 max — one focus per front"); live writes POST
+  **`/api/clients/[id]/goals`** → `client_programs.detail.goals` (existing
+  coach-writable RLS, zero migration; merge preserves the Adjust payloads),
+  demo saves locally. `shared-overview` returns `coachGoals` +
+  `programPhases` (closing the listed goalPhase gap → live roster GOAL
+  PHASE column); `/api/client/dashboard` returns the goals block (coach +
+  self doc + weigh-ins) so the client record carries goals. **Wired in**:
+  the trainer's pre-session context line leads with `goalBrief` ('2.8 lb to
+  "Goal weight" · pace Jul 17', slip noted in-line) and the milestone feed
+  leads with goal proximity + pace; achieved goals celebrate in `recent`
+  (client dashboard + drawer + wins briefing automatically). Personas:
+  Jordan = collinear on-pace ×2 + achieved 5k; Marcus = stalled (honest, no
+  flag); **Nadia P. (new, #10)** = the slip case (clean −1 lb/wk flattens →
+  ETA +15d → amber on goal_slip alone); Tess = none set. Tests 78/78
+  (20 new — exact hand-checked ETAs/slips) · render review 67/67 · tsc +
+  next build clean.
 - ✅ **Step 13 (final) — nutritionist Plans + the meal-plan builder**:
   `NutritionistPlans.html` rebuilt on the v2 stack with two zones —
   **Library** (templates in `coach_plans.detail.mealBuilder`, goal-phase

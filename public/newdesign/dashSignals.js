@@ -28,6 +28,11 @@
 //     totals:    { workouts: n } | null,                       // lifetime counts
 //     payments:  { mrrCents, status?, lastSessionAt? } | null,  // lastSessionAt = last consult/session
 //     recentLogs: [{ on: 'YYYY-MM-DD', kcal, protein }] | null,  // newest first, ≤3 (drawer)
+//     goals:     [{ id, label, metric?, unit?, target, start?, startedOn?,
+//                   setBy?, now?, history: [{on, value}] }] | null,
+//                // ≤ MAX_GOALS visible — pros set them, clients view them.
+//                // history drives the sparkline + the pace projection; a
+//                // weight goal's history is the live weigh-in series.
 //   }
 
 (function (root, factory) {
@@ -47,6 +52,10 @@
     CHECKIN_GRACE_DAYS: 3,    // don't nag "due this week" before Thu
     LEDGER_OVER_PCT: 10,      // avg kcal ≥ target+10% = ledger blown (nutritionist feed)
     PROTEIN_UNDER_PCT: 15,    // avg protein ≤ target−15% = under target (nutritionist feed)
+    GOAL_SLIP_DAYS: 7,        // projected goal date moving ≥ this many days later wk/wk flags
+    GOAL_RECENT_DAYS: 56,     // pace window — fit only the last 8 weeks of history
+    GOAL_MIN_SPAN_DAYS: 7,    // need at least a week of history before projecting
+    GOAL_FAR_DAYS: 365,       // past this, the ETA reads "1y+ at this pace", not a date
   };
 
   function toDate(v) {
@@ -63,6 +72,204 @@
   }
   function iso(d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  // ── Goal projection (the Goals page core) ──────────────────────────────────
+  // Pros set up to MAX_GOALS goals per client; clients view them. Each goal
+  // carries a value history; the projection is a least-squares pace over the
+  // RECENT window (an old hot streak can't promise a date the current pace
+  // won't deliver), run forward from the latest point. Missing or too-short
+  // history is reported as a state, never guessed.
+
+  var MAX_GOALS = 3;
+  function visibleGoals(goals) { return Array.isArray(goals) ? goals.slice(0, MAX_GOALS) : []; }
+
+  // History points arrive in several live shapes ({on|date|d|logged_on} ×
+  // {value|v|weight|kg|w}) — normalize, drop junk, sort ascending.
+  function goalSeries(g, asOf) {
+    var raw = g && Array.isArray(g.history) ? g.history : [];
+    var out = [];
+    for (var i = 0; i < raw.length; i++) {
+      var p = raw[i];
+      if (!p) continue;
+      var on = toDate(p.on != null ? p.on : p.date != null ? p.date : p.d != null ? p.d : p.logged_on);
+      var v = p.value != null ? p.value : p.v != null ? p.v : p.weight != null ? p.weight : p.kg != null ? p.kg : p.w;
+      if (!on || v == null || !isFinite(Number(v))) continue;
+      if (asOf && on.getTime() > asOf.getTime()) continue;
+      out.push({ on: on, value: Number(v) });
+    }
+    out.sort(function (a, b) { return a.on - b.on; });
+    return out;
+  }
+
+  function goalDateLabel(v) {
+    var d = toDate(v);
+    return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+  }
+
+  // projectGoal(goal, now, asOf?) ->
+  //   { state: 'on-pace'|'achieved'|'stalled'|'far'|'stale'|'insufficient',
+  //     lastValue, lastOn, toGo, pct|null, unit, direction,
+  //     ratePerWeek?, daysOut?, projectedDate? (ISO), projectedLabel?, achievedOn? }
+  // or null when the goal itself is unusable. `asOf` restricts history to
+  // points on/before that date — the week-over-week slip check re-projects
+  // with last week's knowledge. 'stale' = the pace math says they'd already
+  // be there, but the series is too old to confirm (log to refresh).
+  function projectGoal(g, now, asOf) {
+    now = now || new Date();
+    if (!g || g.target == null || !isFinite(Number(g.target))) return null;
+    var target = Number(g.target);
+    var pts = goalSeries(g, asOf || null);
+    var lastValue = pts.length ? pts[pts.length - 1].value
+      : g.now != null && isFinite(Number(g.now)) ? Number(g.now) : null;
+    if (lastValue == null) return null;
+    var lastOn = pts.length ? pts[pts.length - 1].on : null;
+    var start = g.start != null && isFinite(Number(g.start)) ? Number(g.start) : (pts.length ? pts[0].value : null);
+    var direction = start != null && start !== target ? (target < start ? "down" : "up") : (target < lastValue ? "down" : "up");
+    var pct = null;
+    if (start != null && start !== target) {
+      pct = direction === "down" ? (start - lastValue) / (start - target) : (lastValue - start) / (target - start);
+      pct = Math.max(0, Math.min(1, pct));
+    }
+    var base = {
+      unit: g.unit || "", direction: direction, lastValue: lastValue,
+      lastOn: lastOn ? iso(lastOn) : null,
+      toGo: Math.round(Math.abs(lastValue - target) * 10) / 10, pct: pct,
+    };
+    var done = direction === "down" ? lastValue <= target : lastValue >= target;
+    if (done) {
+      var hit = lastOn;
+      for (var c2 = 0; c2 < pts.length; c2++) {
+        var crossed = direction === "down" ? pts[c2].value <= target : pts[c2].value >= target;
+        if (crossed) { hit = pts[c2].on; break; }
+      }
+      base.state = "achieved"; base.pct = 1; base.achievedOn = hit ? iso(hit) : null;
+      return base;
+    }
+    if (pts.length < 2) { base.state = "insufficient"; return base; }
+    var winStart = lastOn.getTime() - THRESHOLDS.GOAL_RECENT_DAYS * DAY;
+    var win = pts.filter(function (p) { return p.on.getTime() >= winStart; });
+    if (win.length < 2 || win[win.length - 1].on.getTime() - win[0].on.getTime() < THRESHOLDS.GOAL_MIN_SPAN_DAYS * DAY) {
+      base.state = "insufficient";
+      return base;
+    }
+    // Least-squares slope over the window, in units/day.
+    var n = win.length, st = 0, sv = 0;
+    for (var j = 0; j < n; j++) { st += win[j].on.getTime(); sv += win[j].value; }
+    var mt = st / n, mv = sv / n, num = 0, den = 0;
+    for (var k2 = 0; k2 < n; k2++) {
+      var dt = (win[k2].on.getTime() - mt) / DAY;
+      num += dt * (win[k2].value - mv);
+      den += dt * dt;
+    }
+    var slope = den ? num / den : 0;
+    base.ratePerWeek = Math.round(slope * 7 * 100) / 100;
+    var toward = direction === "down" ? slope < 0 : slope > 0;
+    if (!toward || Math.abs(slope) < 1e-9) { base.state = "stalled"; return base; }
+    var daysOut = Math.round(Math.abs(lastValue - target) / Math.abs(slope));
+    base.daysOut = daysOut;
+    if (daysOut > THRESHOLDS.GOAL_FAR_DAYS) { base.state = "far"; return base; }
+    var projected = new Date(lastOn.getTime() + daysOut * DAY);
+    base.projectedDate = iso(projected);
+    base.projectedLabel = goalDateLabel(projected);
+    var ref = asOf || now;
+    base.state = projected.getTime() < ref.getTime() - DAY ? "stale" : "on-pace";
+    return base;
+  }
+
+  // Week-over-week ETA movement in days. Positive = slipped later. Infinity =
+  // there was an ETA a week ago and the pace has since flattened/reversed.
+  // null = nothing to compare (no baseline ETA, or already achieved).
+  function goalSlipDays(g, now) {
+    now = now || new Date();
+    var cur = projectGoal(g, now);
+    if (!cur || cur.state === "achieved") return null;
+    var prev = projectGoal(g, now, new Date(now.getTime() - 7 * DAY));
+    if (!prev || !prev.projectedDate) return null;
+    if (cur.projectedDate) {
+      return Math.round((toDate(cur.projectedDate).getTime() - toDate(prev.projectedDate).getTime()) / DAY);
+    }
+    if (cur.state === "stalled" || cur.state === "far") return Infinity;
+    return null;
+  }
+
+  // One-line goal proximity for the pre-session context line / schedule rows:
+  //   '2.8 lb to "Goal weight" · pace Jul 17'  (+ the slip when it moved)
+  function goalBrief(c, now) {
+    now = now || new Date();
+    var gs = visibleGoals(c && c.goals);
+    if (!gs.length) return null;
+    var g = gs[0];
+    var p = projectGoal(g, now);
+    if (!p) return null;
+    if (p.state === "achieved") {
+      return "“" + g.label + "” hit" + (p.achievedOn ? " " + goalDateLabel(p.achievedOn) : "") + " ✓";
+    }
+    var head = p.toGo + (p.unit ? " " + p.unit : "") + " to “" + g.label + "”";
+    var tail = p.state === "on-pace" ? "pace " + p.projectedLabel
+      : p.state === "stalled" ? "pace stalled"
+      : p.state === "far" ? "1y+ at this pace"
+      : p.state === "stale" ? "needs a fresh log"
+      : null;
+    var slip = goalSlipDays(g, now);
+    if (slip != null && slip >= THRESHOLDS.GOAL_SLIP_DAYS) {
+      tail = (tail ? tail + " " : "") + "(ETA " + (isFinite(slip) ? "+" + slip + "d" : "lost") + " this wk)";
+    }
+    return tail ? head + " · " + tail : head;
+  }
+
+  // Normalize every goal source into the record's goals[] (≤ MAX_GOALS, in
+  // priority order):
+  //   coach     — pro-set goals (client_programs.detail.goals)
+  //   overall   — the legacy self-set body-comp goal (user_goals 'client_goals')
+  //   weighIns  — live weigh-in series → the weight goal's history
+  //   training / nutrition — legacy numeric self-goals (current vs target, no
+  //               series → they render honestly without a projection)
+  function goalsFromDoc(src) {
+    src = src || {};
+    var out = [];
+    var coach = Array.isArray(src.coach) ? src.coach : [];
+    for (var i = 0; i < coach.length; i++) {
+      var g = coach[i];
+      if (!g || !g.label || g.target == null || !isFinite(Number(g.target))) continue;
+      out.push({
+        id: g.id || "coach-" + i, label: String(g.label), metric: g.metric || "custom",
+        unit: g.unit || "", target: Number(g.target),
+        start: g.start != null && isFinite(Number(g.start)) ? Number(g.start) : null,
+        startedOn: g.startedOn || null, setBy: g.setBy || "coach",
+        now: g.now != null && isFinite(Number(g.now)) ? Number(g.now) : null,
+        history: Array.isArray(g.history) ? g.history : [],
+      });
+    }
+    var series = goalSeries({ history: Array.isArray(src.weighIns) && src.weighIns.length ? src.weighIns : (src.overall && src.overall.weighIns) || [] })
+      .map(function (p) { return { on: iso(p.on), value: p.value }; });
+    var weightGoal = null;
+    for (var w2 = 0; w2 < out.length; w2++) if (out[w2].metric === "weight") { weightGoal = out[w2]; break; }
+    if (weightGoal) {
+      if (series.length && goalSeries(weightGoal).length < 2) weightGoal.history = series;
+    } else if (src.overall && src.overall.target != null && isFinite(Number(src.overall.target))) {
+      var o = src.overall;
+      out.push({
+        id: "overall", label: o.title || "Goal weight", metric: "weight",
+        unit: o.unit || "lb", target: Number(o.target),
+        start: o.start != null && isFinite(Number(o.start)) ? Number(o.start) : null,
+        startedOn: null, setBy: "you",
+        now: o.now != null && isFinite(Number(o.now)) ? Number(o.now) : null,
+        history: series,
+      });
+    }
+    var legacy = [].concat(Array.isArray(src.training) ? src.training : [], Array.isArray(src.nutrition) ? src.nutrition : []);
+    for (var l2 = 0; l2 < legacy.length; l2++) {
+      var lg = legacy[l2];
+      if (!lg || !lg.t || lg.tgt == null || !isFinite(Number(lg.tgt))) continue;
+      out.push({
+        id: "legacy-" + l2, label: String(lg.t), metric: "custom", unit: lg.unit || "",
+        target: Number(lg.tgt), start: null, startedOn: null, setBy: "you",
+        now: lg.cur != null && isFinite(Number(lg.cur)) ? Number(lg.cur) : null,
+        history: [],
+      });
+    }
+    return out.slice(0, MAX_GOALS);
   }
 
   // ── Rules ──────────────────────────────────────────────────────────────────
@@ -173,6 +380,24 @@
     return null;
   }
 
+  // Goals-page rule: a projection slipping ≥ GOAL_SLIP_DAYS week-over-week
+  // emits one amber-weight flag naming the worst goal. Both pro feeds see it
+  // (either pro may have set the goal); skips cleanly when goals/history are
+  // missing, and a goal that was ALWAYS stalled never had an ETA to slip.
+  function ruleGoalSlip(c, now) {
+    var gs = visibleGoals(c.goals);
+    var worst = null, worstGoal = null;
+    for (var i = 0; i < gs.length; i++) {
+      var s = goalSlipDays(gs[i], now);
+      if (s != null && s > 0 && (worst == null || s > worst)) { worst = s; worstGoal = gs[i]; }
+    }
+    if (worst == null || worst < THRESHOLDS.GOAL_SLIP_DAYS) return null;
+    if (!isFinite(worst)) {
+      return { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week" };
+    }
+    return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week" };
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -188,6 +413,7 @@
     var ciFlag = ruleCheckinOverdue(c, now);
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
+    if ((f = ruleGoalSlip(c, now))) flags.push(f);
     if (role === "nutritionist") {
       if ((f = ruleLedgerBlown(c))) flags.push(f);
       if ((f = ruleProteinUnder(c))) flags.push(f);
@@ -227,8 +453,12 @@
   // each persona deterministically exercises specific rules:
   //   red:   Marcus T. (streak broken + score drop), Sam R. (food gap +
   //          contact gap), Jonah W. (3 weeks no check-in — red on its own)
-  //   amber: Aisha K. (contact gap), Elena R. (score drop), Deandre K. (food gap)
+  //   amber: Aisha K. (contact gap), Elena R. (score drop), Deandre K. (food
+  //          gap), Nadia P. (goal ETA slipped +15d week-over-week)
   //   green: Jordan M., Priya S.
+  // Goals coverage: Jordan = on-pace (down + up) + one achieved; Marcus =
+  // stalled-from-the-start (no ETA, never flags); Nadia = the slip case;
+  // Tess = none set yet; everyone else = no goals (the honest empty state).
   function buildMockClients(now) {
     now = now || new Date();
     var ago = function (days) { var d = new Date(now.getTime() - days * DAY); return iso(d); };
@@ -239,6 +469,10 @@
       return deltas.map(function (pts, i) {
         return { weekOf: mondaysAgo(deltas.length - 1 - i), points: pts };
       });
+    };
+    // Goal history from [daysAgo, value] pairs (oldest first).
+    var gh = function (pairs) {
+      return pairs.map(function (p) { return { on: ago(p[0]), value: p[1] }; });
     };
     var person = function (id, name, over) {
       var base = {
@@ -270,21 +504,34 @@
           { on: ago(1), kcal: 2210, protein: 139 },
           { on: ago(2), kcal: 1980, protein: 151 },
         ],
+        goals: null,
       };
       Object.keys(over || {}).forEach(function (k) { base[k] = over[k]; });
       return base;
     };
 
     return [
-      // green — the picture of health; just hit workout #100
+      // green — the picture of health; just hit workout #100. His goals are
+      // steady-pace (perfectly linear → zero week-over-week slip): a weight
+      // cut, a strength climb, and a just-achieved 5k time.
       person(1, "Jordan M.", {
         totals: { workouts: 102 },
         milestones: [
           { key: "w100", kind: "workout_count", label: "100th workout", hitAt: ago(2) },
           { key: "m50", kind: "goal", label: "50% to goal", hitAt: ago(9) },
         ],
+        goals: [
+          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 170, start: 184, startedOn: ago(98), setBy: "trainer",
+            history: gh([[43, 176.1], [36, 175.55], [29, 175.0], [22, 174.45], [15, 173.9], [8, 173.35], [1, 172.8]]) },
+          { id: "g-squat", label: "Back squat 1RM", metric: "strength", unit: "lb", target: 250, start: 215, startedOn: ago(84), setBy: "trainer",
+            history: gh([[43, 234.5], [36, 235.75], [29, 237], [22, 238.25], [15, 239.5], [8, 240.75], [1, 242]]) },
+          { id: "g-5k", label: "5k under 25:00", metric: "endurance", unit: "min", target: 25, start: 28.5, startedOn: ago(120), setBy: "trainer",
+            history: gh([[36, 26.4], [22, 25.8], [8, 25.2], [1, 24.8]]) },
+        ],
       }),
-      // red — streak broken AND a 8-pt wk/wk score drop
+      // red — streak broken AND a 8-pt wk/wk score drop. His weight goal has
+      // been flat for weeks: stalled BOTH weeks, so there was never an ETA to
+      // slip — the card shows the honest "no ETA" state without a flag.
       person(2, "Marcus T.", {
         payments: { mrrCents: 18000, status: "active", lastSessionAt: ago(6) },
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
@@ -295,6 +542,16 @@
         coachNotes: [
           { on: ago(4), text: "Deload next week if bar speed stays slow." },
           { on: ago(10), text: "Knee niggle — swapped lunges for split squats." },
+        ],
+        goal: { target: 172, unit: "lb", now: 181.4 },
+        weighIns: [
+          { on: ago(21), weight: 181.5, unit: "lb" },
+          { on: ago(7), weight: 181.4, unit: "lb" },
+          { on: ago(1), weight: 181.4, unit: "lb" },
+        ],
+        goals: [
+          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 172, start: 184, startedOn: ago(70), setBy: "trainer",
+            history: gh([[35, 181.4], [28, 181.2], [21, 181.5], [14, 181.3], [7, 181.4], [1, 181.4]]) },
         ],
       }),
       // amber — gone quiet: no coach contact in 6 days
@@ -351,7 +608,9 @@
         checkIn: { lastWeekOf: mondaysAgo(3) },
         trainingAdherence: { pct: 71, done: 10, planned: 14 },
       }),
-      // green + NEW — joined this week; no first check-in yet (new-client pass)
+      // green + NEW — joined this week; no first check-in yet (new-client
+      // pass). No goals set yet either — the pro sees the "set the first
+      // one" state.
       person(9, "Tess B.", {
         profile: { id: "demo-9", name: "Tess B.", isNew: true, status: "new" },
         payments: { mrrCents: 16000, status: "active", lastSessionAt: ago(1) },
@@ -367,6 +626,25 @@
         program: { name: "Onboarding", week: 1, weeks: 4 },
         milestones: [],
         totals: { workouts: 2 },
+        goals: [],
+      }),
+      // amber — the goal-slip case: a clean month of −1 lb/wk flattened over
+      // the last two, so this week's projection lands 15 days later than last
+      // week's. Everything else about her week is clean — the slip alone
+      // turns the row amber.
+      person(10, "Nadia P.", {
+        goalPhase: "Cut",
+        program: { name: "Cut · Block 2", week: 5, weeks: 10 },
+        goal: { target: 165, unit: "lb", now: 172.8 },
+        weighIns: [
+          { on: ago(21), weight: 173.2, unit: "lb" },
+          { on: ago(7), weight: 172.8, unit: "lb" },
+          { on: ago(1), weight: 172.8, unit: "lb" },
+        ],
+        goals: [
+          { id: "g-weight", label: "Goal weight", metric: "weight", unit: "lb", target: 165, start: 178, startedOn: ago(70), setBy: "nutritionist",
+            history: gh([[56, 178], [49, 177], [42, 176], [35, 175], [28, 174], [21, 173.2], [14, 172.9], [7, 172.8], [1, 172.8]]) },
+        ],
       }),
     ];
   }
@@ -432,7 +710,27 @@
       }
       if (wUp) next.push({ kind: "workout_count", label: "Workout #" + wUp, detail: (wUp - w) + " away", progress: w / wUp });
     }
-    if (c.goal && c.goal.target != null) {
+    // Goal proximity — goals[] (pro-set, with pace projections) leads the
+    // "next" feed; the legacy single goal field keeps its old behavior.
+    var gs = visibleGoals(c.goals);
+    if (gs.length) {
+      var goalNexts = [];
+      for (var g2 = 0; g2 < gs.length; g2++) {
+        var p = projectGoal(gs[g2], now);
+        if (!p) continue;
+        if (p.state === "achieved") {
+          var hit2 = toDate(p.achievedOn);
+          if (hit2 && hit2.getTime() >= cutoff) recent.push({ kind: "goal", label: gs[g2].label, hitAt: p.achievedOn });
+          continue;
+        }
+        var detail = p.toGo + (p.unit ? " " + p.unit : "") + " away";
+        if (p.state === "on-pace") detail += " · pace " + p.projectedLabel;
+        else if (p.state === "stalled") detail += " · pace stalled";
+        else if (p.state === "far") detail += " · 1y+ at this pace";
+        goalNexts.push({ kind: "goal", label: gs[g2].label, detail: detail, progress: p.pct != null ? p.pct : undefined });
+      }
+      next = goalNexts.concat(next);
+    } else if (c.goal && c.goal.target != null) {
       var nowW = c.goal.now != null ? c.goal.now : (Array.isArray(c.weighIns) && c.weighIns.length ? c.weighIns[c.weighIns.length - 1].weight : null);
       if (nowW != null) {
         var dist = Math.round(Math.abs(nowW - c.goal.target) * 10) / 10;
@@ -467,12 +765,19 @@
 
   return {
     THRESHOLDS: THRESHOLDS,
+    MAX_GOALS: MAX_GOALS,
     evaluateClient: evaluateClient,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,
     buildProgrammingQueue: buildProgrammingQueue,
     buildMockClients: buildMockClients,
+    visibleGoals: visibleGoals,
+    projectGoal: projectGoal,
+    goalSlipDays: goalSlipDays,
+    goalBrief: goalBrief,
+    goalsFromDoc: goalsFromDoc,
+    goalDateLabel: goalDateLabel,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
   };
 });

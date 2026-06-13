@@ -53,8 +53,11 @@ function _dashRecordFromLive(row, ov) {
   const checkins = ov && Array.isArray(ov.checkins) ? ov.checkins : null;
   const goals = ov && ov.goals ? ov.goals : null;
   const weighIns = goals && goals.overall && Array.isArray(goals.overall.weighIns)
-    ? goals.overall.weighIns.map((w) => ({ on: w.on || w.date || null, weight: w.w != null ? w.w : w.weight, unit: w.unit || "lb" }))
+    ? goals.overall.weighIns
+        .map((w) => ({ on: w.on || w.date || w.d || null, weight: w.w != null ? w.w : w.weight != null ? w.weight : w.kg, unit: w.unit || (w.kg != null ? "kg" : "lb") }))
+        .filter((w) => w.on && w.weight != null)
     : null;
+  const phases = ov && ov.programPhases ? ov.programPhases : null;
   return {
     profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null },
     trainingAdherence: stats && stats.sessionsPlanned
@@ -74,7 +77,17 @@ function _dashRecordFromLive(row, ov) {
     goal: goals && goals.overall && goals.overall.target != null
       ? { target: Number(goals.overall.target), unit: goals.overall.unit || "lb", now: goals.overall.now != null ? Number(goals.overall.now) : null }
       : null,
-    goalPhase: null,           // client_programs phase not in the overview yet
+    // Pro-set goals (client_programs.detail.goals) + the share-gated self doc,
+    // normalized through the engine; the weight goal inherits live weigh-ins.
+    goals: ov && (ov.coachGoals || goals)
+      ? DashSignals.goalsFromDoc({
+          coach: ov.coachGoals || null,
+          overall: goals && goals.overall ? goals.overall : null,
+          weighIns: weighIns || [],
+          training: goals && goals.training, nutrition: goals && goals.nutrition,
+        })
+      : null,
+    goalPhase: phases ? phases.nutrition || phases.training || null : null,
     milestones: null,
     payments: { mrrCents: row.mrrCents || 0, status: "active", lastSessionAt: row.lastAt || null },
   };
@@ -94,6 +107,7 @@ function _dashRecordFromSelf(dash, kit) {
     totals: k.totalWorkouts != null ? { workouts: k.totalWorkouts } : null,
     nutrition: null,
     goal: null,
+    goals: dash && dash.goals ? DashSignals.goalsFromDoc(dash.goals) : null,
     lastContact: null,
     checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || null : null } : null,
     goalPhase: null,

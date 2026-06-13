@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/dash-signals.test.mjs tests/dash-builder.test.mjs tests/dash-meals.test.mjs"
+    "test": "node --test tests/dash-signals.test.mjs tests/dash-builder.test.mjs tests/dash-meals.test.mjs tests/dash-goals.test.mjs"
   },
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^2.0.2",

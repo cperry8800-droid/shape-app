@@ -200,11 +200,16 @@ function dashMessageClient(name, role) {
 }
 
 // Pre-session context from the unified record — the two most useful facts.
-// Priority: distance from goal weight → check-in state → streak → adherence.
+// Priority: goal proximity + projected pace (the engine's goalBrief, e.g.
+// '2.8 lb to "Goal weight" · pace Jul 17') → check-in state → streak →
+// adherence. Records without goals[] fall back to the legacy distance line.
 function dashContextLine(rec) {
   if (!rec) return null;
   const parts = [];
-  if (rec.goal && rec.goal.target != null) {
+  const brief = DashSignals.goalBrief ? DashSignals.goalBrief(rec, new Date()) : null;
+  if (brief) {
+    parts.push(brief);
+  } else if (rec.goal && rec.goal.target != null) {
     const now = rec.goal.now != null
       ? rec.goal.now
       : (Array.isArray(rec.weighIns) && rec.weighIns.length ? rec.weighIns[rec.weighIns.length - 1].weight : null);

@@ -148,6 +148,30 @@ export async function GET() {
     role: r.provider_role === 'nutritionist' ? 'Nutritionist' : 'Trainer',
   }));
 
+  // ---- Goals (pros set, clients view) --------------------------------------
+  // Coach-set goals live at client_programs.detail.goals (the client owns the
+  // row); the legacy self-set doc + live weigh-ins ride along so the Goals
+  // surfaces can normalize everything through DashSignals.goalsFromDoc.
+  const [{ data: programRow }, { data: goalsDoc }, { data: weighRows }] = await Promise.all([
+    supabase.from('client_programs').select('detail').eq('user_id', user.id).maybeSingle(),
+    supabase.from('user_goals').select('data').eq('user_id', user.id).eq('kind', 'client_goals').maybeSingle(),
+    supabase
+      .from('client_weigh_ins')
+      .select('logged_on, weight, unit')
+      .eq('user_id', user.id)
+      .order('logged_on', { ascending: true })
+      .limit(104),
+  ]);
+  const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
+  const selfDoc = (goalsDoc?.data ?? {}) as Record<string, unknown>;
+  const goals = {
+    coach: Array.isArray(programDetail.goals) ? programDetail.goals : null,
+    overall: selfDoc.overall ?? null,
+    training: Array.isArray(selfDoc.training) ? selfDoc.training : null,
+    nutrition: Array.isArray(selfDoc.nutrition) ? selfDoc.nutrition : null,
+    weighIns: (weighRows ?? []).map((w) => ({ on: w.logged_on, weight: w.weight, unit: w.unit })),
+  };
+
   // ---- Calendar events (workouts + booked sessions) -----------------------
   const calendar = [
     ...completed.slice(0, 80).map((s) => ({
@@ -173,5 +197,6 @@ export async function GET() {
     upcoming,
     team,
     calendar,
+    goals,
   });
 }
