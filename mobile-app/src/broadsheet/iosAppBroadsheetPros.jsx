@@ -883,8 +883,7 @@ function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey =
     <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
       <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
         <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
-        <div style={{ fontSize: 30, lineHeight: 1 }}>{step.emoji}</div>
-        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
         <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
