@@ -347,8 +347,9 @@ const BSContext = createContextBS(null);
 
 // Display text-size scale. The app hard-codes font sizes in px, so a Small/
 // Medium/Large control scales the whole interface proportionally (applied as
-// `zoom` on the phone surface, with the surface counter-sized so it still fits
-// the screen and reflows) — the same idea as iOS Display Zoom.
+// `zoom` on the phone surface). `zoom` scales the CONTENT only — the surface
+// box keeps its 100%×100% fill — so the UI reflows bigger/smaller while still
+// fitting the frame exactly. The same idea as iOS Display Zoom.
 const BS_TEXT_SCALES = { small: 0.9, medium: 1, large: 1.12 };
 function bsTextScale(key) { return BS_TEXT_SCALES[key] || 1; }
 
@@ -1280,11 +1281,11 @@ function BSPhone({ children }) {
         fontFamily: t.BODY,
       }}>
         <div id="bs-phone-surface" className="bs-paper-grain" style={{
-          // Text-size scale: zoom the surface and counter-size it so the
-          // scaled box still fills the screen exactly (content reflows bigger
-          // /smaller). zoom:1 (medium) is a no-op.
-          width: `${100 / (t.TEXT_SCALE || 1)}%`,
-          height: `${100 / (t.TEXT_SCALE || 1)}%`,
+          // Text-size scale: `zoom` scales the CONTENT only (not the box), so
+          // the surface keeps filling the frame exactly while the UI reflows
+          // bigger/smaller. zoom:1 (medium) is a no-op.
+          width: '100%',
+          height: '100%',
           zoom: t.TEXT_SCALE || 1,
           overflow: 'hidden',
           position: 'relative',
@@ -1321,8 +1322,9 @@ function BSPhone({ children }) {
       fontFamily: t.BODY,
     }}>
       <div id="bs-phone-surface" className="bs-paper-grain" style={{
-        // Text-size scale (see native branch) — counter-sized so zoom fits.
-        width: `${100 / (t.TEXT_SCALE || 1)}%`, height: `${100 / (t.TEXT_SCALE || 1)}%`,
+        // Text-size scale (see native branch) — `zoom` scales content only,
+        // so the surface stays exactly frame-sized.
+        width: '100%', height: '100%',
         zoom: t.TEXT_SCALE || 1,
         borderRadius: 42, overflow: 'hidden',
         position: 'relative', background: t.PAPER_BG,
