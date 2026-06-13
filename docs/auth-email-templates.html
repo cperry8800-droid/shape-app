@@ -1,0 +1,212 @@
+<!--
+  Shape — Supabase Auth email templates (branded)
+  ================================================
+  Paste each block below into Supabase Dashboard →
+  https://supabase.com/dashboard/project/zznufekgjngecelwxndw/auth/templates
+  Pick the matching template on the left, set the SUBJECT, and paste the
+  HTML (everything between the block's BEGIN/END comments) into the body.
+
+  Each block is self-contained (Supabase templates can't share partials).
+  Shared look: dark #0a0e1a bg, card #11162a, cream #f4efe6 text, teal
+  #2ee0c4 accent, serif heading. Inline styles only (email-client safe).
+
+  Variable cheat-sheet (Supabase / GoTrue):
+    {{ .ConfirmationURL }}  the action link (signup / magic / reset / invite / email change)
+    {{ .Email }}            the recipient's current email
+    {{ .NewEmail }}         the requested new email (Change-email template only)
+    {{ .Token }}            6-digit code (Reauthentication template)
+    {{ .SiteURL }}          your site URL
+-->
+
+
+<!-- ============================================================
+     1) CONFIRM SIGNUP        Subject: Confirm your Shape account
+     BEGIN ====================================================== -->
+<div style="margin:0;padding:0;background:#0a0e1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#11162a;border:1px solid rgba(244,239,230,0.12);border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#2ee0c4;font-weight:700;">Welcome to Shape</div>
+          <h1 style="margin:14px 0 0;font-family:Georgia,'Newsreader',serif;font-size:34px;line-height:1.05;letter-spacing:-0.03em;color:#f4efe6;font-weight:500;">Confirm your<br><span style="font-style:italic;color:#2ee0c4;">email.</span></h1>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(244,239,230,0.82);">
+            Tap below to confirm <strong style="color:#f4efe6;">{{ .Email }}</strong> and finish creating your account. Then head back to the app and sign in.
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#2ee0c4;color:#031f1c;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:12px;">Confirm my email &rarr;</a>
+        </td></tr>
+        <tr><td style="padding:20px 36px 36px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:rgba(244,239,230,0.4);">
+            If you didn't create a Shape account, you can ignore this email.<br>Button not working? Paste this link: {{ .ConfirmationURL }}
+          </p>
+        </td></tr>
+      </table>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(244,239,230,0.3);padding-top:18px;">Shape &middot; the community for getting in shape</div>
+    </td></tr>
+  </table>
+</div>
+<!-- END 1) CONFIRM SIGNUP ====================================== -->
+
+
+<!-- ============================================================
+     2) MAGIC LINK            Subject: Your Shape sign-in link
+     BEGIN ====================================================== -->
+<div style="margin:0;padding:0;background:#0a0e1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#11162a;border:1px solid rgba(244,239,230,0.12);border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#2ee0c4;font-weight:700;">Sign in</div>
+          <h1 style="margin:14px 0 0;font-family:Georgia,'Newsreader',serif;font-size:34px;line-height:1.05;letter-spacing:-0.03em;color:#f4efe6;font-weight:500;">Your sign-in<br><span style="font-style:italic;color:#2ee0c4;">link.</span></h1>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(244,239,230,0.82);">
+            Tap below to sign in to Shape as <strong style="color:#f4efe6;">{{ .Email }}</strong>. This link is single-use and expires shortly.
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#2ee0c4;color:#031f1c;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:12px;">Sign in to Shape &rarr;</a>
+        </td></tr>
+        <tr><td style="padding:20px 36px 36px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:rgba(244,239,230,0.4);">
+            If you didn't ask to sign in, you can safely ignore this email.<br>Button not working? Paste this link: {{ .ConfirmationURL }}
+          </p>
+        </td></tr>
+      </table>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(244,239,230,0.3);padding-top:18px;">Shape &middot; the community for getting in shape</div>
+    </td></tr>
+  </table>
+</div>
+<!-- END 2) MAGIC LINK ========================================== -->
+
+
+<!-- ============================================================
+     3) RESET PASSWORD        Subject: Reset your Shape password
+     BEGIN ====================================================== -->
+<div style="margin:0;padding:0;background:#0a0e1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#11162a;border:1px solid rgba(244,239,230,0.12);border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#2ee0c4;font-weight:700;">Password reset</div>
+          <h1 style="margin:14px 0 0;font-family:Georgia,'Newsreader',serif;font-size:34px;line-height:1.05;letter-spacing:-0.03em;color:#f4efe6;font-weight:500;">Set a new<br><span style="font-style:italic;color:#2ee0c4;">password.</span></h1>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(244,239,230,0.82);">
+            We got a request to reset the password for <strong style="color:#f4efe6;">{{ .Email }}</strong>. Tap below to choose a new one.
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#2ee0c4;color:#031f1c;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:12px;">Reset my password &rarr;</a>
+        </td></tr>
+        <tr><td style="padding:20px 36px 36px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:rgba(244,239,230,0.4);">
+            Didn't request this? Ignore this email and your password stays the same.<br>Button not working? Paste this link: {{ .ConfirmationURL }}
+          </p>
+        </td></tr>
+      </table>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(244,239,230,0.3);padding-top:18px;">Shape &middot; the community for getting in shape</div>
+    </td></tr>
+  </table>
+</div>
+<!-- END 3) RESET PASSWORD ====================================== -->
+
+
+<!-- ============================================================
+     4) CHANGE EMAIL ADDRESS  Subject: Confirm your new Shape email
+     BEGIN ====================================================== -->
+<div style="margin:0;padding:0;background:#0a0e1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#11162a;border:1px solid rgba(244,239,230,0.12);border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#2ee0c4;font-weight:700;">Email change</div>
+          <h1 style="margin:14px 0 0;font-family:Georgia,'Newsreader',serif;font-size:34px;line-height:1.05;letter-spacing:-0.03em;color:#f4efe6;font-weight:500;">Confirm your<br><span style="font-style:italic;color:#2ee0c4;">new email.</span></h1>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(244,239,230,0.82);">
+            You asked to change your Shape email from <strong style="color:#f4efe6;">{{ .Email }}</strong> to <strong style="color:#f4efe6;">{{ .NewEmail }}</strong>. Tap below to confirm.
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#2ee0c4;color:#031f1c;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:12px;">Confirm the change &rarr;</a>
+        </td></tr>
+        <tr><td style="padding:20px 36px 36px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:rgba(244,239,230,0.4);">
+            If you didn't request this change, ignore this email and nothing changes.<br>Button not working? Paste this link: {{ .ConfirmationURL }}
+          </p>
+        </td></tr>
+      </table>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(244,239,230,0.3);padding-top:18px;">Shape &middot; the community for getting in shape</div>
+    </td></tr>
+  </table>
+</div>
+<!-- END 4) CHANGE EMAIL ADDRESS ================================ -->
+
+
+<!-- ============================================================
+     5) INVITE USER           Subject: You're invited to Shape
+     BEGIN ====================================================== -->
+<div style="margin:0;padding:0;background:#0a0e1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#11162a;border:1px solid rgba(244,239,230,0.12);border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#2ee0c4;font-weight:700;">You're invited</div>
+          <h1 style="margin:14px 0 0;font-family:Georgia,'Newsreader',serif;font-size:34px;line-height:1.05;letter-spacing:-0.03em;color:#f4efe6;font-weight:500;">Join the<br><span style="font-style:italic;color:#2ee0c4;">community.</span></h1>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(244,239,230,0.82);">
+            You've been invited to Shape. Tap below to set up your account for <strong style="color:#f4efe6;">{{ .Email }}</strong> and get started.
+          </p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 8px;">
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#2ee0c4;color:#031f1c;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:12px;">Accept invite &rarr;</a>
+        </td></tr>
+        <tr><td style="padding:20px 36px 36px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:rgba(244,239,230,0.4);">
+            If you weren't expecting this, you can ignore it.<br>Button not working? Paste this link: {{ .ConfirmationURL }}
+          </p>
+        </td></tr>
+      </table>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(244,239,230,0.3);padding-top:18px;">Shape &middot; the community for getting in shape</div>
+    </td></tr>
+  </table>
+</div>
+<!-- END 5) INVITE USER ========================================= -->
+
+
+<!-- ============================================================
+     6) REAUTHENTICATION      Subject: Your Shape confirmation code
+     (this template uses a 6-digit CODE, not a link)
+     BEGIN ====================================================== -->
+<div style="margin:0;padding:0;background:#0a0e1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e1a;padding:32px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#11162a;border:1px solid rgba(244,239,230,0.12);border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#2ee0c4;font-weight:700;">Confirm it's you</div>
+          <h1 style="margin:14px 0 0;font-family:Georgia,'Newsreader',serif;font-size:34px;line-height:1.05;letter-spacing:-0.03em;color:#f4efe6;font-weight:500;">Your<br><span style="font-style:italic;color:#2ee0c4;">code.</span></h1>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:rgba(244,239,230,0.82);">
+            Enter this code in the app to confirm the change.
+          </p>
+        </td></tr>
+        <tr><td style="padding:18px 36px 8px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:34px;letter-spacing:0.32em;color:#2ee0c4;font-weight:700;background:rgba(46,224,196,0.08);border:1px solid rgba(46,224,196,0.3);border-radius:12px;padding:18px 0;text-align:center;">{{ .Token }}</div>
+        </td></tr>
+        <tr><td style="padding:18px 36px 36px;">
+          <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:rgba(244,239,230,0.4);">
+            If you didn't request this, you can ignore this email.
+          </p>
+        </td></tr>
+      </table>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(244,239,230,0.3);padding-top:18px;">Shape &middot; the community for getting in shape</div>
+    </td></tr>
+  </table>
+</div>
+<!-- END 6) REAUTHENTICATION ==================================== -->
