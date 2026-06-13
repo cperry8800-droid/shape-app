@@ -44,6 +44,7 @@ load("public/newdesign/dashToday.jsx");
 load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashGoals.jsx");
 load("public/newdesign/dashProgress.jsx");
+load("public/newdesign/dashTrain.jsx");
 load("public/newdesign/dashBusiness.jsx");
 load("public/newdesign/dashRoster.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
@@ -247,6 +248,31 @@ try {
   const liveChurn = render(React.createElement(g.DbzChurnZone, { live: true, churn: [{ name: "A. Client", startedAt: new Date(Date.now() - 200 * 86400000).toISOString(), endedAt: new Date(Date.now() - 5 * 86400000).toISOString(), priceCents: 18000, reason: null }] }));
   ok("Churn live row: tenure + MRR lost + honest missing reason", liveChurn.includes("mo client") && liveChurn.includes("−$180") && liveChurn.includes("collects once the cancellation survey ships"));
 } catch (e) { ok("Business page renders", false, e.message); }
+
+// ── 4h. Workouts page — full program: weeks, locks, history, human loop ─────
+try {
+  const wk = render(React.createElement(g.ClientWorkoutsPage));
+  ok("Workouts page renders the program (demo) with week structure", wk.includes("Workouts") && /Week \d · this week/.test(wk) && /STRENGTH BLOCK 3 · WEEK \d OF \d/.test(wk));
+  ok("Workouts: past weeks are collapsed + done; current week expanded", wk.includes("· done") && wk.includes("· this week") && wk.includes("· locked"));
+  ok("Workouts: the unwritten next block sells the human loop", /writes this after your check-in/i.test(wk) && wk.includes("Check in") && /FINE-TUNES IT AFTER YOUR CHECK-IN/i.test(wk));
+  ok("Workouts: tonight's session card leads (the Today deep-link target)", wk.includes("Tonight's workout") || wk.includes("Tonight"));
+  ok("Workouts: history shows logged vs prescribed", wk.includes("logged vs prescribed") && wk.includes("Prescribed"));
+  ok("Workouts: consistency is streaks/wins, no bare adherence %", wk.includes("Consistency · streaks") && !/\d+%\s*adherence/i.test(wk));
+  // Week grouping is correct: template stamps win, status by calendar week.
+  const now = new Date("2026-06-12T12:00:00");
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const monday = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  const thisMon = monday(now);
+  const dayIn = (wkOffset, dayN) => iso(new Date(thisMon.getTime() + wkOffset * 7 * 86400000 + dayN * 86400000));
+  const workouts = [
+    { id: "a", title: "W1D1", scheduledDate: dayIn(-1, 0), template: { week: 1, day: 1 }, exercises: [] },
+    { id: "b", title: "W2D1", scheduledDate: dayIn(0, 0), template: { week: 2, day: 1 }, exercises: [] },
+    { id: "c", title: "W3D1", scheduledDate: dayIn(1, 0), template: { week: 3, day: 1 }, exercises: [] },
+  ];
+  const { weeks } = g.dtrBuildWeeks(workouts, new Set([dayIn(-1, 0)]), now);
+  ok("week grouping: past/current/upcoming by calendar week", weeks.map((w) => w.status).join(",") === "past,current,upcoming");
+  ok("week grouping: completion marks count done days", weeks[0].doneCount === 1 && weeks[1].doneCount === 0);
+} catch (e) { ok("Workouts page renders", false, e.message); }
 
 // ── 4g. Message deep-link — every button routes through the chat bubble ─────
 try {

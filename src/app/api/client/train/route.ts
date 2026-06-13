@@ -84,11 +84,60 @@ export async function GET() {
     }
   }
 
-  const recentSessions = completed.slice(0, 8).map((s) => ({
-    title: s.title || 'Workout',
-    at: sessionAt(s),
-    durationMin: Math.round((s.duration_seconds ?? 0) / 60),
-  }));
+  // Recent sessions, with logged-vs-prescribed set detail (Workouts tab).
+  // workout_set_logs stores the prescription (target_reps/target_load) next
+  // to what was actually lifted, so the comparison is real per move.
+  const recentIds = completed.slice(0, 8).map((s) => (s as SessionRow & { id?: string }).id).filter(Boolean) as string[];
+  const { data: recentSetRows } = recentIds.length
+    ? await supabase
+        .from('workout_set_logs')
+        .select('session_id, move_index, move_name, set_number, target_reps, target_load, actual_reps, actual_load, completed')
+        .in('session_id', recentIds)
+        .order('move_index', { ascending: true })
+        .order('set_number', { ascending: true })
+    : { data: [] as Array<Record<string, unknown>> };
+  type MoveAgg = { name: string; idx: number; setsLogged: number; setsPrescribed: number; target: string | null; best: string | null; bestLoad: number };
+  const movesBySession = new Map<string, Map<string, MoveAgg>>();
+  for (const r of recentSetRows ?? []) {
+    const sid = String(r.session_id);
+    if (!movesBySession.has(sid)) movesBySession.set(sid, new Map());
+    const byMove = movesBySession.get(sid)!;
+    const key = String(r.move_name);
+    if (!byMove.has(key)) {
+      byMove.set(key, {
+        name: key,
+        idx: Number(r.move_index) || 0,
+        setsLogged: 0,
+        setsPrescribed: 0,
+        target: [r.target_reps, r.target_load].filter(Boolean).join(' @ ') || null,
+        best: null,
+        bestLoad: 0,
+      });
+    }
+    const agg = byMove.get(key)!;
+    agg.setsPrescribed += 1;
+    if (r.completed !== false && (r.actual_reps != null || r.actual_load != null)) {
+      agg.setsLogged += 1;
+      const load = Number(r.actual_load);
+      if (Number.isFinite(load) && load >= agg.bestLoad) {
+        agg.bestLoad = load;
+        agg.best = [r.actual_load, r.actual_reps != null ? '× ' + r.actual_reps : null].filter(Boolean).join(' ');
+      }
+    }
+  }
+
+  const recentSessions = completed.slice(0, 8).map((s) => {
+    const sid = String((s as SessionRow & { id?: string }).id ?? '');
+    const byMove = movesBySession.get(sid);
+    return {
+      title: s.title || 'Workout',
+      at: sessionAt(s),
+      durationMin: Math.round((s.duration_seconds ?? 0) / 60),
+      moves: byMove
+        ? [...byMove.values()].sort((a, b) => a.idx - b.idx).map(({ name, setsLogged, setsPrescribed, target, best }) => ({ name, setsLogged, setsPrescribed, target, best }))
+        : [],
+    };
+  });
 
   return NextResponse.json({
     ok: true,

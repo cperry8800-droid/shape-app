@@ -84,7 +84,7 @@ const SHAPE_NAV_GROUPS = [
 const PORTAL_NAV = {
   client: [
     { kind: "link", label: "Dashboard", href: "ClientDashboard.html" },
-    { kind: "link", label: "Train", href: "ClientTrain.html" },
+    { kind: "link", label: "Workouts", href: "ClientTrain.html" },
     { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
     { kind: "link", label: "Progress", href: "ClientProgress.html" },
     { kind: "link", label: "Community", href: "ClientCommunity.html" },

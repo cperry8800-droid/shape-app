@@ -75,6 +75,17 @@ export async function GET(request: Request) {
       playlist: payload?.playlist && typeof payload.playlist === 'object'
         ? { name: String((payload.playlist as Record<string, unknown>).name ?? ''), meta: String((payload.playlist as Record<string, unknown>).meta ?? '') }
         : null,
+      // Builder snapshot stamp ({id, name, version, week, day}) — the client
+      // Workouts tab groups the program into weeks with it.
+      template: payload?.template && typeof payload.template === 'object'
+        ? {
+            id: String((payload.template as Record<string, unknown>).id ?? ''),
+            name: String((payload.template as Record<string, unknown>).name ?? ''),
+            version: Number((payload.template as Record<string, unknown>).version) || null,
+            week: Number((payload.template as Record<string, unknown>).week) || null,
+            day: Number((payload.template as Record<string, unknown>).day) || null,
+          }
+        : null,
       exercises: mapExercises(payload),
     };
   });

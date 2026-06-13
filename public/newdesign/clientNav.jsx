@@ -4,7 +4,7 @@ function clientNavItems(active) {
   const items = [
     { label: "Today",     href: "ClientDashboard.html" },
     { label: "Progress",  href: "ClientProgress.html" },
-    { label: "Train",     href: "ClientTrain.html" },
+    { label: "Workouts",  href: "ClientTrain.html" },
     { label: "Nutri",     href: "ClientNutri.html" },
     { label: "Library",   href: "ClientLibrary.html" },
     { label: "Team",      href: "ClientTeam.html", count: 2 },

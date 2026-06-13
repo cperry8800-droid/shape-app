@@ -124,6 +124,26 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 19 — client Workouts tab (full assigned program)**: migrated
+  `ClientTrain.html` (was a stats page reading only `/api/client/train`) into
+  `dashTrain.jsx` — the whole program by week. **Tonight's session** leads
+  (the Today card's Start → already targets this page). **Weeks**: current
+  expanded, past collapsed with per-day ✓ completion marks, upcoming
+  **visible but locked** with "🔒 {coach} fine-tunes it after your check-in";
+  then an always-present **"{coach} writes this after your check-in"** plate —
+  the human loop is the headline sell, not a footnote. **Session history**
+  expands to **logged-vs-prescribed** per move (sets done/prescribed + best
+  set) with inline **▲ PR** badges; consistency is streaks/wins (no bare
+  adherence %). Week grouping prefers the builder `template.week` stamp,
+  falls back to ISO calendar weeks; completion marks come from the
+  dashboard's completed-workout calendar, PR dates from `/api/client/progress`.
+  **Server**: `/api/client/train` `recentSessions` now carry per-move
+  `{setsLogged, setsPrescribed, target, best}` from `workout_set_logs`
+  (prescription stored alongside actuals — no migration); `/api/client/plan`
+  workouts pass the `template` stamp through. Nav "Train" → "Workouts"
+  (sidebar + site header; pageShell `?v=20260613b` across 62 pages). Browser-
+  verified: 3-week demo renders, 0px overflow at 375/1280, zero console
+  errors. Tests 78/78 · render review 100/100.
 - ✅ **Step 18 — full QA pass (real-browser)**: `scripts/qa-sweep.mjs` (18
   pages × 375/768/1280 in headless Chromium against `next start`: page
   errors, console, horizontal overflow, screenshots — the container's
