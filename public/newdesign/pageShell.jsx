@@ -93,6 +93,7 @@ const PORTAL_NAV = {
   ],
   trainer: [
     { kind: "link", label: "Dashboard", href: "TrainerDashboard.html" },
+    { kind: "link", label: "Schedule", href: "TrainerSchedule.html" },
     { kind: "link", label: "Clients", href: "TrainerClients.html" },
     { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
     { kind: "link", label: "Messages", href: "TrainerMessages.html" },
@@ -102,6 +103,7 @@ const PORTAL_NAV = {
   ],
   nutritionist: [
     { kind: "link", label: "Dashboard", href: "NutritionistDashboard.html" },
+    { kind: "link", label: "Schedule", href: "NutritionistSchedule.html" },
     { kind: "link", label: "Clients", href: "NutritionistClients.html" },
     { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
     { kind: "link", label: "Messages", href: "NutritionistMessages.html" },

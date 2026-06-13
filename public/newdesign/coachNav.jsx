@@ -4,6 +4,7 @@ function trainerNavItems(active) {
   
   const items = [
     { label: "Today",     href: "TrainerDashboard.html" },
+    { label: "Schedule",  href: "TrainerSchedule.html" },
     { label: "Clients",   href: "TrainerClients.html", count: 34 },
     { label: "Programs",  href: "TrainerPrograms.html" },
     { label: "Business",  href: "TrainerAnalytics.html" },
@@ -25,6 +26,7 @@ function nutriNavItems(active) {
   // 'Clients' hosts Roster + Console as sub-tabs; Business absorbs Analytics.
   const items = [
     { label: "Today",     href: "NutritionistDashboard.html" },
+    { label: "Schedule",  href: "NutritionistSchedule.html" },
     { label: "Clients",   href: "NutritionistClients.html", count: 28 },
     { label: "Plans",     href: "NutritionistPlans.html" },
     { label: "Business",  href: "NutritionistAnalytics.html" },

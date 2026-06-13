@@ -48,6 +48,7 @@ load("public/newdesign/dashTrain.jsx");
 load("public/newdesign/dashNutri.jsx");
 load("public/newdesign/dashBusiness.jsx");
 load("public/newdesign/dashRoster.jsx");
+load("public/newdesign/dashSchedule.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
 load("public/newdesign/dashBuilder.jsx");
 g.DashMeals = require("../public/newdesign/dashMealCore.js");
@@ -295,6 +296,21 @@ try {
   const meals = g.dnuDayMeals({ meals: [{ slot: "Lunch", time: "12:30", title: "Bowl", kcal: 620, p: 52, c: 68, f: 18, alts: [{ name: "Alt", kcal: 600, p: 40, c: 60, f: 18 }] }] });
   ok("plan meal maps to the ledger card shape with swaps", meals[0].kcal === 620 && meals[0].alts.length === 1 && meals[0].time === "12:30 PM");
 } catch (e) { ok("Nutrition page renders", false, e.message); }
+
+// ── 4j. Schedule page — planning calendar, client colors, availability ──────
+try {
+  const sc = render(React.createElement(g.CoachSchedulePage, { role: "trainer" }));
+  ok("Schedule page renders the planning calendar (demo)", sc.includes("Schedule") && sc.includes("PLANNING VIEW") && sc.includes("Month") && sc.includes("Week"));
+  ok("Schedule: events are color-coded by client (legend + names)", sc.includes("Priya S.") && sc.includes("Deandre K.") && sc.includes("Marcus T."));
+  ok("Schedule: availability editor feeds the marketplace", sc.includes("Availability · feeds your marketplace profile") && sc.includes("marketplace profile"));
+  ok("Schedule: rescheduling explained (drag + client notification)", sc.includes("How rescheduling works") && /notification with the new time|client gets a notification/i.test(sc));
+  const nsc = render(React.createElement(g.CoachSchedulePage, { role: "nutritionist" }));
+  ok("Schedule nutritionist role renders without leaked trainer UI", nsc.includes("PLANNING VIEW") && !nsc.includes("TrainerSchedule.html"));
+  // Color map: distinct clients on the calendar never share a color (≤10).
+  const cmap = g.dscColorMap([{ clientId: "a" }, { clientId: "b" }, { clientId: "c" }, { clientId: "a" }]);
+  ok("distinct clients get distinct colors; same client stays stable", cmap("a") !== cmap("b") && cmap("b") !== cmap("c") && cmap("a") === cmap("a"));
+  ok("client hash color is deterministic", g.dscClientColor("demo-priya") === g.dscClientColor("demo-priya"));
+} catch (e) { ok("Schedule page renders", false, e.message); }
 
 // ── 4g. Message deep-link — every button routes through the chat bubble ─────
 try {

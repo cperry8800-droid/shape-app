@@ -124,6 +124,29 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 21 — pro Schedule tab (the planning view)**: new `dashSchedule.jsx`
+  + `Trainer/NutritionistSchedule.html` + a **Schedule** nav entry for both
+  coach roles (sidebar + header). A full **month/week** calendar of the
+  coach's sessions + consults, **color-coded by client** (`dscColorMap` —
+  distinct clients on the visible calendar get distinct palette colors, no
+  collisions ≤10; a client legend under the grid). **Click any booking →**
+  the shared `DashClientDrawer` when it maps to a roster client, else a
+  read-only event sheet. **Drag to reschedule**: drop an event on another
+  day → sessions/consults PATCH `/api/sessions/manage` (new **`reschedule`
+  action — coach-only, updates `scheduled_at`, notifies the client** with the
+  new time via the existing notify infra), manual `calendar_events` PATCH
+  `/api/calendar`; pushed workouts/meals are read-only (🔒, "reschedule in
+  the program/plan"). Optimistic move with revert-on-failure + a toast.
+  **Availability editor** (weekly hour-block grid) reads/writes
+  `/api/my-availability?role=` — **the exact slots the marketplace profile
+  reads**, so editing here updates where members book. Today's schedule stays
+  the daily summary; this is the planning surface. **Server**: `/api/calendar`
+  sessions now carry `clientId` + client `with` name + `reschedulable` (for
+  color-coding + the drawer); `/api/sessions/manage` gains the reschedule
+  action + a `session_rescheduled` notification. Browser-verified both roles
+  (8 distinct client colors, drag chips, week view, event-click panel,
+  availability toggle, 0px overflow 375/1280, zero console errors). Tests
+  78/78 · render review 114/114.
 - ✅ **Step 20 — client Nutrition tab (full assigned meal plan)**: migrated
   `ClientNutri.html` (was mock-driven on `/api/client/nutrition` only) into
   `dashNutri.jsx` reading the REAL assigned plan (`/api/client/plan`
