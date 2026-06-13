@@ -73,7 +73,21 @@ function demoProfile(overrides = {}) {
 }
 
 function setCached(next = {}) {
+  const prevUid = (state.user && state.user.id) || null;
+  const prevName = (state.profile && state.profile.full_name) || null;
   Object.assign(state, next);
+  const uid = (state.user && state.user.id) || null;
+  const name = (state.profile && state.profile.full_name) || null;
+  // Notify the UI when identity actually changes (sign-in / sign-out / profile
+  // resolve). Avatars read bsMyName()/bsMyPhoto() straight from this cache, and
+  // they typically render once BEFORE getCurrentSession resolves (user.id still
+  // null → bsMyPhoto returns the demo headshot). Without this nudge they never
+  // refresh, so a brand-new account keeps showing the demo persona / photo
+  // instead of its own initials. The app listens for 'shape:identity' and bumps
+  // a version to re-render every avatar.
+  if (typeof window !== 'undefined' && (uid !== prevUid || name !== prevName)) {
+    try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+  }
   return { user: state.user, session: state.session, profile: state.profile };
 }
 
