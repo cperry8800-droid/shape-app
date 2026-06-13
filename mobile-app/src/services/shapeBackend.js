@@ -342,6 +342,12 @@ async function getCurrentSession() {
 
   const user = data.session?.user || null;
   let profile = user ? await fetchProfile(user) : null;
+  // No DB trigger creates the profile row, and the email-confirmation signup
+  // path establishes a session via redirect (not signIn), so a brand-new
+  // account arrives here with no profile. Create it from the signup metadata
+  // (full_name + role) so the real name/initials show instead of the demo
+  // persona. Idempotent (upsert on id).
+  if (user && !profile) { try { profile = await upsertProfile(user); } catch (e) {} }
   if (user) profile = await ensureUsernameClaimed(user, profile); // claim a signup-chosen username on first (confirmed) login
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide

@@ -22,8 +22,22 @@ const {
 // header avatars always read sensibly. Keeps every "your own" avatar in sync
 // with the account's real name instead of a hardcoded "A".
 function bsMyName() {
-  const p = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile) || {};
-  return (p.full_name && String(p.full_name).trim()) || 'Quinn Harper';
+  const st = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
+  const p = st.profile || {};
+  const fromProfile = p.full_name && String(p.full_name).trim();
+  if (fromProfile) return fromProfile;
+  // Signed in but the profile row has no name yet (e.g. just after confirming a
+  // new account) → derive the name from the signup metadata, then the email
+  // local-part. NEVER fall back to the demo persona while signed in — that's
+  // what made a fresh account show "Quinn Harper" + demo initials.
+  if (st.user) {
+    const meta = st.user.user_metadata && st.user.user_metadata.full_name && String(st.user.user_metadata.full_name).trim();
+    if (meta) return meta;
+    const email = (st.user.email && String(st.user.email).trim()) || '';
+    if (email.includes('@')) return email.split('@')[0];
+    return 'Shape member';
+  }
+  return 'Quinn Harper'; // signed-out demo / preview only
 }
 // Up-to-two-letter initials from a display name (drops a leading "# " for channels).
 function bsInitials(name) {
@@ -62,10 +76,13 @@ function bsMyPhoto() {
 // I earn points — so the avatar reflects standing, not a chosen accent.
 function bsMyTier() {
   const s = (typeof window !== 'undefined' && window.ShapeScore) || null;
-  // Signed in → live tier (Base/steel until you earn points). Signed-out preview
-  // falls back to the demo client profile's tier so avatars, the Me page, the
-  // score card, and Settings all read the SAME tier (no Base-vs-Tempo split).
-  return (s && s.tier) || (SHAPE_SCORE_PROFILES.client && SHAPE_SCORE_PROFILES.client.tier) || 'Base';
+  if (s && s.tier) return s.tier; // live tier (signed in, score loaded)
+  // Signed in but no live score yet (e.g. a brand-new account) → real accounts
+  // start at Base/steel, NOT the demo persona's tier. Only the signed-out
+  // preview falls back to the demo client tier.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  if (signedIn) return 'Base';
+  return (SHAPE_SCORE_PROFILES.client && SHAPE_SCORE_PROFILES.client.tier) || 'Base';
 }
 function bsMyTierColor() {
   return bsTierColor(bsMyTier());
@@ -13555,7 +13572,22 @@ function _bsUseLiveScore(profile) {
     return () => { cancelled = true; };
   }, [loggedIn]);
 
-  if (!loggedIn || !data) return { ...profile, live: false };
+  if (!loggedIn) return { ...profile, live: false }; // signed-out → demo preview
+  if (!data) {
+    // Signed in but no score yet (a brand-new account, or the score endpoint
+    // isn't available to a non-member). Show the REAL empty standing — Base,
+    // 0 points — instead of the demo persona's numbers. The `activities`
+    // points-reference table is kept as guidance.
+    const _goal = profile.goal || 5000;
+    return {
+      ...profile, live: false,
+      tier: _tierName('Base'), tierShort: _coach ? 'CRT' : 'BSE', nextTier: _tierName('Tempo'),
+      total: 0, available: 0, lifetime: 0, redeemedCount: 0, streak: 0,
+      goal: _goal, pointsToNext: _goal, week: '+0', month: 0,
+      weekRatio: 0, streakRatio: 0, tierRatio: 0, spendRatio: 0,
+      ledger: [['—', '+0', 'Start earning — log a workout or check off a habit']],
+    };
+  }
 
   const total = data.points_total || 0;
   const nextTier = data.next_tier || null;
