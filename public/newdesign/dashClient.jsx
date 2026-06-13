@@ -462,12 +462,16 @@ function ClientDashboardPage() {
 
             {/* ── Right column ── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-              {/* Weekly compliance ring */}
+              {/* Weekly consistency ring — framing rule: consistency reads as
+                  streaks and wins on the client side, never a bare adherence
+                  percentage. The ring fill keeps the visual; the number is
+                  this week's win count. */}
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_GREEN), paddingLeft: 24 }}>
-                <div className="dash-eyebrow" style={{ color: DCL_GREEN }}>This week · compliance</div>
+                <div className="dash-eyebrow" style={{ color: DCL_GREEN }}>This week · consistency</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 12 }}>
                   <DclRing pct={compPct} color={DCL_GREEN} size={84}>
-                    <div style={{ fontFamily: serif, fontSize: 20, lineHeight: 1 }}>{Math.round(compPct * 100)}%</div>
+                    <div style={{ fontFamily: serif, fontSize: 20, lineHeight: 1 }}>{comp.workoutsDone + comp.mealsLogged}</div>
+                    <div style={{ fontFamily: DCL_MONO, fontSize: 7, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>wins</div>
                   </DclRing>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <div>

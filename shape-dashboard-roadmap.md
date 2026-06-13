@@ -124,6 +124,31 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 15 — client Progress page (migrated): comparisons first**:
+  `ClientProgress.html` MIGRATED in place (same URL, same cookie APIs). The
+  LEAD is comparisons, not tables — "8 weeks ago vs today" side-by-side for
+  **weight** (dated weigh-in nearest 8 weeks back vs latest, honest "Xw ago"
+  label when the history is younger, delta chip), **measurements** (per-site
+  then→now from check-in tape entries), and **photos** (then/today pair per
+  pose from the progress-photos timeline; the empty state sells taking the
+  first set). Below: the **weight chart** (the old 9-series trend switcher
+  kept, restyled to plates; only series with data show), **PR history**
+  (dated bests as ▲ win rows), and a **milestone timeline** (earned ✓ →
+  "Next up" ○ with progress bars — built on `buildMilestones`, so goal
+  proximity + pace from step 14 ride in automatically; live record from
+  `/api/client/dashboard` incl. its goals block). **FRAMING RULE shipped:
+  no bare adherence percentages anywhere on the client side** — the old
+  Insights card ("82% workout adherence" grid) is gone, replaced by a
+  consistency strip of streaks and wins (current streak · workouts this
+  week · PRs this quarter · all-time), and the client DASHBOARD's
+  compliance ring was reframed too ("This week · consistency", center =
+  the week's win count, no % — render check updated deliberately). The
+  **check-in kit survives intact** below the fold as "the weekly ritual —
+  two minutes that sharpen everything above" (same POST shapes; submitting
+  refetches so the comparisons update); its old measurements/photos cards
+  folded into the comparison lead + a photo timeline. New demo dataset is
+  DATED so the demo comparison is real math (177→171, −6 lb, exactly 8
+  weeks). Render review 75/75 · tests 78/78.
 - ✅ **Step 14 — Goals page (migrated, not rebuilt) + pace projections**:
   `ClientGoal.html` MIGRATED in place onto the v2 kit (same URL; keeps its
   supabase wiring — the `user_goals('client_goals')` doc + legacy fallback,

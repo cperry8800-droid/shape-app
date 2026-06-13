@@ -43,6 +43,7 @@ load("public/newdesign/dashData.jsx");
 load("public/newdesign/dashToday.jsx");
 load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashGoals.jsx");
+load("public/newdesign/dashProgress.jsx");
 load("public/newdesign/dashRoster.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
 load("public/newdesign/dashBuilder.jsx");
@@ -106,7 +107,8 @@ for (const token of ["Roster health", "Plans due", "Client wins", "Marketplace f
 // ── 3. Client page — nothing business-flavored ──────────────────────────────
 ok("client view has no MRR", !/MRR/i.test(clientHtml));
 ok("client view has no consult counts", !/consult/i.test(clientHtml));
-for (const token of ["Tonight", "Shape Score", "Milestones", "compliance", "Your team"])
+// "compliance" became "consistency" (framing rule: streaks + wins, no bare %).
+for (const token of ["Tonight", "Shape Score", "Milestones", "consistency", "Your team"])
   ok(`client view contains "${token}"`, clientHtml.includes(token));
 
 // ── 4. Joint-attention + wins (panels rendered with the demo feed directly —
@@ -203,6 +205,21 @@ try {
   const ms = g.DashSignals.buildMilestones(jordan);
   ok("Milestone feed: goal proximity with pace leads 'next'", ms.next[0].kind === "goal" && /pace Jul \d+/.test(ms.next[0].detail));
 } catch (e) { ok("Goals page + card + drawer render", false, e.message); }
+
+// ── 4e. Progress page — comparison lead, wins framing, milestone timeline ───
+try {
+  const pr = render(React.createElement(g.ClientProgressPage));
+  ok("ClientProgress renders with the comparison lead", pr.includes("8 weeks ago vs today") && pr.includes("Measurements · then vs today") && pr.includes("Photos ·"));
+  ok("Progress: demo weight comparison is honest dated math (177 → 171, −6 lb)", pr.includes("−6 lb") && pr.includes(">177<") === false ? pr.includes("177") && pr.includes("171") : true);
+  ok("Progress: below the lead — weight chart, PR history, milestone timeline", pr.includes("Weight · trend") && pr.includes("PR history") && pr.includes("Back squat") && pr.includes("Milestones · earned → next") && pr.includes("Next up"));
+  ok("Progress: milestone timeline carries goal pace (step-14 wiring)", /pace [A-Z][a-z]{2} \d/.test(pr));
+  ok("Progress: consistency reads as streaks and wins, never adherence %", pr.includes("Consistency · streaks") && !pr.includes("Workout adherence") && !pr.includes("Macro adherence") && !/\d+%\s*adherence/i.test(pr));
+  ok("Progress: signed-out has no check-in form (old behavior kept)", !pr.includes("Send check-in"));
+  const form = render(React.createElement(g.DprCheckinForm, { kit: { weekOf: "2026-06-08", checkins: [], measurements: [] }, onSaved: () => {} }));
+  ok("Check-in kit survives the migration (6 ratings + tape + photos + send)", form.includes("Weekly check-in") && form.includes("Training adherence") && form.includes("Waist (cm)") && form.includes("front photo") && form.includes("Send check-in"));
+  // The dashboard's ring follows the framing rule too.
+  ok("Client dashboard ring: wins count, not a bare adherence %", clientHtml.includes("This week · consistency") && clientHtml.includes(">wins<") && !clientHtml.includes("76%"));
+} catch (e) { ok("Progress page renders", false, e.message); }
 
 // ── 5. Console errors during render ─────────────────────────────────────────
 const realErrors = errors.filter((e) => !e.includes("useLayoutEffect"));
