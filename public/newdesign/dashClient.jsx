@@ -422,10 +422,13 @@ function ClientDashboardPage() {
               {/* Hero — Shape Score ring + why it moved + streak */}
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-                  <DclRing pct={hero.pct} color={DCL_TEAL}>
-                    <div style={{ fontFamily: serif, fontSize: 22, lineHeight: 1 }}>{hero.total.toLocaleString()}</div>
-                    <div style={{ fontFamily: DCL_MONO, fontSize: 7.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginTop: 3 }}>{hero.tier}</div>
-                  </DclRing>
+                  {/* The ring IS the link to the Score deep-dive */}
+                  <a href="ClientScore.html" aria-label="Open your Shape Score" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                    <DclRing pct={hero.pct} color={DCL_TEAL}>
+                      <div style={{ fontFamily: serif, fontSize: 22, lineHeight: 1 }}>{hero.total.toLocaleString()}</div>
+                      <div style={{ fontFamily: DCL_MONO, fontSize: 7.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginTop: 3 }}>{hero.tier}</div>
+                    </DclRing>
+                  </a>
                   <div style={{ flex: 1, minWidth: 180 }}>
                     <div className="dash-eyebrow">Shape Score{hero.next ? " · " + hero.toNext + " to " + hero.next : ""}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
@@ -548,14 +551,14 @@ function ClientDashboardPage() {
                     <div style={{ fontSize: 13.5, fontWeight: 500 }}>Grocery list</div>
                     <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>Auto-built from your plan</div>
                   </div>
-                  <span style={{ color: DCL_TEAL }}>→</span>
+                  <span style={{ color: DCL_TEAL, padding: "8px 10px", margin: "-8px -10px" }}>→</span>
                 </a>
                 <div style={{ borderTop: "1px solid rgba(242,237,228,0.05)", padding: "8px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <div>
                     <div style={{ fontSize: 13.5, fontWeight: 500 }}>{nextSession ? nextSession.when : "No session booked"}</div>
                     <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>{nextSession ? nextSession.what : "Book one with your coach"}</div>
                   </div>
-                  <a href="ClientTeam.html" style={{ color: DCL_TEAL, textDecoration: "none" }}>→</a>
+                  <a href="ClientTeam.html" aria-label="Book a session" style={{ color: DCL_TEAL, textDecoration: "none", padding: "8px 10px", margin: "-8px -10px" }}>→</a>
                 </div>
                 <div style={{ borderTop: "1px solid rgba(242,237,228,0.05)", paddingTop: 10, marginTop: 2 }}>
                   <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(242,237,228,0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>

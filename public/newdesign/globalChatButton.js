@@ -471,6 +471,16 @@
       }
       ["/newdesign/pageShell.jsx", "/newdesign/clientChatThreads.jsx", "/newdesign/chatWidget.jsx"].forEach(function (s) {
         if (document.querySelector('script[data-shape-chat="' + s + '"]')) return;
+        // Already loaded by the page itself (relative src, usually with a ?v
+        // tag)? Re-injecting would re-eval its top-level consts in babel's
+        // shared global scope and throw "already been declared", breaking the
+        // whole boot — skip it.
+        var base = s.split("/").pop();
+        var existing = document.querySelectorAll('script[type="text/babel"][src]');
+        for (var i = 0; i < existing.length; i++) {
+          var src2 = existing[i].getAttribute("src") || "";
+          if (src2.split("?")[0].split("/").pop() === base) return;
+        }
         var sc = document.createElement("script");
         sc.type = "text/babel";
         sc.setAttribute("data-presets", "react");

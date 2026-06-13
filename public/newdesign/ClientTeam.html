@@ -16,7 +16,7 @@
 <script type="text/babel" src="pageShell.jsx?v=20260613"></script>
 <script type="text/babel" src="chatWidget.jsx?v=20260613"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
-<script type="text/babel" src="trainerDashboard.jsx?v=20260612c"></script>
+<script type="text/babel" src="trainerDashboard.jsx?v=20260613"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel">
 function ClientTeamPage() {
@@ -102,7 +102,7 @@ function ClientTeamPage() {
               </div>
             </div>
             <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
-              <button onClick={() => window.__openChat && window.__openChat(c.name)} style={{ flex: 1, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 0", borderRadius: 999, fontSize: 13, cursor: "pointer", fontFamily: sans }}>Message</button>
+              <button onClick={() => { const f = window.__openChatTo || window.__openChat; if (f) f({ who: c.name }); }} style={{ flex: 1, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 0", borderRadius: 999, fontSize: 13, cursor: "pointer", fontFamily: sans }}>Message</button>
               <button style={{ flex: 1, background: INK, color: PAPER, border: 0, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Book session</button>
             </div>
           </Card>

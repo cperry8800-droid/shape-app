@@ -124,6 +124,30 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 18 — full QA pass (real-browser)**: `scripts/qa-sweep.mjs` (18
+  pages × 375/768/1280 in headless Chromium against `next start`: page
+  errors, console, horizontal overflow, screenshots — the container's
+  blocked CDNs are served from npm-identical local bytes via
+  `scripts/qa-cdn.mjs`) + `scripts/qa-interactions.mjs` (21 e2e checks:
+  message deep-links, drawer keyboard access, builder autosave + preview
+  parity, queue/Business/score-ring navigation, tap targets). Results:
+  78/78 unit · 92/92 render · 18/18 pages error-free* · 21/21 interactions
+  (*ClientCommunity's feed 400 is container egress, not product). **Fixed
+  during the pass**: (1) `DashShell` main lacked DashPage's `overflowX:
+  hidden` → both pro Today pages scrolled sideways at 375px (now 0px);
+  (2) REAL lazy-boot bug — `openRichChat`'s script dedup only recognized
+  its own injected tags, so re-injecting an already-loaded pageShell threw
+  "Identifier 'PAPER' has already been declared" in babel's shared scope
+  and broke the bubble boot on every dashboard page (dedup now matches by
+  filename; verified: pulse Message → panel opens on the flagged client's
+  thread, zero page errors); (3) the Today wrappers never loaded
+  dashGoals/dashRoster, silently degrading the step-11
+  drawer-from-pulse-rows behavior (restored); (4) the client score ring
+  now links to ClientScore.html; (5) ClientTeam's Message buttons route
+  through `__openChatTo` (no pre-mount no-op race); (6) the client
+  dashboard's bare "→" links got real padded hit areas. Signed-out e2e
+  verifies messaging to the composer-lock boundary (members-only by
+  design); the draft contract stays harness-pinned.
 - ✅ **Step 17 — Message deep-links (audit decision: NO messages page)**:
   Messaging stays the chat bubble — the audit table's Messages-page row is
   closed as won't-build. **Capability (the prerequisite small task)**:

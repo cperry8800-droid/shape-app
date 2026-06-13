@@ -198,8 +198,9 @@ function DashShell({
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
       {calendarEvents && cal && <CalendarOverlay {...cal.props} role={role} events={calendarEvents} />}
 
-      {/* Main */}
-      <main style={{ padding: "40px 48px 80px", minWidth: 0 }}>
+      {/* Main — overflowX hidden matches DashPage; without it the Today pages
+          scroll horizontally at 375px (nowrap pulse metas widen the document) */}
+      <main style={{ padding: "40px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
           <div style={{ minWidth: 0 }}>
