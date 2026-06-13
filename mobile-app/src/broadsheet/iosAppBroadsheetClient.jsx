@@ -147,11 +147,23 @@ function BSSearchCorner({ size = 34, ink = null }) {
 
 // Header tool cluster — universal search + the profile avatar. Used as the
 // `trailing` of every main page header.
+// Re-render whenever identity changes (profile save / sign-in resolve), so a
+// "self" avatar always reflects the latest name/initials/photo even if a parent
+// didn't re-render. Belt-and-suspenders alongside the app-level identityVersion.
+function useBSIdentityTick() {
+  const [, force] = useStateBSC(0);
+  React.useEffect(() => {
+    const f = () => force((v) => v + 1);
+    window.addEventListener('shape:identity', f);
+    return () => window.removeEventListener('shape:identity', f);
+  }, []);
+}
 function BSHeaderTools({ onProfile, size = 34 }) {
+  useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
       <BSSearchCorner size={size} />
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
     </span>
   );
 }
@@ -160,10 +172,11 @@ function BSHeaderTools({ onProfile, size = 34 }) {
 // Settings/profile via a window event, handled in BSClientAppInner), so a page
 // needn't thread props. Drop it into a page's back-button row, right-aligned.
 function BSMeCorner({ size = 30 }) {
+  useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <BSSearchCorner size={size} />
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
     </span>
   );
 }
@@ -7744,6 +7757,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // in, demo otherwise) — so tier name, gem color, climb levels, and the score
   // card all agree with each other and with the avatars (bsMyTier reads the same).
   const selfScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
+  // Signed in on my OWN profile → show REAL data (zeroed for a fresh account),
+  // never the demo persona's numbers. Demo sub-data is the signed-out preview only.
+  const signedInSelf = isSelf && !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
@@ -7802,7 +7818,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     }).catch(() => {});
     return () => { on = false; };
   }, [isSelf]);
-  const disciplinesEff = (isSelf && realDisc) ? realDisc : disciplines;
+  // Signed in on my own profile → real values, zeroed when there's no data yet
+  // (a fresh account shows empty bars, not the demo persona's). Demo only signed out.
+  const disciplinesEff = (isSelf && realDisc) ? realDisc : (signedInSelf ? disciplines.map(([k]) => [k, 0]) : disciplines);
   const lifts = [['Squat', '245'], ['Deadlift', '285'], ['Bench', '135']];
   // On your own profile, the "signature numbers" come from your real logged PRs
   // (/api/client/train rollup); demo values otherwise.
@@ -7817,7 +7835,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     }).catch(() => {});
     return () => { on = false; };
   }, [isSelf]);
-  const liftsEff = (isSelf && realLifts && realLifts.length) ? realLifts : lifts;
+  const liftsEff = (isSelf && realLifts && realLifts.length) ? realLifts : (signedInSelf ? lifts.map(([k]) => [k, '—']) : lifts);
   const traj = [176, 175, 174, 173, 172, 171, 171];
   const week = [40, 72, 55, 88, 33, 90, 18];
   // Live "Living signals" — day streak, bodyweight trajectory, weekly momentum —
@@ -7841,9 +7859,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     }).catch(() => {});
     return () => { on = false; };
   }, [isSelf]);
-  const streakEff = (isSelf && realSig && realSig.streak != null) ? realSig.streak : streak;
-  const trajEff = (isSelf && realSig && realSig.traj && realSig.traj.length) ? realSig.traj : traj;
-  const weekEff = (isSelf && realSig && realSig.week && realSig.week.length) ? realSig.week : week;
+  const streakEff = (isSelf && realSig && realSig.streak != null) ? realSig.streak : (signedInSelf ? 0 : streak);
+  const trajEff = (isSelf && realSig && realSig.traj && realSig.traj.length) ? realSig.traj : (signedInSelf ? [0, 0, 0, 0, 0, 0, 0] : traj);
+  const weekEff = (isSelf && realSig && realSig.week && realSig.week.length) ? realSig.week : (signedInSelf ? [0, 0, 0, 0, 0, 0, 0] : week);
   const trajDeltaLb = Math.round((trajEff[trajEff.length - 1] - trajEff[0]) || 0);
   const feed = [
     { k: 'PR', t: 'New PR — Back squat', b: 'Six weeks ago this was a hard triple at 225.', metric: ['▲', '+22 lb'], time: '2d', hot: true },
@@ -7858,7 +7876,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   const maxTraj = Math.max(...trajEff), minTraj = Math.min(...trajEff);
   const sparkPath = trajEff.map((v, i) => [(i / (trajEff.length - 1)) * 150, 34 - ((v - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3]).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const maxWk = Math.max(...weekEff);
+  const maxWk = Math.max(...weekEff) || 1;
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // On your OWN profile the climb is wired to real data, and you can choose what
@@ -8044,10 +8062,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         const moveName = String(pr.move || 'Top lift').replace(/\b\w/g, (x) => x.toUpperCase());
         return { arc: [[moveName, 'Logged', 'start'], ['Now', now, 'now'], ['Target', `${tg} ${unit}`, 'target']], pct: 0.62, summit: `${tg} ${unit}` };
       }
+      if (signedInSelf) return { arc: [['Start', '—', 'start'], ['Now', 'No lifts yet', 'now'], ['Target', 'Log a lift', 'target']], pct: 0.05, summit: 'Log your first lift' };
       return { arc: [['Bar-only squat', 'Started', 'start'], ['Now', '245 lb × 5', 'now'], ['Target', '1.5×BW', 'target']], pct: 0.55, summit: '1.5× bodyweight' };
     }
     // weight (default)
-    return realArc || { arc: (person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
+    if (realArc) return realArc;
+    if (signedInSelf) return { arc: [['Start', '—', 'start'], ['Now', 'No goal set', 'now'], ['Target', 'Set a goal', 'target']], pct: 0.05, summit: 'Set a goal' };
+    return { arc: (person.arc || [['Feb ’25', 'Started', 'start'], ['Now', `${progressPct}% there`, 'now'], ['Target', summit, 'target']]), pct: Math.max(0.05, Math.min(0.96, (progressPct || 0) / 100)), summit };
   };
   const climbTabs = CLIMB_SOURCES.filter((s) => climbShown.includes(s.key));
   const activeClimb = climbTabs.some((s) => s.key === climbSource) ? climbSource : (climbTabs[0] && climbTabs[0].key) || 'weight';
@@ -13184,7 +13205,10 @@ function BSClientMe(props) {
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
   const uid = (auth.user && auth.user.id) || null;
-  const name = (auth.profile && auth.profile.full_name) || 'Quinn Harper';
+  // bsMyName() resolves profile.full_name → signup metadata → email handle, and
+  // only falls back to the demo persona when signed OUT — so a fresh account
+  // (no profile row yet) shows its real name/initials, not "Quinn Harper".
+  const name = bsMyName();
   const photo = bsMyPhoto() || null;
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
   if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
@@ -15735,13 +15759,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       const p = window.shapeDb?.getUserGoals?.('client_identity');
       if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
     } catch (e) {}
-    // Sync the primary goal to the Goal page's store so the two always match.
-    try {
-      const g = window.shapeDb?.getUserGoals?.('client_goals');
-      const applyG = (cur) => { try { window.shapeDb?.saveUserGoals?.('client_goals', { ...(cur || {}), primaryGoal: draft.goal || '' }); } catch (e) {} };
-      if (g && g.then) g.then(applyG).catch(() => applyG(null)); else applyG(null);
-      window.dispatchEvent(new Event('shape:goals'));
-    } catch (e) {}
+    // (Primary goal is owned by the Goal page now — the edit form no longer
+    // edits or writes it, so a profile save can't clobber the Goal page value.)
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
     // Cache the custom initials globally so every avatar (header + feed) updates,
@@ -16224,11 +16243,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             const teal = t.isLight ? '#0a8f87' : '#34d6c5';
             const acc = bsMyTierColor(); // avatar + form accent follow my Shape Score tier (not a chosen color)
             const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
-            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none' };
-            const goals = ['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'];
+            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
+            const sectionHead = (txt) => <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(acc, 0.85), margin: '18px 0 11px', display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 1.5, background: acc, borderRadius: 2 }} />{txt}</div>;
             const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
             return (
             <div>
+              {/* Form header */}
+              <div style={{ marginBottom: 4 }}>
+                <BSEyebrow color={acc}>Edit · Profile</BSEyebrow>
+                <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Your <span style={{ fontStyle: 'italic', color: acc }}>profile.</span></div>
+              </div>
+              {sectionHead('Photo & avatar')}
               {/* Avatar + photo + accent swatches */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                 <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={bsMyPhoto() || null} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
@@ -16253,6 +16278,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
               </label>
 
+              {sectionHead('Identity')}
               {[
                 { k: 'name',     label: 'Display name', ph: 'Your name' },
                 { k: 'handle',   label: 'Handle',       ph: '@handle' },
@@ -16267,6 +16293,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 </label>
               ))}
 
+              {sectionHead('About you')}
               {/* Pronouns — quick chips + free text */}
               <div style={{ marginBottom: 13 }}>
                 <span style={lbl}>Pronouns</span>
@@ -16276,24 +16303,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                     return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{p}</button>;
                   })}
                 </div>
-              </div>
-
-              {/* Primary goal — chips + a write-your-own field (syncs to the Goal page) */}
-              <div style={{ marginBottom: 13 }}>
-                <span style={lbl}>Primary goal</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {goals.map(g => {
-                    const on = (draft.goal || '') === g;
-                    return <button key={g} onClick={() => setDraft({ ...draft, goal: g })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>;
-                  })}
-                </div>
-                <input
-                  value={goals.includes(draft.goal) ? '' : (draft.goal || '')}
-                  placeholder="Or write your own goal…"
-                  onChange={(e) => setDraft({ ...draft, goal: e.target.value })}
-                  onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
-                  style={{ ...field, marginTop: 8, fontSize: 14.5 }} />
-                <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Syncs with your Goal page</div>
               </div>
 
               {/* Bio + counter */}
