@@ -204,8 +204,7 @@ function BSOnboardingTour({ onClose, onNavigate }) {
     <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
       <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
         <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
-        <div style={{ fontSize: 30, lineHeight: 1 }}>{step.emoji}</div>
-        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
         <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
         <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -321,13 +320,14 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   React.useEffect(() => {
     if (window.shapeDb?.getUserGoals) {
       window.shapeDb.getUserGoals('client_identity').then(d => {
-        if (d && typeof d === 'object') {
-          try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
-          // Re-render so avatars pick up the loaded photo/initials (the cache is
-          // set async after the first paint — without this they stay blank).
-          setIdentityVersion(v => v + 1);
-          try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-        }
+        // REPLACE (don't merge) with the account's own doc — a fresh account
+        // has no client_identity, and merging would keep a prior session's /
+        // the demo's stale initials/photo override, so the avatar showed the
+        // wrong initials. Empty doc → reset to {} so initials derive from the
+        // real name. Always bump so avatars re-render with the right initials.
+        try { window.ShapeIdentity = (d && typeof d === 'object' && Object.keys(d).length) ? { ...d } : {}; } catch (e) {}
+        setIdentityVersion(v => v + 1);
+        try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
       }).catch(() => {});
     }
     fetch('/api/client/score', { credentials: 'same-origin' })
@@ -16485,6 +16485,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div style={{ display: 'flex', gap: 6 }}>
           {['regular','bold'].map(k => (
             <Pill key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}>{k}</Pill>
+          ))}
+        </div>
+
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>Text size</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['small','Small'],['medium','Medium'],['large','Large']].map(([k, l]) => (
+            <Pill key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{l}</Pill>
           ))}
         </div>
 

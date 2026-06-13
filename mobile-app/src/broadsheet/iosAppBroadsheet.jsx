@@ -345,7 +345,14 @@ function bsUnitFormatters(system) {
 
 const BSContext = createContextBS(null);
 
-function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, weightKey, textureKey, textureColor, inkOverride }) {
+// Display text-size scale. The app hard-codes font sizes in px, so a Small/
+// Medium/Large control scales the whole interface proportionally (applied as
+// `zoom` on the phone surface, with the surface counter-sized so it still fits
+// the screen and reflows) — the same idea as iOS Display Zoom.
+const BS_TEXT_SCALES = { small: 0.9, medium: 1, large: 1.12 };
+function bsTextScale(key) { return BS_TEXT_SCALES[key] || 1; }
+
+function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, weightKey, textScaleKey, textureKey, textureColor, inkOverride }) {
   const P = makePalette({ paperMode, accentKey, inkOverride });
   const D = makeDensity(densityKey);
   const B = makeBorders(borderKey, P);
@@ -361,6 +368,7 @@ function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, wei
   const value = { ...P, ...D, B, W, TEXTURE, textureKey, textureColor,
     DISPLAY: DISPLAY_BS, BODY: BODY_BS, MONO: MONO_BS,
     densityKey, borderKey, weightKey,
+    textScaleKey: textScaleKey || 'medium', TEXT_SCALE: bsTextScale(textScaleKey),
     ...bsUnitFormatters(unitSystem),
   };
   return (
@@ -1272,8 +1280,12 @@ function BSPhone({ children }) {
         fontFamily: t.BODY,
       }}>
         <div id="bs-phone-surface" className="bs-paper-grain" style={{
-          width: '100%',
-          height: '100%',
+          // Text-size scale: zoom the surface and counter-size it so the
+          // scaled box still fills the screen exactly (content reflows bigger
+          // /smaller). zoom:1 (medium) is a no-op.
+          width: `${100 / (t.TEXT_SCALE || 1)}%`,
+          height: `${100 / (t.TEXT_SCALE || 1)}%`,
+          zoom: t.TEXT_SCALE || 1,
           overflow: 'hidden',
           position: 'relative',
           background: t.PAPER_BG,
@@ -1309,7 +1321,10 @@ function BSPhone({ children }) {
       fontFamily: t.BODY,
     }}>
       <div id="bs-phone-surface" className="bs-paper-grain" style={{
-        width: '100%', height: '100%', borderRadius: 42, overflow: 'hidden',
+        // Text-size scale (see native branch) — counter-sized so zoom fits.
+        width: `${100 / (t.TEXT_SCALE || 1)}%`, height: `${100 / (t.TEXT_SCALE || 1)}%`,
+        zoom: t.TEXT_SCALE || 1,
+        borderRadius: 42, overflow: 'hidden',
         position: 'relative', background: t.PAPER_BG,
       }}>
         <div style={{

@@ -1381,6 +1381,12 @@ function BSTweaksPanel({ tweaks, setTweak, onClose }) {
         </div>
       </Section>
 
+      <Section label="Text size">
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[['small','S'],['medium','M'],['large','L']].map(([k, l]) => <Btn key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{l}</Btn>)}
+        </div>
+      </Section>
+
       <Section label="Borders">
         <div style={{ display: 'flex', gap: 4 }}>
           {['hairlines','thick rules','no rules'].map(k => <Btn key={k} on={tweaks.borderKey === k} onClick={() => setTweak('borderKey', k)}>{k.split(' ')[0]}</Btn>)}
@@ -1539,7 +1545,7 @@ function BSApp() {
   // appearance (cloud) is loaded on login below and takes precedence.
   const [tweaks, setTweaks] = useStateBSM(() => ({
     role: 'client', paperMode: 'dark', accentKey: 'blue',
-    weightKey: 'bold', borderKey: 'hairlines', textureKey: 'none', textureColor: 'auto',
+    weightKey: 'bold', textScaleKey: 'medium', borderKey: 'hairlines', textureKey: 'none', textureColor: 'auto',
     splashStyle: 'cosmos', splashBg: 'plain', splashBgColor: 'auto',
     fxGrain: false, fxHalftone: false, fxSepia: false, fxVignette: false, fxScanlines: false, fxInkBleed: false,
     startLoggedIn: true, ...initial, ...bsReadLocalTweaks(),
@@ -1598,7 +1604,7 @@ function BSApp() {
   }, []);
 
   return (
-    <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
+    <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
       <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
         <BSAppShell tweaks={tweaks} setTweak={setTweak} />
         {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
