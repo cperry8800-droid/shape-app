@@ -44,8 +44,8 @@
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
-<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=24"></script>
-<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260612c"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=25"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260613a"></script>
 <script type="text/babel">
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
@@ -186,6 +186,34 @@ function EditProfileModal({ initial, onClose, onSaved }) {
   );
 }
 
+// Plan & billing — LIVE. The Shape membership reads the real subscription
+// (/api/stripe/subscription); coaching plans and the card are shown honestly
+// (no invented amounts) since the client has no read endpoint for those yet.
+function PlanBillingCard({ signedIn }) {
+  const [sub, setSub] = React.useState(undefined); // undefined = loading, null = none/inactive, object = active
+  React.useEffect(() => {
+    if (!signedIn) { setSub(null); return; }
+    fetch("/api/stripe/subscription", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setSub(d && d.active ? d : null))
+      .catch(() => setSub(null));
+  }, [signedIn]);
+  const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) + " / month" : "$5 / month");
+  const date = (s) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null; } catch (e) { return null; } };
+  const renews = sub && date(sub.renewsAt);
+  const memberValue = sub === undefined ? "Checking…"
+    : sub ? (money(sub.priceCents) + (renews ? " · renews " + renews : ""))
+    : (signedIn ? "Not active" : "$5 / month — example");
+  return (
+    <Card>
+      <SectionTitle>Plan &amp; billing</SectionTitle>
+      <Row label="Shape membership" value={memberValue} action={sub ? "MANAGE" : "JOIN"} onAction={() => window.location.href = "/pricing"} />
+      <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />
+      <Row label="Payment method" value={sub ? "Manage in billing portal" : "—"} action={sub ? "UPDATE" : undefined} onAction={sub ? () => window.location.href = "/pricing" : undefined} />
+    </Card>
+  );
+}
+
 // Account & settings — rides BELOW the living profile (the page leads with
 // the profile itself, same concept as the app's Me tab; signed-out = demo).
 function ClientMeSettings() {
@@ -210,11 +238,25 @@ function ClientMeSettings() {
     showToast(signedIn ? "Saved." : "Sample view — sign in to save.");
   }
 
+  // Mirror the display name to profiles.full_name so a rename round-trips to
+  // the dashboard / chat / leaderboard (which read profiles, not client_profiles).
+  async function mirrorName(data) {
+    try {
+      const nm = ((data && data.displayName) || "").trim();
+      const c = window.shapeDb && window.shapeDb.client;
+      if (!nm || !c || !c.auth) return;
+      const u = await c.auth.getUser();
+      const uid = u && u.data && u.data.user && u.data.user.id;
+      if (uid) await c.from("profiles").update({ full_name: nm }).eq("id", uid);
+    } catch (e) {}
+  }
+
   async function persist(next) {
     if (window.shapeDb && window.shapeDb.saveClientProfile) {
       const res = await window.shapeDb.saveClientProfile(next);
       if (res && res.error) return res.error.message || "Save failed";
     }
+    await mirrorName(next);
     return null;
   }
 
@@ -288,15 +330,7 @@ function ClientMeSettings() {
           <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" onAction={() => openField("heightWeight", "Height / weight")} />
         </Card>
 
-        <Card>
-          <SectionTitle>Plan &amp; billing</SectionTitle>
-          <Row label="Shape Platform" value="$5 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
-          <Row label="Maya — Strength + hybrid" value="$220 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
-          <Row label="Rae — Performance fuel" value="$180 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
-          <Row label="Total monthly" value="$405" />
-          <Row label="Next charge" value="May 4, 2026" />
-          <Row label="Payment method" value="Visa •••• 4290" action="UPDATE" onAction={() => window.location.href = "/pricing"} />
-        </Card>
+        <PlanBillingCard signedIn={signedIn} />
 
         <Card>
           <SectionTitle>Connected apps</SectionTitle>
@@ -371,6 +405,7 @@ function ClientMeSettings() {
           onClose={() => setEditOpen(false)}
           onSaved={(next) => {
             setProfile(prev => ({ ...prev, ...next }));
+            mirrorName(next);
             showToast(signedIn ? "Profile saved." : "Sign in to save changes.");
           }}
         />

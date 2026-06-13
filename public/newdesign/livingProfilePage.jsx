@@ -9,7 +9,7 @@
 // living layout under a "Preview · demo profile" band — instead of a sign-in
 // wall. Same concept as the app's signed-out preview.
 function liveTier(points, coach) {
-  const member = [[0, "Base", "#8a93a0", "I"], [750, "Tempo", "#d8a23a", "II"], [2000, "Form", "#1ec0a8", "III"], [5000, "Peak", "#8a5cf6", "IV"], [15000, "Legend", "#e0518a", "V"]];
+  const member = [[0, "Raw", "#8a93a0", "I"], [750, "Tempo", "#d8a23a", "II"], [2000, "Form", "#1ec0a8", "III"], [5000, "Peak", "#8a5cf6", "IV"], [15000, "Legend", "#e0518a", "V"]];
   const coachL = [[0, "Certified", "#8a93a0", "I"], [750, "Pro", "#d8a23a", "II"], [2000, "Elite", "#e0463c", "III"], [5000, "Master", "#8fe3e6", "IV"], [15000, "Icon", "#34d6c5", "V"]];
   const T = coach ? coachL : member;
   let t = T[0]; for (const x of T) if (points >= x[0]) t = x;
@@ -34,6 +34,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [followingSet, setFollowingSet] = React.useState(null); // userIds I follow (follow-back)
   const [backState, setBackState] = React.useState({}); // userId -> 'following' (follow-back)
   const [reqCount, setReqCount] = React.useState(0);
+  const [liveSelf, setLiveSelf] = React.useState(null); // real self metrics (streak/weekly delta/trajectory/program) — own client profile only
 
   const cl = () => (window.shapeDb && window.shapeDb.client) || null;
   const applyStats = (d) => { if (d) setFollow({ followers: +d.followers || 0, following: +d.following || 0, isFollowing: !!d.is_following, isPending: !!d.is_pending }); };
@@ -70,6 +71,42 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     })();
     return () => { on = false; };
   }, []);
+
+  // Own client profile, signed in → replace the demo persona's performance
+  // fields (day streak, weekly Shape Score delta, body-comp trajectory, current
+  // program) with the SAME real metrics the dashboards show. Demo fallback per
+  // field, so signed-out / public / data-less views still render the example.
+  React.useEffect(() => {
+    if (!st.isSelf || !st.uid) return undefined;
+    if (st.row && (st.row.role === "trainer" || st.row.role === "nutritionist")) return undefined; // coach metrics are client-shaped
+    let on = true;
+    (async () => {
+      const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const [dash, score, plan] = await Promise.all([j("/api/client/dashboard"), j("/api/client/score"), j("/api/client/plan")]);
+      if (!on) return;
+      const out = {};
+      if (dash && dash.kpis && typeof dash.kpis.streak === "number") out.streak = dash.kpis.streak;
+      if (score && typeof score.week_gain === "number") out.scoreWk = score.week_gain;
+      const wi = (dash && dash.goals && Array.isArray(dash.goals.weighIns)) ? dash.goals.weighIns.filter((w) => w && w.weight != null) : [];
+      if (wi.length >= 2) {
+        out.traj = wi.slice(-7).map((w) => Number(w.weight));
+        const d = out.traj[out.traj.length - 1] - out.traj[0];
+        out.trajDelta = (d > 0 ? "+" : d < 0 ? "−" : "±") + (Math.round(Math.abs(d) * 10) / 10) + " " + (wi[wi.length - 1].unit || "lb");
+      }
+      if (plan && plan.training && plan.training.hasPlan && Array.isArray(plan.training.workouts)) {
+        const tpl = plan.training.workouts.map((w) => w.template).filter(Boolean);
+        const named = tpl.find((t) => t && t.name);
+        const wk = tpl.reduce((m, t) => Math.max(m, (t && t.week) || 0), 0);
+        out.hasProgram = true;
+        if (named && named.name) out.program = named.name;
+        out.block = wk ? "Week " + wk : "";
+      } else {
+        out.hasProgram = false;
+      }
+      setLiveSelf(out);
+    })();
+    return () => { on = false; };
+  }, [st.isSelf, st.uid]);
 
   const onMessage = () => {
     if (st.isSelf) { window.location.href = "/newdesign/ClientMe.html"; return; }
@@ -208,6 +245,21 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : base.link,
     custom: (!isPrivate && row.custom) || null,
   });
+  // Overlay the real self metrics over the demo persona (own client profile
+  // only). Per-field: a live value wins; a missing one keeps the example.
+  if (liveSelf && st.isSelf && !coach) {
+    if (liveSelf.streak != null) person.streak = liveSelf.streak;
+    if (liveSelf.scoreWk != null) person.scoreWk = liveSelf.scoreWk;
+    if (liveSelf.traj) { person.traj = liveSelf.traj; person.trajDelta = liveSelf.trajDelta || person.trajDelta; }
+    // Current program: show the real assigned program/phase; if there's no live
+    // plan, drop the demo program (don't invent one for a real account).
+    if (liveSelf.hasProgram === true) {
+      person.program = liveSelf.program || person.program;
+      person.block = liveSelf.block || "";
+    } else if (liveSelf.hasProgram === false) {
+      person.program = ""; person.block = "";
+    }
+  }
   const variant = (isPrivate && !st.isSelf) ? "locked" : (st.isSelf ? "own" : "public");
   const followProps = Object.assign({}, follow, { posts: posts != null ? posts : 0, openList, requests: reqCount, openRequests: () => openList("requests"), canFollow: !!(st.uid && !st.isSelf) });
 
