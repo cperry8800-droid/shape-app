@@ -7,8 +7,8 @@
 // (training/nutrition adjust payloads), never clobbering them.
 //
 // GET  -> { ok, goals }                       (coach or the client themself)
-// POST { goals: [≤3] } -> { ok, goals }       (coach or the client themself —
-//   RLS decides; in practice the dashboard only renders the editor to pros)
+// POST { goals: [≤3] } -> { ok, goals }       (COACH ONLY — verified server-side
+//   via is_coach_on_client; goals are coach-set, client-viewed)
 //
 // Goal shape: { id, label, metric, unit, target, start, startedOn, setBy,
 //               now?, history: [{ on: 'YYYY-MM-DD', value: n }] }.
@@ -17,6 +17,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { canWriteClientGoals } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,6 +84,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
+
+  // Coach-set, client-viewed: ONLY an active coach on this client may write
+  // goals. Enforce server-side via is_coach_on_client — NOT the client-self RLS
+  // policy, which would let a client plant setBy:'coach' goals on their own
+  // record that feed the coach triage feed. A client POSTing to their own id is
+  // not a coach on themselves → rejected.
+  const { data: coachOnClient } = await supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  if (!canWriteClientGoals(coachOnClient === true)) {
+    return NextResponse.json({ error: 'Only a coach on this client can set goals.' }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
   const incoming = Array.isArray(body.goals) ? (body.goals as GoalIn[]) : null;

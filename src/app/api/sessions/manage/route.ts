@@ -18,6 +18,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
+import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -138,6 +139,12 @@ export async function POST(request: Request) {
   }
   if (action === 'cancel' && !isCoach && !isClient) {
     return NextResponse.json({ error: 'Not your session.' }, { status: 403 });
+  }
+  // Only an active/upcoming session can be rescheduled. Reject completed (or
+  // declined/cancelled) bookings server-side so a stale UI or crafted request
+  // can't rewrite a past session's time — and no "moved" notification fires.
+  if (action === 'reschedule' && !isSessionReschedulable(session.status)) {
+    return NextResponse.json({ error: `Can't reschedule a ${session.status} session.` }, { status: 409 });
   }
 
   const patch: Record<string, unknown> = {};

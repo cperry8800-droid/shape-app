@@ -23,6 +23,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -133,9 +134,11 @@ export async function GET(request: Request) {
       status: s.status,
       meetingUrl: s.meeting_url,
       createdByRole: 'coach',
-      // Reschedulable by the coach via /api/sessions/manage (drag-to-move).
+      // Reschedulable by the coach via /api/sessions/manage (drag-to-move) —
+      // ONLY while the session is still active/upcoming. A completed (or
+      // declined/cancelled) booking is never draggable.
       editable: false,
-      reschedulable: true,
+      reschedulable: isSessionReschedulable(s.status),
     };
   });
 
