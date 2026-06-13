@@ -44,6 +44,7 @@ load("public/newdesign/dashToday.jsx");
 load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashGoals.jsx");
 load("public/newdesign/dashProgress.jsx");
+load("public/newdesign/dashBusiness.jsx");
 load("public/newdesign/dashRoster.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
 load("public/newdesign/dashBuilder.jsx");
@@ -99,10 +100,13 @@ for (const [token, where] of [
 for (const [token] of [
   ["+ Program"], ["TrainerPrograms.html"], ["Today&#x27;s schedule"], ["Growth · 90 days"], ["Sessions this week"],
 ]) ok(`nutritionist view has no "${token.replace("&#x27;", "'")}"`, !nutriHtml.includes(token));
-for (const token of ["Programming queue", "Client wins", "Marketplace funnel", "Client pulse"])
+// The separate Growth + Funnel sections became ONE Business summary card
+// linking to the Business page (Business-page step) — tokens updated.
+for (const token of ["Programming queue", "Client wins", "Business", "Client pulse"])
   ok(`trainer view contains "${token}"`, trainerHtml.includes(token));
-for (const token of ["Roster health", "Plans due", "Client wins", "Marketplace funnel"])
+for (const token of ["Roster health", "Plans due", "Client wins", "Business"])
   ok(`nutritionist view contains "${token}"`, nutriHtml.includes(token));
+ok("Today's Business card is a summary that links to the full page", trainerHtml.includes("Revenue · payouts · funnel · churn") && !trainerHtml.includes("Marketplace funnel") && nutriHtml.includes("Revenue · payouts · funnel · churn"));
 
 // ── 3. Client page — nothing business-flavored ──────────────────────────────
 ok("client view has no MRR", !/MRR/i.test(clientHtml));
@@ -220,6 +224,29 @@ try {
   // The dashboard's ring follows the framing rule too.
   ok("Client dashboard ring: wins count, not a bare adherence %", clientHtml.includes("This week · consistency") && clientHtml.includes(">wins<") && !clientHtml.includes("76%"));
 } catch (e) { ok("Progress page renders", false, e.message); }
+
+// ── 4f. Business page — merged Analytics+Payouts, honest-money hardest ──────
+try {
+  const biz = render(React.createElement(g.CoachBusinessPage, { role: "trainer" }));
+  ok("Business page renders all four zones + migrated outcomes", biz.includes("Revenue · 90-day trend") && biz.includes("Payouts · schedule") && biz.includes("Marketplace funnel") && biz.includes("Churn · who left") && biz.includes("The product · roster outcomes"));
+  ok("Business: funnel keeps its benchmark line", biz.includes("BENCHMARK · ~30%"));
+  ok("Business: demo churn carries example exit reasons", biz.includes("Hit her goal"));
+  const nbiz = render(React.createElement(g.CoachBusinessPage, { role: "nutritionist" }));
+  ok("Business nutritionist lens: her outcome cards + logger list", nbiz.includes("Protein adherence") && nbiz.includes("Most consistent loggers"));
+  // Honest money — live viewer, payouts NOT connected: dashes + the note +
+  // a real Stripe-onboarding CTA; not one fabricated dollar.
+  const notConnected = render(React.createElement(g.DbzPayoutsZone, { live: true, stripe: { connected: false, status: "not_connected", balanceCents: null, schedule: null, payouts: [] }, providerId: 7, role: "trainer" }));
+  ok("Payouts not connected: — + 'connects when payouts go live' + setup CTA", notConnected.includes("—") && notConnected.includes("connects when payouts go live") && notConnected.includes("Set up payouts"));
+  ok("Payouts not connected: zero invented dollars", !/\$\d/.test(notConnected));
+  const failedFetch = render(React.createElement(g.DbzPayoutsZone, { live: true, stripe: null, providerId: null, role: "trainer" }));
+  ok("Payouts with a failed analytics fetch: still no invented dollars", !/\$\d/.test(failedFetch));
+  const connected = render(React.createElement(g.DbzPayoutsZone, { live: true, stripe: { connected: true, status: "active", balanceCents: 123400, schedule: { interval: "weekly", weeklyAnchor: "friday", delayDays: 2 }, payouts: [{ id: "po_1", amountCents: 250000, status: "paid", arrivalDate: Date.now() - 3 * 86400000, created: Date.now() - 5 * 86400000 }] }, providerId: 7, role: "trainer" }));
+  ok("Payouts connected: real balance, schedule line, history row", connected.includes("$1,234") && connected.includes("Paid out weekly · Fridays · 2-day rolling delay") && connected.includes("$2,500"));
+  const liveChurnEmpty = render(React.createElement(g.DbzChurnZone, { live: true, churn: [] }));
+  ok("Churn live-empty is honest", liveChurnEmpty.includes("No cancellations on record"));
+  const liveChurn = render(React.createElement(g.DbzChurnZone, { live: true, churn: [{ name: "A. Client", startedAt: new Date(Date.now() - 200 * 86400000).toISOString(), endedAt: new Date(Date.now() - 5 * 86400000).toISOString(), priceCents: 18000, reason: null }] }));
+  ok("Churn live row: tenure + MRR lost + honest missing reason", liveChurn.includes("mo client") && liveChurn.includes("−$180") && liveChurn.includes("collects once the cancellation survey ships"));
+} catch (e) { ok("Business page renders", false, e.message); }
 
 // ── 5. Console errors during render ─────────────────────────────────────────
 const realErrors = errors.filter((e) => !e.includes("useLayoutEffect"));

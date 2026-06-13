@@ -124,6 +124,37 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 16 — Business page (Analytics + Payouts merged, both pro roles)**:
+  `TrainerAnalytics.html` / `NutritionistAnalytics.html` MIGRATED in place
+  into one role-parameterized **`CoachBusinessPage`** (dashBusiness.jsx) —
+  same URLs, retitled Business; coachNav gains a top-level **Business**
+  entry and every old "Analytics" label (Clients sub-tab, LiveConsole
+  rails, pageShell header nav) now reads Business. Zones: **revenue trend
+  90d** (the real subscriber-adds panel + MRR gross/net from live
+  subscription rows, labeled as derived), **payouts schedule + history** —
+  the REAL Stripe Connect summary the analytics API already returned but
+  no page ever rendered (available balance · in-transit/next · last-12
+  history with status pills), now with the account's payout cadence
+  (`loadStripe` gains `schedule` via accounts.retrieve: "Paid out weekly ·
+  Fridays · 2-day rolling delay"), **marketplace funnel** (the benchmark
+  panel reused), **churn list** (NEW in both analytics routes: canceled
+  subscriptions with tenure + MRR lost; exit reason is honestly null —
+  "collects once the cancellation survey ships" — until a survey exists),
+  and the migrated **roster-outcomes** section (the old pages' KPI cards +
+  mover lists, role-flavored; the big roster table dropped — the v2
+  Clients roster owns per-client rows). **HONEST MONEY (hardest here)**:
+  live + not-connected renders "—" + "connects when payouts go live" +
+  a real Set-up CTA (`/api/stripe/connect/onboard`, providerId now in the
+  analytics payload); a live viewer with a failed analytics fetch gets
+  honest loading states, never demo numbers; render checks assert ZERO
+  invented dollars in both states. **Today's Business card**: the separate
+  Growth + Funnel sections on both coach dashboards collapsed into ONE
+  `DashBusinessSummary` plate (monthly net · adds 90d + MoM · close rate
+  vs benchmark · mini sparkbars) linking "Revenue · payouts · funnel ·
+  churn →" to the page; nutritionist keeps Roster health. pageShell label
+  change rode a `?v=20260613` sweep (62 pages). Render review 86/86 ·
+  tests 78/78 · tsc + build clean. Still open: profile-view tracking
+  (funnel top stays "connects soon") and the cancellation survey.
 - ✅ **Step 15 — client Progress page (migrated): comparisons first**:
   `ClientProgress.html` MIGRATED in place (same URL, same cookie APIs). The
   LEAD is comparisons, not tables — "8 weeks ago vs today" side-by-side for

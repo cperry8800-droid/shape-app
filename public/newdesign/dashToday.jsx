@@ -558,6 +558,51 @@ function DashFunnelPanel({ live }) {
   );
 }
 
+// The dashboard's Business card (Business-page step) — ONE summary plate that
+// replaces the separate Growth + Funnel sections on Today and links to the
+// full Business page (revenue trend · payouts · funnel · churn). Money
+// honesty: monthly net derives from real subscriptions; payout-flavored
+// numbers never appear here — the Business page owns those (real or "—").
+function DashBusinessSummary({ live, role, clients }) {
+  const ink50 = "rgba(242,237,228,0.55)";
+  const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
+  const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
+  const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
+  const adds90 = counts ? counts.reduce((s, c) => s + c, 0) : null;
+  const close = f && f.consults90 > 0 ? Math.round((f.signed90 / f.consults90) * 100) : null;
+  const netCents = live
+    ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)
+    : Math.round(clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0) * 0.85);
+  const href = role === "nutritionist" ? "NutritionistAnalytics.html" : "TrainerAnalytics.html";
+  const max = counts ? Math.max(...counts, 1) : 1;
+  const stat = (k, l, sub, color) => (
+    <div>
+      <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: color || (k === "—" ? ink50 : "#f2ede4") }}>{k}</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>{l}</div>
+      {sub && <div style={{ fontSize: 10, color: ink50, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
+        {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "from active subs · after 15%" : "no subscription data")}
+        {stat(adds90 != null ? "+" + adds90 : "—", "New subs · 90d", g && g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% MoM" : "MoM needs 2 months")}
+        {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "#7bbf5a" : "#d8a23a")}
+        {counts && (
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 34, flex: 1, minWidth: 120 }}>
+            {counts.map((c, i) => (
+              <div key={i} style={{ flex: 1, height: Math.max(5, Math.round((c / max) * 100)) + "%", background: c ? "#2ee0c4" : "rgba(242,237,228,0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
+            ))}
+          </div>
+        )}
+      </div>
+      <a href={href} style={{ display: "inline-block", marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textDecoration: "none" }}>
+        Revenue · payouts · funnel · churn →
+      </a>
+    </div>
+  );
+}
+
 // Nutritionist roster aggregates + the recipe-publishing insight.
 function DashNutriAggPanel({ clients, live }) {
   const ink50 = "rgba(242,237,228,0.55)";
@@ -685,13 +730,12 @@ function CoachDashboardPage({ role }) {
         ...(role === "nutritionist" ? [{
           title: "Roster health",
           render: () => <DashNutriAggPanel clients={clients} live={live} />,
-        }] : [{
-          title: "Growth · 90 days",
-          render: () => <DashGrowthPanel live={live} role={role} />,
-        }]),
+        }] : []),
+        // The Business summary card — the full zones (revenue trend, payout
+        // schedule + history, funnel, churn) moved to the Business page.
         {
-          title: "Marketplace funnel",
-          render: () => <DashFunnelPanel live={live} />,
+          title: "Business",
+          render: () => <DashBusinessSummary live={live} role={role} clients={clients} />,
         },
       ]}
     />
@@ -699,4 +743,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashMessageClient, dashClientSlugHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashClientSlugHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });

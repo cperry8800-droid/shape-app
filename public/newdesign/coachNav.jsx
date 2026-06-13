@@ -1,19 +1,20 @@
 // Shared trainer dashboard sidebar config
 function trainerNavItems(active) {
-  // 'Clients' page now hosts Roster / Console / Analytics as sub-tabs.
-  // Console + Analytics no longer have their own top-level entries.
+  // 'Clients' hosts Roster + Console as sub-tabs; Business absorbs Analytics.
+  
   const items = [
     { label: "Today",     href: "TrainerDashboard.html" },
     { label: "Clients",   href: "TrainerClients.html", count: 34 },
     { label: "Programs",  href: "TrainerPrograms.html" },
+    { label: "Business",  href: "TrainerAnalytics.html" },
     { label: "Playlists", href: "TrainerPlaylists.html" },
     { label: "Community", href: "TrainerCommunity.html" },
     { label: "Goal",      href: "TrainerGoal.html" },
     { label: "Score",     href: "TrainerScore.html" },
     { label: "Profile",   href: "TrainerProfile.html" },
   ];
-  // Treat Console / Analytics as part of Clients for sidebar highlight.
-  const map = { console: 'Clients', analytics: 'Clients' };
+  // Treat Console as part of Clients for sidebar highlight.
+  const map = { console: 'Clients' }; // 'business' matches its own item now
   const norm = map[active.toLowerCase()] || active;
   return items.map(n => ({ ...n, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
@@ -21,18 +22,19 @@ const trainerPayoutCard = { label: "PAYOUT APR 30", amount: "$18,420", sub: "Mon
 
 // Shared nutritionist dashboard sidebar config
 function nutriNavItems(active) {
-  // 'Clients' page now hosts Roster / Console / Analytics as sub-tabs.
+  // 'Clients' hosts Roster + Console as sub-tabs; Business absorbs Analytics.
   const items = [
     { label: "Today",     href: "NutritionistDashboard.html" },
     { label: "Clients",   href: "NutritionistClients.html", count: 28 },
     { label: "Plans",     href: "NutritionistPlans.html" },
+    { label: "Business",  href: "NutritionistAnalytics.html" },
     { label: "Playlists", href: "NutritionistPlaylists.html" },
     { label: "Community", href: "NutritionistCommunity.html" },
     { label: "Goal",      href: "NutritionistGoal.html" },
     { label: "Score",     href: "NutritionistScore.html" },
     { label: "Profile",   href: "NutritionistProfile.html" },
   ];
-  const map = { console: 'Clients', analytics: 'Clients' };
+  const map = { console: 'Clients' }; // 'business' matches its own item now
   const norm = map[active.toLowerCase()] || active;
   return items.map(n => ({ ...n, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
