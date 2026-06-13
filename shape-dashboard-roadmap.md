@@ -124,6 +124,26 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 21b — availability on the living coach profile + weekday fix**:
+  (1) **Real bug fix** — the step-21 Schedule availability editor stored
+  `weekday` Monday-first (0=Mon), but `provider_availability` is documented
+  getDay()-style (**0=Sun…6=Sat**) and that's what the booking flow
+  (`consultation.html`, `d.getDay()`) reads — so a coach's "Monday" hours
+  would have shown on Sundays. `DscAvailability` now stores the real getDay
+  index (`DSC_AVAIL_DAYS`, Mon-first display) and the demo slots match.
+  (2) **New `LvCoachAvailability` band** on the living coach profile
+  (`livingDesktop.jsx`, under the hero, coach-only): resolves the coach's
+  `provider_id` from their uid via the public trainers/nutritionists table,
+  reads the SAME `/api/availability?role=&id=`, and renders a 7-day
+  at-a-glance strip (open-hour ranges per day, teal-highlighted) + a "Book a
+  consult →" link to `consultation.html`. So what a coach sets on their
+  Schedule tab now VISIBLY shows on their public/marketplace profile and
+  lines up with the booking page. Demo ("· example") signed-out; honest
+  empty/none states otherwise. Browser-verified on the dashboard coach
+  profile + a derived marketplace coach profile (1280/375, Book CTA, day
+  ranges, 0 overflow, zero errors); correctly absent on client profiles.
+  `livingDesktop.jsx?v=24` across its 4 consumers. Tests 78/78 · render
+  review 114/114.
 - ✅ **Step 21 — pro Schedule tab (the planning view)**: new `dashSchedule.jsx`
   + `Trainer/NutritionistSchedule.html` + a **Schedule** nav entry for both
   coach roles (sidebar + header). A full **month/week** calendar of the

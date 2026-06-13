@@ -76,11 +76,12 @@ const DSC_DEMO = (() => {
       at(4, "16:30", "CONSULT", "Plan delivery", "Elena R.", "video"),
       at(6, "10:00", "SESSION", "Open gym", "Deandre K.", "studio"),
     ],
+    // getDay()-style weekday: Mon=1 … Sat=6 (a Mon-Sat working week).
     availability: [
-      { weekday: 0, start_minute: 6 * 60, duration_min: 240 }, { weekday: 0, start_minute: 17 * 60, duration_min: 180 },
-      { weekday: 1, start_minute: 8 * 60, duration_min: 300 }, { weekday: 2, start_minute: 6 * 60, duration_min: 240 },
-      { weekday: 3, start_minute: 9 * 60, duration_min: 300 }, { weekday: 4, start_minute: 6 * 60, duration_min: 300 },
-      { weekday: 5, start_minute: 9 * 60, duration_min: 180 },
+      { weekday: 1, start_minute: 6 * 60, duration_min: 240 }, { weekday: 1, start_minute: 17 * 60, duration_min: 180 },
+      { weekday: 2, start_minute: 8 * 60, duration_min: 300 }, { weekday: 3, start_minute: 6 * 60, duration_min: 240 },
+      { weekday: 4, start_minute: 9 * 60, duration_min: 300 }, { weekday: 5, start_minute: 6 * 60, duration_min: 300 },
+      { weekday: 6, start_minute: 9 * 60, duration_min: 180 },
     ],
   };
 })();
@@ -89,6 +90,10 @@ const DSC_DEMO = (() => {
 // Slots are hour blocks (start_minute on the hour); toggling rebuilds the
 // whole set and POSTs it (the route is delete-all + re-insert).
 const DSC_HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+// provider_availability.weekday is getDay()-style: 0=Sun … 6=Sat (per the
+// migration + what the consultation/booking flow reads). Display Mon-first,
+// but STORE the real getDay index so the marketplace booking lines up.
+const DSC_AVAIL_DAYS = [["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6], ["Sun", 0]];
 function DscAvailability({ role, live, initial }) {
   // A Set of "weekday:hour" keys derived from the loaded slots (each slot
   // covers its duration in hourly cells).
@@ -152,7 +157,7 @@ function DscAvailability({ role, live, initial }) {
         <div style={{ display: "grid", gridTemplateColumns: "34px repeat(" + DSC_HOURS.length + ", 1fr)", gap: 3, minWidth: 520 }}>
           <span />
           {DSC_HOURS.map((h) => <span key={h} style={{ fontFamily: DSC_MONO, fontSize: 7, color: DSC_INK50, textAlign: "center" }}>{h % 12 === 0 ? 12 : h % 12}{h >= 12 ? "p" : "a"}</span>)}
-          {DSC_DOW.map((lbl, wd) => (
+          {DSC_AVAIL_DAYS.map(([lbl, wd]) => (
             <React.Fragment key={wd}>
               <span style={{ fontFamily: DSC_MONO, fontSize: 8, color: DSC_INK50, alignSelf: "center" }}>{lbl}</span>
               {DSC_HOURS.map((h) => {
