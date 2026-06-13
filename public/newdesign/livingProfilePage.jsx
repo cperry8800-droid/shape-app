@@ -82,11 +82,14 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     let on = true;
     (async () => {
       const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      const [dash, score, plan] = await Promise.all([j("/api/client/dashboard"), j("/api/client/score"), j("/api/client/plan")]);
+      const [dash, score, plan, stats] = await Promise.all([j("/api/client/dashboard"), j("/api/client/score"), j("/api/client/plan"), j("/api/client/profile-stats")]);
       if (!on) return;
       const out = {};
       if (dash && dash.kpis && typeof dash.kpis.streak === "number") out.streak = dash.kpis.streak;
       if (score && typeof score.week_gain === "number") out.scoreWk = score.week_gain;
+      // Real key lifts + discipline bars (self-scoped get_my_lifts via the route).
+      if (stats && Array.isArray(stats.lifts) && stats.lifts.length) out.lifts = stats.lifts;
+      if (stats && Array.isArray(stats.disciplines) && stats.disciplines.length) out.disciplines = stats.disciplines;
       const wi = (dash && dash.goals && Array.isArray(dash.goals.weighIns)) ? dash.goals.weighIns.filter((w) => w && w.weight != null) : [];
       if (wi.length >= 2) {
         out.traj = wi.slice(-7).map((w) => Number(w.weight));
@@ -251,6 +254,13 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     if (liveSelf.streak != null) person.streak = liveSelf.streak;
     if (liveSelf.scoreWk != null) person.scoreWk = liveSelf.scoreWk;
     if (liveSelf.traj) { person.traj = liveSelf.traj; person.trajDelta = liveSelf.trajDelta || person.trajDelta; }
+    // Real key lifts replace the example; disciplines merge by label so all
+    // four bars stay, with a live value where there's a signal, demo otherwise.
+    if (liveSelf.lifts && liveSelf.lifts.length) person.lifts = liveSelf.lifts;
+    if (liveSelf.disciplines && liveSelf.disciplines.length) {
+      const live = {}; liveSelf.disciplines.forEach((d) => { if (Array.isArray(d)) live[d[0]] = d[1]; });
+      person.disciplines = (base.disciplines || []).map((d) => [d[0], live[d[0]] != null ? live[d[0]] : d[1]]);
+    }
     // Current program: show the real assigned program/phase; if there's no live
     // plan, drop the demo program (don't invent one for a real account).
     if (liveSelf.hasProgram === true) {

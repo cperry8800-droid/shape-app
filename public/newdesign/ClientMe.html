@@ -45,7 +45,7 @@
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=25"></script>
-<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260613a"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260613b"></script>
 <script type="text/babel">
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
@@ -186,17 +186,20 @@ function EditProfileModal({ initial, onClose, onSaved }) {
   );
 }
 
-// Plan & billing — LIVE. The Shape membership reads the real subscription
-// (/api/stripe/subscription); coaching plans and the card are shown honestly
-// (no invented amounts) since the client has no read endpoint for those yet.
+// Plan & billing — LIVE. Shape membership from /api/stripe/subscription,
+// coaching plans from /api/client/team (the real per-coach subscriptions), and
+// the card on file from /api/stripe/payment-method (brand + last4 only). No
+// invented amounts: an honest empty/portal state shows when data is absent.
 function PlanBillingCard({ signedIn }) {
-  const [sub, setSub] = React.useState(undefined); // undefined = loading, null = none/inactive, object = active
+  const [sub, setSub] = React.useState(undefined);  // undefined=loading, null=inactive, obj=active
+  const [coaches, setCoaches] = React.useState(undefined); // undefined=loading, array when known
+  const [pm, setPm] = React.useState(undefined);    // undefined=loading, {hasMethod,…}
   React.useEffect(() => {
-    if (!signedIn) { setSub(null); return; }
-    fetch("/api/stripe/subscription", { credentials: "same-origin", cache: "no-store" })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setSub(d && d.active ? d : null))
-      .catch(() => setSub(null));
+    if (!signedIn) { setSub(null); setCoaches(null); setPm(null); return; }
+    const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    j("/api/stripe/subscription").then(d => setSub(d && d.active ? d : null));
+    j("/api/client/team").then(d => setCoaches(d && Array.isArray(d.coaches) ? d.coaches : []));
+    j("/api/stripe/payment-method").then(d => setPm(d || { hasMethod: false }));
   }, [signedIn]);
   const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) + " / month" : "$5 / month");
   const date = (s) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null; } catch (e) { return null; } };
@@ -204,12 +207,25 @@ function PlanBillingCard({ signedIn }) {
   const memberValue = sub === undefined ? "Checking…"
     : sub ? (money(sub.priceCents) + (renews ? " · renews " + renews : ""))
     : (signedIn ? "Not active" : "$5 / month — example");
+  const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "Card");
+  const pmValue = (pm && pm.hasMethod) ? (cap(pm.brand) + " •••• " + (pm.last4 || "----"))
+    : (sub || (pm && pm.hasMethod === false && signedIn) ? "Manage in billing portal" : "—");
+  let coachingRows;
+  if (!signedIn) {
+    coachingRows = <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
+  } else if (coaches === undefined) {
+    coachingRows = <Row label="Coaching plans" value="Checking…" />;
+  } else if (coaches.length) {
+    coachingRows = coaches.map((c, i) => <Row key={i} label={c.name} value={c.plan || "Active"} action="MANAGE" onAction={() => window.location.href = "/pricing"} />);
+  } else {
+    coachingRows = <Row label="Coaching plans" value="None active" action="FIND A COACH" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
+  }
   return (
     <Card>
       <SectionTitle>Plan &amp; billing</SectionTitle>
       <Row label="Shape membership" value={memberValue} action={sub ? "MANAGE" : "JOIN"} onAction={() => window.location.href = "/pricing"} />
-      <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />
-      <Row label="Payment method" value={sub ? "Manage in billing portal" : "—"} action={sub ? "UPDATE" : undefined} onAction={sub ? () => window.location.href = "/pricing" : undefined} />
+      {coachingRows}
+      <Row label="Payment method" value={pmValue} action={(pm && pm.hasMethod) || sub ? "UPDATE" : undefined} onAction={(pm && pm.hasMethod) || sub ? () => window.location.href = "/pricing" : undefined} />
     </Card>
   );
 }
