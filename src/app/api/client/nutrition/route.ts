@@ -56,6 +56,31 @@ export async function GET() {
 
   const loggedDays7 = week.filter((d) => d.logged).length;
 
+  // Logging streak (Nutrition tab is streak-framed, never a bare %). Counts
+  // consecutive logged days from the most recent backward; longest over the
+  // 30-day window. snaps is newest-first; `calories != null` = logged.
+  const loggedDates = new Set(
+    snaps.filter((s) => s.calories != null).map((s) => String(s.snapshot_date))
+  );
+  const DAY = 86400000;
+  const dayKey = (t: number) => {
+    const d = new Date(t);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const todayMs0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  let currentStreak = 0;
+  // A streak is alive if today OR yesterday is logged (today may not be in yet).
+  let cursor = loggedDates.has(dayKey(todayMs0)) ? todayMs0 : todayMs0 - DAY;
+  while (loggedDates.has(dayKey(cursor))) { currentStreak += 1; cursor -= DAY; }
+  let longestStreak = 0;
+  let run = 0;
+  // Walk the 30-day window oldest→newest counting the longest logged run.
+  for (let i = 29; i >= 0; i--) {
+    if (loggedDates.has(dayKey(todayMs0 - i * DAY))) { run += 1; longestStreak = Math.max(longestStreak, run); }
+    else run = 0;
+  }
+  longestStreak = Math.max(longestStreak, currentStreak);
+
   // Prescribed meals the nutritionist pushed (coach_pushed_items, kind 'meal'),
   // including any coach-approved swap alternatives saved with each meal.
   const { data: mealRows } = await supabase
@@ -106,5 +131,5 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({ ok: true, today, week, loggedDays7, todayMeals });
+  return NextResponse.json({ ok: true, today, week, loggedDays7, currentStreak, longestStreak, todayMeals });
 }

@@ -45,6 +45,7 @@ load("public/newdesign/dashClient.jsx");
 load("public/newdesign/dashGoals.jsx");
 load("public/newdesign/dashProgress.jsx");
 load("public/newdesign/dashTrain.jsx");
+load("public/newdesign/dashNutri.jsx");
 load("public/newdesign/dashBusiness.jsx");
 load("public/newdesign/dashRoster.jsx");
 g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
@@ -273,6 +274,27 @@ try {
   ok("week grouping: past/current/upcoming by calendar week", weeks.map((w) => w.status).join(",") === "past,current,upcoming");
   ok("week grouping: completion marks count done days", weeks[0].doneCount === 1 && weeks[1].doneCount === 0);
 } catch (e) { ok("Workouts page renders", false, e.message); }
+
+// ── 4i. Nutrition page — full meal plan, swaps, grocery, streak-framed ──────
+try {
+  const nu = render(React.createElement(g.ClientNutritionPage));
+  ok("Nutrition page renders the assigned plan (demo)", nu.includes("Nutrition") && nu.includes("LEAN RECOMP") && nu.includes("This week"));
+  ok("Nutrition: today's meals card with swap options visible", /Today&#x27;s meals/.test(nu) && nu.includes("⇄ Swap"));
+  ok("Nutrition: grocery auto-builds from the plan ingredients", nu.includes("Grocery · auto-built from your plan") && nu.includes("Chicken breast"));
+  ok("Nutrition: logging is streak-framed, no bare adherence %", nu.includes("Logging · streaks") && nu.includes("Logging streak") && !/\d+%\s*adherence/i.test(nu) && !nu.includes("% of target"));
+  ok("Nutrition: saved recipes section present", nu.includes("Saved recipes"));
+  // Grocery aggregator: groups by name, counts meals using each.
+  const days = [
+    { meals: [{ title: "Bowl", ingredients: [{ qty: "180 g", name: "Rice" }, { qty: "200 g", name: "Chicken" }] }, { title: "Dinner", ingredients: [{ qty: "180 g", name: "Rice" }] }] },
+    { meals: [{ title: "Lunch", ingredients: [{ qty: "180 g", name: "Rice" }] }] },
+  ];
+  const groc = g.dnuBuildGrocery(days);
+  const rice = groc.find((x) => x.name === "Rice");
+  ok("grocery aggregator: counts distinct meals per ingredient", rice.count === 3 && groc[0].name === "Rice");
+  // Plan-day → ledger-card meals: cal→kcal targets, alts preserved.
+  const meals = g.dnuDayMeals({ meals: [{ slot: "Lunch", time: "12:30", title: "Bowl", kcal: 620, p: 52, c: 68, f: 18, alts: [{ name: "Alt", kcal: 600, p: 40, c: 60, f: 18 }] }] });
+  ok("plan meal maps to the ledger card shape with swaps", meals[0].kcal === 620 && meals[0].alts.length === 1 && meals[0].time === "12:30 PM");
+} catch (e) { ok("Nutrition page renders", false, e.message); }
 
 // ── 4g. Message deep-link — every button routes through the chat bubble ─────
 try {

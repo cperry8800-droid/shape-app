@@ -5,7 +5,7 @@ function clientNavItems(active) {
     { label: "Today",     href: "ClientDashboard.html" },
     { label: "Progress",  href: "ClientProgress.html" },
     { label: "Workouts",  href: "ClientTrain.html" },
-    { label: "Nutri",     href: "ClientNutri.html" },
+    { label: "Nutrition", href: "ClientNutri.html" },
     { label: "Library",   href: "ClientLibrary.html" },
     { label: "Team",      href: "ClientTeam.html", count: 2 },
     { label: "Community", href: "ClientCommunity.html" },

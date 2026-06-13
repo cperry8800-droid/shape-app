@@ -460,6 +460,9 @@ function ClientDashboardPage() {
                   onLog={logMeal} headerNote={planLive ? "from your plan" : null}
                   swapStorageKey={"shape.dashMealSwap." + todayIso}
                 />
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", textAlign: "right" }}>
+                  <a href="ClientNutri.html" style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
+                </div>
               </div>
             </div>
 

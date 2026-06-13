@@ -124,6 +124,26 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 20 — client Nutrition tab (full assigned meal plan)**: migrated
+  `ClientNutri.html` (was mock-driven on `/api/client/nutrition` only) into
+  `dashNutri.jsx` reading the REAL assigned plan (`/api/client/plan`
+  `meals.days` — the step-13 meal-builder payload with per-meal swap groups,
+  day targets, ingredients). **Today expanded with swaps visible** reuses the
+  shared `DashMealLedgerCard` (swap chips, ledger ticks, red-when-over — the
+  Today dashboard ledger now deep-links here via "Full meal plan · week &
+  swaps →"). **Week view**: a 7-day strip (plan targets + logged-day overlay)
+  you can tap to view any day's meals. **Grocery** auto-builds from the plan's
+  ingredients (`dnuBuildGrocery` — real, same data the mobile auto-grocery
+  uses) + a link to the full ClientGrocery page. **Logging history is
+  STREAK-FRAMED** (logging streak · days-this-week · recent wins + a
+  logged-day calorie bar chart — zero bare adherence %, per the client
+  framing rule). **Saved recipes**: demo favorites under the band, honest
+  empty state live (no web saved-recipe store yet). **Server**:
+  `/api/client/nutrition` now returns a real `currentStreak`/`longestStreak`
+  from the 30-day snapshot history (no migration). Nav "Nutri" → "Nutrition"
+  (sidebar + header; Grocery's active key updated to match). Browser-verified
+  (demo plan, 0px overflow 375/1280, zero console errors). Tests 78/78 ·
+  render review 107/107.
 - ✅ **Step 19 — client Workouts tab (full assigned program)**: migrated
   `ClientTrain.html` (was a stats page reading only `/api/client/train`) into
   `dashTrain.jsx` — the whole program by week. **Tonight's session** leads
