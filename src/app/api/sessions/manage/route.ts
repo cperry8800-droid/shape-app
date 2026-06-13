@@ -18,6 +18,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
+import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -102,8 +103,19 @@ export async function POST(request: Request) {
   const sessionId = String(body.sessionId ?? '');
   const action = String(body.action ?? '').toLowerCase();
   if (!sessionId) return NextResponse.json({ error: 'Missing sessionId.' }, { status: 400 });
-  if (!['confirm', 'decline', 'complete', 'cancel'].includes(action)) {
+  if (!['confirm', 'decline', 'complete', 'cancel', 'reschedule'].includes(action)) {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
+  }
+  // Reschedule carries the new wall-clock: { date: 'YYYY-MM-DD', time?: 'HH:MM' }.
+  // Stored UTC (the calendar reads/writes UTC wall-clock consistently).
+  let newScheduledAt: string | null = null;
+  if (action === 'reschedule') {
+    const date = String(body.date ?? '');
+    const time = /^\d{1,2}:\d{2}$/.test(String(body.time ?? '')) ? String(body.time) : null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'reschedule needs a valid date.' }, { status: 400 });
+    }
+    newScheduledAt = `${date}T${time ? time.padStart(5, '0') : '00:00'}:00Z`;
   }
 
   const user = await currentUser(request);
@@ -122,11 +134,17 @@ export async function POST(request: Request) {
   const isCoach = (session.provider_role === 'trainer' ? owned.trainer : owned.nutritionist).has(session.provider_id);
   const isClient = session.client_id === user.id;
 
-  if ((action === 'confirm' || action === 'decline' || action === 'complete') && !isCoach) {
+  if ((action === 'confirm' || action === 'decline' || action === 'complete' || action === 'reschedule') && !isCoach) {
     return NextResponse.json({ error: 'Only the coach can do that.' }, { status: 403 });
   }
   if (action === 'cancel' && !isCoach && !isClient) {
     return NextResponse.json({ error: 'Not your session.' }, { status: 403 });
+  }
+  // Only an active/upcoming session can be rescheduled. Reject completed (or
+  // declined/cancelled) bookings server-side so a stale UI or crafted request
+  // can't rewrite a past session's time — and no "moved" notification fires.
+  if (action === 'reschedule' && !isSessionReschedulable(session.status)) {
+    return NextResponse.json({ error: `Can't reschedule a ${session.status} session.` }, { status: 409 });
   }
 
   const patch: Record<string, unknown> = {};
@@ -134,6 +152,7 @@ export async function POST(request: Request) {
   if (action === 'decline') patch.status = 'declined';
   if (action === 'complete') patch.status = 'completed';
   if (action === 'cancel') patch.status = 'cancelled';
+  if (action === 'reschedule' && newScheduledAt) patch.scheduled_at = newScheduledAt;
 
   // On confirm of a video session with no link yet, attach the in-app room.
   if (action === 'confirm' && session.type === 'video' && !session.meeting_url) {
@@ -148,20 +167,26 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  // Notify the client when the coach confirms or declines (best-effort). The
-  // recipient is a different user than the actor, so use the service role.
-  if ((action === 'confirm' || action === 'decline') && session.client_id) {
+  // Notify the client when the coach confirms, declines, or reschedules
+  // (best-effort). The recipient is a different user than the actor, so use
+  // the service role.
+  if ((action === 'confirm' || action === 'decline' || action === 'reschedule') && session.client_id) {
     try {
-      const when = new Date(session.scheduled_at).toLocaleString('en-US', {
+      // For a reschedule, the meaningful time is the NEW slot, not the old.
+      const whenSource = action === 'reschedule' && newScheduledAt ? newScheduledAt : session.scheduled_at;
+      const when = new Date(whenSource).toLocaleString('en-US', {
         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
       });
+      const copy = {
+        confirm: { type: 'session_confirmed', title: 'Session confirmed', body: `Your coach confirmed your session on ${when}.` },
+        decline: { type: 'session_declined', title: 'Session declined', body: `Your coach couldn’t take the session on ${when}.` },
+        reschedule: { type: 'session_rescheduled', title: 'Session moved', body: `Your coach moved your session to ${when}.` },
+      }[action]!;
       await createNotification(createAdminClient(), {
         userId: session.client_id,
-        type: action === 'confirm' ? 'session_confirmed' : 'session_declined',
-        title: action === 'confirm' ? 'Session confirmed' : 'Session declined',
-        body: action === 'confirm'
-          ? `Your coach confirmed your session on ${when}.`
-          : `Your coach couldn’t take the session on ${when}.`,
+        type: copy.type,
+        title: copy.title,
+        body: copy.body,
         route: 'sessions',
         data: { sessionId: session.id },
       });

@@ -271,21 +271,39 @@ function ChatWidget(props) {
   // Global opener.
   //   window.__openChat("Maya")                              ← legacy name lookup
   //   window.__openChat("Maya", "team")                       ← scoped to a tab
-  //   window.__openChat({ who, role, eyebrow, conversationId }) ← inject if missing
+  //   window.__openChat({ who, role, eyebrow, conversationId, draft, tab })
   //
   // When called with an object descriptor, the widget will reuse the matching
   // local thread if one already exists, otherwise prepend a fresh one so the
   // user lands in a usable empty conversation with the right counterpart.
+  // `draft` PRE-FILLS the composer (never auto-sends, never clobbers text the
+  // user already typed) — the dashboards' one-tap Message buttons use it to
+  // turn a reason pill into an editable opener. Callers that may run before
+  // the widget mounts stash the descriptor on window.__openChatRequest (see
+  // globalChatButton.js's __openChatTo); it's consumed on mount below.
   React.useEffect(() => {
     window.__openChat = (arg, tabId) => {
       setOpen(true);
       const descriptor = (arg && typeof arg === "object") ? arg : null;
       const who = descriptor ? descriptor.who : (typeof arg === "string" ? arg : null);
+      if (!tabId && descriptor && descriptor.tab) tabId = descriptor.tab;
+      // Pre-fill the target tab's composer, keeping anything already typed.
+      const fillDraft = (ti) => {
+        if (descriptor && descriptor.draft) {
+          setDraftByTab(prev => prev.map((d, i) => (i === ti && !String(d || "").trim() ? descriptor.draft : d)));
+        }
+      };
       if (tabId) {
         const ti = tabs.findIndex(t => t.id === tabId);
         if (ti >= 0) setTabIdx(ti);
       }
-      if (!who) return;
+      if (!who) {
+        // Draft-only deep link (e.g. the client's "Message your coach"):
+        // land on the requested tab with the opener ready to edit.
+        const ti = tabId ? tabs.findIndex(t => t.id === tabId) : tabIdx;
+        fillDraft(ti >= 0 ? ti : tabIdx);
+        return;
+      }
 
       const searchTabs = tabId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
       for (const ti of searchTabs) {
@@ -294,13 +312,14 @@ function ChatWidget(props) {
         if (idx >= 0) {
           setTabIdx(ti);
           setActiveByTab(prev => prev.map((v, i) => i === ti ? idx : v));
+          fillDraft(ti);
           return;
         }
       }
 
       // No matching thread. If we got a descriptor (e.g. from the Shared
-      // Clients tab), prepend a new empty thread on the current tab so the
-      // user can start typing right away.
+      // Clients tab or a dashboard Message button), prepend a new empty
+      // thread on the current tab so the user can start typing right away.
       if (descriptor) {
         const fresh = {
           who,
@@ -318,8 +337,16 @@ function ChatWidget(props) {
         setThreadsByTab(prev => prev.map((ts, ti) => ti !== targetTab ? ts : [fresh, ...ts]));
         setActiveByTab(prev => prev.map((v, ti) => ti === targetTab ? 0 : v));
         setTabIdx(targetTab);
+        fillDraft(targetTab);
       }
     };
+    // A deep link could land before this widget mounted (lazy boot via the
+    // global bubble, or a Message tap racing page load) — consume it now.
+    if (window.__openChatRequest) {
+      const req = window.__openChatRequest;
+      try { delete window.__openChatRequest; } catch (e) {}
+      window.__openChat(req, req && req.tab);
+    }
     return () => { delete window.__openChat; };
   }, [threadsByTab, tabs, tabIdx]);
 

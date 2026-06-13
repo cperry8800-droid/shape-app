@@ -47,6 +47,30 @@ export async function GET() {
   );
   const clientIds = subs.map((r: { client_id: string }) => r.client_id).filter(Boolean);
 
+  // Churn (Business page): canceled subscriptions, newest first. No
+  // cancellation survey yet → exit reasons are always null and the UI says so.
+  const { data: churnRows } = await supabase
+    .from('subscriptions')
+    .select('client_id, price_cents, created_at, current_period_end')
+    .eq('provider_role', 'nutritionist')
+    .eq('provider_id', providerId)
+    .eq('status', 'canceled')
+    .order('current_period_end', { ascending: false, nullsFirst: false })
+    .limit(12);
+  const churnIds = (churnRows ?? []).map((r) => r.client_id).filter(Boolean);
+  const churnNames = new Map<string, string>();
+  if (churnIds.length) {
+    const { data } = await supabase.from('profiles').select('id, full_name').in('id', churnIds);
+    for (const r of data ?? []) churnNames.set(String(r.id), String(r.full_name ?? '').trim());
+  }
+  const churn = (churnRows ?? []).map((r) => ({
+    name: churnNames.get(String(r.client_id)) || 'Former client',
+    startedAt: r.created_at ?? null,
+    endedAt: r.current_period_end ?? null,
+    priceCents: r.price_cents ?? null,
+    reason: null, // collects once the cancellation survey ships
+  }));
+
   const { data: sessRows } = await supabase
     .from('sessions')
     .select('scheduled_at, status')
@@ -163,6 +187,8 @@ export async function GET() {
 
   return NextResponse.json({
     isNutritionist: true,
+    providerId,
+    churn,
     metrics: {
       mrrGrossCents: grossCents,
       mrrNetCents: Math.round(grossCents * 0.85),

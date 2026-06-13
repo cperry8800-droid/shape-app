@@ -23,6 +23,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -100,8 +101,17 @@ export async function GET(request: Request) {
     .in('status', ['requested', 'confirmed', 'completed'])
     .order('scheduled_at', { ascending: true });
 
+  // Resolve client names for the coach Schedule view (color-coding + the
+  // click-through client drawer). RLS already scoped these to the caller.
+  const sessClientIds = [...new Set((sessRows ?? []).map((s: { client_id?: string }) => s.client_id).filter(Boolean) as string[])];
+  const sessNameById = new Map<string, string>();
+  if (sessClientIds.length) {
+    const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', sessClientIds);
+    for (const p of profs ?? []) sessNameById.set(String(p.id), String((p.full_name ?? '').trim()) || 'Client');
+  }
+
   const sessions = (sessRows ?? []).map((s: {
-    id: string; provider_role: string; type: string; scheduled_at: string;
+    id: string; client_id: string | null; provider_role: string; type: string; scheduled_at: string;
     duration_min: number | null; status: string; topic: string | null; meeting_url: string | null;
   }) => {
     const dt = new Date(s.scheduled_at);
@@ -109,6 +119,7 @@ export async function GET(request: Request) {
     const time = `${String(dt.getUTCHours()).padStart(2, '0')}:${String(dt.getUTCMinutes()).padStart(2, '0')}`;
     return {
       id: `session:${s.id}`,
+      sessionId: s.id,
       source: 'session' as const,
       kind: s.provider_role === 'nutritionist' ? 'CONSULT' : 'SESSION',
       title: s.topic || (s.provider_role === 'nutritionist' ? 'Nutrition consult' : 'Coaching session'),
@@ -116,13 +127,18 @@ export async function GET(request: Request) {
       date,
       time,
       durationMin: s.duration_min,
-      with: '',
+      with: s.client_id ? (sessNameById.get(s.client_id) || 'Client') : '',
+      clientId: s.client_id || null,
       location: '',
       accent: '',
       status: s.status,
       meetingUrl: s.meeting_url,
       createdByRole: 'coach',
-      editable: false, // managed via /api/sessions/manage, not here
+      // Reschedulable by the coach via /api/sessions/manage (drag-to-move) —
+      // ONLY while the session is still active/upcoming. A completed (or
+      // declined/cancelled) booking is never draggable.
+      editable: false,
+      reschedulable: isSessionReschedulable(s.status),
     };
   });
 

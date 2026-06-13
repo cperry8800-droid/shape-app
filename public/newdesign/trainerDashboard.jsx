@@ -183,8 +183,10 @@ function DashShell({
   todayItems,   // optional [{ time, kind, title, sub, cta }]
   scheduleTitle,
   schedule,     // [{ time, who, sub, status }]
+  scheduleRender, // optional () => node — replaces the default schedule rows (panel + title kept)
   pulseTitle,
   pulse,        // [{ who, sub, trend }]  trend = array of numbers 0-1
+  pulseRender,  // optional () => node — replaces the default pulse rows (panel + title kept)
   extraSections, // optional [{ title, render }]
   calendarEvents, // optional [{date,time,kind,title,sub}] — enables "Open calendar →"
 }) {
@@ -196,8 +198,9 @@ function DashShell({
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
       {calendarEvents && cal && <CalendarOverlay {...cal.props} role={role} events={calendarEvents} />}
 
-      {/* Main */}
-      <main style={{ padding: "40px 48px 80px", minWidth: 0 }}>
+      {/* Main — overflowX hidden matches DashPage; without it the Today pages
+          scroll horizontally at 375px (nowrap pulse metas widen the document) */}
+      <main style={{ padding: "40px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
           <div style={{ minWidth: 0 }}>
@@ -277,7 +280,7 @@ function DashShell({
                 <a href="#" onClick={cal.open} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>OPEN CALENDAR <span style={{ fontSize: 12 }}>→</span></a>
               )}
             </div>
-            {schedule.map((s, i) => (
+            {scheduleRender ? scheduleRender() : schedule.map((s, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{s.time}</div>
                 <div>
@@ -297,7 +300,7 @@ function DashShell({
 
           <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{pulseTitle}</div>
-            {pulse.map((p, i) => (
+            {pulseRender ? pulseRender() : pulse.map((p, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 60px", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
                 <div style={{ width: 32, height: 32, borderRadius: 999, background: "#efece6" }} />
                 <div>

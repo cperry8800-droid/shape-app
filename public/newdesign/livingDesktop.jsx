@@ -190,7 +190,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
           <span style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: c, border: `1px solid ${dHexA(c, 0.4)}`, borderRadius: 999, padding: "6px 12px" }}>{direction === "terrain" ? "▲ " : "◇ "}{tierOf(d).name}</span>
           {coach && d.verified && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase", color: LV_TEAL }}><SpVerifiedDot /> Verified</span>}
-          {!coach && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: LV_TEAL }}><span className={reduced ? "" : "lv-pulse"} style={{ width: 7, height: 7, borderRadius: 999, background: LV_TEAL }} /> In training</span>}
+          {!coach && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", color: LV_TEAL }}><span className={reduced ? "" : "lv-pulse"} style={{ width: 7, height: 7, borderRadius: 999, background: LV_TEAL }} /> In training{d.program ? " · " + d.program : ""}{d.block ? " · " + d.block : ""}</span>}
         </div>
         <h1 style={{ fontFamily: dSerif, fontSize: 76, fontWeight: 400, letterSpacing: "-0.04em", lineHeight: 0.92, margin: 0 }}>{d.name}</h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 16, fontFamily: dMono, fontSize: 13, color: dHexA(LV_INK, 0.55) }}>
@@ -877,6 +877,97 @@ function ProfileCustomizer({ initial, c, onClose, onSave }) {
   );
 }
 
+// ── Availability at-a-glance (coach profiles) ──────────────────────────────
+// Reads the SAME /api/availability the booking flow reads — so what the coach
+// sets on their Schedule tab shows here and lines up with consultation.html.
+// weekday is getDay()-style (0=Sun…6=Sat). Resolves the coach's provider_id
+// from their uid via the public trainers/nutritionists table.
+const LV_AVAIL_DAYS = [["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6], ["Sun", 0]];
+function lvHourLabel(min) {
+  const h = Math.floor(min / 60);
+  return (h % 12 === 0 ? 12 : h % 12) + (h >= 12 ? "p" : "a");
+}
+function LvCoachAvailability({ d }) {
+  const role = d.role === "nutritionist" ? "nutritionist" : "trainer";
+  const uid = d.uid || null;
+  const [state, setState] = React.useState(uid ? "loading" : "demo");
+  const [slots, setSlots] = React.useState(null);
+  const [pid, setPid] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!uid) { setState("demo"); return; }
+    let on = true;
+    (async () => {
+      try {
+        const c = (window.shapeDb && window.shapeDb.client) || null;
+        if (!c) { setState("demo"); return; }
+        const table = role === "trainer" ? "trainers" : "nutritionists";
+        const { data: prov } = await c.from(table).select("id").eq("owner_id", uid).maybeSingle();
+        if (!prov || !prov.id) { if (on) setState("none"); return; }
+        if (on) setPid(prov.id);
+        const res = await fetch("/api/availability?role=" + role + "&id=" + prov.id, { cache: "no-store" });
+        const j = res.ok ? await res.json() : null;
+        if (!on) return;
+        setSlots(Array.isArray(j && j.slots) ? j.slots : []);
+        setState("live");
+      } catch (e) { if (on) setState("none"); }
+    })();
+    return () => { on = false; };
+  }, [uid, role]);
+
+  // Demo availability mirrors the Schedule editor's demo (Mon–Sat working week).
+  const demoSlots = [
+    { weekday: 1, start_minute: 360, duration_min: 240 }, { weekday: 1, start_minute: 1020, duration_min: 180 },
+    { weekday: 2, start_minute: 480, duration_min: 300 }, { weekday: 3, start_minute: 360, duration_min: 240 },
+    { weekday: 4, start_minute: 540, duration_min: 300 }, { weekday: 5, start_minute: 360, duration_min: 300 },
+    { weekday: 6, start_minute: 540, duration_min: 180 },
+  ];
+  const useSlots = state === "demo" ? demoSlots : (slots || []);
+  const byDay = new Map();
+  for (const s of useSlots) {
+    const wd = s.weekday;
+    const start = s.start_minute, end = s.start_minute + (s.duration_min || 60);
+    const cur = byDay.get(wd) || { min: start, max: end };
+    byDay.set(wd, { min: Math.min(cur.min, start), max: Math.max(cur.max, end) });
+  }
+  const openDays = byDay.size;
+  const bookHref = "/newdesign/consultation.html?type=" + role + (pid ? "&id=" + pid : "") + "&name=" + encodeURIComponent(d.name || "");
+
+  if (state === "loading") {
+    return <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}><div style={dCard({ padding: "16px 22px", color: dHexA(LV_INK, 0.4), fontFamily: dMono, fontSize: 12 })}>Loading availability…</div></section>;
+  }
+  if (state === "none") return null; // not a marketplace coach / no row — show nothing rather than a wrong state
+
+  return (
+    <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}>
+      <div style={dCard({ padding: "16px 22px 18px" })}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
+          <DKick c={LV_TEAL} style={{ fontSize: 10.5 }}>◷ Availability{state === "demo" ? " · example" : ""}</DKick>
+          <span style={{ fontFamily: dMono, fontSize: 10.5, color: dHexA(LV_INK, 0.45) }}>
+            {openDays ? "Open " + openDays + (openDays === 1 ? " day" : " days") + " a week" : "No open hours set"}
+          </span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
+          {LV_AVAIL_DAYS.map(([lbl, wd]) => {
+            const r = byDay.get(wd);
+            return (
+              <div key={wd} style={{ textAlign: "center", borderRadius: 12, border: `1px solid ${dHexA(r ? LV_TEAL : LV_INK, r ? 0.32 : 0.1)}`, background: r ? dHexA(LV_TEAL, 0.08) : "transparent", padding: "9px 4px" }}>
+                <div style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: r ? LV_TEAL : dHexA(LV_INK, 0.4) }}>{lbl}</div>
+                <div style={{ fontFamily: dMono, fontSize: 10.5, marginTop: 5, color: r ? dHexA(LV_INK, 0.78) : dHexA(LV_INK, 0.28) }}>{r ? lvHourLabel(r.min) + "–" + lvHourLabel(r.max) : "—"}</div>
+              </div>
+            );
+          })}
+        </div>
+        {openDays > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <a href={bookHref} style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 42, padding: "0 20px", borderRadius: 12, background: LV_TEAL, color: "#06110e", fontFamily: dSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Book a consult →</a>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function DesktopProfile({ direction = "terrain", persona = "client", variant = "public", person, onMessage, onFollow, follow, coachingHref, belowContent = null, chrome = true }) {
   const d = person || LV_PEOPLE[persona];
   const c = tierOf(d).color;
@@ -909,6 +1000,9 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
         ) : (
           <React.Fragment>
             <DesktopHero d={d} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
+            {/* Availability at-a-glance — coach profiles only, the same slots
+                the Schedule tab edits + the booking flow reads. */}
+            {coach && <LvCoachAvailability d={d} />}
             <DesktopTabs direction={direction} tab={tab} setTab={setTab} c={c} />
 
             {/* Activity — personal activities lead */}

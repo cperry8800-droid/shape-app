@@ -23,9 +23,9 @@ function weekStartISO(d = new Date()): string {
   return x.toISOString().slice(0, 10);
 }
 
-type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown };
+type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; tempo?: unknown; cue?: unknown; group?: unknown };
 
-function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string }> {
+function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; tempo: string; cue: string; group: string }> {
   const list = Array.isArray(payload?.exercises) ? (payload!.exercises as ExerciseRow[]) : [];
   return list
     .filter((e) => e && (e.name != null))
@@ -35,6 +35,11 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       reps: e.reps != null ? String(e.reps) : '',
       rest: e.rest != null ? String(e.rest) : '',
       load: e.load != null ? String(e.load) : (e.notes != null ? String(e.notes) : ''),
+      // Builder fields — the trainer's tempo / verbatim cue / superset label
+      // ride through untouched so the client card shows exactly what was typed.
+      tempo: e.tempo != null ? String(e.tempo) : '',
+      cue: e.cue != null ? String(e.cue) : '',
+      group: e.group != null ? String(e.group) : '',
     }));
 }
 
@@ -67,6 +72,20 @@ export async function GET(request: Request) {
       scheduledDate: w.scheduled_date ?? null,
       time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
+      playlist: payload?.playlist && typeof payload.playlist === 'object'
+        ? { name: String((payload.playlist as Record<string, unknown>).name ?? ''), meta: String((payload.playlist as Record<string, unknown>).meta ?? '') }
+        : null,
+      // Builder snapshot stamp ({id, name, version, week, day}) — the client
+      // Workouts tab groups the program into weeks with it.
+      template: payload?.template && typeof payload.template === 'object'
+        ? {
+            id: String((payload.template as Record<string, unknown>).id ?? ''),
+            name: String((payload.template as Record<string, unknown>).name ?? ''),
+            version: Number((payload.template as Record<string, unknown>).version) || null,
+            week: Number((payload.template as Record<string, unknown>).week) || null,
+            day: Number((payload.template as Record<string, unknown>).day) || null,
+          }
+        : null,
       exercises: mapExercises(payload),
     };
   });

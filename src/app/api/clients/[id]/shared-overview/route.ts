@@ -181,6 +181,7 @@ export async function GET(
   const [
     { data: goals }, { data: stats }, { data: lifts },
     { data: checkins }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
+    { data: programRow },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
     supabase.rpc('get_client_stats', { p_user_id: clientId }),
@@ -189,7 +190,11 @@ export async function GET(
     supabase.rpc('get_client_measurements', { p_user_id: clientId }),
     supabase.rpc('get_client_progress_photos', { p_user_id: clientId, p_limit: 12 }),
     supabase.rpc('get_client_health_profile', { p_user_id: clientId }),
+    // client_programs: coach-readable by RLS — carries the pro-set goals
+    // (detail.goals, the Goals-page store) and the program phases.
+    supabase.from('client_programs').select('training_phase, nutrition_phase, detail').eq('user_id', clientId).maybeSingle(),
   ]);
+  const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
 
   return NextResponse.json({
     client: clientProfile
@@ -206,5 +211,9 @@ export async function GET(
     measurements: measurements ?? [],
     progressPhotos: progressPhotos ?? [],
     healthProfile: healthProfile ?? null,
+    coachGoals: Array.isArray(programDetail.goals) ? programDetail.goals : null,
+    programPhases: programRow
+      ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
+      : null,
   });
 }

@@ -36,16 +36,16 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/supabase.js"></script>
-<script type="text/babel" src="pageShell.jsx?v=20260612"></script>
-<script type="text/babel" src="chatWidget.jsx?v=20260609"></script>
+<script type="text/babel" src="pageShell.jsx?v=20260613c"></script>
+<script type="text/babel" src="chatWidget.jsx?v=20260613"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
-<script type="text/babel" src="trainerDashboard.jsx"></script>
+<script type="text/babel" src="trainerDashboard.jsx?v=20260613"></script>
 <script type="text/babel" src="clientNav.jsx"></script>
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
-<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=23"></script>
-<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260612c"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=25"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260613b"></script>
 <script type="text/babel">
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
@@ -186,6 +186,50 @@ function EditProfileModal({ initial, onClose, onSaved }) {
   );
 }
 
+// Plan & billing — LIVE. Shape membership from /api/stripe/subscription,
+// coaching plans from /api/client/team (the real per-coach subscriptions), and
+// the card on file from /api/stripe/payment-method (brand + last4 only). No
+// invented amounts: an honest empty/portal state shows when data is absent.
+function PlanBillingCard({ signedIn }) {
+  const [sub, setSub] = React.useState(undefined);  // undefined=loading, null=inactive, obj=active
+  const [coaches, setCoaches] = React.useState(undefined); // undefined=loading, array when known
+  const [pm, setPm] = React.useState(undefined);    // undefined=loading, {hasMethod,…}
+  React.useEffect(() => {
+    if (!signedIn) { setSub(null); setCoaches(null); setPm(null); return; }
+    const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+    j("/api/stripe/subscription").then(d => setSub(d && d.active ? d : null));
+    j("/api/client/team").then(d => setCoaches(d && Array.isArray(d.coaches) ? d.coaches : []));
+    j("/api/stripe/payment-method").then(d => setPm(d || { hasMethod: false }));
+  }, [signedIn]);
+  const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) + " / month" : "$5 / month");
+  const date = (s) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null; } catch (e) { return null; } };
+  const renews = sub && date(sub.renewsAt);
+  const memberValue = sub === undefined ? "Checking…"
+    : sub ? (money(sub.priceCents) + (renews ? " · renews " + renews : ""))
+    : (signedIn ? "Not active" : "$5 / month — example");
+  const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "Card");
+  const pmValue = (pm && pm.hasMethod) ? (cap(pm.brand) + " •••• " + (pm.last4 || "----"))
+    : (sub || (pm && pm.hasMethod === false && signedIn) ? "Manage in billing portal" : "—");
+  let coachingRows;
+  if (!signedIn) {
+    coachingRows = <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
+  } else if (coaches === undefined) {
+    coachingRows = <Row label="Coaching plans" value="Checking…" />;
+  } else if (coaches.length) {
+    coachingRows = coaches.map((c, i) => <Row key={i} label={c.name} value={c.plan || "Active"} action="MANAGE" onAction={() => window.location.href = "/pricing"} />);
+  } else {
+    coachingRows = <Row label="Coaching plans" value="None active" action="FIND A COACH" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
+  }
+  return (
+    <Card>
+      <SectionTitle>Plan &amp; billing</SectionTitle>
+      <Row label="Shape membership" value={memberValue} action={sub ? "MANAGE" : "JOIN"} onAction={() => window.location.href = "/pricing"} />
+      {coachingRows}
+      <Row label="Payment method" value={pmValue} action={(pm && pm.hasMethod) || sub ? "UPDATE" : undefined} onAction={(pm && pm.hasMethod) || sub ? () => window.location.href = "/pricing" : undefined} />
+    </Card>
+  );
+}
+
 // Account & settings — rides BELOW the living profile (the page leads with
 // the profile itself, same concept as the app's Me tab; signed-out = demo).
 function ClientMeSettings() {
@@ -210,11 +254,25 @@ function ClientMeSettings() {
     showToast(signedIn ? "Saved." : "Sample view — sign in to save.");
   }
 
+  // Mirror the display name to profiles.full_name so a rename round-trips to
+  // the dashboard / chat / leaderboard (which read profiles, not client_profiles).
+  async function mirrorName(data) {
+    try {
+      const nm = ((data && data.displayName) || "").trim();
+      const c = window.shapeDb && window.shapeDb.client;
+      if (!nm || !c || !c.auth) return;
+      const u = await c.auth.getUser();
+      const uid = u && u.data && u.data.user && u.data.user.id;
+      if (uid) await c.from("profiles").update({ full_name: nm }).eq("id", uid);
+    } catch (e) {}
+  }
+
   async function persist(next) {
     if (window.shapeDb && window.shapeDb.saveClientProfile) {
       const res = await window.shapeDb.saveClientProfile(next);
       if (res && res.error) return res.error.message || "Save failed";
     }
+    await mirrorName(next);
     return null;
   }
 
@@ -288,15 +346,7 @@ function ClientMeSettings() {
           <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" onAction={() => openField("heightWeight", "Height / weight")} />
         </Card>
 
-        <Card>
-          <SectionTitle>Plan &amp; billing</SectionTitle>
-          <Row label="Shape Platform" value="$5 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
-          <Row label="Maya — Strength + hybrid" value="$220 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
-          <Row label="Rae — Performance fuel" value="$180 / month" action="MANAGE" onAction={() => window.location.href = "/pricing"} />
-          <Row label="Total monthly" value="$405" />
-          <Row label="Next charge" value="May 4, 2026" />
-          <Row label="Payment method" value="Visa •••• 4290" action="UPDATE" onAction={() => window.location.href = "/pricing"} />
-        </Card>
+        <PlanBillingCard signedIn={signedIn} />
 
         <Card>
           <SectionTitle>Connected apps</SectionTitle>
@@ -371,6 +421,7 @@ function ClientMeSettings() {
           onClose={() => setEditOpen(false)}
           onSaved={(next) => {
             setProfile(prev => ({ ...prev, ...next }));
+            mirrorName(next);
             showToast(signedIn ? "Profile saved." : "Sign in to save changes.");
           }}
         />
@@ -505,6 +556,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   </React.Fragment>
 );
 </script>
-<script src="globalChatButton.js?v=20260609" defer></script>
+<script src="globalChatButton.js?v=20260613" defer></script>
 </body>
 </html>

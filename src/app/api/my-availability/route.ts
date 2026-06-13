@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { role?: string; slots?: Array<{ weekday: number; start_minute: number }> };
+  let body: { role?: string; slots?: Array<{ weekday: number; start_minute: number; duration_min?: number }> };
   try {
     body = await req.json();
   } catch {
@@ -94,13 +94,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, count: 0 });
   }
 
-  const rows = clean.map((s) => ({
-    provider_role: role,
-    provider_id: owned.id,
-    weekday: s.weekday,
-    start_minute: s.start_minute,
-    duration_min: 15,
-  }));
+  const rows = clean.map((s) => {
+    // Honor the block duration the editor sends (contiguous hours collapse into
+    // {start_minute, duration_min}). Clamp to the rest of the day; default to a
+    // single hour when absent or invalid. Storing the real duration is what
+    // makes multi-hour blocks render correctly on the marketplace profile and
+    // round-trip back into the editor (it expands duration_min into hour cells).
+    const dur =
+      typeof s.duration_min === 'number' && s.duration_min >= 15
+        ? Math.min(Math.round(s.duration_min), 1440 - s.start_minute)
+        : 60;
+    return {
+      provider_role: role,
+      provider_id: owned.id,
+      weekday: s.weekday,
+      start_minute: s.start_minute,
+      duration_min: dur,
+    };
+  });
   const { error: insError } = await supabase.from('provider_availability').insert(rows);
   if (insError) {
     console.error('[shape-app] insert availability failed', insError);

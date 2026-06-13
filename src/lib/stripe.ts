@@ -23,6 +23,13 @@ export type StripeSummary = {
   connected: boolean;
   status: string;
   balanceCents: number | null;
+  /** The account's payout cadence (Business page schedule line); null until connected. */
+  schedule: {
+    interval: string; // 'daily' | 'weekly' | 'monthly' | 'manual'
+    weeklyAnchor: string | null;
+    monthlyAnchor: number | null;
+    delayDays: number | null;
+  } | null;
   payouts: Array<{
     id: string;
     amountCents: number;
@@ -33,18 +40,19 @@ export type StripeSummary = {
   }>;
 };
 
-/** Balance + last 12 payouts for a connected account (or an empty/error summary). */
+/** Balance + payout schedule + last 12 payouts for a connected account (or an empty/error summary). */
 export async function loadStripe(
   accountId: string | null,
   accountStatus: string | null
 ): Promise<StripeSummary> {
   if (!accountId) {
-    return { connected: false, status: accountStatus ?? 'not_connected', balanceCents: null, payouts: [] };
+    return { connected: false, status: accountStatus ?? 'not_connected', balanceCents: null, schedule: null, payouts: [] };
   }
   try {
-    const [balance, payoutList] = await Promise.all([
+    const [balance, payoutList, account] = await Promise.all([
       stripe.balance.retrieve({}, { stripeAccount: accountId }),
       stripe.payouts.list({ limit: 12 }, { stripeAccount: accountId }),
+      stripe.accounts.retrieve(accountId).catch(() => null),
     ]);
     const balanceCents = (balance.available ?? []).reduce((sum, b) => sum + b.amount, 0);
     const payouts = payoutList.data.map((p) => ({
@@ -55,8 +63,17 @@ export async function loadStripe(
       arrivalDate: p.arrival_date ? p.arrival_date * 1000 : null,
       created: p.created * 1000,
     }));
-    return { connected: true, status: accountStatus ?? 'connected', balanceCents, payouts };
+    const sched = account?.settings?.payouts?.schedule ?? null;
+    const schedule = sched
+      ? {
+          interval: sched.interval ?? 'daily',
+          weeklyAnchor: sched.weekly_anchor ?? null,
+          monthlyAnchor: sched.monthly_anchor ?? null,
+          delayDays: sched.delay_days ?? null,
+        }
+      : null;
+    return { connected: true, status: accountStatus ?? 'connected', balanceCents, schedule, payouts };
   } catch {
-    return { connected: true, status: accountStatus ?? 'error', balanceCents: null, payouts: [] };
+    return { connected: true, status: accountStatus ?? 'error', balanceCents: null, schedule: null, payouts: [] };
   }
 }

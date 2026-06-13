@@ -84,7 +84,7 @@ const SHAPE_NAV_GROUPS = [
 const PORTAL_NAV = {
   client: [
     { kind: "link", label: "Dashboard", href: "ClientDashboard.html" },
-    { kind: "link", label: "Train", href: "ClientTrain.html" },
+    { kind: "link", label: "Workouts", href: "ClientTrain.html" },
     { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
     { kind: "link", label: "Progress", href: "ClientProgress.html" },
     { kind: "link", label: "Community", href: "ClientCommunity.html" },
@@ -93,19 +93,21 @@ const PORTAL_NAV = {
   ],
   trainer: [
     { kind: "link", label: "Dashboard", href: "TrainerDashboard.html" },
+    { kind: "link", label: "Schedule", href: "TrainerSchedule.html" },
     { kind: "link", label: "Clients", href: "TrainerClients.html" },
     { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
     { kind: "link", label: "Messages", href: "TrainerMessages.html" },
-    { kind: "link", label: "Analytics", href: "TrainerAnalytics.html" },
+    { kind: "link", label: "Business", href: "TrainerAnalytics.html" },
     { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "TrainerCommunity.html"], ["Playlists", "TrainerPlaylists.html"], ["Shape Score", "TrainerScore.html"], ["Public profile", "MemberProfile.html"], ["My Profile", "TrainerProfile.html"]] },
     { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   nutritionist: [
     { kind: "link", label: "Dashboard", href: "NutritionistDashboard.html" },
+    { kind: "link", label: "Schedule", href: "NutritionistSchedule.html" },
     { kind: "link", label: "Clients", href: "NutritionistClients.html" },
     { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
     { kind: "link", label: "Messages", href: "NutritionistMessages.html" },
-    { kind: "link", label: "Analytics", href: "NutritionistAnalytics.html" },
+    { kind: "link", label: "Business", href: "NutritionistAnalytics.html" },
     { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "NutritionistCommunity.html"], ["Playlists", "NutritionistPlaylists.html"], ["Shape Score", "NutritionistScore.html"], ["Public profile", "MemberProfile.html"], ["My Profile", "NutritionistProfile.html"]] },
     { kind: "link", label: "Radio", href: "Radio.html" },
   ],
