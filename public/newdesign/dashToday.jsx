@@ -192,11 +192,37 @@ function dashRelDay(isoStr) {
   } catch (e) { return null; }
 }
 
-function dashMessageClient(name, role) {
-  try { if (window.__openChat) { window.__openChat({ who: name }); return; } } catch (e) {}
+// Every one-tap Message button routes through the EXISTING chat bubble,
+// deep-linked to that client's thread — there is no standalone messages page
+// (audit decision). `draft` pre-fills the composer when a reason pill
+// triggered the tap; it's an editable opener, never an auto-send.
+function dashMessageClient(name, role, draft) {
+  const opts = { who: name || undefined, draft: draft || undefined, tab: !name && role === "client" ? "trainers" : undefined };
+  try { if (typeof window.__openChatTo === "function") { window.__openChatTo(opts); return; } } catch (e) {}
+  try { if (typeof window.__openChat === "function") { window.__openChat(opts, opts.tab); return; } } catch (e) {}
+  // Bubble script not ready yet: stash the request and click the launcher —
+  // the widget consumes __openChatRequest the moment it mounts.
   const b = document.getElementById("shape-global-chat-button");
-  if (b) { b.click(); return; }
-  window.location.href = role === "nutritionist" ? "NutritionistMessages.html" : "TrainerMessages.html";
+  if (b) { window.__openChatRequest = opts; b.click(); }
+}
+
+// One-tap drafts — a reason pill becomes a short, human opener the coach
+// edits before sending. Reasons come from the signal engine verbatim.
+function dashMessageDraft(row) {
+  if (!row || !Array.isArray(row.flags) || !row.flags.length) return null;
+  const first = String(row.client.profile.name).split(" ")[0];
+  const reasons = row.flags.slice(0, 2).map((f) => f.reason.charAt(0).toLowerCase() + f.reason.slice(1));
+  return "Hey " + first + " — checking in. I'm seeing " + reasons.join(", and ") + ". What's getting in the way this week?";
+}
+function dashCongratsDraft(client, hit) {
+  const first = String(client.profile.name).split(" ")[0];
+  return first + " — " + hit.label + ". That's earned, not given. What are we pointing at next?";
+}
+function dashJointDraft(j, role) {
+  const first = String(j.client.profile.name).split(" ")[0];
+  const other = role === "nutritionist" ? "trainer" : "nutritionist";
+  const labels = j.trainingFlags.concat(j.nutritionFlags).slice(0, 2).map((f) => f.label.toLowerCase());
+  return "Hey " + first + " — your " + other + " and I compared notes: " + labels.join(" + ") + " in the same week. One reset plan from both of us. Quick call tomorrow?";
 }
 
 // Pre-session context from the unified record — the two most useful facts.
@@ -371,7 +397,7 @@ function DashWinsPanel({ clients, role }) {
             <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}> — {r.hit.label}</span>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, marginTop: 2 }}>{dashRelDay(r.hit.hitAt)}</div>
           </div>
-          <button onClick={() => dashMessageClient(r.client.profile.name, role)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7bbf5a", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
+          <button onClick={() => dashMessageClient(r.client.profile.name, role, dashCongratsDraft(r.client, r.hit))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7bbf5a", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
         </div>
       ))}
     </div>
@@ -405,7 +431,7 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
               <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
             </div>
           </div>
-          <button onClick={() => dashMessageClient(j.client.profile.name, role)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "#e0644b", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "#e0644b", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
         </div>
       ))}
       {rows.map((r, i) => {
@@ -445,7 +471,7 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
                 {streak == null && wkPts == null && contact == null && "—"}
               </div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+            <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
               Message
             </button>
           </div>
@@ -743,4 +769,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashClientSlugHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientSlugHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });

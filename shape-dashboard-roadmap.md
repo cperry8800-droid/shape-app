@@ -124,6 +124,25 @@ human-readable reason per flag. Severity: red = 2+ flags or check-in missed
 ≥2 weeks; amber = 1 flag; green = clean.
 
 ### 2.4 Twin collapse & rosters
+- ✅ **Step 17 — Message deep-links (audit decision: NO messages page)**:
+  Messaging stays the chat bubble — the audit table's Messages-page row is
+  closed as won't-build. **Capability (the prerequisite small task)**:
+  `window.__openChatTo({ who, draft, tab })` in globalChatButton.js works on
+  EVERY page — open-or-boot the bubble deep-linked to a person's thread;
+  requests made before the widget mounts stash on `__openChatRequest` and
+  are consumed on mount (lazy-boot flush included). `__openChat` descriptors
+  gain `draft` (pre-fills the composer for the target tab, never auto-sends,
+  never clobbers typed text) + `tab`, and a draft-only mode (no `who`) for
+  "message your coach". **Wiring**: `dashMessageClient(name, role, draft)`
+  routes pulse rows, the drawer, schedule rows, wins Congratulate, the
+  joint-attention banner, the goals empty state, and the meal-builder intake
+  nudge through the bubble — the old Messages.html redirect fallback is
+  GONE. Reason pills become editable openers via `dashMessageDraft(row)`
+  ("Hey Marcus — checking in. I'm seeing …. What's getting in the way this
+  week?"), plus `dashCongratsDraft` (milestone) and `dashJointDraft` (the
+  coordinated two-coach note). Chat-script edits rode the mandated `?v`
+  sweep (chatWidget ×32, globalChatButton ×117). Render review 92/92 ·
+  tests 78/78.
 - ✅ **Step 16 — Business page (Analytics + Payouts merged, both pro roles)**:
   `TrainerAnalytics.html` / `NutritionistAnalytics.html` MIGRATED in place
   into one role-parameterized **`CoachBusinessPage`** (dashBusiness.jsx) —

@@ -383,7 +383,7 @@ function DashClientDrawer({ row, role, onClose }) {
           <DashDrawerSection key={i} title={title}><Body rec={rec} role={role} /></DashDrawerSection>
         ))}
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => dashMessageClient(rec.profile.name, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
+          <button onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
           <a href={dashClientSlugHref(rec.profile.name)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open full profile →</a>
         </div>
       </div>

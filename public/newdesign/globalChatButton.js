@@ -443,13 +443,20 @@
   // that don't already have it, lazily load + mount it; if anything
   // fails, gracefully fall back to the self-contained panel.
   var chatBootStarted = false;
+  // Flush a stashed deep-link request (window.__openChatRequest) into the
+  // widget once it exists — otherwise just open the panel.
+  function flushOpen() {
+    var req = window.__openChatRequest || undefined;
+    try { delete window.__openChatRequest; } catch (e) {}
+    window.__openChat(req, req && req.tab);
+  }
   function waitAndOpen(tries) {
-    if (typeof window.__openChat === "function") { window.__openChat(); return; }
+    if (typeof window.__openChat === "function") { flushOpen(); return; }
     if (tries > 60) { openFallbackPanel(); return; }
     window.setTimeout(function () { waitAndOpen(tries + 1); }, 80);
   }
   function openRichChat() {
-    if (typeof window.__openChat === "function") { window.__openChat(); return; }
+    if (typeof window.__openChat === "function") { flushOpen(); return; }
     if (chatBootStarted) { waitAndOpen(0); return; }
     chatBootStarted = true;
     if (!(window.Babel && window.Babel.transformScriptTags && window.React && window.ReactDOM)) {
@@ -486,6 +493,22 @@
     }
     waitAndOpen(0);
   }
+
+  // Programmatic deep link for the rest of the site (dashboard Message
+  // buttons, rosters, drawers): open the existing bubble ON a specific
+  // person's thread, optionally with a pre-filled draft. There is no
+  // standalone messages page — this is the messaging surface.
+  //   window.__openChatTo({ who: "Marcus T.", draft: "Hey Marcus — …", tab: "team" })
+  // Works before the widget mounts: the request is stashed and consumed when
+  // the lazy boot finishes (chatWidget.jsx reads __openChatRequest on mount).
+  window.__openChatTo = function (opts) {
+    if (typeof window.__openChat === "function") {
+      window.__openChat(opts || undefined, opts && opts.tab);
+      return;
+    }
+    window.__openChatRequest = opts || null;
+    openRichChat();
+  };
 
   function syncVisibility(button) {
     if (!button) return;

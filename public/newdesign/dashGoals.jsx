@@ -411,7 +411,7 @@ function ClientGoalsPage() {
             <div style={{ fontSize: 13, color: DGO_INK50, lineHeight: 1.55, maxWidth: 520 }}>
               Goals are set with your coach so the target, the pace, and the plan all agree. Ask in your next session — or message them now.
             </div>
-            <button onClick={() => dashMessageClient("", "client")} style={{ marginTop: 12, fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer" }}>Message your coach</button>
+            <button onClick={() => dashMessageClient("", "client", "Could we set up my goals? I want a target with a date on it.")} style={{ marginTop: 12, fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer" }}>Message your coach</button>
           </div>
         )}
 

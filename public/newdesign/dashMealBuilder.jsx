@@ -666,7 +666,7 @@ function DmbLifecyclePanel({ lifecycle, onWritePlan }) {
                   <span style={{ flex: 1, fontSize: 12.5, fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.profile.name}</span>
                   {g.action
                     ? <button onClick={() => onWritePlan(c.profile.id)} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>{g.action} →</button>
-                    : <button onClick={() => dashMessageClient(c.profile.name, "nutritionist")} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>Message</button>}
+                    : <button onClick={() => dashMessageClient(c.profile.name, "nutritionist", "Quick nudge — your intake form is still open. Two minutes and I can build your first week.")} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>Message</button>}
                 </div>
               ))}
               {!list.length && <div style={{ fontSize: 11.5, color: DMB_INK50, padding: "6px 0" }}>Nobody — clear.</div>}

@@ -248,6 +248,27 @@ try {
   ok("Churn live row: tenure + MRR lost + honest missing reason", liveChurn.includes("mo client") && liveChurn.includes("−$180") && liveChurn.includes("collects once the cancellation survey ships"));
 } catch (e) { ok("Business page renders", false, e.message); }
 
+// ── 4g. Message deep-link — every button routes through the chat bubble ─────
+try {
+  const mock = g.DashSignals.buildMockClients();
+  const feed = g.DashSignals.getTriageFeed("trainer", mock);
+  const marcus = feed.find((r) => r.client.profile.name === "Marcus T.");
+  const draft = g.dashMessageDraft(marcus);
+  ok("reason pills become an editable opener", /^Hey Marcus — checking in\. I'm seeing s/.test(draft) && draft.includes("What's getting in the way this week?"));
+  ok("clean rows draft nothing", g.dashMessageDraft(feed.find((r) => r.client.profile.name === "Jordan M.")) === null);
+  const joint = g.DashSignals.findJointAttention(mock)[0];
+  ok("joint note drafts the coordinated message", g.dashJointDraft(joint, "trainer").includes("your nutritionist and I compared notes"));
+  ok("congratulate drafts from the milestone", g.dashCongratsDraft(joint.client, { label: "100th workout" }).includes("100th workout"));
+  // The dispatcher hands the bubble a {who, draft} descriptor — no messages page.
+  let captured = null;
+  g.__openChatTo = (opts) => { captured = opts; };
+  g.dashMessageClient("Marcus T.", "trainer", draft);
+  ok("Message button deep-links the bubble with who + draft", captured && captured.who === "Marcus T." && captured.draft === draft);
+  g.dashMessageClient("", "client", "Could we set up my goals?");
+  ok("client coach-message lands on the trainers tab with the draft", captured && captured.tab === "trainers" && /set up my goals/.test(captured.draft));
+  delete g.__openChatTo;
+} catch (e) { ok("message deep-link contract", false, e.message); }
+
 // ── 5. Console errors during render ─────────────────────────────────────────
 const realErrors = errors.filter((e) => !e.includes("useLayoutEffect"));
 ok("no console errors / React warnings", realErrors.length === 0, realErrors.slice(0, 3).join(" || "));
