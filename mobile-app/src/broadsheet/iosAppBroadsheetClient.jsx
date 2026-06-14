@@ -10334,19 +10334,30 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // every profile. Use the member's real HQ channel if they have one
           // (so it opens), else a canonical entry.
           const _isHQ = (c) => (c && (c.name || '').toLowerCase() === 'shape hq');
+          const _isPRWall = (c) => (c && (c.name || '').toLowerCase() === 'pr wall');
           const _realHQ = chList.find(_isHQ);
           const _hqSeed = BS_SAMPLE_CHANNELS.find(c => c.id === 'sample-shapehq') || {};
           const _shapeHQ = _realHQ
             ? { ..._realHQ, pinned: true, official: true }
             : { ..._hqSeed, description: _hqSeed.description || 'The official Shape channel — product news, drops & events.', online: _hqSeed.online || 120, joined: true, pinned: true, live: true, official: true };
+          // PR Wall — the community channel of every public member's new PRs.
+          // Pinned to the top for EVERY profile (client + coaches), right under
+          // Shape HQ. Real channel when it exists (auto-posts land there), else the
+          // canonical seed.
+          const _realPRW = chList.find(_isPRWall);
+          const _prwSeed = BS_SAMPLE_CHANNELS.find(c => c.id === 'sample-prwall') || {};
+          const _prWall = _realPRW
+            ? { ..._realPRW, pinned: true, official: true, joined: true }
+            : { ..._prwSeed, description: _prwSeed.description || 'Every public member’s new personal records, automatically.', joined: true, pinned: true, official: true };
           const chDisplay = (() => {
             const base = chList
-              .filter(c => !_isHQ(c))
+              .filter(c => !_isHQ(c) && !_isPRWall(c))
               .map(c => ({ ...c, pinned: (c.id in pinOverride) ? pinOverride[c.id] : !!c.pinned }))
               .filter(c => !_chQ || (c.name || '').toLowerCase().includes(_chQ))
               .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
             const hqShown = !_chQ || 'shape hq'.includes(_chQ);
-            return hqShown ? [_shapeHQ, ...base] : base;
+            const prwShown = !_chQ || 'pr wall'.includes(_chQ);
+            return [...(hqShown ? [_shapeHQ] : []), ...(prwShown ? [_prWall] : []), ...base];
           })();
           const _coachUnread = (coaches || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);
           const _friendUnread = (friends || []).reduce((a, c) => a + (unread['dm:' + (c.conversation_id || '')] || 0), 0);

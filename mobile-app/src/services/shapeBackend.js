@@ -2185,11 +2185,58 @@ async function saveWorkoutSessionLog({
   });
 
   invalidateClientMetrics();
+  // Announce any new PRs to the community PR Wall. The server RPC enforces that
+  // the profile is PUBLIC and that it's a genuine new best, so non-public members
+  // and non-PRs post nothing. Best-effort, fire-and-forget — never blocks save.
+  if (structured && structured.stored === 'supabase') { announcePRsFromSetLogs(setLogs); }
   return {
     ...feedPost,
     workoutSession: structured,
   };
 }
+
+// PR Wall — announce a new personal record to the community PR Wall channel.
+// post_my_pr_to_wall re-checks the caller is a PUBLIC profile and that the value
+// beats their last posted best for that lift (dedupe ledger), so this is safe to
+// over-call. Applies to every role.
+async function postPRToWall({ lift, value, unit = 'lb', reps = null } = {}) {
+  if (!supabase || !state.user?.id) return { ok: false };
+  const name = String(lift || '').trim();
+  const v = Number(value);
+  if (!name || !Number.isFinite(v) || v <= 0) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/community/pr-wall`, {
+      method: 'POST',
+      headers: { ...sessionsAuthHeaders(), 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ lift: name, value: v, unit, reps: reps != null ? Number(reps) : null }),
+    });
+    return res.ok ? await res.json().catch(() => ({ ok: false })) : { ok: false };
+  } catch (e) { return { ok: false }; }
+}
+
+// From a finished session's set logs: the heaviest completed set per move →
+// one PR-wall post each (the RPC dedupes + gates public). Capped so a big
+// session can't flood the wall at once.
+async function announcePRsFromSetLogs(setLogs = []) {
+  try {
+    const best = new Map(); // moveName → { load, reps }
+    for (const e of (setLogs || [])) {
+      if (!e || e.completed === false) continue;
+      const lift = String(e.moveName || e.move || e.exercise || '').trim();
+      const load = parseFloat(String(e.actualLoad ?? e.load ?? e.actual_load ?? '').replace(/[^0-9.]/g, ''));
+      if (!lift || !Number.isFinite(load) || load <= 0) continue;
+      const reps = parseInt(String(e.actualReps ?? e.reps ?? e.actual_reps ?? ''), 10);
+      const prev = best.get(lift);
+      if (!prev || load > prev.load) best.set(lift, { load, reps: Number.isFinite(reps) ? reps : null });
+    }
+    for (const [lift, { load, reps }] of [...best.entries()].slice(0, 6)) {
+      await postPRToWall({ lift, value: load, unit: 'lb', reps });
+    }
+  } catch (e) { /* best-effort */ }
+}
+
+window.ShapePRWall = { post: postPRToWall, announce: announcePRsFromSetLogs };
 
 function privacyToDb(value) {
   const clean = String(value || '').toLowerCase();

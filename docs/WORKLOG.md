@@ -100,6 +100,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — PR Wall: auto-posts every public member's new PR (all roles)
+- **New community channel "#PR Wall"** — pinned to the TOP of the chat Channels
+  list for **every** profile (client + both coach roles; shared `BSClientFeed`),
+  right under Shape HQ (mirrors the existing always-pinned HQ pattern). Real
+  channel when it exists, canonical seed otherwise.
+- **Auto-post pipeline (public profiles only):**
+  - **Migration `2026-06-14-pr-wall.sql`** (**run on Supabase**): seeds the
+    system "PR Wall" channel (`created_by null`), a `pr_wall_posts` dedupe ledger
+    (best value already posted per user+lift), and `post_my_pr_to_wall(lift,
+    value, unit, reps)` — a SECURITY DEFINER RPC that **re-checks the caller is
+    PUBLIC** (`shape_profile_visibility = 'public'`), confirms the value beats
+    their last posted best, posts the message as them, advances the ledger, and
+    auto-joins them to the channel. Non-public members + non-PRs post nothing.
+  - **Route `POST /api/community/pr-wall`** (auth Bearer/cookie) → the RPC.
+  - **Client**: `window.ShapePRWall.post/announce`; `saveWorkoutSessionLog` fires
+    `announcePRsFromSetLogs(setLogs)` after a save (best-effort, non-blocking) —
+    the heaviest completed set per move (capped 6) → the route. The RPC is the
+    authoritative public + new-best gate, so over-calling is safe.
+- War Room: `/api/community/pr-wall` registered in `RAW_ROUTES`. *Note:* PR
+  detection is the session's best-per-move with the RPC ledger as the dedupe; a
+  user's very first logged session seeds their current bests (one-time).
+
 ### 2026-06-14 — Coach dashboards are now single-page apps (trainer + nutritionist)
 - Same instant-tab treatment as the client SPA, for both coach roles. New shells
   **`TrainerApp.html`** + **`NutritionistApp.html`** load every tab module ONCE and
