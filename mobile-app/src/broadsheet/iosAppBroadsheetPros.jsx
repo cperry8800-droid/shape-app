@@ -5,52 +5,50 @@ import { createPortal } from 'react-dom';
 // ranked at-risk verdict the website dashboard shows, with the reason + a
 // one-tap Message — instead of a hardcoded "next best action" sentence. Falls
 // back to the engine's demo personas when there's no live roster (preview).
+// "Who needs you" — the FLAGGED subset (red/amber) of the SAME roster the
+// Clients page renders, scored by the SAME bsRosterSeverity. So Today and the
+// Clients tab always agree (same names, severities, directives): Today is the
+// top-3 glance, Clients is the full sorted list. (Reads the roster directly,
+// NOT ShapeSignals.triage — the engine's demo personas differed from the roster
+// and were the source of the home↔clients mismatch. When a live roster lands,
+// point bsDemoRoster at it and both surfaces move together.)
 function BSProTriageFeed({ role = 'trainer', onSeeAll = () => {} }) {
   const t = useBS();
-  const [feed, setFeed] = useStateBSP(null); // null = loading
-  useEffectBSP(() => {
-    let on = true;
-    const S = (typeof window !== 'undefined' && window.ShapeSignals) || null;
-    if (!S || !S.triage) { setFeed([]); return undefined; }
-    S.triage(role).then((f) => { if (on) setFeed(Array.isArray(f) ? f : []); }).catch(() => { if (on) setFeed([]); });
-    return () => { on = false; };
-  }, [role]);
-  const SEV = { red: '#e0644b', amber: t.AMBER, green: '#7bbf5a', new: t.isLight ? '#0a8f87' : '#34d6c5' };
-  const flagged = (feed || []).filter((r) => r && (r.severity === 'red' || r.severity === 'amber'));
-  const message = (r) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: r.client && r.client.profile && r.client.profile.id, n: r.client && r.client.profile && r.client.profile.name } } })); } catch (e) {} };
+  const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: t.isLight ? '#0a8f87' : '#34d6c5', green: '#7bbf5a', past: t.INK50 };
+  const flagged = bsDemoRoster(role, t)
+    .filter((c) => c.active !== false)
+    .map((c) => ({ c, sig: bsRosterSeverity(c, role) }))
+    .filter((x) => x.sig.rank <= 1)
+    .sort((a, b) => a.sig.rank - b.sig.rank);
+  const message = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId, n: c.n } } })); } catch (e) {} };
   return (
     <div style={{ padding: `4px ${t.padX}px 8px` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
         <BSEyebrow color={t.ACCENT}>Who needs you</BSEyebrow>
-        {feed == null ? <BSEyebrow>Reading…</BSEyebrow>
-          : flagged.length ? (
-            <button type="button" onClick={onSeeAll} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>See all {flagged.length} →</button>
-          ) : <BSEyebrow>All clear</BSEyebrow>}
+        {flagged.length ? (
+          <button type="button" onClick={onSeeAll} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>See all {flagged.length} →</button>
+        ) : <BSEyebrow>All clear</BSEyebrow>}
       </div>
       <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
-        {feed != null && flagged.length === 0 && (
-          <BSPlate c={SEV.green} pad="13px 15px">
+        {flagged.length === 0 && (
+          <BSPlate c={SEVCOL.green} pad="13px 15px">
             <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.02em' }}>Everyone's on track.</div>
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>No clients flagged today</div>
           </BSPlate>
         )}
-        {flagged.slice(0, 3).map((r) => {
-          const c = SEV[r.severity] || t.AMBER;
-          const name = (r.client && r.client.profile && r.client.profile.name) || 'Client';
-          const reason = ((r.reasons || (r.flags || []).map((f) => f.reason)).filter(Boolean))[0];
+        {flagged.slice(0, 3).map(({ c, sig }) => {
+          const col = SEVCOL[sig.sev] || t.AMBER;
           return (
-            <BSPlate key={(r.client && r.client.profile && r.client.profile.id) || name} c={c} tick={r.severity === 'red'} pad="12px 14px">
+            <BSPlate key={c.n} c={col} tick={sig.sev === 'red'} pad="12px 14px">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{name}</div>
-                  <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                    {(r.flags || []).slice(0, 3).map((f, i) => (
-                      <span key={i} style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: c, border: `1px solid ${c}66`, borderRadius: 4, padding: '2px 6px' }}>{f.label || f.key}</span>
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{c.n}</span>
+                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '3px 7px' }}>{sig.label}</span>
                   </div>
-                  {reason && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.03em', color: t.INK50, lineHeight: 1.35 }}>{reason}</div>}
+                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.03em', color: t.INK50, lineHeight: 1.35 }}>{sig.directive}</div>
                 </div>
-                <button type="button" onClick={() => message(r)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message</button>
+                <button type="button" onClick={() => message(c)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message</button>
               </div>
             </BSPlate>
           );
@@ -1492,6 +1490,41 @@ function bsRosterSeverity(c, role) {
       return { sev: 'green', rank: 3, label: 'ON TRACK', directive: nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.' };
   }
 }
+// Demo rosters — ONE source rendered by the Clients page AND read by the Today
+// "Who needs you" card, so the two surfaces always agree (same names,
+// severities, directives). Builders take the theme so avatar colors stay
+// theme-aware; `s` status drives bsRosterSeverity. When a live roster lands,
+// point both consumers at it.
+function bsTrainerDemoRoster(t) {
+  return [
+    { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true },
+    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true },
+    { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true },
+    { i: 'M', c: t.AMBER,  n: 'Marcus Lee',     prog: 'Intro Block',        streak: 3,  r: 'INTAKE',      d: 'NEW',      s: 'onboard',     active: true },
+    { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true },
+    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true },
+    { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true },
+    { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },
+    { i: 'T', c: t.INK50,  n: 'Taylor Reed',    prog: 'Paused',             streak: 0,  r: 'PAST · paused', d: '3M AGO', s: 'past',        active: false },
+  ];
+}
+function bsNutriDemoRoster(t) {
+  return [
+    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  prog: 'Cut · 1900 kcal', streak: 19, r: 'CUT · 1900 KCAL',  d: '94%', good: true, s: 'on track',    active: true },
+    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   prog: 'Cut · 1700 kcal', streak: 12, r: 'CUT · 1700 KCAL',  d: '88%', good: true, s: 'on track',    active: true },
+    { i: 'R', c: t.AMBER, n: 'Riley Kim',    prog: 'Cut · 1850 kcal', streak: 4,  r: 'CUT · 1850 KCAL',  d: '72%', s: 'review form', active: true },
+    { i: 'S', c: t.GREEN, n: 'Sara Mendez',  prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
+    { i: 'P', c: t.BLUE,  n: 'Pat Doan',     prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
+    { i: 'C', c: t.AMBER, n: 'Casey Lee',    prog: 'Build · 2400',    streak: 9,  r: 'BUILD · 2400',     d: '64%', warn: true, s: 'missed', active: true },
+    { i: 'D', c: t.RUST,  n: 'Drew Park',    prog: 'Build · 2200',    streak: 7,  r: 'BUILD · 2200',     d: '58%', warn: true, s: 'missed', active: true },
+    { i: 'M', c: t.INK50, n: 'Morgan Liu',   prog: 'Ended Apr',       streak: 0,  r: 'PAST · ended Apr', d: '—', s: 'past', active: false },
+    { i: 'T', c: t.INK50, n: 'Taylor Reed',  prog: 'Paused',          streak: 0,  r: 'PAST · paused',    d: '—', s: 'past', active: false },
+    { i: 'N', c: t.INK50, n: 'Noah Bennett', prog: 'Completed',       streak: 0,  r: 'PAST · completed', d: '—', s: 'past', active: false },
+  ];
+}
+function bsDemoRoster(role, t) {
+  return role === 'nutritionist' ? bsNutriDemoRoster(t) : bsTrainerDemoRoster(t);
+}
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
 function bsProMeInit() {
@@ -1673,17 +1706,7 @@ function BSTrainerClients() {
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
-  const COACH_CLIENTS = [
-    { i: 'S', c: t.GREEN,  n: 'Sofia Martinez', prog: 'Hypertrophy',        streak: 14, r: 'BUILD · W6',  d: 'JUST NOW', s: 'on track',    active: true },
-    { i: 'A', c: t.RUST,   n: 'Alex Rivera',    prog: 'Push / Pull / Legs', streak: 8,  r: 'CUT · W6',    d: '2H AGO',   s: 'on track',    active: true },
-    { i: 'P', c: '#8a5cf6',n: 'Priya Singh',    prog: 'Fat Loss 101',       streak: 0,  r: 'CUT · W3',    d: '3D AGO',   s: 'missed',      active: true },
-    { i: 'M', c: t.AMBER,  n: 'Marcus Lee',     prog: 'Intro Block',        streak: 3,  r: 'INTAKE',      d: 'NEW',      s: 'onboard',     active: true },
-    { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true },
-    { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true },
-    { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true },
-    { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },
-    { i: 'T', c: t.INK50,  n: 'Taylor Reed',    prog: 'Paused',             streak: 0,  r: 'PAST · paused', d: '3M AGO', s: 'past',        active: false },
-  ];
+  const COACH_CLIENTS = bsTrainerDemoRoster(t);
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
@@ -3999,18 +4022,7 @@ function BSNutriClients() {
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
-  const NUTRI_CLIENTS = [
-    { i: 'A', c: t.RUST,  n: 'Alex Rivera',  prog: 'Cut · 1900 kcal', streak: 19, r: 'CUT · 1900 KCAL',  d: '94%', good: true, s: 'on track',    active: true },
-    { i: 'J', c: t.BLUE,  n: 'Jamie Wong',   prog: 'Cut · 1700 kcal', streak: 12, r: 'CUT · 1700 KCAL',  d: '88%', good: true, s: 'on track',    active: true },
-    { i: 'R', c: t.AMBER, n: 'Riley Kim',    prog: 'Cut · 1850 kcal', streak: 4,  r: 'CUT · 1850 KCAL',  d: '72%', s: 'review form', active: true },
-    { i: 'S', c: t.GREEN, n: 'Sara Mendez',  prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
-    { i: 'P', c: t.BLUE,  n: 'Pat Doan',     prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
-    { i: 'C', c: t.AMBER, n: 'Casey Lee',    prog: 'Build · 2400',    streak: 9,  r: 'BUILD · 2400',     d: '64%', warn: true, s: 'missed', active: true },
-    { i: 'D', c: t.RUST,  n: 'Drew Park',    prog: 'Build · 2200',    streak: 7,  r: 'BUILD · 2200',     d: '58%', warn: true, s: 'missed', active: true },
-    { i: 'M', c: t.INK50, n: 'Morgan Liu',   prog: 'Ended Apr',       streak: 0,  r: 'PAST · ended Apr', d: '—', s: 'past', active: false },
-    { i: 'T', c: t.INK50, n: 'Taylor Reed',  prog: 'Paused',          streak: 0,  r: 'PAST · paused',    d: '—', s: 'past', active: false },
-    { i: 'N', c: t.INK50, n: 'Noah Bennett', prog: 'Completed',       streak: 0,  r: 'PAST · completed', d: '—', s: 'past', active: false },
-  ];
+  const NUTRI_CLIENTS = bsNutriDemoRoster(t);
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))
