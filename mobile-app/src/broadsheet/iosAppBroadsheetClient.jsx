@@ -2250,6 +2250,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSClientGoals onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
   }
 
+  // "Today" directive — ONE clear next move synthesized from the day's plan
+  // (workout → unlogged meals → habits → done). Only on today; other days are
+  // plan views, not "do this now". Each move carries its own quick CTA.
+  const todayDirective = (() => {
+    if (selIdx !== todayIdx) return null;
+    const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
+    const todo = [];
+    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal }));
+    const habitsLeft = selDayHabits.filter(h => !h.done).length;
+    if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN });
+    if (!todo.length) return { done: true, head: "You're all set today.", sub: 'Everything logged — nice work.', c: t.GREEN };
+    return { head: todo[0].label, cta: todo[0].cta, c: todo[0].c, sub: todo.length > 1 ? `${todo.length - 1} more on today's plan` : null };
+  })();
+
   return (
     <BSPage>
       <BSMasthead
@@ -2320,6 +2335,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           Vol. I
         </span>
       </div>
+
+      {/* TODAY — the lead directive: one clear next move + a quick CTA */}
+      {todayDirective && (
+        <BSPlate c={todayDirective.c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `12px ${t.padX}px 0`, textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
+          </div>
+          <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{todayDirective.head}</div>
+          {todayDirective.sub && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+          {todayDirective.cta && (
+            <button onClick={todayDirective.cta[1]} style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+          )}
+        </BSPlate>
+      )}
 
       {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
       {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
@@ -2640,13 +2670,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        // Two high-signal totals (density pass) — training + nutrition; the full
+        // weekly breakdown (check-ins, consults, …) lives on the Progress page.
         const weekTotals = [
           { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
             history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
-          { l: 'Check-ins', v: 6, max: 7, c: teal, unit: 'check-ins',
-            history: [['Mon', 'Sleep 7h · 8/10', '✓'], ['Tue', 'Energy 7/10', '✓'], ['Wed', 'RPE recap', '✓'], ['Thu', 'Sleep 7h12 · 8/10', '✓'], ['Fri', 'Soreness 3/10', '✓'], ['Sat', 'Weekly photos', '✓']] },
-          { l: 'Consults', v: 1, max: 2, c: t.AMBER, unit: 'consults',
-            history: [['Tue', 'Dr. Maya · nutrition', '30m'], ['Fri', 'Coach 1:1 · Jordan', 'Scheduled']] },
           { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true,
             series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
         ];
