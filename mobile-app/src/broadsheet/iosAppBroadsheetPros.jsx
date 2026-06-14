@@ -2619,14 +2619,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       )}
     </BSPlate>
   );
+  // Two high-signal KPIs only (density pass) — the hero plate already carries
+  // attendance/adherence + sessions/days-logged, and streak rides in the header;
+  // these are the non-duplicative coaching signals.
   const stats = isNutri ? [
     { label: 'AVG INTAKE', labelColor: gold, big: kcalStr || '2,040', sub: 'TARGET 2,180' },
     { label: 'PROTEIN HIT', labelColor: teal, big: '88', small: '%', sub: 'OF TARGET DAYS' },
-    { label: 'WEIGHT Δ', labelColor: rust, big: String(bwDelta), small: bwUnit, sub: 'GOAL -4 KG' },
-    { label: 'LOGGED', labelColor: gold, big: days7 != null ? String(days7) : '6', small: '/7', sub: 'THIS WEEK' },
   ] : [
-    { label: 'SESSIONS', labelColor: teal, big: sDone != null ? String(sDone) : '38', sub: `OF ${sPlan != null ? sPlan : 41} PLANNED` },
-    { label: 'STREAK', labelColor: teal, big: '14d', sub: 'CONSISTENCY' },
     { label: 'AVG RPE', labelColor: rust, big: avgRpe != null ? avgRpe.toFixed(1) : '8.0', sub: 'EFFORT LOGGED' },
     { label: 'PRS', labelColor: gold, big: prs != null ? String(prs) : '3', sub: 'THIS BLOCK' },
   ];
@@ -2666,12 +2665,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const note = isNutri
     ? 'Adherence excellent. Refeed Saturday to support training — bump carbs +40g.'
     : 'Knee valgus on heavy squats — cue knees out, film week 6 top set.';
-  // 30-day read — folded in from the old Analysis tab (its KPI grid duplicated
-  // the cards above, so only the unique pieces live on: summary + trendline).
+  // 30-day read — a one-line "what's happening" summary. Surfaced in the
+  // directive lead at the TOP of the page now (the old standalone Analysis
+  // trendline duplicated the body chart, so it was dropped in the density pass).
   const summaryLine = isNutri
     ? 'Adherence high and weight tracking to goal — refeed timing is the next lever.'
     : 'Strong block — attendance up, lifts trending, weight on plan.';
-  const trendSeries = isNutri ? bwSeries : [0.4, 0.5, 0.45, 0.6, 0.55, 0.72, 0.68, 0.85];
   const profileView = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
       {renderBigCard()}
@@ -2698,11 +2697,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           {macros.map((m, i) => <div key={i}>{trackRow(m.n, `${m.cur} g`, m.c, `${m.tgt} g`, m.cur / m.tgt, m.c)}</div>)}
         </div>
       )}
-      <div>
-        <Section eyebrow="ANALYSIS · LAST 30 DAYS" title="The read" trailing={isNutri ? 'WEIGHT' : 'WEEKLY VOLUME'} />
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK, lineHeight: 1.3, letterSpacing: '-0.01em' }}>{summaryLine}</div>
-        <div style={{ marginTop: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>{lineChart(trendSeries, accent, 80)}</div>
-      </div>
       <div>
         <Section eyebrow="ACTIVITY" title={isNutri ? 'Recent logs' : 'Recent sessions'} />
         {numberedList(recent)}
@@ -2898,10 +2892,31 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </div>
   );
 
+  // ---- directive lead — the page opens with ONE move for THIS client (the
+  // same severity + directive the roster row showed, so tapping a flagged client
+  // lands on "here's the read + here's your move"). Engine-consistent vocabulary.
+  const _sig = bsRosterSeverity(client, role);
+  const _SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
+  const _sevCol = _SEVCOL[_sig.sev] || accent;
+  const _leadCta = (_sig.rank <= 2) ? `Message ${first} →` : (_sig.label === 'PR' ? 'Send props →' : null);
+  const directiveLead = (
+    <BSPlate c={_sevCol} tick={_sig.rank <= 1} bracket pad="15px 16px 16px 22px" style={{ marginTop: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: _sevCol }}>Your move</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: _sevCol, border: `1px solid ${_sevCol}`, borderRadius: 999, padding: '4px 9px' }}>{_sig.label}</span>
+      </div>
+      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.12 }}>{_sig.directive}</div>
+      <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{summaryLine}</div>
+      {_leadCta && (
+        <button onClick={() => fireEvt('shape:proMessageClient')} style={{ marginTop: 13, width: '100%', borderRadius: 9, border: `1px solid ${_sevCol}`, background: `${_sevCol}1f`, color: t.INK, padding: '11px 4px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{_leadCta}</button>
+      )}
+    </BSPlate>
+  );
   return (
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {headerBlock}
+        {directiveLead}
         {view === 'manage' ? manageView : profileView}
       </div>
       <BSFooter left={isNutri ? 'Client plan' : 'Full profile'} right={client.n} />
