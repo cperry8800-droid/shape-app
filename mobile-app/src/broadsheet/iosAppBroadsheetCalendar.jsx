@@ -309,7 +309,21 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
           fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700,
         }}>← Back</button>
       )}
-      <BSAvatarCal init={role === 'trainer' ? 'J' : role === 'nutritionist' ? 'M' : 'A'} size={32} fill={role === 'trainer' ? t.AMBER : role === 'nutritionist' ? t.RUST : null} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />
+      {(() => {
+        // Real signed-in avatar (initials · photo · tier color) like every other
+        // header; the role-based demo initials are the signed-out preview only.
+        const W = typeof window !== 'undefined' ? window : {};
+        const signedIn = !!(W.ShapeAuth && W.ShapeAuth.getCachedState && W.ShapeAuth.getCachedState() && W.ShapeAuth.getCachedState().user && W.ShapeAuth.getCachedState().user.id);
+        const roleInit = role === 'trainer' ? 'J' : role === 'nutritionist' ? 'M' : 'A';
+        const roleColor = role === 'trainer' ? t.AMBER : role === 'nutritionist' ? t.RUST : (t.isLight ? '#0a8f87' : '#34d6c5');
+        const init = signedIn ? ((W.bsMyInitials && W.bsMyInitials()) || roleInit) : roleInit;
+        const color = signedIn ? ((W.bsMyTierColor && W.bsMyTierColor()) || roleColor) : roleColor;
+        const photo = signedIn ? ((W.bsMyPhoto && W.bsMyPhoto()) || (W.ShapeIdentity && W.ShapeIdentity.photo) || undefined) : undefined;
+        const live = !!(signedIn && W.bsAmLive && W.bsAmLive());
+        const FA = W.BSFacetAvatar;
+        if (FA) return React.createElement(FA, { size: 32, c: color, initial: init, photo, live, showRank: false, onClick: onProfile });
+        return <BSAvatarCal init={init} size={32} fill={color} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />;
+      })()}
     </div>
   );
 
