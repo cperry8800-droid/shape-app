@@ -1,5 +1,61 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+// Phase 2 prototype — "Who needs you." The coach home now LEADS with the shared
+// signal engine's triage feed (window.ShapeSignals.triage): the same severity-
+// ranked at-risk verdict the website dashboard shows, with the reason + a
+// one-tap Message — instead of a hardcoded "next best action" sentence. Falls
+// back to the engine's demo personas when there's no live roster (preview).
+function BSProTriageFeed({ role = 'trainer' }) {
+  const t = useBS();
+  const [feed, setFeed] = useStateBSP(null); // null = loading
+  useEffectBSP(() => {
+    let on = true;
+    const S = (typeof window !== 'undefined' && window.ShapeSignals) || null;
+    if (!S || !S.triage) { setFeed([]); return undefined; }
+    S.triage(role).then((f) => { if (on) setFeed(Array.isArray(f) ? f : []); }).catch(() => { if (on) setFeed([]); });
+    return () => { on = false; };
+  }, [role]);
+  const SEV = { red: '#e0644b', amber: t.AMBER, green: '#7bbf5a', new: t.isLight ? '#0a8f87' : '#34d6c5' };
+  const flagged = (feed || []).filter((r) => r && (r.severity === 'red' || r.severity === 'amber'));
+  const message = (r) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: r.client && r.client.profile && r.client.profile.id, n: r.client && r.client.profile && r.client.profile.name } } })); } catch (e) {} };
+  return (
+    <div style={{ padding: `4px ${t.padX}px 8px` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <BSEyebrow color={t.ACCENT}>Who needs you</BSEyebrow>
+        <BSEyebrow>{feed == null ? 'Reading…' : (flagged.length ? `${flagged.length} flagged` : 'All clear')}</BSEyebrow>
+      </div>
+      <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
+        {feed != null && flagged.length === 0 && (
+          <BSPlate c={SEV.green} pad="13px 15px">
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.02em' }}>Everyone's on track.</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>No clients flagged today</div>
+          </BSPlate>
+        )}
+        {flagged.slice(0, 5).map((r) => {
+          const c = SEV[r.severity] || t.AMBER;
+          const name = (r.client && r.client.profile && r.client.profile.name) || 'Client';
+          const reason = ((r.reasons || (r.flags || []).map((f) => f.reason)).filter(Boolean))[0];
+          return (
+            <BSPlate key={(r.client && r.client.profile && r.client.profile.id) || name} c={c} tick={r.severity === 'red'} pad="12px 14px">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{name}</div>
+                  <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {(r.flags || []).slice(0, 3).map((f, i) => (
+                      <span key={i} style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: c, border: `1px solid ${c}66`, borderRadius: 4, padding: '2px 6px' }}>{f.label || f.key}</span>
+                    ))}
+                  </div>
+                  {reason && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.03em', color: t.INK50, lineHeight: 1.35 }}>{reason}</div>}
+                </div>
+                <button type="button" onClick={() => message(r)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message</button>
+              </div>
+            </BSPlate>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 function BSProHomeWidgets({ role = 'trainer', onOpen = () => {} }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
@@ -17,6 +73,7 @@ function BSProHomeWidgets({ role = 'trainer', onOpen = () => {} }) {
   ];
   return (
     <>
+      <BSProTriageFeed role={role} />
       <BSSection title={isNutri ? 'Nutrition widgets' : 'Coach widgets'} meta="Live snapshot" />
       <div style={{ padding: `0 ${t.padX}px 12px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {widgets.map((w) => {

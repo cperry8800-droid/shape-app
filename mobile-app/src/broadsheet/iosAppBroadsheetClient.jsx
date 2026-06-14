@@ -17017,6 +17017,50 @@ function BSProgChart({ points, color, h = 150 }) {
     </svg>
   );
 }
+// Phase 2 prototype — the client "what's next" directive, from the shared signal
+// engine (window.ShapeSignals). Leads the Progress page with ONE thing — the
+// headline goal's pace/ETA (goalBrief), else the nearest milestone, else "log a
+// weigh-in" — the directive-first idea from the website redesign. Demo persona
+// when there's no live record yet (subtle "example" tag).
+function BSClientNextPlate() {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const [d, setD] = React.useState(null); // { eyebrow, headline, sub, demo } | null = loading
+  React.useEffect(() => {
+    let on = true;
+    const S = (typeof window !== 'undefined' && window.ShapeSignals) || null;
+    const E = (typeof window !== 'undefined' && window.DashSignals) || null;
+    if (!S || !E) { setD({ eyebrow: "What's next", headline: 'Keep logging.', sub: 'Your progress shows up here.' }); return undefined; }
+    (async () => {
+      let record = null, demo = false;
+      try { record = await S.selfRecord(); } catch (e) {}
+      const hasData = record && (record.goals || record.weighIns || (record.streaks && record.streaks.current != null));
+      if (!hasData) { try { record = (E.buildMockClients && E.buildMockClients()[0]) || null; demo = !!record; } catch (e) {} }
+      if (!on) return;
+      let headline = null, sub = null;
+      if (record) {
+        try { const brief = E.goalBrief && E.goalBrief(record); if (brief) { headline = brief; sub = 'Your headline goal'; } } catch (e) {}
+        if (!headline) { try { const ms = S.milestones(record); const next = ms && ms.next && ms.next[0]; if (next && next.label) { headline = next.label; sub = 'Next milestone'; } } catch (e) {} }
+      }
+      if (!headline) { headline = 'Log a weigh-in.'; sub = 'Track your progress to see what’s next.'; demo = false; }
+      setD({ eyebrow: "What's next", headline, sub, demo });
+    })();
+    return () => { on = false; };
+  }, []);
+  if (d == null) return null; // brief async — no flash
+  return (
+    <div style={{ padding: `8px ${t.padX}px 0` }}>
+      <BSPlate c={teal} tick pad="14px 16px">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+          <BSEyebrow color={teal}>{d.eyebrow}</BSEyebrow>
+          {d.demo && <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Example</span>}
+        </div>
+        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15, color: t.INK }}>{d.headline}</div>
+        {d.sub && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{d.sub}</div>}
+      </BSPlate>
+    </div>
+  );
+}
 function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -17298,6 +17342,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack} eyebrow="Strength · body · recovery" kicker="Your progress" title={<>Progress.</>} />
+      <BSClientNextPlate />
       <div style={{ padding: `12px ${t.padX}px 0` }}>{tabRow}</div>
       <div style={{ padding: `18px ${t.padX}px 28px` }}>{tabBody}</div>
       <BSFooter right="Progress" />
