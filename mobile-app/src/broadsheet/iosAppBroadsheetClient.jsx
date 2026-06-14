@@ -8111,7 +8111,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   }, [feedAuthorId]);
   React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts]);
   const feedEff = (() => {
-    const base = (isSelf && realFeed && realFeed.length) ? realFeed : feed;
+    // Signed in → only real activity (your published posts + logged PRs); never the
+    // demo field-notes. Demo feed is the signed-out preview only.
+    const base = (isSelf && realFeed && realFeed.length) ? realFeed : (signedInSelf ? [] : feed);
     return photoPosts.length ? [...photoPosts, ...base] : base;
   })();
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
@@ -8189,6 +8191,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const programEff = (isSelf && prog && (prog.trainingPhase || prog.nutritionPhase)) ? [prog.trainingPhase, prog.nutritionPhase].filter(Boolean).join(' · ') : program;
   const coachNameEff = coachReal ? coachReal.name : coachName;
   const coachInitEff = coachReal ? coachReal.init : coachInit;
+  // No coaches on Shape yet — for a signed-in own profile, hide the demo
+  // "Coached by Maya Okafor · Hypertrophy Block II" band entirely unless a REAL
+  // coach or a REAL program phase is set. Signed-out preview keeps the demo band.
+  const hasRealProgram = !!(isSelf && prog && (prog.trainingPhase || prog.nutritionPhase));
+  const showCoachBand = !signedInSelf || !!coachReal || hasRealProgram;
+  const showCoachLink = !signedInSelf || !!coachReal;
   const memberSinceLabel = (isSelf && (() => { try { const cs = window.ShapeAuth?.getCachedState?.(); const ca = cs && cs.user && cs.user.created_at; if (ca) { const dt = new Date(ca); if (!isNaN(dt)) return dt.toLocaleDateString([], { month: 'short', year: 'numeric' }); } } catch (e) {} return null; })()) || person.since || 'Feb 2024';
   const since = memberSinceLabel;
   const stravaUrl = person.strava
@@ -8293,28 +8301,34 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               </div>
             </div>
             {/* coached-by band */}
+            {showCoachBand && (
             <div style={{ padding: '0 14px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 12, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{blockEff}</div>
                   <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
                 </div>
+                {showCoachLink && <>
                 <div style={{ width: 1, alignSelf: 'stretch', background: bsTHexA(INK, 0.12) }} />
                 <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInitEff}</div>
                   <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2, whiteSpace: 'nowrap' }}>{coachNameEff} <span style={{ color: bsTHexA(INK, 0.4) }}>›</span></div></div>
                 </button>
+                </>}
               </div>
             </div>
+            )}
             {/* Shape Score band — merged into the header (points + to-next + the four
                 composite bars). The tier, climb % and next level already live above. */}
             {meMode && isSelf && (() => {
               const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
-              const pts = score != null ? score : 1284;
+              const pts = score != null ? score : (signedInSelf ? 0 : 1284);
               let si = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) si = k;
               const nextT = TH[si + 1] || null;
               const toNextPts = nextT ? nextT[1] - pts : 0;
-              const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+              // Composite bars are demo for the signed-out preview; a signed-in
+              // account with no scored activity shows zeroed bars.
+              const cats = signedInSelf ? [['Train', 0], ['Nutrition', 0], ['Recovery', 0], ['Consistency', 0]] : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
                 <div style={{ padding: '0 14px 14px' }}>
                   <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
@@ -8507,6 +8521,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               </div>
               <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
                 <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
+                {feedEff.length === 0 && (
+                  <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+                )}
                 {feedEff.map((it, i) => (
                   <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
                     <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
@@ -13040,14 +13057,17 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
   // Follow the paper theme so the card reads on light papers too (was fixed cream).
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
+  // Signed in → real points (zeroed for a fresh account) + zeroed composite bars;
+  // the demo 1284 / 88·74·62·92 is the signed-out preview only.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
-  const pts = points != null ? points : 1284;
+  const pts = points != null ? points : (signedIn ? 0 : 1284);
   let i = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) i = k;
   const cur = TH[i], next = TH[i + 1] || null;
   const pct = next ? Math.max(0.03, Math.min(1, (pts - cur[1]) / (next[1] - cur[1]))) : 1;
   const toNext = next ? next[1] - pts : 0;
   const RAD = 30, CIRC = 2 * Math.PI * RAD;
-  const cats = [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+  const cats = signedIn ? [['Train', 0], ['Nutrition', 0], ['Recovery', 0], ['Consistency', 0]] : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
   const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
     <div onClick={onOpen} style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
