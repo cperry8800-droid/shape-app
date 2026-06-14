@@ -2140,6 +2140,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     if (_homeHabitsDec && _homeHabitsDec.length) {
       return _homeHabitsDec.map(h => ({ id: h.id, name: h.name, type: h.type, pts: ptsOf(h), done: (h.history || []).includes(_homeHabitsDateKey), live: true }));
     }
+    // Signed in with no habits yet → empty (the card shows "add your first one");
+    // the demo habit set is the signed-out preview only.
+    if (bsHomeSignedIn) return [];
     const demo = (typeof window !== 'undefined' && window._BS_HABIT_DEMO_ROWS) || [];
     return demo.map(h => ({ id: h.id, name: h.name, type: h.type, pts: h.pts, done: (h.pattern || [])[selIdx] > 0, live: false }));
   })();
@@ -2686,6 +2689,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
           { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true,
             series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
         ];
+        // These are hardcoded demo figures (not wired to real rollups yet) — show
+        // them only in the signed-out preview, never as fake stats to a real user.
+        if (bsHomeSignedIn) return null;
         return (
           <>
             <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
@@ -13025,6 +13031,10 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
     (async () => { try { const d = await window.shapeDb?.getUserGoals?.('client_goals'); if (on && d && d.overall) setG(d.overall); } catch (e) {} })();
     return () => { on = false; };
   }, []);
+  // Signed in with no goal set → render nothing (never the demo goal); the demo
+  // is the signed-out preview only. A real goal (g) shows once it loads.
+  const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  if (bsGoalSignedIn && !g) return null;
   const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
   const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || 'kg';
   const range = start - target;
