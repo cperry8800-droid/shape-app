@@ -234,7 +234,8 @@ function _bsMapServerCalEvent(ev, t) {
 
 function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', onBack, clientId = null }) {
   const t = useBSCal();
-  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
+  const isLoggedInNow = () => !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
+  const [loggedIn, setLoggedIn] = useStateBSCal(isLoggedInNow);
   const _today = new Date();
   // Default to the real current month (live), or the May 2026 demo when logged out.
   const [viewYear, setViewYear] = useStateBSCal(loggedIn ? _today.getFullYear() : 2026);
@@ -242,6 +243,22 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   const [selDay, setSelDay] = useStateBSCal(loggedIn ? _today.getDate() : 14);
   const [serverEvents, setServerEvents] = useStateBSCal(null);
   const [showAdd, setShowAdd] = useStateBSCal(false);
+  // The auth cache can hydrate just AFTER this screen mounts; if we read "logged
+  // out" at first paint we'd be stuck on the May-demo view and never load live
+  // events. Re-check shortly + on identity changes; on first detecting a session,
+  // jump to the real current month so loadMonth fetches the account's events.
+  useEffectBSCal(() => {
+    if (loggedIn) return undefined;
+    const recheck = () => {
+      if (!isLoggedInNow()) return;
+      const now = new Date();
+      setLoggedIn(true);
+      setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); setSelDay(now.getDate());
+    };
+    const id = setTimeout(recheck, 800);
+    if (typeof window !== 'undefined') window.addEventListener('shape:identity', recheck);
+    return () => { clearTimeout(id); if (typeof window !== 'undefined') window.removeEventListener('shape:identity', recheck); };
+  }, [loggedIn]);
 
   const pad = (n) => String(n).padStart(2, '0');
   const loadMonth = React.useCallback(() => {
@@ -269,8 +286,15 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   const useServer = loggedIn && serverEvents != null;
   const events = useServer ? serverEvents : demoEvents;
   const sheet = useBSSheet();
-  // With live data, "demo month" styling no longer applies — show real month.
-  const isDemoMonth = useServer ? true : (viewYear === 2026 && viewMonth === 4);
+  // Demo month = the authored May-2026 preview, shown ONLY when logged out. It's
+  // the sole month that renders the demo events and the only one that pins
+  // "today" to the 14th. A live account is NEVER a demo month — it shows its real
+  // current month with the real "today".
+  const isDemoMonth = !useServer && viewYear === 2026 && viewMonth === 4;
+  // Which events the month grid actually renders: the live account's events on
+  // any month, the demo set on the demo month, and nothing on a logged-out
+  // non-demo month (the demo events are only authored for May 2026).
+  const monthEvents = (useServer || isDemoMonth) ? events : [];
   const monthName = ['January','February','March','April','May','June','July','August','September','October','November','December'][viewMonth];
 
   const masthead = role === 'trainer' ? <>The<br/>schedule.</>
@@ -307,7 +331,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
       )}
 
       <BSCalendarMonth
-        events={isDemoMonth ? events : []}
+        events={monthEvents}
         viewYear={viewYear}
         viewMonth={viewMonth}
         monthName={monthName}
