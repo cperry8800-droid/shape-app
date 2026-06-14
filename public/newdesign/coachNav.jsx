@@ -2,43 +2,47 @@
 function trainerNavItems(active) {
   // 'Clients' hosts Roster + Console as sub-tabs; Business absorbs Analytics.
   
+  // Tabs route into the single-page trainer dashboard (TrainerApp.html). On the
+  // shell, #slug is an instant same-document switch; from a legacy page it's a
+  // normal nav into the shell (the old pages self-redirect).
   const items = [
-    { label: "Today",     href: "TrainerDashboard.html" },
-    { label: "Schedule",  href: "TrainerSchedule.html" },
-    { label: "Clients",   href: "TrainerClients.html", count: 34 },
-    { label: "Programs",  href: "TrainerPrograms.html" },
-    { label: "Business",  href: "TrainerAnalytics.html" },
-    { label: "Playlists", href: "TrainerPlaylists.html" },
-    { label: "Community", href: "TrainerCommunity.html" },
-    { label: "Goal",      href: "TrainerGoal.html" },
-    { label: "Score",     href: "TrainerScore.html" },
-    { label: "Profile",   href: "TrainerProfile.html" },
+    { label: "Today",     slug: "today" },
+    { label: "Schedule",  slug: "schedule" },
+    { label: "Clients",   slug: "clients", count: 34 },
+    { label: "Programs",  slug: "programs" },
+    { label: "Business",  slug: "business" },
+    { label: "Playlists", slug: "playlists" },
+    { label: "Community", slug: "community" },
+    { label: "Goal",      slug: "goal" },
+    { label: "Score",     slug: "score" },
+    { label: "Profile",   slug: "profile" },
   ];
   // Treat Console as part of Clients for sidebar highlight.
   const map = { console: 'Clients' }; // 'business' matches its own item now
   const norm = map[active.toLowerCase()] || active;
-  return items.map(n => ({ ...n, active: n.label.toLowerCase() === norm.toLowerCase() }));
+  return items.map(n => ({ ...n, href: "TrainerApp.html#" + n.slug, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
 const trainerPayoutCard = { label: "PAYOUT APR 30", amount: "$18,420", sub: "Month to date · +22%" };
 
 // Shared nutritionist dashboard sidebar config
 function nutriNavItems(active) {
   // 'Clients' hosts Roster + Console as sub-tabs; Business absorbs Analytics.
+  // Tabs route into the single-page nutritionist dashboard (NutritionistApp.html).
   const items = [
-    { label: "Today",     href: "NutritionistDashboard.html" },
-    { label: "Schedule",  href: "NutritionistSchedule.html" },
-    { label: "Clients",   href: "NutritionistClients.html", count: 28 },
-    { label: "Plans",     href: "NutritionistPlans.html" },
-    { label: "Business",  href: "NutritionistAnalytics.html" },
-    { label: "Playlists", href: "NutritionistPlaylists.html" },
-    { label: "Community", href: "NutritionistCommunity.html" },
-    { label: "Goal",      href: "NutritionistGoal.html" },
-    { label: "Score",     href: "NutritionistScore.html" },
-    { label: "Profile",   href: "NutritionistProfile.html" },
+    { label: "Today",     slug: "today" },
+    { label: "Schedule",  slug: "schedule" },
+    { label: "Clients",   slug: "clients", count: 28 },
+    { label: "Plans",     slug: "plans" },
+    { label: "Business",  slug: "business" },
+    { label: "Playlists", slug: "playlists" },
+    { label: "Community", slug: "community" },
+    { label: "Goal",      slug: "goal" },
+    { label: "Score",     slug: "score" },
+    { label: "Profile",   slug: "profile" },
   ];
   const map = { console: 'Clients' }; // 'business' matches its own item now
   const norm = map[active.toLowerCase()] || active;
-  return items.map(n => ({ ...n, active: n.label.toLowerCase() === norm.toLowerCase() }));
+  return items.map(n => ({ ...n, href: "NutritionistApp.html#" + n.slug, active: n.label.toLowerCase() === norm.toLowerCase() }));
 }
 const nutriPayoutCard = { label: "PAYOUT APR 30", amount: "$11,240", sub: "Month to date · +14%" };
 

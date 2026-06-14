@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Shape · Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dash.css?v=20260613">
+<script defer src="/_vercel/insights/script.js"></script></head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
+
+<!-- Single-page trainer dashboard: every tab module is loaded + compiled ONCE,
+     then the router below swaps the active page client-side on #hash change. -->
+<script type="text/babel" src="pageShell.jsx?v=20260613c"></script>
+<script type="text/babel" src="trainerDashboard.jsx?v=20260613"></script>
+<script type="text/babel" src="coachNav.jsx?v=20260614"></script>
+<script src="dashSignals.js?v=20260613c"></script>
+<script type="text/babel" src="dashData.jsx?v=20260613b"></script>
+<script type="text/babel" src="dashToday.jsx?v=20260613e"></script>
+<script type="text/babel" src="dashGoals.jsx?v=20260613b"></script>
+<script type="text/babel" src="dashRoster.jsx?v=20260613d"></script>
+<script type="text/babel" src="clientNav.jsx?v=20260614"></script>
+<script type="text/babel" src="dashSchedule.jsx?v=20260613"></script>
+<script type="text/babel" src="sharedClientsTab.jsx"></script>
+<script type="text/babel" src="trainerClientsPage.jsx?v=20260614"></script>
+<script type="text/babel" src="dashClient.jsx?v=20260614a"></script>
+<script src="dashBuilderCore.js?v=20260613"></script>
+<script type="text/babel" src="dashBuilder.jsx?v=20260613"></script>
+<script type="text/babel" src="dashBusiness.jsx?v=20260613"></script>
+<script type="text/babel" src="trainerPlaylists.jsx"></script>
+<script type="text/babel" src="trainerPlaylistsPage.jsx"></script>
+<script type="text/babel" src="dashboardCommunity.jsx?v=20260609-2"></script>
+<script type="text/babel" src="trainerGoalPage.jsx?v=20260614"></script>
+<script type="text/babel" src="trainerScorePage.jsx?v=20260614"></script>
+<script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
+<script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
+<script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=25"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260613b"></script>
+<script type="text/babel" data-presets="react" src="dashProfileExtras.jsx?v=20260614"></script>
+
+<script type="text/babel" data-presets="react">
+// Each route renders exactly what the standalone trainer page mounted; only the
+// navigation is now client-side (no reload, no recompile per tab).
+// Playlists context (was inline on TrainerPlaylists.html).
+const TRAINER_CTX = {
+  role: "trainer",
+  playlists: TRAINER_PLAYLISTS,
+  attachTargets: TRAINER_WORKOUTS,
+  attachmentUnit: "workout",
+  attachmentUnitPlural: "workouts",
+  navItems: trainerNavItems,
+  payoutCard: trainerPayoutCard,
+  subtitle: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable."
+};
+const TA_ROUTES = {
+  today:     () => <CoachDashboardPage role="trainer" />,
+  schedule:  () => <CoachSchedulePage role="trainer" />,
+  clients:   () => <TrainerClientsPage />,
+  programs:  () => <TrainerProgramsPage />,
+  business:  () => <CoachBusinessPage role="trainer" />,
+  playlists: () => <PlaylistPage ctx={TRAINER_CTX} />,
+  community: () => <CommunityPage navItems={trainerNavItems("community")} payoutCard={trainerPayoutCard} />,
+  goal:      () => <TrainerGoalPage />,
+  score:     () => <TrainerScorePage />,
+  profile:   () => <LiveProfilePage demoRole="trainer" shell={{ navItems: trainerNavItems("profile"), payoutCard: trainerPayoutCard }} extras={<DashProfileExtras />} />,
+};
+function taSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return TA_ROUTES[h] ? h : "today"; }
+function TrainerApp() {
+  const [route, setRoute] = React.useState(taSlug());
+  React.useEffect(() => {
+    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route); } catch (e) {} }
+    const onHash = () => { setRoute(taSlug()); try { window.scrollTo(0, 0); } catch (e) {} };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  return (TA_ROUTES[route] || TA_ROUTES.today)();
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<TrainerApp />);
+</script>
+<script src="globalChatButton.js?v=20260613" defer></script>
+</body>
+</html>

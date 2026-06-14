@@ -53,13 +53,10 @@ g.DashBuilder = require("../public/newdesign/dashBuilderCore.js");
 load("public/newdesign/dashBuilder.jsx");
 g.DashMeals = require("../public/newdesign/dashMealCore.js");
 load("public/newdesign/dashMealBuilder.jsx");
-// The roster page components live inline in their HTML files.
-for (const page of ["NutritionistClients", "TrainerClients"]) {
-  const html = readFileSync("public/newdesign/" + page + ".html", "utf8");
-  const blocks = [...html.matchAll(/<script type="text\/babel"[^>]*>\n?([\s\S]*?)<\/script>/g)]
-    .map((m) => m[1]).map((s) => s.replace(/ReactDOM\.createRoot[\s\S]*$/, ""));
-  for (const block of blocks) if (block.trim()) (0, eval)(compile(block, page + "-inline"));
-}
+// The roster page components were extracted into modules (loaded by the SPA shells
+// + the legacy pages). Load them the same way.
+load("public/newdesign/trainerClientsPage.jsx");
+load("public/newdesign/nutritionistClientsPage.jsx");
 
 // Strip React SSR text-separator comments so includes() sees natural text.
 const render = (el) => ReactDOMServer.renderToString(el).replace(/<!-- -->/g, "");
