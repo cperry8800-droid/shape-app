@@ -9,6 +9,9 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // shapeSignals.js imports the canonical engine from ../public/newdesign
+    // (one source of truth shared with the website + Node tests).
+    fs: { allow: ['..'] },
   },
   build: {
     outDir: 'dist',
