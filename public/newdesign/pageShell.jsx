@@ -381,7 +381,7 @@ function Header({ active }) {
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
-    <div aria-hidden className="shape-header-spacer" style={{ height: 84 }} />
+    <div aria-hidden className="shape-header-spacer" style={{ height: 82 }} />
     </>
   );
 }
@@ -461,7 +461,7 @@ function ShapeMobileStyles() {
       @media (max-width: 900px) {
         /* Header */
         .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
-        .shape-header-spacer { height: 88px !important; }
+        .shape-header-spacer { height: 86px !important; }
 
 
 

@@ -8,7 +8,7 @@
 // sticky sidebar offsets by that amount to sit just below it.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 84, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 82, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -45,7 +45,7 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
       <Header />
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
-      <main style={{ padding: "12px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ padding: "6px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
           <div>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 14 }}>{eyebrow}</div>}
@@ -200,7 +200,7 @@ function DashShell({
 
       {/* Main — overflowX hidden matches DashPage; without it the Today pages
           scroll horizontally at 375px (nowrap pulse metas widen the document) */}
-      <main style={{ padding: "12px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ padding: "6px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
           <div style={{ minWidth: 0 }}>
