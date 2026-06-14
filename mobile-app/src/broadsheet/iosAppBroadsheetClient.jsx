@@ -12065,6 +12065,8 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const purple = '#8a5cf6';
+  // Signed in → no demo coach plans/targets flash before the live rollup loads.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
   const unit = overall.unit || 'kg';
   const down = +(now - start).toFixed(1);
@@ -12145,20 +12147,25 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
   const PLAN_C = [t.AMBER, t.RUST];
   const plans = (Array.isArray(livePlans) && livePlans.length)
     ? livePlans.map((p, i) => ({ ...p, c: p.c || PLAN_C[i % PLAN_C.length] }))
-    : [
+    : (signedIn ? [] : [
       { role: 'Training', c: t.AMBER, t: '12-wk lean strength', sub: 'Jordan · 4×/wk' },
       { role: 'Nutrition', c: t.RUST, t: 'Protein-led cut', sub: 'Dr. Maya · 1,890 kcal' },
-    ];
+    ]);
   // This week — live ShapeProgress targets when available, else demo.
   const WK_C = [t.RUST, teal, purple, t.AMBER];
   const weekTargets = (Array.isArray(liveWeekTargets) && liveWeekTargets.length)
     ? liveWeekTargets.map((w, i) => ({ ...w, c: w.c || WK_C[i % WK_C.length] }))
-    : [
+    : (signedIn ? [
+      { l: 'Sessions', v: '0/—', sub: 'set a plan', c: t.RUST },
+      { l: 'Protein days', v: '0/7', sub: 'days tracked', c: teal },
+      { l: 'Steps', v: '—', sub: 'avg · goal 8k', c: t.AMBER },
+      { l: 'Sleep', v: '—', sub: 'avg · goal 7h', c: purple },
+    ] : [
       { l: 'Sessions', v: '3/4', sub: 'one to go', c: t.RUST },
       { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: teal },
       { l: 'Steps', v: '7.2k', sub: 'avg · goal 8k', c: t.AMBER },
       { l: 'Sleep', v: '6.8h', sub: 'avg · goal 7h', c: purple },
-    ];
+    ]);
   const SecHead = ({ kicker, title, action }) => (
     <div style={{ padding: `22px ${t.padX}px 0` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
@@ -12255,6 +12262,9 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
       {/* Your plans */}
       <SecHead kicker="Driving it" title="Your plans" />
       <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {!plans.length ? (
+          <div style={{ borderRadius: 5, border: `1px dashed ${t.RULE}`, background: t.PAPER2, padding: '14px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>No plan assigned yet — find a coach in the marketplace to get a training or nutrition plan.</div>
+        ) : null}
         {plans.map((p, i) => (
           <div key={i} style={{ borderRadius: 5, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${p.c}`, background: t.PAPER2, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -12275,7 +12285,8 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
       {/* (The consistency heatmap moved to the Progress page — it duplicated
           the Training volume-by-day data shown there.) */}
 
-      {/* Your why */}
+      {/* Your why — only when the user has actually written one */}
+      {overall.why ? (<>
       <SecHead kicker="Your why" title="Stay with it" />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 6, border: `1px solid ${purple}44`, borderLeft: `3px solid ${purple}`, background: `linear-gradient(155deg, ${purple}22, ${purple}08 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
@@ -12289,6 +12300,7 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
           </div>
         </div>
       </div>
+      </>) : null}
     </>
   );
 }
@@ -12334,23 +12346,32 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
   const rust = t.RUST, purple = '#8a5cf6';
   // Live account data when present (ShapeProgress.train rollup — same source as
   // the Progress hub), demo otherwise. Stats/lifts/milestones all live-or-demo.
+  // Signed in with NO training data → empty (zeroed) state, never the demo lifts
+  // or the fake coach program — there are no coaches on Shape yet.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const ts = (train && train.stats) || null;
   const livePrs = (train && Array.isArray(train.prs) && train.prs.length) ? train.prs : null;
-  const stats = [
+  const empty = signedIn && !train;
+  const stats = empty ? [
+    { l: 'Sessions', c: rust, v: '0', u: '', sub: 'Logged' },
+    { l: 'Streak', c: teal, v: '0d', u: '', sub: 'Consistency' },
+    { l: 'Avg RPE', c: t.AMBER, v: '—', u: '', sub: 'Effort logged' },
+    { l: 'PRs', c: purple, v: '0', u: '', sub: 'From your sets' },
+  ] : [
     { l: 'Sessions', c: rust, v: ts && ts.completedCount != null ? String(ts.completedCount) : '14', u: ts ? '' : '/16', sub: ts ? 'Logged' : 'This block' },
     { l: 'Streak', c: teal, v: ts && ts.currentStreak != null ? `${ts.currentStreak}d` : '8d', u: '', sub: 'Consistency' },
     { l: 'Avg RPE', c: t.AMBER, v: ts && ts.avgRpe != null ? String(ts.avgRpe) : '7.5', u: '', sub: 'Effort logged' },
     { l: 'PRs', c: purple, v: livePrs ? String(livePrs.length) : '1', u: '', sub: livePrs ? 'From your sets' : 'During cut' },
   ];
-  const lifts = livePrs
+  const lifts = empty ? [] : (livePrs
     ? livePrs.slice(0, 4).map((p, i) => ({ t: p.lift, w: `${p.value} ${p.unit}`, d: p.deltaPct != null ? `+${Number(p.deltaPct).toFixed(1)}%` : 'held', pct: Math.max(0.45, 1 - i * 0.16) }))
     : [
       { t: 'Bench Press', w: '90 kg', d: '+5.0', pct: 0.84 },
       { t: 'Back Squat', w: '120 kg', d: '+5.0', pct: 0.72 },
       { t: 'Barbell Row', w: '75 kg', d: '+2.5', pct: 0.6 },
       { t: 'Deadlift', w: '150 kg', d: 'held', pct: 1 },
-    ];
-  const milestones = livePrs ? (() => {
+    ]);
+  const milestones = empty ? [] : (livePrs ? (() => {
     const out = [{ done: true, t: 'Baseline lifts logged', sub: livePrs.slice(0, 2).map(p => p.lift).join(' · ') || 'from your sets', when: '✓' }];
     livePrs.slice(0, 3).forEach((p) => out.push({ done: true, t: `${p.lift} → ${p.value}${p.unit}`, sub: p.prev != null ? `was ${p.prev}${p.unit}` : 'new best', when: '✓' }));
     const top = livePrs[0];
@@ -12363,7 +12384,7 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
     { n: '03', t: 'Squat 125 kg', sub: 'next · one plate away', when: 'Next', next: true },
     { n: '04', t: 'Deadlift 160 kg', sub: 'end-of-block test', when: 'Jun' },
     { n: '05', t: 'Finish cut, lifts ≥ start', sub: 'the whole point', when: 'Jul 1' },
-  ];
+  ]);
   const SecHead = ({ kicker, title }) => (
     <div style={{ padding: `22px ${t.padX}px 0` }}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
@@ -12375,16 +12396,16 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
       {/* Featured — strength held (instrument plate) */}
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <BSPlate c={rust} tick bracket pad="16px 18px 16px 24px">
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: rust }}>Strength held</div>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{livePrs ? livePrs.length : 4}<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/{livePrs ? livePrs.length : 4} lifts</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>{livePrs ? `none dropped · ${livePrs[0].lift.toLowerCase()} +${Number(livePrs[0].deltaPct || 0).toFixed(1)}%` : 'none dropped · bench +5 kg'}</div>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: rust }}>{empty ? 'No lifts yet' : 'Strength held'}</div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY || `'Newsreader', Georgia, serif`, fontSize: 44, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95 }}>{empty ? 0 : (livePrs ? livePrs.length : 4)}<span style={{ fontSize: 20, color: t.INK50, marginLeft: 3 }}>/{empty ? 0 : (livePrs ? livePrs.length : 4)} lifts</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.06em', color: rust }}>{empty ? 'log your first session to start tracking' : (livePrs ? `none dropped · ${livePrs[0].lift.toLowerCase()} +${Number(livePrs[0].deltaPct || 0).toFixed(1)}%` : 'none dropped · bench +5 kg')}</div>
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Sessions / week</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Last 7 weeks</span>
           </div>
           <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7 }}>
-            {[0.6, 0.7, 0.65, 0.55, 0.7, 0.6, 1].map((v, i) => (
-              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 3, background: rust, opacity: 0.3 + v * 0.6 }} />
+            {(empty ? [0, 0, 0, 0, 0, 0, 0] : [0.6, 0.7, 0.65, 0.55, 0.7, 0.6, 1]).map((v, i) => (
+              <div key={i} style={{ aspectRatio: '1 / 1', borderRadius: 3, background: empty ? t.HAIR : rust, opacity: empty ? 1 : 0.3 + v * 0.6 }} />
             ))}
           </div>
         </BSPlate>
@@ -12404,6 +12425,9 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
       {/* The target — lift rows */}
       <SecHead kicker="The target" title="Hold every lift" />
       <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {empty && !lifts.length ? (
+          <div style={{ padding: '13px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>No lifts logged yet — finish a session to see your key lifts here.</div>
+        ) : null}
         {lifts.map((l, i) => (
           <div key={i} style={{ padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -12418,6 +12442,9 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
       {/* Milestones */}
       <SecHead kicker="The path" title="Milestones" />
       <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {empty && !milestones.length ? (
+          <div style={{ padding: '13px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>Milestones appear as you log workouts and hit new bests.</div>
+        ) : null}
         {milestones.map((m, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: m.done ? t.INK50 : (m.next ? rust : t.INK50), marginTop: 2 }}>{m.done ? '✓' : m.n}</span>
@@ -12430,7 +12457,8 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
         ))}
       </div>
 
-      {/* Your program */}
+      {/* Your program — hidden when empty (no coaches/program assigned yet) */}
+      {empty ? null : (<>
       <SecHead kicker="Driving it" title="Your program" />
       <div style={{ padding: `12px ${t.padX}px 8px` }}>
         <div style={{ borderRadius: 6, border: `1px solid ${rust}44`, borderLeft: `3px solid ${rust}`, background: `linear-gradient(155deg, ${rust}1c, ${rust}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
@@ -12451,6 +12479,7 @@ function BSGoalsTraining({ onOpenProgram, train = null }) {
           </div>
         </div>
       </div>
+      </>)}
     </>
   );
 }
@@ -12462,6 +12491,10 @@ function BSGoalsNutrition({ overall, onLog }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const gold = '#d8b25a', purple = '#8a5cf6';
+  // Signed in → the macro/target/plan demo content has no live source on this tab,
+  // so it zeroes out (there's no nutritionist assigned yet either). The weight goal
+  // (overall) + weigh-in trajectory still flow through when the user has logged.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const start = Number(overall.start) || 0, now = bsGoalNow(overall), target = Number(overall.target) || 0;
   const unit = overall.unit || 'kg';
   const down = +(now - start).toFixed(1), range = +(start - target).toFixed(1), toGo = +(now - target).toFixed(1);
@@ -12509,7 +12542,7 @@ function BSGoalsNutrition({ overall, onLog }) {
     { l: 'Weekly pace', c: purple, v: paceVal != null ? paceVal.toLocaleString() : '—', u: paceVal != null ? unit : '', sub: 'per week' },
     etaStat,
   ];
-  const macros = [
+  const macros = signedIn ? [] : [
     { t: 'Protein', v: '165 g', tgt: '170 g', c: t.GREEN, pct: 0.97 },
     { t: 'Carbs', v: '190 g', tgt: '200 g', c: gold, pct: 0.95 },
     { t: 'Fat', v: '60 g', tgt: '62 g', c: t.RUST, pct: 0.97 },
@@ -12532,14 +12565,19 @@ function BSGoalsNutrition({ overall, onLog }) {
       const isNext = !done && !nextMarked; if (isNext) nextMarked = true;
       return { done, next: isNext, n: String(i + 1).padStart(2, '0'), t: `${m.t} · ${fmt(m.w)}`, sub: m.sub, when: i === 0 ? (overall.startMonth || 'Start') : i === defs.length - 1 ? (byLabel || 'Goal') : (isNext ? 'Next' : '') };
     });
-  })() : [
+  })() : (signedIn ? [] : [
     { done: true, t: 'Baseline · 80.4 kg', sub: 'plan + macros set', when: 'Feb' },
     { done: true, t: 'First kilo down', sub: '79.4 kg · clean week', when: 'Mar' },
     { n: '03', t: 'Halfway · 78.2 kg', sub: 'add a refeed Saturdays', when: 'Next', next: true },
     { n: '04', t: 'Under 78 kg', sub: 'hold protein, drop carbs', when: 'Jun' },
     { n: '05', t: 'Goal · 76.0 kg', sub: 'then reverse, carefully', when: 'Jul 1' },
-  ];
-  const targets = [
+  ]);
+  const targets = signedIn ? [
+    { l: 'Protein days', v: '0/7', sub: 'days tracked', c: t.GREEN },
+    { l: 'On target', v: '0/7', sub: 'kcal in range', c: gold },
+    { l: 'Logged', v: '0/7', sub: 'days tracked', c: t.RUST },
+    { l: 'Water', v: '—', sub: 'avg · goal 3L', c: purple },
+  ] : [
     { l: 'Protein days', v: '6/7', sub: '≥170g hit', c: t.GREEN },
     { l: 'On target', v: '5/7', sub: 'kcal in range', c: gold },
     { l: 'Logged', v: '6/7', sub: 'days tracked', c: t.RUST },
@@ -12620,6 +12658,9 @@ function BSGoalsNutrition({ overall, onLog }) {
       {/* Macros vs target */}
       <SecHead kicker="Daily average" title="Macros vs target" />
       <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {signedIn && !macros.length ? (
+          <div style={{ padding: '13px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>Log meals to see your daily macro average vs target.</div>
+        ) : null}
         {macros.map((m, i) => (
           <div key={i} style={{ padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -12634,6 +12675,9 @@ function BSGoalsNutrition({ overall, onLog }) {
       {/* Milestones */}
       <SecHead kicker="The path" title="Milestones" />
       <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {signedIn && !milestones.length ? (
+          <div style={{ padding: '13px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>Set a weight goal and log weigh-ins to track milestones.</div>
+        ) : null}
         {milestones.map((m, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
             <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: m.done ? t.INK50 : (m.next ? gold : t.INK50), marginTop: 2 }}>{m.done ? '✓' : m.n}</span>
@@ -12646,7 +12690,8 @@ function BSGoalsNutrition({ overall, onLog }) {
         ))}
       </div>
 
-      {/* Your plan */}
+      {/* Your plan — hidden when signed in with no nutritionist plan yet */}
+      {signedIn ? null : (<>
       <SecHead kicker="Driving it" title="Your plan" />
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <div style={{ borderRadius: 6, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(155deg, ${gold}1c, ${gold}06 60%, ${t.PAPER2} 92%), ${t.PAPER2}`, padding: 16 }}>
@@ -12667,6 +12712,7 @@ function BSGoalsNutrition({ overall, onLog }) {
           </div>
         </div>
       </div>
+      </>)}
 
       {/* This week targets */}
       <SecHead kicker="This week" title="Nutrition targets" />
