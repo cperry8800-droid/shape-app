@@ -2350,21 +2350,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </span>
       </div>
 
-      {/* TODAY — the lead directive: one clear next move + a quick CTA */}
-      {todayDirective && (
-        <BSPlate c={todayDirective.c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `12px ${t.padX}px 0`, textAlign: 'left' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
-          </div>
-          <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{todayDirective.head}</div>
-          {todayDirective.sub && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
-          {todayDirective.cta && (
-            <button onClick={todayDirective.cta[1]} style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
-          )}
-        </BSPlate>
-      )}
-
       {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
       {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
       {coachFeed.items.length > 0 && (
@@ -2435,15 +2420,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      {/* CUSTOMIZABLE CARD STACK — Training / Recovery / Energy / … */}
-      <div style={{ paddingTop: 16, borderTop: `1px solid ${t.RULE}` }}>
-        <BSHomeCards
-          t={t}
-          todayLabel={['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][_now.getDay()]}
-          ctx={homeCardsCtx}
-          openers={homeCardOpeners}
-        />
-      </div>
+      {/* TODAY — the lead directive (one clear next move + a quick CTA), now
+          directly below the weekly calendar. */}
+      {todayDirective && (
+        <BSPlate c={todayDirective.c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `4px ${t.padX}px 0`, textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
+          </div>
+          <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{todayDirective.head}</div>
+          {todayDirective.sub && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+          {todayDirective.cta && (
+            <button onClick={todayDirective.cta[1]} style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+          )}
+        </BSPlate>
+      )}
 
       {/* YOUR GOAL — compact featured goal, pinned right above the day's agenda */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
