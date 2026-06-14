@@ -8337,8 +8337,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       )}
       {/* Identity heading — tier/streak + name + handle·goal + follows, above the
           hero box. No avatar up here: the facet avatar rides the hero's climb.
-          A faint hairline + air separates it from the page masthead above. */}
-      <div style={{ margin: '16px 18px 0', paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+          On the Me page the masthead is right above, so no separating rule. */}
+      <div style={{ margin: '16px 18px 0', paddingTop: meMode ? 4 : 14, borderTop: meMode ? 'none' : `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
           photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
           userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts} />
