@@ -13133,14 +13133,14 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
   return (
-    <button onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: onOpen ? 'pointer' : 'default', borderRadius: 6, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, borderLeft: `3px solid ${TEAL}`, background: bsTHexA(TEAL, 0.06), padding: compact ? '9px 13px' : '14px 16px', marginBottom: compact ? 0 : 14 }}>
+    <button onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: onOpen ? 'pointer' : 'default', borderRadius: 6, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, borderLeft: `3px solid ${TEAL}`, background: bsTHexA(TEAL, 0.06), padding: compact ? '12px 15px' : '17px 19px', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontFamily: MONO, fontSize: compact ? 8 : 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
-        <span style={{ fontFamily: MONO, fontSize: compact ? 8 : 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
+        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
+        <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
       </div>
-      <div style={{ marginTop: compact ? 4 : 6, fontFamily: SERIF, fontSize: compact ? 16 : 23, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
-      <div style={{ marginTop: compact ? 7 : 11, height: compact ? 4 : 6, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-      <div style={{ marginTop: compact ? 6 : 9, fontFamily: MONO, fontSize: compact ? 8.5 : 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
+      <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
+      <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
+      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
     </button>
   );
 }
