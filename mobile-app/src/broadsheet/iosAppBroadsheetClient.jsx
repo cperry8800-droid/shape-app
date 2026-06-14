@@ -6725,7 +6725,12 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   // light papers the window fills with a darkened tier tint + light initials, so
   // the avatar always reads as a tier-coloured jewel with legible initials.
   const innerBg = t.isLight ? bsShade(c, 0.6) : '#0f0c0a';
-  const initInk = t.isLight ? '#fbf7ef' : INKv;
+  // Initials ALWAYS sit on the gem's dark inner window (near-black on dark papers,
+  // a darkened tier tint on light papers) — so they must always be a light color,
+  // independent of the caller's INK (which is for the surrounding surface, not the
+  // gem). Using INKv here made the initials vanish whenever a caller's INK was
+  // dark (e.g. on a dark profile/settings surface). A faint shadow keeps them crisp.
+  const initInk = '#fbf7ef';
   // The set rule: an avatar is ALWAYS a photo or initials — never blank. Prefer the
   // explicit `initial`, else derive 2-letter initials from `name`, else a neutral dot.
   const shownInitials = (initial != null && String(initial).trim()) || (name ? bsInitials(name) : '') || '•';
@@ -6742,7 +6747,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
             underneath the photo so a missing/broken image falls back to them —
             it's always a real photo or 2 initials, never a blank/placeholder gem. */}
         <div style={{ position: 'absolute', inset, borderRadius: '23%', overflow: 'hidden', background: innerBg, display: 'grid', placeItems: 'center' }}>
-          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 500, fontSize: size * 0.42, color: initInk, lineHeight: 1 }}>{shownInitials}</span>
+          <span style={{ transform: 'rotate(-45deg)', fontFamily: SERIF, fontWeight: 600, fontSize: size * 0.42, color: initInk, lineHeight: 1, textShadow: '0 1px 2px rgba(0,0,0,0.55)' }}>{shownInitials}</span>
           {photoSrc && <img src={photoSrc} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', width: '152%', height: '152%', left: '50%', top: '50%', transform: 'translate(-50%,-50%) rotate(-45deg)', objectFit: 'cover' }} />}
         </div>
       </div>
