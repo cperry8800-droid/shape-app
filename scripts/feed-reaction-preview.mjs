@@ -17,6 +17,9 @@ const T = {
 const TIER = { PEAK: "#a78bfa", LEGEND: "#fb7185", FORM: "#34d6c5", TEMPO: "#d8a23a", BASE: "#8a93a0" };
 const ROLEC = { trainer: "#c0533b", nutritionist: "#a07a2e" };
 const initials = (n) => n.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+const TIER_VALS = ["#a78bfa", "#fb7185", "#34d6c5", "#d8a23a", "#8a93a0"];
+const avColor = (n) => { let s = 0; for (const ch of String(n)) s = (s * 31 + ch.charCodeAt(0)) >>> 0; return TIER_VALS[s % TIER_VALS.length]; };
+const AV = (name, size = 22, ring) => `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:999px;background:${avColor(name)};color:#0c0a08;font-family:'SFMono-Regular',monospace;font-weight:800;font-size:${Math.round(size * 0.42)}px;${ring ? `box-shadow:0 0 0 1.5px ${ring}` : ""}">${initials(name)}</span>`;
 
 // Crisp geometric action icons (mirror bsFeedIcon in the app) — less-analog
 // replacements for ↑ ↳ ↗ ✉ ⇄. currentColor stroke inherits the pill tint.
@@ -38,11 +41,15 @@ const CARDS = [
     body: "Block 3 paying off. Felt like there was a 4th in the tank.", typeLabel: "Strength",
     title: "Deadlift — new PR", hero: ["245 lb", "Load"], delta: "+10 lb on May best",
     sec: [["Top set", "1×3"], ["Est. 1RM", "268 lb"]], kudos: 41, replies: 6,
-    cosign: { name: "Dana Lewis", role: "trainer" } },
+    cosign: { name: "Dana Lewis", role: "trainer" },
+    likers: [{ name: "Jordan Ellis" }, { name: "Sam Reyes" }, { name: "Maya Okafor" }],
+    comments: [{ who: "Jordan Ellis", text: "That bar speed was unreal — congrats!" }, { who: "Sam Reyes", text: "Eight months of work right there." }] },
   { kind: "run", who: "Drew Oyelaran", role: "Client", city: "East River Loop · NYC", tier: "LEGEND", ago: "34m",
     body: "Last long run before taper. Negative split the back 6.", typeLabel: "Run", activityType: "run",
     title: "Long run", hero: ["18.2 mi", "Distance"], route: true,
-    sec: [["Pace", "8:42/mi"], ["Time", "2:38"]], kudos: 28, replies: 4 },
+    sec: [["Pace", "8:42/mi"], ["Time", "2:38"]], kudos: 28, replies: 4,
+    likers: [{ name: "Sam Reyes" }, { name: "Priya Shah" }],
+    comments: [{ who: "Sam Reyes", text: "Negative split on a long run is elite." }] },
   { kind: "workout", who: "Lena Fischer", role: "Client", city: "Metropolitan Pool · NYC", tier: "FORM", ago: "52m",
     body: "Long-course meters. Stroke felt smooth the whole set.", typeLabel: "Swim", activityType: "swim",
     title: "Masters swim · 2 km", hero: ["2,000 m", "Distance"],
@@ -88,11 +95,11 @@ const card = (a) => {
         <span style="width:100%;font-family:${T.mono};font-size:7.5px;letter-spacing:.16em;text-transform:uppercase;color:${T.muted};margin-top:3px">${a.hero[1]}</span>
       </div>
       <p style="font-family:${T.body};font-size:12.5px;line-height:1.35;color:${T.muted};margin:7px 0 0">${a.body}</p>
-      ${a.cosign ? `<div style="display:inline-flex;align-items:center;gap:6px;margin-top:11px;background:${csC};color:#fff;border-radius:999px;padding:4px 11px">
+      ${a.cosign ? `<div style="margin-top:11px"><span style="display:inline-flex;align-items:center;gap:6px;background:${csC};color:#fff;border-radius:999px;padding:4px 11px">
         <span style="font-family:${T.mono};font-size:9.5px;font-weight:900;line-height:1">✓</span>
         <span style="font-family:${T.serif};font-size:11.5px;font-weight:800">${a.cosign.name}</span>
         <span style="font-family:${T.mono};font-size:7.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.85">co-signed · ${a.cosign.role === "nutritionist" ? "Nutritionist" : "Coach"}</span>
-      </div>` : ""}
+      </span></div>` : ""}
       ${a.route ? `<div style="position:relative;margin-top:9px;height:80px;border-radius:11px;overflow:hidden;border:1px solid ${tc}33;background:radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)">
         <span style="position:absolute;left:9px;bottom:7px;font-family:${T.mono};font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.45);padding:2px 5px;border-radius:3px">GPS route</span></div>` : ""}
       <div style="margin-top:11px;font-family:${T.mono};font-size:8px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${T.muted}">▸ Session details <span style="opacity:.5">(${a.sec.map((s) => s[0]).join(" · ")})</span></div>
@@ -100,14 +107,22 @@ const card = (a) => {
         ${bsReactionPalette(verb).map((w) => { const on = w === a.picked; return `<span style="flex-shrink:0;height:28px;padding:0 12px;display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:${on ? tc : tc + "12"};color:${on ? "#fff" : tc};border:1px solid ${on ? tc : tc + "66"};font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase">${ICON("react", 11)}<span>${w}</span></span>`; }).join("")}
         <span style="flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid ${T.hair};color:${T.muted};font-family:${T.mono};font-size:11px;font-weight:800">×</span>
       </div>` : ""}
+      ${a.likers ? `<div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+        <span style="display:inline-flex">${a.likers.slice(0, 4).map((l, i) => `<span style="margin-left:${i ? -8 : 0}px;position:relative;z-index:${10 - i}">${AV(l.name, 22, T.card)}</span>`).join("")}</span>
+        <span style="font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${T.muted}">${a.likers.length === 1 ? `${a.likers[0].name} reacted` : `${a.likers[0].name.split(" ")[0]} + ${a.likers.length - 1} you follow reacted`} ›</span>
+      </div>` : ""}
       <div style="display:flex;align-items:center;gap:7px;margin-top:12px">
         <span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;padding:0 14px;border-radius:999px;background:${a.picked ? tc : tc + "14"};color:${a.picked ? "#fff" : tc};border:1px solid ${tc};font-family:${T.mono};font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">${ICON("react", 12)}<span>${a.picked || verb} · ${count + (a.picked ? 1 : 0)}</span></span>
         <span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">${ICON("comment", 12)}<span>${a.replies}</span></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">${ICON("share", 12)}<span>Share</span></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair}">${ICON("share", 13)}</span>
         <span style="margin-left:auto"></span>
         <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("send", 13)}</span>
         <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("repost", 13)}</span>
       </div>
+      ${a.comments ? `<div style="margin-top:10px">
+        ${a.comments.slice(0, 2).map((c) => `<div style="display:flex;gap:8px;margin-bottom:6px"><span style="font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${T.muted};flex-shrink:0;margin-top:1px;white-space:nowrap">${c.who.split(" ")[0]}</span><span style="font-family:${T.body};font-size:12.5px;color:${T.ink};line-height:1.35">${c.text}</span></div>`).join("")}
+        ${a.replies > Math.min(2, a.comments.length) ? `<div style="margin-top:2px;font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${T.muted}">View all ${a.replies} comments ›</div>` : ""}
+      </div>` : ""}
     </div>
   </div>`;
 };

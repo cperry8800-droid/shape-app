@@ -1848,10 +1848,12 @@ function communityPostFromRow(row) {
     rawRoute: route,
     tags: displayTags,
     likes: likes.length,
+    likerIds: likes.map((l) => l.user_id).filter(Boolean),
     liked: likes.some(like => like.user_id === state.user?.id),
     comments: comments.map(comment => ({
       who: comment.author_name || 'Shape member',
       text: comment.body,
+      userId: comment.user_id || null,
     })),
     live: privacy !== 'private',
     source_provider: row.source_provider || null,

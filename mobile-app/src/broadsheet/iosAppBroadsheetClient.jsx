@@ -7277,6 +7277,10 @@ function bsActivityFromPost(p) {
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
+    // Liker user-ids (for the followed-likers facepile + the likers sheet) and
+    // the real comments (with author ids, for the followed-comments inline view).
+    likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
+    postComments: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text) : [],
     replies: Array.isArray(p.comments) ? p.comments.length : 0,
   };
 }
@@ -10034,6 +10038,26 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [exprOpenKey, setExprOpenKey] = useStateBSC(null);
   const lpTimerRef = React.useRef(null);
   const lpFiredRef = React.useRef(false);
+  // Social layer on a card: the set of user-ids I FOLLOW (so I can surface the
+  // people I follow who reacted/commented), a batched avatar map for those
+  // people, and the open "who liked" sheet. Following loads once when signed in.
+  const [myFollowingSet, setMyFollowingSet] = useStateBSC(null); // Map<userId,{name,role}> | null
+  const [feedAvatars, setFeedAvatars] = useStateBSC({});         // userId → photo url
+  const [likerSheetFor, setLikerSheetFor] = useStateBSC(null);   // a card → the likers list
+  React.useEffect(() => {
+    let dead = false;
+    const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+    if (!uid || !window.ShapeFollows?.list) { setMyFollowingSet(null); return undefined; }
+    Promise.resolve(window.ShapeFollows.list(uid, 'following')).then((rows) => {
+      if (dead) return;
+      const map = new Map();
+      (rows || []).forEach((r) => { if (r.userId) map.set(r.userId, { name: r.name || null, role: r.role || 'client' }); });
+      setMyFollowingSet(map);
+      const ids = [...map.keys()];
+      if (ids.length && window.ShapeProfiles?.getUserAvatars) window.ShapeProfiles.getUserAvatars(ids).then((m) => { if (!dead && m) setFeedAvatars((p) => ({ ...p, ...m })); }).catch(() => {});
+    }).catch(() => { if (!dead) setMyFollowingSet(new Map()); });
+    return () => { dead = true; };
+  }, []);
   // Coach co-sign: my reaction counts heavier when I'm the author's OWN coach.
   // `actCoSign` is my own optimistic co-sign per card (key → {name, role});
   // `coachClientIds` is the set of MY client user-ids (only when I'm a coach), so
@@ -10161,8 +10185,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // "Today on Shape" community page): real workouts logged by members, with
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
-    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' } },
-    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4 },
+    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' }, likers: [{ name: 'Jordan Ellis', role: 'Client' }, { name: 'Sam Reyes', role: 'Client' }, { name: 'Maya Okafor', role: 'Trainer' }], comments: [{ who: 'Jordan Ellis', text: 'That bar speed was unreal — congrats!', follows: true }, { who: 'Sam Reyes', text: 'Eight months of work right there.', follows: true }, { who: 'Avery Lin', text: 'Huge.', follows: false }] },
+    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }] },
     { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Pace', '1:42/100m'], ['Time', '34:10']], kudos: 19, replies: 2 },
     { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
     { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 40 km', stats: [['Distance', '40.2 km'], ['Avg power', '241 W'], ['Time', '1:18']], kudos: 23, replies: 3 },
@@ -10251,6 +10275,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       // changing just the expression word is a local re-label, not a new tally.
       if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId, cosign: coSigning }); if (lk && lk.catch) lk.catch(() => {}); }
     };
+    // Social layer — the people I FOLLOW who reacted/commented surface on the card
+    // (avatars over the like row + their comments inline); everyone else opens on
+    // tap. Real posts: intersect the post's liker-ids / comment authors with my
+    // following set. Demo cards: the illustrative `likers`/`comments` arrays.
+    const followingSet = myFollowingSet;
+    const allLikers = a.real
+      ? (a.likerIds || []).map((id) => { const f = followingSet && followingSet.get(id); return { userId: id, name: f ? f.name : null, role: f ? f.role : 'Client', photo: feedAvatars[id] || null, follows: !!f }; })
+      : (a.likers || []).map((p) => ({ userId: null, name: p.name, role: p.role || 'Client', photo: bsDemoFace(p.name), follows: true }));
+    const followedLikers = allLikers.filter((l) => l.follows);
+    const allComments = a.real ? (a.postComments || []) : (a.comments || []);
+    const followedComments = a.real
+      ? allComments.filter((c) => c.userId && followingSet && followingSet.has(c.userId))
+      : allComments.filter((c) => c.follows);
+    const likeFacepile = followedLikers.slice(0, 4);
     return (
       <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 2, background: tc }} />
@@ -10318,10 +10356,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               heavier than any peer reaction. Renders only on a real coach↔client
               link (my own, or one stamped on the post); honest-absent otherwise */}
           {coSign && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 11, background: coSignColor, color: '#fff', borderRadius: 999, padding: '4px 11px' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1 }}>✓</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap' }}>{coSignIsMine ? 'You' : coSign.name}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+            <div style={{ marginTop: 11 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+              </span>
             </div>
           )}
           {/* phase 2 — expressive palette (opens on a press-and-hold of the
@@ -10338,6 +10378,26 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
             </div>
           )}
+          {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
+              above the reaction row. Tap → the full "who reacted" sheet. */}
+          {likeFacepile.length > 0 && (() => {
+            const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
+            const fpLabel = fpNames.length
+              ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
+              : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
+            return (
+              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+                <span style={{ display: 'inline-flex' }}>
+                  {likeFacepile.map((l, i) => (
+                    <span key={i} style={{ marginLeft: i ? -8 : 0, borderRadius: 999, boxShadow: `0 0 0 1.5px ${card}`, zIndex: likeFacepile.length - i }}>
+                      <BSFacetAvatar size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                    </span>
+                  ))}
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
+              </button>
+            );
+          })()}
           {/* actions — the reaction verb primary/heaviest; Comment + Share
               secondary; Send + Repost de-emphasized (same pill/icon styles) */}
           {(() => {
@@ -10353,23 +10413,38 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               title="Hold for more reactions"
               style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>{bsFeedIcon('react', 12)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
             <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>{bsFeedIcon('comment', 12)}<span>{(a.replies || 0) + comments.length}</span></button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, true)}>{bsFeedIcon('share', 12)}<span>Share</span></button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 13)}</button>
             <span style={{ marginLeft: 'auto' }} />
             <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 13)}</button>
             <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 13)}</button>
           </div>
             );
           })()}
-          {/* comments */}
-          {cmtOpen && (
-            <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
-              {comments.map((c, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2 }}>{c.who}</span>
-                  <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.body}</span>
+          {/* followed comments — people I FOLLOW comment under the card by
+              default; the rest open on the comment icon */}
+          {!cmtOpen && followedComments.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              {followedComments.slice(0, 2).map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, flexShrink: 0, marginTop: 1, whiteSpace: 'nowrap' }}>{String(c.who || 'Member').split(' ')[0]}</span>
+                  <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: cardInk, lineHeight: 1.35 }}>{c.text || c.body}</span>
                 </div>
               ))}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: comments.length ? 4 : 0 }}>
+              {((a.replies || 0) + comments.length) > Math.min(2, followedComments.length) && (
+                <button onClick={() => openActComments(key, false)} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 2, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {(a.replies || 0) + comments.length} comments ›</button>
+              )}
+            </div>
+          )}
+          {/* expanded comments (comment icon) — everyone's comments + composer */}
+          {cmtOpen && (
+            <div style={{ marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
+              {[...allComments, ...comments].map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: c.who === 'You' ? TEALB : muted, flexShrink: 0, marginTop: 2, whiteSpace: 'nowrap' }}>{String(c.who || 'Member').split(' ')[0]}</span>
+                  <span style={{ fontFamily: t.BODY, fontSize: 13, color: cardInk, lineHeight: 1.35 }}>{c.text || c.body}</span>
+                </div>
+              ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px', gap: 8, alignItems: 'center', marginTop: (allComments.length + comments.length) ? 4 : 0 }}>
                 <input value={actCmtDraft} onChange={(e) => setActCmtDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendActComment(key, a.postId || null); }} placeholder="Message…" style={{ minWidth: 0, height: 38, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 14px', fontFamily: t.BODY, fontSize: 14, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
                 <button onClick={() => sendActComment(key, a.postId || null)} disabled={!actCmtDraft.trim()} style={{ height: 38, border: 0, borderRadius: 999, background: actCmtDraft.trim() ? t.ACCENT : t.SURFACE, color: actCmtDraft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: actCmtDraft.trim() ? 'pointer' : 'default', opacity: actCmtDraft.trim() ? 1 : 0.86 }}>Send</button>
               </div>
@@ -10834,6 +10909,27 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
+      {likerSheetFor && createPortal(
+        <div onClick={() => setLikerSheetFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Reactions</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>Who reacted</div>
+            {(likerSheetFor.likers || []).length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, padding: '10px 0' }}>No reactions yet.</div>}
+            {(likerSheetFor.likers || []).map((l, i) => (
+              <button key={i} onClick={() => { if (l.userId || l.name) { setOpenProfile({ who: l.name || 'Shape member', kind: String(l.role || 'client').toUpperCase() === 'TRAINER' ? 'TRAINER' : String(l.role || '').toUpperCase() === 'NUTRITIONIST' ? 'NUTRI' : 'CLIENT', init: bsInitials(l.name || '?'), userId: l.userId || undefined, public: true, photo: l.photo }); setLikerSheetFor(null); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR}`, padding: '10px 2px', cursor: 'pointer', textAlign: 'left' }}>
+                <BSFacetAvatar size={38} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name || 'Shape member'}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{l.role || 'Client'}</div>
+                </div>
+                {l.follows && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>Following</span>}
+              </button>
+            ))}
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
       {newDmOpen && createPortal(
         <div onClick={() => setNewDmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
