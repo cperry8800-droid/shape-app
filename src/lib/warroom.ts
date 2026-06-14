@@ -529,6 +529,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App ↔ website parity — directive-led UI + shared engine (2026-06-14)',
+      items: [
+        { label: 'Shared signal engine in the app — main.jsx side-effect-imports public/newdesign/dashSignals.js (window.DashSignals, the SAME engine the website dashboards run); new services/signalsMap.mjs (pure ESM mappers) + services/shapeSignals.js expose window.ShapeSignals (selfRecord/coachRecords/triage(role)/goalProjection/goalSlipDays). One engine, three consumers (website script, Node tests, app Vite import); vite fs.allow:[".."] for the cross-root import. tests/mobile-signals.test.mjs (8)', status: 'done' },
+        { label: 'Coach Today leads with "Who needs you" — the triage feed moved to the TOP (above the schedule), trimmed to a top-3 glance with "See all N →" / "+N more" into the Clients tab (de-dup so Today=shortlist, Clients=full list). Schedule rows + Habits card got the instrument-plate design (habits = the client-home "Daily habits." plate)', status: 'done' },
+        { label: 'Coach Clients roster = triage surface — a verdict lead ("3 need you · …"), sorted at-risk→on-track with group headers, each row a severity spine + one-line directive (what to do) + pill; program/streak detail moved to the client page. bsRosterSeverity(client, role) (derives from status today; live ShapeSignals.triage match is a follow-up once rosters carry userIds)', status: 'done' },
+        { label: 'Coach client detail leads with "Your move" — severity + directive + 30-day read + CTA at the top; KPI grid cut 4→2; the redundant "Analysis · last 30 days" trendline removed (duplicated the body chart)', status: 'done' },
+        { label: 'Client Home/Eat lead with a "Today · your move" directive (Home: workout→meal→habits→done with per-item CTA; Eat: next meal to log above the quiet calorie strip); Home "Weekly totals" trimmed 4→2. Train already led with its session hero + Start', status: 'done' },
+        { label: 'Client meal logger / "Logged." / home week strip onto instrument plates (clipped one-tap action, squared mode tabs, BSPlate summaries, ink→accent ledger)', status: 'done' },
+        { label: 'Client Goals (Overall + Nutrition) carry the real engine pace-projection ETA — least-squares projectGoal over 8 weeks + week-over-week slip → an "ETA" stat (projected date / Stalled / 1y+ / Refresh) replacing the demo "On track"/"Adherence", + an ETA chip in the hero; honest "—" when history is too sparse', status: 'done' },
+      ],
+    },
+    {
       section: 'Security & hardening (2026-06-09 review)',
       items: [
         { label: 'RLS ON for every public table — verified 66/66 enabled AND each has ≥1 policy (0 RLS-off, 0 deny-all)', status: 'done' },
