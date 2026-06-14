@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
+import { bsReactionType, bsReactionVerb } from '../services/reactionVerbs.mjs';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -7260,6 +7261,13 @@ function bsActivityFromPost(p) {
     // PR delta stamped at publish (vs the author's prior best); empty until a
     // genuine new best exists — the card shows the number with no delta otherwise.
     delta: (typeof p.delta === 'string' && p.delta.trim()) ? p.delta.trim() : null,
+    // Raw activity type (the composer's woType / activity_type column / sensor
+    // workout name) — normalized to a reaction verb at render. Honest: empty
+    // strings fall back to the "Props" verb, never a strength-only word.
+    activityType: at || '',
+    // Coach co-sign stamped on the post when one of the author's OWN coaches
+    // reacted (metrics.cosign = {name, role}); null until that happens.
+    cosign: (p.cosign && typeof p.cosign === 'object' && p.cosign.name) ? p.cosign : null,
     typeLabel: isRun ? 'Run' : 'Workout',
     title,
     body: p.note || '',
@@ -9997,6 +10005,23 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [actDetailsOpen, setActDetailsOpen] = useStateBSC({}); // key → secondary-stat disclosure open
   const [sendPostFor, setSendPostFor] = useStateBSC(null); // ✉ on a feed post → the send-to-DM picker
   const [actCmtDraft, setActCmtDraft] = useStateBSC('');
+  // Coach co-sign: my reaction counts heavier when I'm the author's OWN coach.
+  // `actCoSign` is my own optimistic co-sign per card (key → {name, role});
+  // `coachClientIds` is the set of MY client user-ids (only when I'm a coach), so
+  // a co-sign is gated on a real coach↔client link — never any coach reaction.
+  const [actCoSign, setActCoSign] = useStateBSC({});
+  const [coachClientIds, setCoachClientIds] = useStateBSC(null);
+  React.useEffect(() => {
+    let dead = false;
+    if (myRole !== 'trainer' && myRole !== 'nutritionist') { setCoachClientIds(null); return undefined; }
+    const fn = window.ShapeAssign && window.ShapeAssign.clients;
+    if (!fn) { setCoachClientIds(new Set()); return undefined; }
+    Promise.resolve(fn(myRole)).then((rows) => {
+      if (dead) return;
+      setCoachClientIds(new Set((rows || []).map((r) => r.userId).filter(Boolean)));
+    }).catch(() => { if (!dead) setCoachClientIds(new Set()); });
+    return () => { dead = true; };
+  }, [myRole]);
   const toggleActLike = (key, postId) => {
     setActLikes(prev => ({ ...prev, [key]: !prev[key] }));
     // Real activity cards persist the cheer as a community-post like.
@@ -10107,9 +10132,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // "Today on Shape" community page): real workouts logged by members, with
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
-    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6 },
+    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' } },
     { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4 },
-    { kind: 'workout', who: 'Casey Morgan', role: 'Client', city: 'Shape · Brooklyn', tier: 'FORM', ago: '1h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
+    { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Pace', '1:42/100m'], ['Time', '34:10']], kudos: 19, replies: 2 },
+    { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
+    { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 40 km', stats: [['Distance', '40.2 km'], ['Avg power', '241 W'], ['Time', '1:18']], kudos: 23, replies: 3 },
+    { kind: 'workout', who: 'Casey Morgan', role: 'Client', city: 'Shape · Brooklyn', tier: 'FORM', ago: '2h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
     { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
     { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3 },
     { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9 },
@@ -10130,10 +10158,16 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const baseKudos = Math.max(0, (a.kudos || 0) - (a.liked ? 1 : 0));
     const comments = actComments[key] || [];
     const cmtOpen = actCmtOpen === key;
-    const typeLabel = a.real ? a.typeLabel : (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout');
+    const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
     const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
-    const cheer = a.real ? 'Cheer' : (a.kind === 'pr' ? 'Spot' : a.kind === 'run' ? 'Match' : 'Respect');
+    // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
+    // tally stays one unified count. PR/milestone (a new-best delta, or the demo
+    // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
+    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
+    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
+    const cheer = bsReactionVerb(actType);
     const stats = a.real ? a.statsRow
+      : Array.isArray(a.stats) ? a.stats
       : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
       : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
       : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
@@ -10161,6 +10195,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
     const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
     const coachProgram = a.real ? (a.program || '') : '';
+    // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
+    // Sources, in order: my own optimistic co-sign (I'm this athlete's coach and
+    // just reacted) → the post's stamped co-sign (any of their coaches). Honest:
+    // null unless a real coach↔client link exists. `iAmAuthorsCoach` gates my tap.
+    const iAmAuthorsCoach = (myRole === 'trainer' || myRole === 'nutritionist') && !!a.userId && !!coachClientIds && coachClientIds.has(a.userId);
+    const myCoSign = actCoSign[key] || null;
+    const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
+    const coSignIsMine = !!myCoSign;
+    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
     return (
       <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 2, background: tc }} />
@@ -10224,13 +10267,31 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               )}
             </>
           )}
-          {/* actions — Spot primary/heaviest; Comment + Share secondary; Send +
-              Repost de-emphasized (same pill/icon styles as before) */}
+          {/* coach co-sign — a solid role-colored badge so one coach co-sign reads
+              heavier than any peer reaction. Renders only on a real coach↔client
+              link (my own, or one stamped on the post); honest-absent otherwise */}
+          {coSign && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 11, background: coSignColor, color: '#fff', borderRadius: 999, padding: '4px 11px' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1 }}>✓</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap' }}>{coSignIsMine ? 'You' : coSign.name}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+            </div>
+          )}
+          {/* actions — the reaction verb primary/heaviest; Comment + Share
+              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
           {(() => {
             const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 27, boxSizing: 'border-box', padding: grow ? '0 11px' : 0, width: grow ? 'auto' : 27, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
             return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12 }}>
-            <button onClick={() => { setActLikes(prev => ({ ...prev, [key]: !(prev[key] != null ? prev[key] : a.liked) })); if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); } }} style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
+            <button onClick={() => {
+              const willLike = !(actLikes[key] != null ? actLikes[key] : a.liked);
+              setActLikes(prev => ({ ...prev, [key]: willLike }));
+              // My reaction is a co-sign when I'm this athlete's own coach — same
+              // unified count, but flagged so it badges + can notify the athlete.
+              const coSigning = willLike && iAmAuthorsCoach;
+              setActCoSign(prev => { const next = { ...prev }; if (coSigning) next[key] = { name: bsMyName(), role: myRole }; else delete next[key]; return next; });
+              if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId, cosign: coSigning }); if (lk && lk.catch) lk.catch(() => {}); }
+            }} style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
             <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>↳ {(a.replies || 0) + comments.length}</button>
             <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, true)}>↗ Share</button>
             <span style={{ marginLeft: 'auto' }} />

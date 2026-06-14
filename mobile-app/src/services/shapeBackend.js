@@ -1825,6 +1825,11 @@ function communityPostFromRow(row) {
     coach: typeof metrics.coach === 'string' ? metrics.coach : '',
     program: typeof metrics.program === 'string' ? metrics.program : '',
     delta: typeof metrics.delta === 'string' ? metrics.delta : '',
+    // Coach co-sign: stamped by post_coach_cosign when one of the author's own
+    // coaches reacts ({name, role}); null until that happens. Drives the card badge.
+    cosign: (metrics.cosign && typeof metrics.cosign === 'object' && metrics.cosign.name)
+      ? { name: String(metrics.cosign.name), role: String(metrics.cosign.role || 'trainer') }
+      : null,
     repostOf: (metrics.repostOf && typeof metrics.repostOf === 'object') ? metrics.repostOf : null,
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
@@ -2378,7 +2383,7 @@ async function createCommunityPost({
   return { stored: 'supabase', data: communityPostFromRow(data) };
 }
 
-async function toggleCommunityLike({ postId } = {}) {
+async function toggleCommunityLike({ postId, cosign = false } = {}) {
   if (!state.user?.id) throw new Error('Sign in before liking posts.');
   if (!postId) throw new Error('Post id is required.');
   if (!supabase) return { stored: 'local', liked: true };
@@ -2390,6 +2395,18 @@ async function toggleCommunityLike({ postId } = {}) {
     .eq('user_id', state.user.id)
     .maybeSingle();
   if (existingError) throw existingError;
+
+  // Coach co-sign: a SECURITY DEFINER RPC that re-checks the caller is the post
+  // author's OWN coach, records the like (so the count stays one unified tally),
+  // stamps metrics.cosign so every viewer sees the badge, and notifies the
+  // athlete. Best-effort — falls through to a plain like if the migration isn't
+  // deployed yet, so the reaction (and the count) always works.
+  if (cosign) {
+    try {
+      const { error: csErr } = await supabase.rpc('post_coach_cosign', { p_post_id: postId, p_on: !existing });
+      if (!csErr) return { stored: 'supabase', liked: !existing, cosign: !existing };
+    } catch (e) { /* fall through to a plain like */ }
+  }
 
   if (existing) {
     const { error } = await supabase
