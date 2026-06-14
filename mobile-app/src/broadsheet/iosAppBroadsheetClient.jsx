@@ -10077,7 +10077,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const comments = actComments[key] || [];
     const cmtOpen = actCmtOpen === key;
     const typeLabel = a.real ? a.typeLabel : (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout');
-    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? `${a.distance} long run` : a.title);
+    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
     const cheer = a.real ? 'Cheer' : (a.kind === 'pr' ? 'Spot' : a.kind === 'run' ? 'Match' : 'Respect');
     const stats = a.real ? a.statsRow
       : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
