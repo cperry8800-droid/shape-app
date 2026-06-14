@@ -456,7 +456,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goTrain={goTrain} goEat={() => setTab('eat')} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => setShowCalendar(true)} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
@@ -1910,7 +1910,7 @@ function bsHomeLiveWeek(plan, t) {
   };
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {} }) {
   const t = useBS();
   const bsHomeProgram = useBSProgram();
   // Real current week, computed live so the home reflects today (not demo dates).
@@ -1972,6 +1972,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [goalsPage, setGoalsPage] = useStateBSC(false);
+  // Engine-driven top move — the signal engine's single highest-value action for
+  // the signed-in client today (check-in overdue · streak at risk · food gap ·
+  // goal slip · score drop). Honest: only a real flag from the live self record;
+  // null otherwise, and the plan-based moves below lead instead. {key, reason}.
+  const [engineFlag, setEngineFlag] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const S = (typeof window !== 'undefined') && window.ShapeSignals;
+        const E = (typeof window !== 'undefined') && window.DashSignals;
+        if (!S || !E || !E.evaluateClient || !S.selfRecord) return;
+        const rec = await S.selfRecord();
+        if (!on || !rec) return;
+        const r = E.evaluateClient(rec, new Date(), 'client') || {};
+        const top = (Array.isArray(r.flags) && r.flags.length) ? r.flags[0] : null;
+        setEngineFlag(top ? { key: top.key, reason: top.reason } : null);
+      } catch (e) { /* honest: no engine move */ }
+    })();
+    return () => { on = false; };
+  }, []);
   const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
   const [habitFlash, setHabitFlash] = useStateBSC(null); // { name, pts } — transient credit after checking a habit
   const habitFlashTimer = React.useRef(null);
@@ -2261,19 +2282,30 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     return <BSClientGoals onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
   }
 
-  // "Today" directive — ONE clear next move synthesized from the day's plan
-  // (workout → unlogged meals → habits → done). Only on today; other days are
-  // plan views, not "do this now". Each move carries its own quick CTA.
+  // "Today · your move" — ONE clear next move. The signal engine's top action
+  // leads when it has a real flag (the RIGHT move, not just the next chronological
+  // item); otherwise it synthesizes from the day's plan (workout → unlogged meals
+  // → habits → done). Only on today; other days are plan views. heroMealId lets the
+  // Meals glance show the targeted meal as "next" without a duplicate Log button.
   const todayDirective = (() => {
     if (selIdx !== todayIdx) return null;
     const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
+    const engineMove = engineFlag ? ({
+      checkin_overdue: { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT },
+      streak_broken:   { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN },
+      food_gap:        { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
+      goal_slip:       { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
+      score_drop:      { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
+    }[engineFlag.key]) : null;
     const todo = [];
+    if (engineMove) todo.push({ head: engineMove.head, sub: engineFlag.reason, cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal }));
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
     if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN });
     if (!todo.length) return { done: true, head: "You're all set today.", sub: 'Everything logged — nice work.', c: t.GREEN };
-    return { head: todo[0].label, cta: todo[0].cta, c: todo[0].c, sub: todo.length > 1 ? `${todo.length - 1} more on today's plan` : null };
+    const lead = todo[0];
+    return { head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c, sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null), heroMealId: lead.mealId || null };
   })();
 
   return (
@@ -2381,6 +2413,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       )}
 
+      {/* TODAY · YOUR MOVE — the single elevated hero. One right action for today:
+          the signal engine's top flag when it has one, else the plan's next move.
+          Everything below steps down a level (this is the only glowing plate). */}
+      {todayDirective && (
+        <BSPlate c={todayDirective.c} tick bracket pad="17px 18px 17px 24px" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
+          </div>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 24, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
+          {todayDirective.sub && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+          {todayDirective.cta && (
+            <button onClick={todayDirective.cta[1]} style={{ marginTop: 13, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+          )}
+        </BSPlate>
+      )}
+
       {/* NOW PLAYING — Shape Radio (moved above This week) */}
       <BSNowPlaying onOpen={goRadio} />
 
@@ -2420,28 +2469,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </div>
       </div>
 
-      {/* TODAY — the lead directive (one clear next move + a quick CTA), now
-          directly below the weekly calendar. */}
-      {todayDirective && (
-        <BSPlate c={todayDirective.c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `4px ${t.padX}px 0`, textAlign: 'left' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
-          </div>
-          <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{todayDirective.head}</div>
-          {todayDirective.sub && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
-          {todayDirective.cta && (
-            <button onClick={todayDirective.cta[1]} style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
-          )}
-        </BSPlate>
-      )}
-
-      {/* YOUR GOAL — compact featured goal, pinned right above the day's agenda */}
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSMeGoalCard compact onOpen={() => setGoalsPage(true)} />
-      </div>
-
-      <BSSection title={upNextLabel} />
+      {/* The day's plan beneath the move. The section header shows only on
+          non-today views — the "Your move" hero owns the single "Today" narrative. */}
+      {selIdx !== todayIdx && <BSSection title={upNextLabel} />}
 
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2491,7 +2521,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
               <span style={metaRight}>{_wkShortMeta}</span>
             </div>
-            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
               {selWorkout.title}
             </div>
             {_wkCompact.length > 0 && (
@@ -2522,7 +2552,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <span style={eyebrow(t.GREEN)}>Recovery · today</span>
               <span style={metaRight}>Rest day</span>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
               Active <span style={{ fontStyle: 'italic', color: t.GREEN }}>recovery.</span>
             </div>
             <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
@@ -2559,38 +2589,50 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <span style={eyebrow(teal)}>Meals · {mealsLogged}/{selMeals.length} logged</span>
               <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Nutri plan</span>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
               {mealsDayWord} <span style={{ fontStyle: 'italic', color: teal }}>meals.</span>
             </div>
-            <div style={{ marginTop: 6 }}>
-              {selMeals.map((m, i2, arr) => {
-                const logged = !!mealLogged[m.id];
-                return (
-                  <div key={m.id || `meal-${i2}`} style={{ padding: '12px 0', borderBottom: i2 === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+            {/* GLANCE — the next meal only; the rest live in Eat (one tap). Logging
+                the next meal is the hero's job, so no duplicate Log button when the
+                hero already targets it. */}
+            {(() => {
+              const next = selMeals.find(m => !mealLogged[m.id]) || selMeals[0];
+              const more = selMeals.length - 1;
+              const logged = !!mealLogged[next.id];
+              const isHeroTarget = !!(todayDirective && todayDirective.heroMealId === next.id);
+              return (
+                <>
+                  <div style={{ marginTop: 6, padding: '11px 0 12px', borderBottom: more > 0 ? `1px solid ${t.HAIR}` : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{slotLabel(m)} · {fmtAt(mealMinutes(m))}</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{logged ? 'Latest' : 'Next'} · {slotLabel(next)} · {fmtAt(mealMinutes(next))}</span>
                       {logged && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>✓ Logged</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 5 }}>
-                      <div onClick={() => setPreviewMeal(m)} style={{ cursor: 'pointer', minWidth: 0, flex: 1 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, lineHeight: 1.05, letterSpacing: '-0.02em', color: t.INK, opacity: logged ? 0.55 : 1 }}>{m.title}</div>
-                        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.sub}</div>
+                      <div onClick={() => setPreviewMeal(next)} style={{ cursor: 'pointer', minWidth: 0, flex: 1 }}>
+                        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.05, letterSpacing: '-0.02em', color: t.INK, opacity: logged ? 0.55 : 1 }}>{next.title}</div>
+                        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{next.sub}</div>
                       </div>
-                      {logged
-                        ? <button onClick={() => setMealLogged((prev) => ({ ...prev, [m.id]: false }))} style={{ ...pillOutline, padding: '8px 13px' }}>✓ Logged</button>
-                        : <button onClick={() => { setLoggingMealId(m.id); setShowLogMeal(true); }} style={{ ...pillFilled, padding: '8px 13px' }}>Log →</button>}
+                      {!logged && (isHeroTarget
+                        ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, border: `1px solid ${teal}`, borderRadius: 999, padding: '6px 11px' }}>Next ↑</span>
+                        : <button onClick={() => { setLoggingMealId(next.id); setShowLogMeal(true); }} style={{ ...pillFilled, padding: '8px 13px' }}>Log →</button>)}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 4, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  {more > 0 && (
+                    <button onClick={() => goEat()} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '11px 0 1px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{more} more meal{more > 1 ? 's' : ''} today</span>
+                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Open Eat →</span>
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+            <div style={{ marginTop: 8, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               {(() => {
                 // Credit the real assigning nutritionist when a live plan exists.
                 const who = (livePlan && livePlan.meals && livePlan.meals.coach) || 'Dr. Maya Patel';
                 return <Person init={who.replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase() || 'M'} name={who} role="Nutritionist" fill={t.AMBER} />;
               })()}
-              <button onClick={() => setPreviewMeal(selMeals.find(m => !mealLogged[m.id]) || selMeals[0])} style={pillOutline}>Preview →</button>
+              <button onClick={() => goEat()} style={pillOutline}>Full plan →</button>
             </div>
           </AgendaCard>
         ) : null;
@@ -2615,7 +2657,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {done}/{selDayHabits.length} done</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
               Daily <span style={{ fontStyle: 'italic', color: t.GREEN }}>habits.</span>
             </div>
             {/* Transient credit after checking a habit — the points land, the row leaves */}
@@ -2631,12 +2673,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                 All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today. ✓
               </div>
             ) : (
-              <div style={{ marginTop: 12 }}>
-                {openHabits.map((h, i, arr) => {
+              <div style={{ marginTop: 11 }}>
+                {/* Compact to one tight group — first 3 open habits, check off inline;
+                    the full list lives in the Habits view via "View →". */}
+                {openHabits.slice(0, 3).map((h, i, arr) => {
                   const avoid = h.type === 'avoid';
                   const pillC = avoid ? t.RUST : t.GREEN;
                   return (
-                    <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 24px', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                    <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 24px', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: (i === arr.length - 1 && openHabits.length <= 3) ? 0 : `1px solid ${t.HAIR}` }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
                       <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
                       <div style={{ minWidth: 0 }}>
@@ -2648,6 +2692,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     </div>
                   );
                 })}
+                {openHabits.length > 3 && (
+                  <div style={{ padding: '8px 0 1px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>+ {openHabits.length - 3} more · view all →</div>
+                )}
               </div>
             )}
             <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -2672,6 +2719,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         </BSPlate>
       )}
 
+      {/* YOUR GOAL — long-term pace, below today's actions (today's move first) */}
+      <div style={{ padding: `0 ${t.padX}px 12px` }}>
+        <BSMeGoalCard compact onOpen={() => setGoalsPage(true)} />
+      </div>
+
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2680,7 +2732,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         const weekTotals = [
           { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
             history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
-          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true,
+          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
             series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
         ];
         // These are hardcoded demo figures (not wired to real rollups yet) — show
@@ -2705,7 +2757,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
                     <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
                       <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 2 }} />
                     </div>
-                    <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>
+                    {s.goalFrame
+                      ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.goalFrame}</div>
+                      : <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>}
                   </BSPlate>
                 );
               })}
