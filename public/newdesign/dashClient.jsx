@@ -402,7 +402,7 @@ function ClientDashboardPage() {
         <DashSidebar navItems={clientNavItems("today")} payoutCard={live && score
           ? { label: "SHAPE SCORE", amount: hero.total.toLocaleString(), sub: hero.tier + (hero.next ? " · " + hero.toNext + " to " + hero.next : "") }
           : clientPayoutCard} />
-        <main style={{ padding: "36px 44px 80px", minWidth: 0 }}>
+        <main style={{ padding: "12px 44px 80px", minWidth: 0 }}>
           {/* Greeting — real date, not a hardcoded one */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
             <div>
