@@ -2329,6 +2329,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         const ordered = order.map(k => all.find(i => i.label === k)).filter(Boolean);
         const extras = all.filter(i => !order.includes(i.label));
         const out = [...ordered, ...extras].filter(it => !(tickerPrefs.hidden || []).includes(it.label));
+        // Signed in with no live metrics yet → no ticker (BSTicker hides on []).
+        // The demo ticker numbers are the signed-out preview only.
+        if (bsHomeSignedIn && !(ticker && (ticker.cal != null || ticker.protein_g != null || ticker.weight_lb != null || ticker.sleep_hours != null || ticker.hrv_ms != null || ticker.resting_hr != null)) && !tkHab) return [];
         return out.length ? out : all;
       })()} />
 

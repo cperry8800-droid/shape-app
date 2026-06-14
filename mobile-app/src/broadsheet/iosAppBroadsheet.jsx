@@ -928,6 +928,7 @@ function BSHeadlineNumber({ sign = '', value, unit, color, size }) {
 function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
   const t = useBS();
   const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) return null; // no metrics → no ticker strip (e.g. signed-in, no live data)
   return (
     <div style={{
       position: 'relative',
