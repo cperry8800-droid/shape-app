@@ -1553,7 +1553,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
           <div key={l}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span>{l}</span><span>/ {goal}</span></div>
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: c }}>{v}</div>
-            <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
+            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
           </div>
         ))}
       </div>
@@ -1571,9 +1571,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
           <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · 12:40 PM</div>
         </div>
         <div style={{ padding: `26px ${t.padX}px 0` }}>
-          <div style={{ borderRadius: 16, border: `1px solid ${teal}40`, background: `linear-gradient(155deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 16 }}>
-            <DayTotals compact />
-          </div>
+          <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px"><DayTotals compact /></BSPlate>
         </div>
         <div style={{ padding: `22px ${t.padX}px 8px` }}>
           <button onClick={onClose} style={{ ...primaryBtn, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '0', textTransform: 'none' }}>Done →</button>
@@ -1599,14 +1597,21 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>620 planned · 48P · 72C · 14F</div>
       </div>
 
-      {/* ONE TAP */}
+      {/* ONE TAP — primary action on a clipped instrument plate (teal-filled) */}
       <div style={{ padding: `14px ${t.padX}px 4px` }}>
-        <button onClick={doLog} style={{ width: '100%', textAlign: 'left', border: 0, borderRadius: 14, background: teal, color: '#04201d', padding: '15px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
-            <span style={{ display: 'block', marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+        <button onClick={doLog} style={{ position: 'relative', width: '100%', textAlign: 'left', border: 0, background: 'transparent', padding: 0, cursor: 'pointer' }}>
+          <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', background: teal }} />
+          <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'rgba(4,32,29,0.45)' }} />
+          <span aria-hidden style={{ position: 'absolute', left: 9, top: 15, width: 6, height: 6, borderRadius: 1.5, background: '#04201d', boxShadow: '0 0 9px rgba(4,32,29,0.5)', animation: 'bsPlatePulse 2.6s ease-in-out infinite' }} />
+          <span aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: '1.5px solid rgba(4,32,29,0.6)', borderBottom: '1.5px solid rgba(4,32,29,0.6)' }} />
+          <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '15px 16px 15px 22px', color: '#04201d' }}>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.65 }}>One tap</span>
+              <span style={{ display: 'block', marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em' }}>Ate it as planned</span>
+            </span>
+            <span style={{ fontSize: 20, fontWeight: 700 }}>✓</span>
           </span>
-          <span style={{ fontSize: 20, fontWeight: 700 }}>✓</span>
+          <style>{`@keyframes bsPlatePulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}</style>
         </button>
       </div>
 
@@ -1622,7 +1627,8 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         {[['adjust', 'Adjust', '✎'], ['photo', 'Photo', '⊡'], ['search', 'Search', '⌕'], ['voice', 'Voice', '●']].map(([k, label, glyph]) => {
           const on = mode === k;
           return (
-            <button key={k} onClick={() => setMode(k)} style={{ padding: '12px 6px', borderRadius: 12, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}14` : 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <button key={k} onClick={() => setMode(k)} style={{ position: 'relative', overflow: 'hidden', padding: '12px 6px', borderRadius: 5, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}14` : 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: teal }} />}
               <span style={{ fontSize: 14, color: on ? teal : t.INK50 }}>{glyph}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>{label}</span>
             </button>
@@ -1646,7 +1652,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
           <div style={{ marginTop: 4 }}>
             {ings.map((x, i) => (
               <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === ings.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <button onClick={() => toggle(i)} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 6, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
+                <button onClick={() => toggle(i)} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
                 <div style={{ flex: 1, minWidth: 0, opacity: x.on ? 1 : 0.4 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.name}</div>
                   <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{x.qty} · {Math.round(x.kcal * portion)} kcal · {Math.round(x.p * portion)}P</div>
@@ -1778,11 +1784,11 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Felt a bit hungry still · swapped rice for sweet potato…" style={{ width: '100%', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, outline: 'none', resize: 'vertical' }} />
       </div>
 
-      {/* THIS MEAL summary */}
+      {/* THIS MEAL summary — instrument plate */}
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
+        <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px">
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <BSEyebrow color={teal}>This meal</BSEyebrow>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>This meal</span>
             <span><span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK }}>{kcal}</span> <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, textTransform: 'uppercase', letterSpacing: '0.1em' }}>kcal</span></span>
           </div>
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -1794,7 +1800,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
             ))}
           </div>
           <DayTotals />
-        </div>
+        </BSPlate>
       </div>
 
       <div style={{ height: 12 }} />
@@ -2358,7 +2364,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
         <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
       </div>
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, borderTop: `2px solid ${t.INK}`, paddingTop: 8 }}>
+        <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 8 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
           {weekDates.map((date, idx) => {
             const on    = idx === selIdx;
             const today = idx === todayIdx;
@@ -3377,18 +3384,18 @@ function BSMealLogged({ kcal = 0, p = 0, time = '12:40 PM', onDone = () => {}, o
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {p}P · {time}</div>
       </div>
       <div style={{ padding: `26px ${t.padX}px 0` }}>
-        <div style={{ borderRadius: 16, border: `1px solid ${teal}40`, background: `linear-gradient(155deg, ${teal}14, ${t.PAPER2} 72%), ${t.PAPER2}`, padding: 16 }}>
+        <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px">
           <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Day so far</div>
           <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {[['Calories', dayCal, CAL_GOAL, teal], ['Protein', dayP, P_GOAL, t.RUST]].map(([l, v, goal, c]) => (
               <div key={l}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}><span>{l}</span><span>/ {goal}</span></div>
                 <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: c }}>{v}</div>
-                <div style={{ marginTop: 6, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
+                <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ width: `${Math.min(100, (v / goal) * 100)}%`, height: '100%', background: c }} /></div>
               </div>
             ))}
           </div>
-        </div>
+        </BSPlate>
       </div>
       <div style={{ padding: `22px ${t.padX}px 8px` }}>
         <button onClick={onDone} style={{ width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700 }}>Done →</button>
