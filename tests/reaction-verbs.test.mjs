@@ -6,9 +6,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   BS_REACTION_VERBS,
+  BS_REACTION_EXPRESSIONS,
   bsActivityBucket,
   bsReactionType,
   bsReactionVerb,
+  bsReactionPalette,
 } from "../mobile-app/src/services/reactionVerbs.mjs";
 
 test("verb table — every bucket maps to the spec'd verb", () => {
@@ -81,4 +83,25 @@ test("end-to-end: each preview card type shows the right verb", () => {
 test("bsReactionVerb falls back to Props for an unknown bucket key", () => {
   assert.equal(bsReactionVerb("totally-unknown"), "Props");
   assert.equal(bsReactionVerb(undefined), "Props");
+});
+
+test("phase 2 — expressive palette: the contextual verb leads, then the universals", () => {
+  assert.deepEqual(BS_REACTION_EXPRESSIONS, ["Fire", "Props", "Crushing it", "Don't stop"]);
+  // a run leads with "Respect", then the universals
+  assert.deepEqual(bsReactionPalette("Respect"), ["Respect", "Fire", "Props", "Crushing it", "Don't stop"]);
+  // a PR leads with "Beast"
+  assert.deepEqual(bsReactionPalette("Beast"), ["Beast", "Fire", "Props", "Crushing it", "Don't stop"]);
+});
+
+test("phase 2 — the default/fallback verb (Props) is never duplicated in the palette", () => {
+  // a sport/unknown card's default IS "Props" — it leads once, not twice
+  const p = bsReactionPalette(bsReactionVerb("sport")); // Props
+  assert.deepEqual(p, ["Props", "Fire", "Crushing it", "Don't stop"]);
+  assert.equal(p.filter((w) => w === "Props").length, 1);
+});
+
+test("phase 2 — every palette pick is still text (no emoji)", () => {
+  for (const w of bsReactionPalette("Beast")) {
+    assert.match(w, /^[A-Za-z' ]+$/); // letters, apostrophe, space only
+  }
 });

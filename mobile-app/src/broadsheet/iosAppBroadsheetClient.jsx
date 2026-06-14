@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
-import { bsReactionType, bsReactionVerb } from '../services/reactionVerbs.mjs';
+import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -10005,6 +10005,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [actDetailsOpen, setActDetailsOpen] = useStateBSC({}); // key → secondary-stat disclosure open
   const [sendPostFor, setSendPostFor] = useStateBSC(null); // ✉ on a feed post → the send-to-DM picker
   const [actCmtDraft, setActCmtDraft] = useStateBSC('');
+  // Phase 2 — long-press expressive palette. `actExpr` is MY chosen word per card
+  // (key → 'Fire' | 'Props' | …); it re-labels my reaction but stays the SAME
+  // unified like (the count never forks). `exprOpenKey` = the card whose palette
+  // is open. The refs detect a press-and-hold so it doesn't also fire the tap.
+  const [actExpr, setActExpr] = useStateBSC({});
+  const [exprOpenKey, setExprOpenKey] = useStateBSC(null);
+  const lpTimerRef = React.useRef(null);
+  const lpFiredRef = React.useRef(false);
   // Coach co-sign: my reaction counts heavier when I'm the author's OWN coach.
   // `actCoSign` is my own optimistic co-sign per card (key → {name, role});
   // `coachClientIds` is the set of MY client user-ids (only when I'm a coach), so
@@ -10204,6 +10212,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
     const coSignIsMine = !!myCoSign;
     const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
+    // Phase 2 — the verb shown on the button is MY chosen expression when I've
+    // reacted (long-press → pick), else the activity-default verb. `applyReaction`
+    // is the single path: tapping (expr=null) toggles the like; picking an
+    // expression always reacts + re-labels — both stay ONE unified count.
+    const myExpr = liked ? (actExpr[key] || null) : null;
+    const paletteOpen = exprOpenKey === key;
+    const palette = bsReactionPalette(cheer);
+    const applyReaction = (expr) => {
+      const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
+      const willLike = expr != null ? true : !wasLiked;
+      setActLikes(prev => ({ ...prev, [key]: willLike }));
+      setActExpr(prev => { const next = { ...prev }; if (willLike && expr != null) next[key] = expr; else if (!willLike) delete next[key]; return next; });
+      const coSigning = willLike && iAmAuthorsCoach;
+      setActCoSign(prev => { const next = { ...prev }; if (coSigning) next[key] = { name: bsMyName(), role: myRole }; else if (!willLike) delete next[key]; return next; });
+      // Persist only when the LIKE state actually flips (a new like / an unlike) —
+      // changing just the expression word is a local re-label, not a new tally.
+      if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId, cosign: coSigning }); if (lk && lk.catch) lk.catch(() => {}); }
+    };
     return (
       <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 2, background: tc }} />
@@ -10277,21 +10303,34 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
             </div>
           )}
+          {/* phase 2 — expressive palette (opens on a press-and-hold of the
+              reaction). Picking a word re-labels MY reaction but stays the same
+              unified like (one count). All text, no emoji. */}
+          {paletteOpen && (
+            <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
+              {palette.map((w) => {
+                const on = liked && (myExpr || cheer) === w;
+                return (
+                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>↑ {w}</button>
+                );
+              })}
+              <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
+            </div>
+          )}
           {/* actions — the reaction verb primary/heaviest; Comment + Share
               secondary; Send + Repost de-emphasized (same pill/icon styles) */}
           {(() => {
             const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 27, boxSizing: 'border-box', padding: grow ? '0 11px' : 0, width: grow ? 'auto' : 27, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
             return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12 }}>
-            <button onClick={() => {
-              const willLike = !(actLikes[key] != null ? actLikes[key] : a.liked);
-              setActLikes(prev => ({ ...prev, [key]: willLike }));
-              // My reaction is a co-sign when I'm this athlete's own coach — same
-              // unified count, but flagged so it badges + can notify the athlete.
-              const coSigning = willLike && iAmAuthorsCoach;
-              setActCoSign(prev => { const next = { ...prev }; if (coSigning) next[key] = { name: bsMyName(), role: myRole }; else delete next[key]; return next; });
-              if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId, cosign: coSigning }); if (lk && lk.catch) lk.catch(() => {}); }
-            }} style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
+            <button
+              onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
+              onPointerUp={() => clearTimeout(lpTimerRef.current)}
+              onPointerLeave={() => clearTimeout(lpTimerRef.current)}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
+              title="Hold for more reactions"
+              style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>↑ {myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</button>
             <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>↳ {(a.replies || 0) + comments.length}</button>
             <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, true)}>↗ Share</button>
             <span style={{ marginLeft: 'auto' }} />

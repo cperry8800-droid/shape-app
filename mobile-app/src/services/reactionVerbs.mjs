@@ -55,3 +55,16 @@ export function bsReactionType(raw, opts) {
 export function bsReactionVerb(type) {
   return BS_REACTION_VERBS[type] || BS_REACTION_VERBS.sport;
 }
+
+// Phase 2 — the long-press expressive palette. A press-and-hold on the reaction
+// opens these alternates; picking one re-labels YOUR reaction but stays the SAME
+// unified like (the count never forks). All TEXT, no emoji.
+export const BS_REACTION_EXPRESSIONS = ['Fire', 'Props', 'Crushing it', "Don't stop"];
+
+// The palette for a given card: its activity-default verb leads (the contextual
+// choice), followed by the universal expressions with the default de-duped out.
+export function bsReactionPalette(defaultVerb) {
+  const lead = String(defaultVerb || '').trim();
+  const rest = BS_REACTION_EXPRESSIONS.filter((w) => w.toLowerCase() !== lead.toLowerCase());
+  return lead ? [lead, ...rest] : rest.slice();
+}

@@ -3,7 +3,7 @@
 // Renders: strength PR (+ coach co-sign), run, swim, rest day, cycle — to confirm
 // each shows the right verb, ONE unified count, and the unchanged card look.
 import { writeFileSync } from "node:fs";
-import { bsReactionType, bsReactionVerb } from "../mobile-app/src/services/reactionVerbs.mjs";
+import { bsReactionType, bsReactionVerb, bsReactionPalette } from "../mobile-app/src/services/reactionVerbs.mjs";
 
 // Dark feed palette (the app's default feed look).
 const T = {
@@ -24,7 +24,7 @@ const CARDS = [
     body: "Block 3 paying off. Felt like there was a 4th in the tank.", typeLabel: "Strength",
     title: "Deadlift — new PR", hero: ["245 lb", "Load"], delta: "+10 lb on May best",
     sec: [["Top set", "1×3"], ["Est. 1RM", "268 lb"]], kudos: 41, replies: 6,
-    cosign: { name: "Dana Lewis", role: "trainer" } },
+    cosign: { name: "Dana Lewis", role: "trainer" }, paletteOpen: true, picked: "Fire" },
   { kind: "run", who: "Drew Oyelaran", role: "Client", city: "East River Loop · NYC", tier: "LEGEND", ago: "34m",
     body: "Last long run before taper. Negative split the back 6.", typeLabel: "Run", activityType: "run",
     title: "Long run", hero: ["18.2 mi", "Distance"], route: true,
@@ -82,8 +82,12 @@ const card = (a) => {
       ${a.route ? `<div style="position:relative;margin-top:9px;height:80px;border-radius:11px;overflow:hidden;border:1px solid ${tc}33;background:radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)">
         <span style="position:absolute;left:9px;bottom:7px;font-family:${T.mono};font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.45);padding:2px 5px;border-radius:3px">GPS route</span></div>` : ""}
       <div style="margin-top:11px;font-family:${T.mono};font-size:8px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${T.muted}">▸ Session details <span style="opacity:.5">(${a.sec.map((s) => s[0]).join(" · ")})</span></div>
+      ${a.paletteOpen ? `<div style="display:flex;align-items:center;gap:6px;margin-top:11px;overflow-x:auto">
+        ${bsReactionPalette(verb).map((w) => { const on = w === a.picked; return `<span style="flex-shrink:0;height:28px;padding:0 12px;display:inline-flex;align-items:center;border-radius:999px;background:${on ? tc : tc + "12"};color:${on ? "#fff" : tc};border:1px solid ${on ? tc : tc + "66"};font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase">↑ ${w}</span>`; }).join("")}
+        <span style="flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid ${T.hair};color:${T.muted};font-family:${T.mono};font-size:11px;font-weight:800">×</span>
+      </div>` : ""}
       <div style="display:flex;align-items:center;gap:7px;margin-top:12px">
-        <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:999px;background:${tc}14;color:${tc};border:1px solid ${tc};font-family:${T.mono};font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">↑ ${verb} · ${count}</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:999px;background:${a.picked ? tc : tc + "14"};color:${a.picked ? "#fff" : tc};border:1px solid ${tc};font-family:${T.mono};font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">↑ ${a.picked || verb} · ${count + (a.picked ? 1 : 0)}</span>
         <span style="display:inline-flex;align-items:center;justify-content:center;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">↳ ${a.replies}</span>
         <span style="display:inline-flex;align-items:center;justify-content:center;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">↗ Share</span>
         <span style="margin-left:auto"></span>
@@ -108,9 +112,9 @@ h1{color:${T.ink};font-family:${T.serif};font-weight:800;letter-spacing:-.02em;f
 .legend{color:${T.muted};font-family:${T.mono};font-size:11px;white-space:pre;line-height:1.7;margin:20px auto 0;max-width:760px;border-top:1px solid ${T.hair};padding-top:14px}</style></head>
 <body>
 <div style="max-width:760px;margin:0 auto"><h1>Feed reactions · activity-mapped verb, one unified count</h1>
-<p class="sub">strength PR · run · swim · rest day · cycle — same card look, verb is display-only</p></div>
+<p class="sub">strength PR · run · swim · rest day · cycle — same card look, verb is display-only · the PR card shows the held-open palette</p></div>
 <div class="grid">${CARDS.map(card).join("")}</div>
-<div class="legend">${CARDS.map(verbRow).join("\n")}\n\nUnified count: the verb word changes by activity; the number is ONE tally (powers profile totals + weekly most-reacted).\nCoach co-sign: a solid role-colored badge (heavier than peer reactions); eligible to notify the athlete.</div>
+<div class="legend">${CARDS.map(verbRow).join("\n")}\n\nUnified count: the verb word changes by activity; the number is ONE tally (powers profile totals + weekly most-reacted).\nCoach co-sign: a solid role-colored badge (heavier than peer reactions); eligible to notify the athlete.\nPhase 2 (PR card, palette open): press-and-hold the reaction → pick a word [contextual verb · ${bsReactionPalette('').join(' · ')}]. Picking re-labels YOUR reaction (here: Fire) but stays the SAME one like (41 → 42). All text, no emoji.</div>
 </body></html>`;
 
 writeFileSync("shape-feed-reactions-preview.html", html);
