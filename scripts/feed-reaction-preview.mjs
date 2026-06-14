@@ -35,10 +35,11 @@ const AV = (name, size = 22) => {
 
 // Crisp geometric action icons (mirror bsFeedIcon in the app) — less-analog
 // replacements for ↑ ↳ ↗ ✉ ⇄. currentColor stroke inherits the pill tint.
-const ICON = (name, size = 12) => {
-  const o = `width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter" style="display:block;flex-shrink:0"`;
+const ICON = (name, size = 12, solid = false) => {
+  const o = `width="${size}" height="${size}" viewBox="0 0 16 16" fill="${name === "heart" && solid ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="${name === "heart" ? "round" : "miter"}" style="display:block;flex-shrink:0"`;
   const d = {
     react: `<path d="M8 13.5V3.5"/><path d="M3.8 7.7L8 3.5l4.2 4.2"/>`,
+    heart: `<path d="M8 13.3 2.9 8.2A3 3 0 0 1 8 4.9 3 3 0 0 1 13.1 8.2Z"/>`,
     comment: `<path d="M2.3 3.2h11.4v7H6.4L3.8 12.6V10.2H2.3z"/>`,
     share: `<circle cx="12" cy="3.4" r="1.7"/><circle cx="4" cy="8" r="1.7"/><circle cx="12" cy="12.6" r="1.7"/><path d="M10.5 4.3 5.5 7.1M5.5 8.9l5 2.8"/>`,
     send: `<path d="M14.5 1.8 1.6 7.2l4.8 1.7 1.7 4.9z"/><path d="M14.5 1.8 6.4 8.9"/>`,
@@ -157,6 +158,25 @@ h1{color:${T.ink};font-family:${T.serif};font-weight:800;letter-spacing:-.02em;f
 <div class="grid">${CARDS.map(card).join("")}</div>
 <div style="max-width:760px;margin:30px auto 0"><p class="sub" style="margin:0 0 12px">↓ press-and-hold the reaction → the palette opens (then collapses on pick)</p>
 <div style="width:360px">${card({ ...CARDS[0], paletteOpen: true, picked: "Fire" })}</div></div>
+<div style="max-width:760px;margin:34px auto 0;border-top:1px solid ${T.hair};padding-top:18px"><p class="sub" style="margin:0 0 14px">same geometric icons on the other feed rows (text-bubble posts + profile feeds) — heart for like</p>
+<div style="display:flex;gap:40px;flex-wrap:wrap">
+  <div><div style="font-family:${T.mono};font-size:9px;color:${T.muted};letter-spacing:.1em;text-transform:uppercase;margin-bottom:9px">Text-bubble post</div>
+    <div style="display:flex;align-items:center;gap:16px;color:${T.muted};font-family:${T.mono};font-size:11px">
+      <span style="display:inline-flex;align-items:center;gap:4px;color:${T.tealb || "#34d6c5"}">${ICON("heart", 13, true)}<span>24</span></span>
+      <span style="display:inline-flex;align-items:center;gap:4px">${ICON("comment", 13)}<span>5</span></span>
+      <span style="display:inline-flex">${ICON("send", 13)}</span>
+      <span style="display:inline-flex">${ICON("share", 13)}</span>
+      <span style="display:inline-flex">${ICON("repost", 13)}</span>
+    </div></div>
+  <div><div style="font-family:${T.mono};font-size:9px;color:${T.muted};letter-spacing:.1em;text-transform:uppercase;margin-bottom:9px">Profile feed (pills)</div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <span style="display:inline-flex;align-items:center;gap:5px;height:27px;padding:0 10px;border-radius:999px;border:1px solid #34d6c5b3;background:#34d6c51f;color:#34d6c5;font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">${ICON("heart", 12, true)}<span>24</span></span>
+      <span style="display:inline-flex;align-items:center;gap:5px;height:27px;padding:0 10px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">${ICON("comment", 12)}<span>5</span></span>
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("send", 13)}</span>
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("share", 13)}</span>
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("repost", 13)}</span>
+    </div></div>
+</div></div>
 <div class="legend">${CARDS.map(verbRow).join("\n")}\n\nUnified count: the verb word changes by activity; the number is ONE tally (powers profile totals + weekly most-reacted).\nCoach co-sign: a solid role-colored badge (heavier than peer reactions); eligible to notify the athlete.\nPhase 2 — HOLD to reveal: by default ONLY the reaction button shows. Press-and-hold opens the palette [contextual verb · ${bsReactionPalette('').join(' · ')}]; picking re-labels YOUR reaction (here Fire) but stays the SAME one like (41 → 42), then the palette closes. All text, no emoji.</div>
 </body></html>`;
 

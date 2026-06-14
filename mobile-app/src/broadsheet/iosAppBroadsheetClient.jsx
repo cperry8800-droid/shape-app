@@ -7178,12 +7178,12 @@ function BSPostActions({ post, c, INK, BG, onReposted }) {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, paddingTop: 10, borderTop: `1px solid ${bsTHexA(ink, 0.1)}` }}>
-        <button onClick={doLike} style={{ ...pill(lk.on), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>♥{lk.n ? ` ${lk.n}` : ''}</button>
-        <button onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={{ ...pill(openC), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>↳{cmts.length ? ` ${cmts.length}` : ''}</button>
+        <button aria-label="Like" onClick={doLike} style={{ ...pill(lk.on), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>{bsFeedIcon('heart', 12, lk.on)}{lk.n ? <span>{lk.n}</span> : null}</button>
+        <button aria-label="Comment" onClick={() => { if (!real) { guard(); return; } setOpenC(true); }} style={{ ...pill(openC), height: 27, boxSizing: 'border-box', flexShrink: 0 }}>{bsFeedIcon('comment', 12)}{cmts.length ? <span>{cmts.length}</span> : null}</button>
         <span style={{ marginLeft: 'auto' }} />
-        <button aria-label="Send privately" onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>✉</button>
-        <button aria-label="Share" onClick={() => bsSharePostExternal(post)} style={iconPill}>↗</button>
-        <button aria-label="Repost" disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>⇄</button>
+        <button aria-label="Send privately" onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>{bsFeedIcon('send', 13)}</button>
+        <button aria-label="Share" onClick={() => bsSharePostExternal(post)} style={iconPill}>{bsFeedIcon('share', 13)}</button>
+        <button aria-label="Repost" disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>{bsFeedIcon('repost', 13)}</button>
       </div>
       {openC && <BSPostCommentsSheet post={post} comments={cmts} onAdded={(cm) => setCmts(prev => [...prev, cm])} onClose={() => setOpenC(false)} c={accent} INK={ink} BG={BG} />}
       {openS && <BSPostSendSheet post={post} onClose={() => setOpenS(false)} c={accent} INK={ink} BG={BG} />}
@@ -9551,11 +9551,13 @@ function BSNoraProfile({ onClose }) {
 // ↑ ↳ ↗ ✉ ⇄ for a less-analog, instrument look). Monochrome, square caps, and
 // `currentColor` stroke so each inherits its pill's tint (tier when active,
 // muted otherwise). One helper, sized per call.
-function bsFeedIcon(name, size = 12) {
+function bsFeedIcon(name, size = 12, solid = false) {
   const p = { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'square', strokeLinejoin: 'miter', 'aria-hidden': true, style: { display: 'block', flexShrink: 0 } };
   switch (name) {
     case 'react':   // boost — sharp upward arrow
       return <svg {...p}><path d="M8 13.5V3.5" /><path d="M3.8 7.7L8 3.5l4.2 4.2" /></svg>;
+    case 'heart':   // like — geometric heart (filled when liked)
+      return <svg {...p} fill={solid ? 'currentColor' : 'none'} strokeLinejoin="round"><path d="M8 13.3 2.9 8.2A3 3 0 0 1 8 4.9 3 3 0 0 1 13.1 8.2Z" /></svg>;
     case 'comment': // squared speech plate w/ tail
       return <svg {...p}><path d="M2.3 3.2h11.4v7H6.4L3.8 12.6V10.2H2.3z" /></svg>;
     case 'share':   // 3-node share graph
@@ -10157,11 +10159,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: right ? 'row-reverse' : 'row', alignItems: 'center', gap: 16, marginTop: 6, padding: right ? `0 ${AV_OFFSET}px 0 0` : `0 0 0 ${AV_OFFSET}px`, fontFamily: t.MONO, fontSize: 11, color: muted }}>
-          <button onClick={() => like(p)} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>♥ {p.hearts}</button>
-          <button onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>↳ {replyCount}</button>
-          <button aria-label="Send post" onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>✉</button>
-          <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>↗</button>
-          <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ background: 'transparent', border: 0, color: muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>⇄</button>
+          <button aria-label="Like" onClick={() => like(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: p.liked ? (t.isLight ? '#c0392b' : '#ff6b6b') : muted, fontFamily: 'inherit', fontSize: 'inherit', cursor: 'pointer', padding: 0 }}>{bsFeedIcon('heart', 13, !!p.liked)}<span>{p.hearts}</span></button>
+          <button aria-label="Comment" onClick={() => openActComments(p.id, actCmtOpen === p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 0, color: actCmtOpen === p.id ? TEALB : muted, fontFamily: 'inherit', fontSize: 'inherit', fontWeight: actCmtOpen === p.id ? 800 : 400, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('comment', 13)}<span>{replyCount}</span></button>
+          <button aria-label="Send post" onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
+          <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
+          <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
         </div>
         {actCmtOpen === p.id && (
           <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
@@ -10701,8 +10703,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                   {unreadBadge('ch:' + ch.id)}
-                  <button onClick={() => { if (isSample) { window.__bsToast?.('Sample channel — share real ones.', 'info'); return; } setSendPostFor({ channel: { id: ch.id, name: ch.name, memberCount: ch.memberCount || 0 } }); }} aria-label="Send channel to a member" title="Send to a member" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>✉</button>
-                  <button onClick={() => bsSharePostExternal({ who: '', title: `Join #${ch.name} on Shape`, body: `${ch.memberCount || 0} members`, postId: null })} aria-label="Share channel" title="Share" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>↗</button>
+                  <button onClick={() => { if (isSample) { window.__bsToast?.('Sample channel — share real ones.', 'info'); return; } setSendPostFor({ channel: { id: ch.id, name: ch.name, memberCount: ch.memberCount || 0 } }); }} aria-label="Send channel to a member" title="Send to a member" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('send', 12)}</button>
+                  <button onClick={() => bsSharePostExternal({ who: '', title: `Join #${ch.name} on Shape`, body: `${ch.memberCount || 0} members`, postId: null })} aria-label="Share channel" title="Share" style={{ width: 22, height: 22, border: 0, background: 'transparent', color: muted, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{bsFeedIcon('share', 12)}</button>
                   <button onClick={() => pinChannelNow(ch)} aria-label={ch.pinned ? 'Unpin' : 'Pin'} title={ch.pinned ? 'Unpin' : 'Pin to top'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, opacity: ch.pinned ? 1 : 0.35 }}><PinIcon filled={ch.pinned} size={16} /></button>
                   {ch.isHost && !isSample && <button onClick={() => { setAddMemberFor(ch); setMemberQuery(''); setMemberResults([]); }} aria-label="Add member" title="Add member" style={{ width: 24, height: 24, borderRadius: 999, background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, lineHeight: 1, cursor: 'pointer', padding: 0 }}>+</button>}
                   <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ padding: '5px 12px', borderRadius: 999, background: ch.joined ? 'transparent' : TEAL, color: ch.joined ? cardInk : '#031f1c', border: ch.joined ? `1px solid ${hair}` : 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{ch.joined ? 'Open' : 'Join'}</button>
