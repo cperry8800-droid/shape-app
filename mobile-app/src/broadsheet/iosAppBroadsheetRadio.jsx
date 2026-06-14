@@ -98,10 +98,14 @@ function makeRadioTrackPayload(track) {
 const BSRadioContext = createContextBR(null);
 
 function BSRadioProvider({ children }) {
-  const [radioOn, setRadioOn]       = useStateBR(false);
-  const [askedPrompt, setAsked]     = useStateBR(false);
+  // Persisted radio preference (device-level localStorage) so the "Want music
+  // while you move?" prompt is asked ONCE — after the user answers it (play or
+  // muted), it never auto-shows again on a later launch / re-login. Seed from it.
+  const _radioPref = safeReadRadioJSON('shape.radio.pref', null); // { asked, on } | null
+  const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
+  const [askedPrompt, setAsked]     = useStateBR(_radioPref ? !!_radioPref.asked : false);
   const [showPrompt, setShowPrompt] = useStateBR(false);
-  const [paused, setPaused]         = useStateBR(true);
+  const [paused, setPaused]         = useStateBR(_radioPref ? !_radioPref.on : true);
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW")
   const [trackIdx, setTrackIdx]     = useStateBR(0);
   const [activeChannel, setChannel] = useStateBR('live');
@@ -127,11 +131,16 @@ function BSRadioProvider({ children }) {
     return () => clearInterval(id);
   }, [radioOn, paused]);
 
+  function persistRadioPref(asked, on) {
+    try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
+  }
+
   function answerPrompt(yes) {
     setAsked(true);
     setShowPrompt(false);
     setRadioOn(!!yes);
     setPaused(!yes);
+    persistRadioPref(true, !!yes); // answered once → never auto-prompt again
   }
 
   function reopenPrompt() { setShowPrompt(true); }
@@ -146,6 +155,7 @@ function BSRadioProvider({ children }) {
     setShowPrompt(false);
     setRadioOn(!!enabled);
     setPaused(!enabled);
+    persistRadioPref(true, !!enabled);
   }
 
   function persistFeedback(next) {
