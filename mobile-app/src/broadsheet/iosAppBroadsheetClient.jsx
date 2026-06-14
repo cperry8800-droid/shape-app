@@ -66,11 +66,18 @@ function bsMyInitials() {
 // demo headshot (`demo-avatar.png`, served at /m/) so the avatars demonstrate
 // the photo treatment. A signed-in account with no photo stays on initials —
 // never a stranger's face.
-function bsMyPhoto() {
+function bsMyPhotoRaw() {
   const real = bsValidPhoto(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo);
   if (real) return real;
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   return signedIn ? null : `${import.meta.env.BASE_URL}demo-avatar.png`;
+}
+function bsMyPhoto() {
+  // Avatar-source preference (set in profile settings): 'initials' forces the
+  // initials gem everywhere, even when a photo is stored (the photo is kept, just
+  // not shown). Applies app-wide since every self avatar reads through here.
+  if (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.avatarMode === 'initials') return null;
+  return bsMyPhotoRaw();
 }
 // My current Shape Score tier (cached on window.ShapeScore from /api/client/score)
 // and its color. Avatars across the app fill with my tier color — Base/steel until
@@ -8282,7 +8289,9 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const stravaUrl = person.strava
     ? (/^https?:/i.test(person.strava) ? person.strava : 'https://www.strava.com/athletes/' + String(person.strava).replace(/^@/, ''))
     : 'https://www.strava.com';
-  const avPhoto = photo || (live && live.avatar);
+  // Honor the avatar-source toggle on my own profile (initials mode hides the
+  // stored photo here too, not just in the app chrome).
+  const avPhoto = (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar));
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
@@ -8925,7 +8934,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} rings={sigilRings} progress={sigilToNext} c={c} teal={TEAL} ink={INK} size={240} />
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }}>
-            <BSFacetAvatar size={86} c={c} initial={initials} name={name} photo={photo || (live && live.avatar)} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
+            <BSFacetAvatar size={86} c={c} initial={initials} name={name} photo={(isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar))} editable={isSelf} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} onEdit={() => fileRef.current && fileRef.current.click()} BG={BG} INK={INK} />
           </div>
         </div>
         {/* progress readout — % to next tier (the ring legend now lives in
@@ -16326,6 +16335,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     name: _myName,
     handle: _myUsername ? '@' + _myUsername : (_myName === 'Quinn Harper' ? '@quinn.harper' : '@' + _myName.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/(^\.+|\.+$)/g, '')),
     initials: '', // optional custom avatar initials (max 2); blank = derive from name
+    avatarMode: 'photo', // 'photo' | 'initials' — what the avatar shows app-wide
     location: 'Brooklyn, NY',
     bio: 'Cutting for summer. 14-week streak. Logging the wins and the pizza.',
     accent: '#c0533b',
@@ -16356,7 +16366,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // Merge over the stored identity so the avatar photo (and any other fields
     // saved separately, e.g. by the photo picker) are preserved, not clobbered.
     try {
-      const photo = bsMyPhoto() || null;
+      const photo = bsMyPhotoRaw() || null;
       const save = (existing) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(existing || {}), ...draft, ...(photo ? { photo } : {}) }); } catch (e) {} };
       const p = window.shapeDb?.getUserGoals?.('client_identity');
       if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
@@ -16367,7 +16377,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
     // Cache the custom initials globally so every avatar (header + feed) updates,
     // then signal a re-render so the current screen reflects it without navigating.
-    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), initials: draft.initials || '', name: draft.name }; } catch (e) {}
+    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), initials: draft.initials || '', name: draft.name, avatarMode: draft.avatarMode || 'photo' }; } catch (e) {}
     try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
   };
   const cancelEdit = () => setEditing(false);
@@ -16859,18 +16869,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Your <span style={{ fontStyle: 'italic', color: acc }}>profile.</span></div>
               </div>
               {sectionHead('Photo & avatar')}
-              {/* Avatar + photo + accent swatches */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-                <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={bsMyPhoto() || null} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
-                <div style={{ minWidth: 0 }}>
-                  <button onClick={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} style={{ borderRadius: 999,
-                    padding: '9px 14px', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer',
-                    fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700,
-                  }}>Change photo</button>
-                  <div style={{ marginTop: 9, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
-                    {bsMyTier()} tier color
-                  </div>
+              {/* Avatar (tap ✎ to change the photo — no separate button) + the
+                  tier-color note. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
+                <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
+                  {bsMyTier()} tier color
+                </div>
+              </div>
+
+              {/* Avatar source — show the photo or the initials gem (app-wide) */}
+              <div style={{ marginBottom: 14 }}>
+                <span style={lbl}>Show in avatar</span>
+                <div style={{ display: 'inline-flex', border: `1px solid ${t.RULE}`, borderRadius: 999, overflow: 'hidden', background: t.PAPER2 }}>
+                  {[['photo', 'Photo'], ['initials', 'Initials']].map(([val, label]) => {
+                    const on = (draft.avatarMode || 'photo') === val;
+                    return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
+                  })}
                 </div>
               </div>
 
