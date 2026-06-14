@@ -100,6 +100,32 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — Client dashboard is now a single-page app (instant tab switching)
+- **The 11 standalone client dashboard pages were each a full reload that
+  re-downloaded Babel and recompiled ~430 KB of JSX in the browser** — multi-second
+  blanks + slow tab switches (also read as "page won't load"). Replaced with one
+  shell, **`public/newdesign/ClientApp.html`**, that loads every tab module ONCE and
+  **hash-routes client-side** (`#today/#progress/#workouts/#nutrition/#library/#team/
+  #community/#score/#habits/#goal/#profile`) — switching tabs is instant (no reload,
+  no recompile). Each route renders exactly what its old page mounted (ChatWidget
+  included).
+  - Extracted the 5 heavy inline page components into reusable modules:
+    `clientLibrary.jsx · clientTeam.jsx · clientScore.jsx · clientHabits.jsx ·
+    clientMeSettings.jsx` (the thin pages already used shared `dash*.jsx` modules).
+  - **`clientNav.jsx`** items now point at `ClientApp.html#<slug>` — a same-document
+    hash change inside the shell (instant), a normal nav into it from elsewhere. Also
+    fixed the long-standing cache-buster gap: `clientNav.jsx` now carries `?v=` on all
+    17 pages (it had none, so edits never reached returning users).
+  - The 11 legacy `Client*.html` pages **redirect** to `ClientApp.html#<slug>` at the
+    top of `<head>`, so every entry (login · signup · marketing nav · `/api/me/role` ·
+    bookmarks) lands directly in the SPA. Their bodies remain as the SPA's module
+    source.
+  - Verified offline: all 25 modules load + all 11 routes render via ReactDOMServer
+    with zero React warnings; dash render-review unchanged (113/114, the 1 fail
+    pre-exists). Preview-tested on the dev-branch Vercel URL before merging.
+- *Follow-up:* the coach dashboards (trainer/nutritionist) are still multi-page — same
+  treatment pending.
+
 ### 2026-06-14 — Demo-data zero-out for signed-in accounts (habits · goals · progress · profile)
 - **A fresh signed-in account no longer shows demo data** across the personal
   surfaces (the broader "everything zeroes out once you log in, since we have no
