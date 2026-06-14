@@ -100,6 +100,39 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — Demo-data zero-out for signed-in accounts (habits · goals · progress · profile)
+- **A fresh signed-in account no longer shows demo data** across the personal
+  surfaces (the broader "everything zeroes out once you log in, since we have no
+  coaches yet" pass). Signed-OUT preview is unchanged everywhere — the demo
+  persona is the preview-only fallback. Gate pattern throughout:
+  `signedIn = !!window.ShapeAuth?.getCachedState?.()?.user?.id`.
+  - **Habits** (`iosAppBroadsheetHabits.jsx` `_bsHabitGridModel`): signed-in with
+    no habits → empty grid (`rows: []`) instead of the 14 demo rows; the page
+    shows its add-first state.
+  - **Goals** (`BSClientGoals` + the three tab dashboards): seeds from a new
+    zeroed `BS_GOALS_EMPTY` (not the demo "Lean by August" `BS_GOALS_DEFAULT`).
+    Training → stats 0, lifts/milestones empty-state, 0/0 "Strength held" plate +
+    flat heatmap, demo coach-program card hidden. Nutrition → macros/milestones
+    empty-state, weekly targets zeroed, demo nutritionist plan card hidden.
+    Overall → no demo "Jordan / Dr. Maya" plan flash (empty → "find a coach"),
+    weekly targets zeroed, "Your why" only when written.
+  - **Progress hub** (`BSClientProgress`) + **Me "Your progress" grid**
+    (`BSMeKpis`): both merged live data over a DEMO base — added a same-shaped
+    zeroed `BSPROG_EMPTY` and switch the merge base to it when signed in (KPIs
+    `—`, charts "Not enough data yet.", empty PR/session/food lists). The
+    "what's next" plate no longer pulls the demo persona for a signed-in account.
+  - **Terrain profile** (`BSTerrainProfile`) + Me score card (`BSScoreCardDark`):
+    hid the demo "Coached by Maya Okafor · Hypertrophy Block II" band unless a
+    real coach OR real program phase exists; the activity feed shows only real
+    posts/PRs (empty-state when none, no demo field-notes); zeroed the Shape
+    Score composite bars + the 1284-pt fallback. (Climb/disciplines/lifts/signals
+    were already live-or-zeroed from the prior session.)
+- Shipped across commits `68e600ba`→`2849a710` on **main** (dev branch kept
+  identical); 94/94 tests + `public/m` in sync on each. *Remaining demo (social,
+  not personal):* the chat Community feed's `SigActivity` proof cards + the
+  "N lifting now" presence rail are still illustrative (wire to a real presence/
+  activity feed later).
+
 ### 2026-06-14 — App↔website parity: directive-led sweep + shared signal engine
 - **The website dashboard's intelligence layer now runs in the mobile app.**
   `mobile-app/src/main.jsx` side-effect-imports the canonical engine
