@@ -38,7 +38,7 @@ const CARDS = [
     body: "Block 3 paying off. Felt like there was a 4th in the tank.", typeLabel: "Strength",
     title: "Deadlift — new PR", hero: ["245 lb", "Load"], delta: "+10 lb on May best",
     sec: [["Top set", "1×3"], ["Est. 1RM", "268 lb"]], kudos: 41, replies: 6,
-    cosign: { name: "Dana Lewis", role: "trainer" }, paletteOpen: true, picked: "Fire" },
+    cosign: { name: "Dana Lewis", role: "trainer" } },
   { kind: "run", who: "Drew Oyelaran", role: "Client", city: "East River Loop · NYC", tier: "LEGEND", ago: "34m",
     body: "Last long run before taper. Negative split the back 6.", typeLabel: "Run", activityType: "run",
     title: "Long run", hero: ["18.2 mi", "Distance"], route: true,
@@ -126,9 +126,11 @@ h1{color:${T.ink};font-family:${T.serif};font-weight:800;letter-spacing:-.02em;f
 .legend{color:${T.muted};font-family:${T.mono};font-size:11px;white-space:pre;line-height:1.7;margin:20px auto 0;max-width:760px;border-top:1px solid ${T.hair};padding-top:14px}</style></head>
 <body>
 <div style="max-width:760px;margin:0 auto"><h1>Feed reactions · activity-mapped verb, one unified count</h1>
-<p class="sub">strength PR · run · swim · rest day · cycle — same card look, verb is display-only · the PR card shows the held-open palette</p></div>
+<p class="sub">default state — one reaction button per card (the verb), nothing listed until you hold</p></div>
 <div class="grid">${CARDS.map(card).join("")}</div>
-<div class="legend">${CARDS.map(verbRow).join("\n")}\n\nUnified count: the verb word changes by activity; the number is ONE tally (powers profile totals + weekly most-reacted).\nCoach co-sign: a solid role-colored badge (heavier than peer reactions); eligible to notify the athlete.\nPhase 2 (PR card, palette open): press-and-hold the reaction → pick a word [contextual verb · ${bsReactionPalette('').join(' · ')}]. Picking re-labels YOUR reaction (here: Fire) but stays the SAME one like (41 → 42). All text, no emoji.</div>
+<div style="max-width:760px;margin:30px auto 0"><p class="sub" style="margin:0 0 12px">↓ press-and-hold the reaction → the palette opens (then collapses on pick)</p>
+<div style="width:360px">${card({ ...CARDS[0], paletteOpen: true, picked: "Fire" })}</div></div>
+<div class="legend">${CARDS.map(verbRow).join("\n")}\n\nUnified count: the verb word changes by activity; the number is ONE tally (powers profile totals + weekly most-reacted).\nCoach co-sign: a solid role-colored badge (heavier than peer reactions); eligible to notify the athlete.\nPhase 2 — HOLD to reveal: by default ONLY the reaction button shows. Press-and-hold opens the palette [contextual verb · ${bsReactionPalette('').join(' · ')}]; picking re-labels YOUR reaction (here Fire) but stays the SAME one like (41 → 42), then the palette closes. All text, no emoji.</div>
 </body></html>`;
 
 writeFileSync("shape-feed-reactions-preview.html", html);
