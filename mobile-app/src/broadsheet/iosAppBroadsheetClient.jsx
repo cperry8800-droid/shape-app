@@ -9917,6 +9917,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [actLikes, setActLikes] = useStateBSC({});
   const [actComments, setActComments] = useStateBSC({});
   const [actCmtOpen, setActCmtOpen] = useStateBSC(null);
+  const [actDetailsOpen, setActDetailsOpen] = useStateBSC({}); // key → secondary-stat disclosure open
   const [sendPostFor, setSendPostFor] = useStateBSC(null); // ✉ on a feed post → the send-to-DM picker
   const [actCmtDraft, setActCmtDraft] = useStateBSC('');
   const toggleActLike = (key, postId) => {
@@ -10066,6 +10067,23 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
     const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
     const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
+    // Redesign hierarchy: lead with ONE hero metric (load for lifts, distance for
+    // runs) at the existing stat-plate value styling; demote the rest behind a
+    // disclosure. Delta + coach rows are HONEST slots — they render only when the
+    // post actually carries them (no fabricated "+10", no placeholder coach row).
+    const isRunCard = a.real ? (a.typeLabel === 'Run') : (a.kind === 'run');
+    const _primIdx = (() => {
+      const pat = isRunCard ? /dist/i : /load|weight/i;
+      let i = stats.findIndex(([k]) => pat.test(String(k || '')));
+      if (i < 0) i = stats.findIndex(([, v]) => /\d/.test(String(v)) && /(lb|kg|mi|km)\b/i.test(String(v)));
+      return i < 0 ? 0 : i;
+    })();
+    const heroStat = stats[_primIdx] || null;
+    const secStats = stats.filter((_, i) => i !== _primIdx);
+    const detailsOpen = !!actDetailsOpen[key];
+    const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
+    const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
+    const coachProgram = a.real ? (a.program || '') : '';
     return (
       <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
         <div style={{ height: 2, background: tc }} />
@@ -10083,11 +10101,28 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             </div>
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
           </div>
-          {/* title + note */}
+          {/* HERO — activity name + the promoted primary metric (load/distance) at
+              stat-plate value styling, with an honest delta slot */}
           <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
-          {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '4px 0 0' }}>{a.body}</p>}
+          {heroStat && (
+            <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 9px', marginTop: 7 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: cardInk, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{heroStat[1]}</span>
+              {prDelta && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '3px 7px', borderRadius: 999, lineHeight: 1 }}>↑ {prDelta}</span>}
+              <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{heroStat[0]}</span>
+            </div>
+          )}
+          {/* caption — the human line, unchanged */}
+          {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
+          {/* coach attribution — honest slot: renders ONLY when the post names a
+              program + coach; suppressed entirely for self-coached / opted-out */}
+          {coachLine && (
+            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, padding: '4px 11px', cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Programmed by</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
+            </button>
+          )}
           {/* GPS route — the REAL polyline when the post carries points;
-              halftone tile in the member's tier color otherwise */}
+              halftone tile in the member's tier color otherwise (endurance hero) */}
           {routeObj ? (
             <BSActivityRoutePreview route={routeObj} />
           ) : showRoute && (
@@ -10095,25 +10130,34 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
             </div>
           )}
-          {/* stat row */}
-          <div style={{ display: 'flex', marginTop: 10, paddingTop: 9, borderTop: `1px solid ${hair}` }}>
-            {stats.map(([k, v], i) => (
-              <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${hair}` : 0, paddingLeft: i ? 11 : 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{k}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: cardInk, marginTop: 2, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
-              </div>
-            ))}
-          </div>
-          {/* engagement — one row of uniform pills */}
+          {/* secondary stats — demoted behind ONE disclosure, never deleted; same
+              stat-plate styling as the old 3-up row */}
+          {secStats.length > 0 && (
+            <>
+              <button onClick={() => setActDetailsOpen(prev => ({ ...prev, [key]: !prev[key] }))} aria-expanded={detailsOpen} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 11, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>{detailsOpen ? '▾' : '▸'} Session details</button>
+              {detailsOpen && (
+                <div style={{ display: 'flex', marginTop: 9, paddingTop: 9, borderTop: `1px solid ${hair}` }}>
+                  {secStats.map(([k, v], i) => (
+                    <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${hair}` : 0, paddingLeft: i ? 11 : 0 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{k}</div>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: cardInk, marginTop: 2, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+          {/* actions — Spot primary/heaviest; Comment + Share secondary; Send +
+              Repost de-emphasized (same pill/icon styles as before) */}
           {(() => {
             const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 27, boxSizing: 'border-box', padding: grow ? '0 11px' : 0, width: grow ? 'auto' : 27, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
             return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10 }}>
-            <button onClick={() => { setActLikes(prev => ({ ...prev, [key]: !(prev[key] != null ? prev[key] : a.liked) })); if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); } }} style={actPill(liked, true)}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12 }}>
+            <button onClick={() => { setActLikes(prev => ({ ...prev, [key]: !(prev[key] != null ? prev[key] : a.liked) })); if (a.postId) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); } }} style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>↑ {cheer} · {baseKudos + (liked ? 1 : 0)}</button>
             <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>↳ {(a.replies || 0) + comments.length}</button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, true)}>↗ Share</button>
             <span style={{ marginLeft: 'auto' }} />
             <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>✉</button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>↗</button>
             <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>⇄</button>
           </div>
             );
