@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 // ranked at-risk verdict the website dashboard shows, with the reason + a
 // one-tap Message — instead of a hardcoded "next best action" sentence. Falls
 // back to the engine's demo personas when there's no live roster (preview).
-function BSProTriageFeed({ role = 'trainer' }) {
+function BSProTriageFeed({ role = 'trainer', onSeeAll = () => {} }) {
   const t = useBS();
   const [feed, setFeed] = useStateBSP(null); // null = loading
   useEffectBSP(() => {
@@ -22,7 +22,10 @@ function BSProTriageFeed({ role = 'trainer' }) {
     <div style={{ padding: `4px ${t.padX}px 8px` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
         <BSEyebrow color={t.ACCENT}>Who needs you</BSEyebrow>
-        <BSEyebrow>{feed == null ? 'Reading…' : (flagged.length ? `${flagged.length} flagged` : 'All clear')}</BSEyebrow>
+        {feed == null ? <BSEyebrow>Reading…</BSEyebrow>
+          : flagged.length ? (
+            <button type="button" onClick={onSeeAll} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>See all {flagged.length} →</button>
+          ) : <BSEyebrow>All clear</BSEyebrow>}
       </div>
       <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
         {feed != null && flagged.length === 0 && (
@@ -31,7 +34,7 @@ function BSProTriageFeed({ role = 'trainer' }) {
             <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>No clients flagged today</div>
           </BSPlate>
         )}
-        {flagged.slice(0, 5).map((r) => {
+        {flagged.slice(0, 3).map((r) => {
           const c = SEV[r.severity] || t.AMBER;
           const name = (r.client && r.client.profile && r.client.profile.name) || 'Client';
           const reason = ((r.reasons || (r.flags || []).map((f) => f.reason)).filter(Boolean))[0];
@@ -52,6 +55,12 @@ function BSProTriageFeed({ role = 'trainer' }) {
             </BSPlate>
           );
         })}
+        {flagged.length > 3 && (
+          <button type="button" onClick={onSeeAll} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>+{flagged.length - 3} more need you</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>See all →</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1334,8 +1343,9 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </div>
       )}
 
-      {/* Lead: "Who needs you" — the shared signal engine's triage feed. */}
-      <BSProTriageFeed role="trainer" />
+      {/* Lead: "Who needs you" — a tight top-3 priority glance; the full sorted
+          triage roster lives on the Clients tab ("See all →"). */}
+      <BSProTriageFeed role="trainer" onSeeAll={() => onWidgetOpen('clients')} />
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
@@ -3962,7 +3972,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       </div>
 
       {/* Lead: "Who needs you" — the shared signal engine's triage feed. */}
-      <BSProTriageFeed role="nutritionist" />
+      <BSProTriageFeed role="nutritionist" onSeeAll={() => onWidgetOpen('clients')} />
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
