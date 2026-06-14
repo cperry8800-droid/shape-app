@@ -5686,35 +5686,6 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
 
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
-      {/* TODAY — the lead directive: the next meal to log (or "all logged"). The
-          condensed calorie/macro strip below stays the quiet stats tier. */}
-      {day === bsWeekdayIdx() && (() => {
-        const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
-        const coachN = bsEatProgram.detail?.nutrition;
-        const calNow = num(cur.totals.cal);
-        const calTgt = (coachN && coachN.calories != null) ? num(coachN.calories) : num(cur.totals.target.cal);
-        const calLeft = Math.max(0, calTgt - calNow);
-        const total = effMeals.length;
-        const loggedN = effMeals.filter(m => m.state === 'done').length;
-        const nextMeal = effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done');
-        const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const done = !nextMeal;
-        const c = done ? t.GREEN : _teal;
-        return (
-          <BSPlate c={c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `12px ${t.padX}px 0`, textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>{done ? 'Today · eaten' : 'Today · your move'}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{loggedN}/{total} meals</span>
-            </div>
-            <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{done ? 'All meals logged.' : `Log ${nextMeal.title}.`}</div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{calLeft.toLocaleString()} kcal left{done ? ' · nice work' : (nextMeal && bsMealSchedLabel(nextMeal) ? ` · ${bsMealSchedLabel(nextMeal)}` : '')}</div>
-            {!done && (
-              <button onClick={() => setPreviewMealId(nextMeal.id)} style={{ marginTop: 12, padding: '9px 16px', borderRadius: 9, border: `1px solid ${_teal}`, background: `${_teal}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Log it →</button>
-            )}
-          </BSPlate>
-        );
-      })()}
-
       {(() => {
         const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
         // Coach-set targets (from the nutritionist's Adjust plan → Apply) win over
@@ -5766,6 +5737,35 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
               })}
             </div>
           </>
+        );
+      })()}
+
+      {/* TODAY — the next-meal directive. Sits below the quiet calorie/macro strip
+          and above the meal list. */}
+      {day === bsWeekdayIdx() && (() => {
+        const num = (x) => parseInt(String(x).replace(/[^0-9]/g, ''), 10) || 0;
+        const coachN = bsEatProgram.detail?.nutrition;
+        const calNow = num(cur.totals.cal);
+        const calTgt = (coachN && coachN.calories != null) ? num(coachN.calories) : num(cur.totals.target.cal);
+        const calLeft = Math.max(0, calTgt - calNow);
+        const total = effMeals.length;
+        const loggedN = effMeals.filter(m => m.state === 'done').length;
+        const nextMeal = effMeals.find(m => m.state === 'next') || effMeals.find(m => m.state !== 'done');
+        const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const done = !nextMeal;
+        const c = done ? t.GREEN : _teal;
+        return (
+          <BSPlate c={c} tick bracket pad="11px 14px 11px 20px" style={{ margin: `13px ${t.padX}px 0`, textAlign: 'left' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>{done ? 'Today · eaten' : 'Today · your move'}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{loggedN}/{total} meals</span>
+            </div>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, lineHeight: 1.08, letterSpacing: '-0.025em', color: t.INK }}>{done ? 'All meals logged.' : `Log ${nextMeal.title}.`}</div>
+            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{calLeft.toLocaleString()} kcal left{done ? ' · nice work' : (nextMeal && bsMealSchedLabel(nextMeal) ? ` · ${bsMealSchedLabel(nextMeal)}` : '')}</div>
+            {!done && (
+              <button onClick={() => setPreviewMealId(nextMeal.id)} style={{ marginTop: 10, padding: '8px 14px', borderRadius: 8, border: `1px solid ${_teal}`, background: `${_teal}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Log it →</button>
+            )}
+          </BSPlate>
         );
       })()}
 
