@@ -7199,6 +7199,10 @@ function bsActivityFromPost(p) {
     userId: p.author_id || null,
     who: p.name || 'Shape member',
     role: p.role || 'Client',
+    // Coach attribution stamped on the post at publish (the author's own plan) —
+    // honest: empty when self-coached, so the card's "Programmed by" row hides.
+    coach: (typeof p.coach === 'string' && p.coach.trim()) ? p.coach.trim() : null,
+    program: (typeof p.program === 'string' && p.program.trim()) ? p.program.trim() : '',
     typeLabel: isRun ? 'Run' : 'Workout',
     title,
     body: p.note || '',

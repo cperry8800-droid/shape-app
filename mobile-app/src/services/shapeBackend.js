@@ -1822,6 +1822,8 @@ function communityPostFromRow(row) {
     video: metrics.video_url || metrics.video || null,
     link: (metrics.link && metrics.link.url) ? metrics.link : null,
     workoutStats: Array.isArray(metrics.workoutStats) ? metrics.workoutStats : null,
+    coach: typeof metrics.coach === 'string' ? metrics.coach : '',
+    program: typeof metrics.program === 'string' ? metrics.program : '',
     repostOf: (metrics.repostOf && typeof metrics.repostOf === 'object') ? metrics.repostOf : null,
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
@@ -2262,6 +2264,24 @@ async function listCommunityPosts() {
   return { stored: 'supabase', data: (data || []).map(communityPostFromRow) };
 }
 
+// Resolve the post author's OWN coach + program (their assigned plan + program
+// phase) so a workout post can credit "Programmed by {coach} · {program}" on the
+// feed card. Honest: returns empty when no real coach is assigned (self-coached →
+// the card suppresses the row), and never fabricates (the plan route doesn't).
+async function resolveAuthorCoachProgram() {
+  try {
+    const plan = await getPlan(); // cached /api/client/plan; null when signed out
+    const coach = (plan && plan.training && typeof plan.training.coach === 'string') ? plan.training.coach.trim() : '';
+    if (!coach) return { coach: '', program: '' };
+    let program = '';
+    try {
+      const ph = (typeof window !== 'undefined' && window.ShapeProgram) ? (window.ShapeProgram.trainingPhase || window.ShapeProgram.phase) : '';
+      if (ph) program = String(ph).trim();
+    } catch (e) {}
+    return { coach, program };
+  } catch (e) { return { coach: '', program: '' }; }
+}
+
 async function createCommunityPost({
   title,
   status = '',
@@ -2291,6 +2311,14 @@ async function createCommunityPost({
   if (cleanChannel) mergedMetrics.channel = cleanChannel;
   if (Array.isArray(mentions) && mentions.length) {
     mergedMetrics.mentions = mentions.map((x) => ({ userId: x.userId || x.id || null, name: x.name || x.full_name || '' })).filter((x) => x.name).slice(0, 12);
+  }
+  // Workout/run posts credit the author's coach + program (only when a real coach
+  // is assigned — self-coached posts stamp nothing and the card hides the row).
+  // Never overrides a coach the caller passed explicitly.
+  const _isWorkoutPost = (mergedMetrics.kind === 'workout') || (Array.isArray(mergedMetrics.workoutStats) && mergedMetrics.workoutStats.length > 0) || /run|ride|bike|cycl|cardio|workout|lift|strength/i.test(String(activityType || ''));
+  if (_isWorkoutPost && !mergedMetrics.coach) {
+    const cp = await resolveAuthorCoachProgram();
+    if (cp.coach) { mergedMetrics.coach = cp.coach; if (cp.program) mergedMetrics.program = cp.program; }
   }
   const payload = {
     author_id: state.user.id,
