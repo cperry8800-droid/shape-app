@@ -56,6 +56,38 @@ function BSProTriageFeed({ role = 'trainer' }) {
     </div>
   );
 }
+// Instrument schedule — each session as a clipped plate with a type-colored
+// accent spine (LIVE rust · ASYN blue · INTK green · PRGM amber), the next/live
+// one ticked. Matches the triage feed's design language (replaces the flat
+// divider rows). Shared by the trainer + nutritionist Today.
+function BSProScheduleRows({ items = [], onOpen = () => {}, emptyText = 'Nothing booked' }) {
+  const t = useBS();
+  if (!items.length) return (
+    <div style={{ padding: `18px ${t.padX}px`, textAlign: 'center', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>— {emptyText} —</div>
+  );
+  return (
+    <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
+      {items.map((r, i) => {
+        const c = r.tagColor || t.AMBER;
+        const isNext = r.state === 'next' || r.state === 'live';
+        const isDone = r.state === 'done';
+        return (
+          <BSPlate key={i} c={c} spine={3} tick={isNext} pad="10px 12px" onClick={onOpen} style={{ opacity: isDone ? 0.55 : 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.01em', color: isNext ? c : t.INK, fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 38 }}>{r.time}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, border: `1px solid ${c}66`, borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>{r.tag}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isDone ? 'line-through' : 'none' }}>{r.title}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.sub}</div>
+              </div>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>›</span>
+            </div>
+          </BSPlate>
+        );
+      })}
+    </div>
+  );
+}
 function BSProHomeWidgets({ role = 'trainer', onOpen = () => {} }) {
   const t = useBS();
   const isNutri = role === 'nutritionist';
@@ -73,7 +105,6 @@ function BSProHomeWidgets({ role = 'trainer', onOpen = () => {} }) {
   ];
   return (
     <>
-      <BSProTriageFeed role={role} />
       <BSSection title={isNutri ? 'Nutrition widgets' : 'Coach widgets'} meta="Live snapshot" />
       <div style={{ padding: `0 ${t.padX}px 12px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {widgets.map((w) => {
@@ -1303,19 +1334,13 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </div>
       )}
 
+      {/* Lead: "Who needs you" — the shared signal engine's triage feed. */}
+      <BSProTriageFeed role="trainer" />
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {bookings.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-            — Off day · nothing booked —
-          </div>
-        ) : (
-          bookings.map((r, i) => <BSRow key={i} {...r} />)
-        )}
-      </div>
+      <BSProScheduleRows items={bookings} onOpen={goCalendar} emptyText="Off day · nothing booked" />
 
       <div style={{ marginTop: 8 }}>
         <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
@@ -1458,49 +1483,58 @@ function bsProMeInit() {
 // Coach home Habits section — same numbered format as the client home page
 // (DO/AVOID pill, name, points, check box, "View →" to the full habits page).
 // Reads the coach's own habits from tweaks via the window-exposed decoder.
+// Coach habits — the SAME "Daily habits." plate the client home page renders
+// (green spine + tick + bracket, mono eyebrow, serif title, numbered DO/AVOID
+// rows, footer + View →). Reads the coach's own habits from tweaks; tapping
+// opens the full habits page.
 function BSProHabits({ tweaks = {}, onOpen = () => {} }) {
   const t = useBS();
   const habits = (() => {
     const dec = (typeof window !== 'undefined' && window._bsDecodeHabits) ? window._bsDecodeHabits(tweaks.habits) : [];
     return Array.isArray(dec) ? dec : [];
   })();
-  const done = habits.filter(h => h.done);
-  const earned = done.reduce((a, h) => a + Math.round(h.pts || 0), 0);
+  const doneN = habits.filter(h => h.done).length;
+  const pts = habits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts || 0), 0);
+  const possible = habits.reduce((a, h) => a + Math.round(h.pts || 0), 0);
+  const open = habits.filter(h => !h.done);
   return (
-    <>
-      <BSSection
-        title="Habits"
-        kicker={<>{done.length}/{habits.length} done · <span style={{ color: t.ACCENT, fontWeight: 800 }}>+{earned} pts</span></>}
-        meta={<span onClick={onOpen} style={{ cursor: 'pointer', color: t.ACCENT, fontWeight: 800 }}>View →</span>}
-      />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ borderTop: `2px solid ${t.INK}` }} />
-        {habits.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-            — No habits yet · tap View to add —
-          </div>
-        ) : (
-          habits.map((h, i) => {
+    <BSPlate c={t.GREEN} tick bracket pad="14px 16px 14px 22px" role="button" ariaLabel="Open daily habits" onClick={onOpen} style={{ margin: `0 ${t.padX}px`, textAlign: 'left' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {doneN}/{habits.length} done</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
+      </div>
+      <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 25, lineHeight: 1.0, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+        Daily <span style={{ fontStyle: 'italic', color: t.GREEN }}>habits.</span>
+      </div>
+      {habits.length === 0 ? (
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>No habits yet — tap to add your first one.</div>
+      ) : open.length === 0 ? (
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today. ✓</div>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          {open.map((h, i, arr) => {
             const avoid = h.type === 'avoid';
             const pillC = avoid ? t.RUST : t.GREEN;
             return (
-              <div key={`${h.name}-${i}`} style={{ borderBottom: i === habits.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                <button onClick={onOpen} style={{ width: '100%', display: 'grid', gridTemplateColumns: '26px 54px 1fr auto 26px', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', opacity: h.done ? 0.45 : 1 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK, letterSpacing: '-0.01em', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}59`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 999 }}>{avoid ? 'AVOID' : 'DO'}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, textDecoration: h.done ? 'line-through' : 'none', textDecorationThickness: '1.5px' }}>{h.name}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: h.done ? pillC : t.INK50, marginTop: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.done ? (avoid ? '✓ Stayed clean' : '✓ Done') : `${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts || 0)} pts`}</div>
-                  </div>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: h.done ? pillC : t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts || 0)}</span>
-                  <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${h.done ? pillC : t.RULE}`, background: h.done ? pillC : 'transparent', color: '#fff', display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 900 }}>{h.done ? '✓' : ''}</span>
-                </button>
+              <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 24px', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts || 0)} pts`}</div>
+                </div>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts || 0)}</span>
+                <span style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${pillC}`, background: `${pillC}10` }} />
               </div>
             );
-          })
-        )}
+          })}
+        </div>
+      )}
+      <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tap a box to check off · card opens habits</span>
+        <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${t.GREEN}`, background: 'transparent', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>View →</span>
       </div>
-    </>
+    </BSPlate>
   );
 }
 function BSProAvatarButton({ size = 38 }) {
@@ -3862,19 +3896,13 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         </div>
       </div>
 
+      {/* Lead: "Who needs you" — the shared signal engine's triage feed. */}
+      <BSProTriageFeed role="nutritionist" />
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
-      <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
-        {schedule.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-            — Off day · nothing scheduled —
-          </div>
-        ) : (
-          schedule.map((r, i) => <BSRow key={i} {...r} />)
-        )}
-      </div>
+      <BSProScheduleRows items={schedule} onOpen={goCalendar} emptyText="Off day · nothing scheduled" />
 
       <div style={{ marginTop: 22 }}>
         <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
