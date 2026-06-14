@@ -100,6 +100,34 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — Mobile Home restructure (one today, no duplication) + dashboard header gap
+- **Client Home (`BSClientHome`) restructured** — layout/hierarchy only, the
+  existing look preserved (merged from the `mobile-redesign` branch, applied
+  cleanly over main's later feed-card work):
+  - **Leads with one `Today · your move` directive.** It takes the engine's top
+    priority when there is one (`window.ShapeSignals → evaluateClient`, mapped to a
+    move: checkin_overdue / streak_broken / food_gap / goal_slip / score_drop), else
+    the next-thing-to-do. The up-next agenda only renders its own
+    `Today/Tomorrow/Yesterday` label when the **selected** day isn't today, so a
+    glanced "today" never appears twice (`upNextLabel` gated on `selIdx !== todayIdx`).
+  - **Home glances; tabs own the lists.** The meals block collapses to a single
+    next-meal glance + `N more · Open Eat →` (new `goEat` hook → `setTab('eat')`,
+    with a `Next ↑` badge when that meal is the hero target); habits trim to 3 rows
+    + `+N more`. The full lists live on Eat / Habits.
+  - **Hierarchy sharpened**: the `Your goal` card (`BSMeGoalCard compact`) moved
+    below the weekly check-in; agenda titles stepped 25→21; `Avg kcal` reframed as
+    `In your deficit · on track` (goal-framed, not a bare number).
+- **Dashboard header gap tightened (website, all three dashboards).** The shared
+  fixed header is ~81px (logo 60 + 10px×2 pad + 1px rule) but `pageShell`'s spacer
+  reserved 96px → a ~15px dead band above every dashboard's content (client/trainer/
+  nutritionist all share `Header`). Spacer → **84** desktop / **88** mobile (band
+  ~3px), and `DashSidebar` sticky offset 96→84 to match on scroll. Cache-busts:
+  `pageShell.jsx?v→20260614` (67 pages), `trainerDashboard.jsx?v→20260614b` (44).
+- Shipped on **main** (dev kept identical) — `b940c4fe` (gap) → `8056c204` (home);
+  94/94 tests, `public/m` in sync, dash render-review 113/114 (the 1 fail
+  pre-exists). *Note:* the `mobile-redesign` feature branch is now fully on main
+  and can be deleted.
+
 ### 2026-06-14 — PR Wall: auto-posts every public member's new PR (all roles)
 - **New community channel "#PR Wall"** — pinned to the TOP of the chat Channels
   list for **every** profile (client + both coach roles; shared `BSClientFeed`),
