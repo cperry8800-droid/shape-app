@@ -41,7 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# agent skills (local tooling, per-developer)
+# agent skills: SKILL.md sources are tracked (shared); local caches/locks aren't
 /.agents/
-/.claude/skills/
 /skills-lock.json
