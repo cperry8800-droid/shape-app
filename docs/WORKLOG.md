@@ -100,6 +100,39 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — Feed reactions: activity-mapped verb (one unified count) + coach co-sign
+- **The single fixed "Spot" is now a DISPLAY-ONLY verb mapped from the post's
+  activity type**, over **ONE unified reaction count** (the verb never forks the
+  tally — it stays the portable social currency for profile totals + a weekly
+  most-reacted view). New pure module **`mobile-app/src/services/reactionVerbs.mjs`**
+  (`BS_REACTION_VERBS` + `bsActivityBucket` + `bsReactionType/Verb`):
+  strength→**Spot**, pr/milestone→**Beast**, run/endurance→**Respect**,
+  swim→**Gliding**, cycle→**Watts**, recovery/rest→**Smart**, nutrition→**Locked
+  in**, sleep→**Recharged**, mobility/yoga→**Centered**, sport/anything-else→**Props**
+  (the fallback — never blank, never a strength-only word on a non-strength post).
+  `tests/reaction-verbs.test.mjs` (7 tests; in `npm test`).
+- **Wiring:** `bsActivityFromPost` now carries `activityType` (from the
+  `activity_type` column the composer already stamps) + `cosign`; the shared
+  **`ActivityCard`** resolves the verb (PR — a real new-best `delta` — reads Beast
+  over the base type) and shows `'{verb} · {count}'` in the **exact existing
+  Spot-pill style** (unchanged look).
+- **Coach co-sign** (layered on any activity): when the reactor is the athlete's
+  **own coach**, it's the same unified like but **badged distinctly** (solid
+  role-colored "{name} co-signed", heavier than peer reactions) and **eligible to
+  notify** the athlete. Gated on a real coach↔client link — `ShapeAssign` roster
+  client-side, **server re-checked** in the RPC. `communityPostFromRow` exposes
+  `metrics.cosign`; `toggleLike` forwards a `cosign` flag to
+  **`post_coach_cosign`** (migration `2026-06-14-coach-cosign.sql` — SECURITY
+  DEFINER: re-checks `is_coach_on_client`, records the like, stamps
+  `metrics.cosign` so every viewer sees the badge, notifies the athlete), degrading
+  to a plain like until deployed.
+- **Applies to ALL profiles** — the card lives in the shared `BSClientFeed`
+  rendered by the client + trainer + nutritionist apps (`BSClientChat`,
+  window-exposed). Added swim/cycle/rest demo cards; preview generator
+  `scripts/feed-reaction-preview.mjs` renders the real mapping. 101/101 tests,
+  `public/m` in sync. *Phase 2 (parked):* long-press expressive palette
+  (Fire/Props chips) rolling up under the same unified count.
+
 ### 2026-06-14 — Mobile Home restructure (one today, no duplication) + dashboard header gap
 - **Client Home (`BSClientHome`) restructured** — layout/hierarchy only, the
   existing look preserved (merged from the `mobile-redesign` branch, applied
