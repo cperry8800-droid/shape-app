@@ -8,7 +8,7 @@
 // sticky sidebar offsets by that amount to sit just below it.
 function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
-    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 96, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 84, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {navItems.map((n, i) => (
         <a key={i} href={n.href || "#"} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
