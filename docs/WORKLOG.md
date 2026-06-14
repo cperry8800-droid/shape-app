@@ -100,6 +100,29 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — Coach dashboards are now single-page apps (trainer + nutritionist)
+- Same instant-tab treatment as the client SPA, for both coach roles. New shells
+  **`TrainerApp.html`** + **`NutritionistApp.html`** load every tab module ONCE and
+  hash-route client-side (`#today/#schedule/#clients/#programs|plans/#business/
+  #playlists/#community/#goal/#score/#profile`) — no reload, no Babel recompile per
+  tab.
+  - Extracted the heavy inline page components into modules: `trainerClientsPage.jsx ·
+    nutritionistClientsPage.jsx · trainerGoalPage.jsx · nutritionistGoalPage.jsx ·
+    trainerScorePage.jsx · nutritionistScorePage.jsx` + the shared
+    **`dashProfileExtras.jsx`** (identical across both profile pages). The legacy pages
+    load these + a thin mount, so they still render standalone.
+  - The role-shared components (`CoachDashboardPage`/`CoachSchedulePage`/
+    `CoachBusinessPage`/`CommunityPage`/`LiveProfilePage`) take their role/demoRole prop
+    per route; the Playlists `TRAINER_CTX`/`NUTRI_CTX` (previously inline) live in each
+    shell. `coachNav.jsx` items point at `TrainerApp.html#<slug>` /
+    `NutritionistApp.html#<slug>`.
+  - The 20 legacy `Trainer*.html` / `Nutritionist*.html` nav pages **redirect** into
+    their shell at the top of `<head>`. Sub-pages (client detail, live console, new
+    program/workout, messages) stay standalone.
+  - Verified offline: all 20 routes render via ReactDOMServer with zero React warnings;
+    render-review updated to load the extracted roster modules (113/114, the 1 fail
+    pre-exists). Preview-tested before merging.
+
 ### 2026-06-14 — Client dashboard is now a single-page app (instant tab switching)
 - **The 11 standalone client dashboard pages were each a full reload that
   re-downloaded Babel and recompiled ~430 KB of JSX in the browser** — multi-second
