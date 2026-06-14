@@ -142,25 +142,22 @@ export async function GET(request: Request) {
     };
   });
 
-  // 3) Assigned workouts with a scheduled date (trainer "push to client").
-  //    RLS: the client sees their own; a coach viewing ?clientId sees the
-  //    rows they assigned. Read-only here — reschedule via the plan, not
-  //    the calendar.
+  // 3) Assigned workouts (trainer "push to client"). Mirrors the Home tab
+  //    (/api/client/plan → bsHomeLiveWeek): DATED workouts land on their date;
+  //    UNDATED published workouts are slotted onto the CURRENT week's empty days
+  //    so they show on the calendar exactly as they do on Home. (The old
+  //    `scheduled_date IS NOT NULL` filter hid every undated workout — the cause
+  //    of "Home shows my plan but the calendar is empty".) Read-only here.
+  type CwRow = { id: string; title: string; description: string | null; payload: Record<string, unknown> | null; scheduled_date: string | null };
   const { data: cwRows } = await supabase
     .from('client_workouts')
     .select('id, title, description, payload, scheduled_date')
     .eq('client_id', targetUserId)
     .eq('status', 'published')
-    .not('scheduled_date', 'is', null)
-    .gte('scheduled_date', dFrom)
-    .lte('scheduled_date', dTo)
-    .order('scheduled_date', { ascending: true })
-    .limit(120);
+    .order('scheduled_date', { ascending: true, nullsFirst: false })
+    .limit(200);
 
-  const planWorkouts = (cwRows ?? []).map((w: {
-    id: string; title: string; description: string | null;
-    payload: Record<string, unknown> | null; scheduled_date: string;
-  }) => {
+  const mkWorkout = (w: CwRow, dateStr: string) => {
     const payload = (w.payload && typeof w.payload === 'object') ? w.payload : null;
     const exCount = Array.isArray(payload?.exercises) ? (payload!.exercises as unknown[]).length : 0;
     const durMatch = payload?.duration != null ? String(payload.duration).match(/\d+/) : null;
@@ -171,7 +168,7 @@ export async function GET(request: Request) {
       kind: 'WORKOUT',
       title: w.title,
       sub: w.description || (exCount ? `${exCount} move${exCount === 1 ? '' : 's'}` : 'Assigned workout'),
-      date: w.scheduled_date,
+      date: dateStr,
       time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
       with: '', location: '', accent: '',
@@ -179,7 +176,32 @@ export async function GET(request: Request) {
       createdByRole: 'trainer',
       editable: false,
     };
-  });
+  };
+
+  // Current week (Mon..Sun) ISO dates — undated workouts slot here, matching Home.
+  const wkMon = new Date(today); wkMon.setHours(0, 0, 0, 0);
+  wkMon.setDate(wkMon.getDate() - ((wkMon.getDay() + 6) % 7));
+  const weekISO = Array.from({ length: 7 }, (_, i) => { const d = new Date(wkMon); d.setDate(wkMon.getDate() + i); return d.toISOString().slice(0, 10); });
+  const inWin = (iso: string) => iso >= dFrom && iso <= dTo;
+
+  const planWorkouts: Array<Record<string, unknown>> = [];
+  const weekTaken = new Set<string>();
+  const undatedW: CwRow[] = [];
+  for (const w of ((cwRows ?? []) as CwRow[])) {
+    if (w.scheduled_date) {
+      if (inWin(w.scheduled_date)) planWorkouts.push(mkWorkout(w, w.scheduled_date));
+      if (weekISO.includes(w.scheduled_date)) weekTaken.add(w.scheduled_date);
+    } else {
+      undatedW.push(w);
+    }
+  }
+  let wslot = 0;
+  for (const w of undatedW) {
+    while (wslot < 7 && (weekTaken.has(weekISO[wslot]) || !inWin(weekISO[wslot]))) wslot += 1;
+    if (wslot >= 7) break;
+    planWorkouts.push(mkWorkout(w, weekISO[wslot]));
+    weekTaken.add(weekISO[wslot]); wslot += 1;
+  }
 
   // 4) The active weekly menu (nutritionist "push to client"), expanded onto
   //    real dates by day-of-week — from this week forward only (the current
