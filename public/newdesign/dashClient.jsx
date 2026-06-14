@@ -281,7 +281,13 @@ function ClientDashboardPage() {
   // ── Today's plan: workout + meals (live plan → demo fallback) ──
   const todayIso = dclTodayISO();
   const dow = (new Date().getDay() + 6) % 7;
-  let workout = DCL_DEMO.workout, meals = DCL_DEMO.meals, targets = DCL_DEMO.targets, planLive = false;
+  // Signed-out preview shows the demo plan; a SIGNED-IN account with no assigned
+  // plan shows EMPTY — there are no coaches on Shape yet, so never show a real
+  // user another coach's demo workout/meals. Only a real assigned plan fills these.
+  let workout = live ? null : DCL_DEMO.workout;
+  let meals = live ? [] : DCL_DEMO.meals;
+  let targets = live ? { kcal: 0, p: 0, c: 0, f: 0 } : DCL_DEMO.targets;
+  let planLive = false;
   if (plan && (plan.training.hasPlan || plan.meals.hasPlan)) {
     planLive = true;
     const w = (plan.training.workouts || []).find((x) => x.scheduledDate === todayIso)
@@ -336,11 +342,13 @@ function ClientDashboardPage() {
     }
   };
   // ── Hero numbers ──
-  const hero = live && score ? (() => {
-    const cur = score.current_tier, next = score.next_tier;
-    const pct = next ? Math.min(1, Math.max(0, (score.points_total - cur.threshold) / (next.threshold - cur.threshold))) : 1;
-    return { total: score.points_total, tier: cur.name, next: next ? next.name : null, toNext: score.points_to_next, pct, weekGain: score.week_gain, spark: dclScoreSpark(score), why: dclWhyItMoved(score) };
-  })() : DCL_DEMO.score;
+  const hero = live
+    ? (score ? (() => {
+        const cur = score.current_tier, next = score.next_tier;
+        const pct = next ? Math.min(1, Math.max(0, (score.points_total - cur.threshold) / (next.threshold - cur.threshold))) : 1;
+        return { total: score.points_total, tier: cur.name, next: next ? next.name : null, toNext: score.points_to_next, pct, weekGain: score.week_gain, spark: dclScoreSpark(score), why: dclWhyItMoved(score) };
+      })() : { total: 0, tier: "Base", next: null, toNext: 0, pct: 0, weekGain: 0, spark: [0, 0, 0, 0, 0, 0, 0, 0], why: "Start training and logging to build your Shape Score." })
+    : DCL_DEMO.score;
 
   // ── Weekly compliance ──
   const weekPlanned = (() => {
@@ -360,8 +368,10 @@ function ClientDashboardPage() {
   const compPct = ((comp.workoutsDone / Math.max(1, comp.workoutsPlanned)) + (comp.mealsLogged / comp.mealDays)) / 2;
 
   // ── Team / check-in / secondary ──
-  const team = live && Array.isArray(dash.team) && dash.team.length
-    ? dash.team.map((m) => ({ name: m.name, role: m.role, color: /nutri/i.test(m.role || "") ? "#d8a23a" : "#c0533b" }))
+  // No coaches on Shape yet → a signed-in account's team is EMPTY (never the
+  // demo coaches). Only a real linked coach shows here.
+  const team = live
+    ? (Array.isArray(dash.team) ? dash.team.map((m) => ({ name: m.name, role: m.role, color: /nutri/i.test(m.role || "") ? "#d8a23a" : "#c0533b" })) : [])
     : DCL_DEMO.team;
   const checkinDue = live
     ? !!(selfRec && selfRec.checkIn && selfRec.checkIn.lastWeekOf !== (() => { const m = new Date(); m.setHours(0,0,0,0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m.getFullYear() + "-" + String(m.getMonth() + 1).padStart(2, "0") + "-" + String(m.getDate()).padStart(2, "0"); })())
@@ -372,8 +382,8 @@ function ClientDashboardPage() {
         : null)
     : DCL_DEMO.nextSession;
   // Milestones (step 9.1) — earned + what's next, derived from the self record.
-  const msFeed = live && selfRec
-    ? DashSignals.buildMilestones(selfRec)
+  const msFeed = live
+    ? (selfRec ? DashSignals.buildMilestones(selfRec) : { recent: [], next: [] })
     : DCL_DEMO.milestonesFeed;
 
   const memberPill = live
@@ -529,6 +539,11 @@ function ClientDashboardPage() {
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div className="dash-eyebrow">Your team</div>
                 <div className="dash-ledger" style={{ marginTop: 9 }} />
+                {team.length === 0 && (
+                  <div style={{ fontSize: 12.5, color: DCL_INK50, padding: "10px 0" }}>
+                    No coaches yet — <a href="Marketplace.html" style={{ color: DCL_TEAL, textDecoration: "none" }}>find a trainer or nutritionist →</a>
+                  </div>
+                )}
                 {team.map((m, i) => {
                   const unread = dclUnreadFor(m.name);
                   return (
