@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Shape · Client</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dash.css?v=20260613">
+<script defer src="/_vercel/insights/script.js"></script></head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase.js"></script>
+
+<!-- Single-page client dashboard: every tab module is loaded + compiled ONCE here,
+     then the router below swaps the active page client-side on #hash change — no
+     full reload, no Babel recompile per tab. Shared chrome -->
+<script type="text/babel" src="pageShell.jsx?v=20260613c"></script>
+<script type="text/babel" src="chatWidget.jsx?v=20260613"></script>
+<script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
+<script type="text/babel" src="trainerDashboard.jsx?v=20260613"></script>
+<script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel" src="clientNav.jsx?v=20260614"></script>
+<!-- data + tab views -->
+<script src="dashSignals.js?v=20260613c"></script>
+<script type="text/babel" src="dashData.jsx?v=20260613b"></script>
+<script type="text/babel" src="dashToday.jsx?v=20260613e"></script>
+<script type="text/babel" src="dashClient.jsx?v=20260614a"></script>
+<script type="text/babel" src="dashProgress.jsx?v=20260613"></script>
+<script type="text/babel" src="dashTrain.jsx?v=20260613"></script>
+<script type="text/babel" src="dashNutri.jsx?v=20260613"></script>
+<script type="text/babel" src="dashGoals.jsx?v=20260613b"></script>
+<script type="text/babel" src="dashboardCommunity.jsx?v=20260609-2"></script>
+<script type="text/babel" src="habits.jsx"></script>
+<script type="text/babel" src="clientHabits.jsx?v=20260614"></script>
+<script type="text/babel" src="clientLibrary.jsx?v=20260614"></script>
+<script type="text/babel" src="clientTeam.jsx?v=20260614"></script>
+<script type="text/babel" src="clientScore.jsx?v=20260614"></script>
+<!-- living profile stack (profile tab) -->
+<script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
+<script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
+<script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=25"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260613b"></script>
+<script type="text/babel" src="clientMeSettings.jsx?v=20260614"></script>
+
+<script type="text/babel">
+// Each route returns exactly what the standalone page used to mount, so behaviour
+// (incl. the ChatWidget where a page had one) is identical — only the navigation
+// is now client-side. The page components render their own full layout + sidebar.
+const CA_ROUTES = {
+  today:     () => <React.Fragment><ClientDashboardPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  progress:  () => <React.Fragment><ClientProgressPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  workouts:  () => <React.Fragment><ClientWorkoutsPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  nutrition: () => <React.Fragment><ClientNutritionPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  library:   () => <React.Fragment><ClientLibraryPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  team:      () => <ClientTeamPage />,
+  community: () => <CommunityPage navItems={clientNavItems("community")} payoutCard={clientPayoutCard} chatTabs={clientChatTabs} />,
+  score:     () => <React.Fragment><ClientScorePage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  habits:    () => <React.Fragment><ClientHabitsPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+  goal:      () => <ClientGoalsPage />,
+  profile:   () => <React.Fragment><LiveProfilePage demoRole="client" shell={{ navItems: clientNavItems("profile"), payoutCard: clientPayoutCard }} extras={<ClientMeSettings />} /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
+};
+function caSlug() { const h = (window.location.hash || "").replace(/^#/, "").toLowerCase(); return CA_ROUTES[h] ? h : "today"; }
+function ClientApp() {
+  const [route, setRoute] = React.useState(caSlug());
+  React.useEffect(() => {
+    if (!window.location.hash) { try { window.history.replaceState(null, "", "#" + route); } catch (e) {} }
+    const onHash = () => { setRoute(caSlug()); try { window.scrollTo(0, 0); } catch (e) {} };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  return (CA_ROUTES[route] || CA_ROUTES.today)();
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<ClientApp />);
+</script>
+<script src="globalChatButton.js?v=20260613" defer></script>
+</body>
+</html>

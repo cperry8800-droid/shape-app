@@ -1,0 +1,114 @@
+function ClientTeamPage() {
+  const STATIC_COACHES = [
+    { name: "Maya Okafor", role: "Head trainer", since: "Feb 4, 2026", plan: "Strength + hybrid · $220/mo", last: "2m ago", avail: "Next session Thu 8am", trend: [0.3,0.5,0.4,0.7,0.6,0.8,0.7] },
+    { name: "Rae Lindqvist", role: "Nutritionist", since: "Feb 18, 2026", plan: "Performance fuel · $180/mo", last: "14m ago", avail: "Weekly check Wed 1:30pm", trend: [0.4,0.3,0.5,0.4,0.6,0.5,0.7] },
+  ];
+  const [coaches, setCoaches] = React.useState(STATIC_COACHES);
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/client/team', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!alive || !d || !Array.isArray(d.coaches) || !d.coaches.length) return;
+        setCoaches(d.coaches.map(c => ({
+          name: c.name,
+          role: c.role,
+          since: c.since,
+          plan: c.plan,
+          last: '—',
+          avail: c.next,
+          trend: [0.3,0.4,0.5,0.5,0.6,0.65,0.7],
+        })));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const chatThreads = [
+    { who: "Maya Okafor", role: "Head trainer · Tempo + hybrid", last: "Stick with 185 for top set. Drop backoffs to 165.", time: "2m", unread: 0, messages: [
+      { who: "Maya", t: "How'd the warmups feel this morning?", time: "8:48 AM", me: false },
+      { who: "You", t: "Squat 185 felt heavy — knee a bit grumpy.", time: "8:54 AM", me: true },
+      { who: "Maya", t: "Stick with 185 for top set. Drop backoffs to 165 — protect the knee.", time: "9:02 AM", me: false },
+      { who: "Maya", t: "Ice tonight and log sleep before Friday's call.", time: "9:02 AM", me: false },
+    ]},
+    { who: "Rae Lindqvist", role: "Nutritionist", last: "30g whey + 60g carbs within 45 min.", time: "14m", unread: 1, messages: [
+      { who: "Rae", t: "Post-run fueling template is live in your Nutri tab.", time: "Tue 6:14 PM", me: false },
+      { who: "You", t: "Saw it — trying the rice bowl tomorrow.", time: "Tue 7:02 PM", me: true },
+      { who: "Rae", t: "30g whey + 60g carbs within 45 min. Recovery window matters.", time: "14m", me: false },
+    ]},
+  ];
+  const suggested = [
+    { name: "Diego Alvarez",   role: "Run coach",       rate: "$90 / session", tag: "Endurance" },
+    { name: "Lina Park",       role: "Mobility specialist", rate: "$140 / mo",  tag: "Recovery" },
+    { name: "Jomo Singh",      role: "Physio",          rate: "$150 / session", tag: "Rehab" },
+  ];
+  return (
+    <DashPage
+      navItems={clientNavItems("team")}
+      payoutCard={clientPayoutCard}
+      eyebrow="YOUR COACHES · 2 ACTIVE"
+      title="Team"
+      subtitle="Your coaches work together on one plan. You pay each directly, at their rates."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Browse coaches</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Invite specialist</button>
+      </>}
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+        {coaches.map((c, i) => (
+          <Card key={i} style={{ padding: 28 }}>
+            <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
+              <div style={{ width: 64, height: 64, borderRadius: 999, background: "#efece6" }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", lineHeight: 1.1 }}>{c.name}</div>
+                <div style={{ fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>{c.role}</div>
+                <div style={{ fontSize: 11, color: "rgba(242,237,228,0.45)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>COACHING SINCE {c.since.toUpperCase()}</div>
+              </div>
+              <Sparkline data={c.trend} width={70} height={28} />
+            </div>
+            <div style={{ borderTop: "1px solid rgba(242,237,228,0.08)", paddingTop: 16, display: "grid", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                <span style={{ color: "rgba(242,237,228,0.55)" }}>Plan</span>
+                <span>{c.plan}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                <span style={{ color: "rgba(242,237,228,0.55)" }}>Last message</span>
+                <span>{c.last}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                <span style={{ color: "rgba(242,237,228,0.55)" }}>Next</span>
+                <span style={{ color: TEAL_BRIGHT }}>{c.avail}</span>
+              </div>
+            </div>
+            <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
+              <button onClick={() => { const f = window.__openChatTo || window.__openChat; if (f) f({ who: c.name }); }} style={{ flex: 1, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 0", borderRadius: 999, fontSize: 13, cursor: "pointer", fontFamily: sans }}>Message</button>
+              <button style={{ flex: 1, background: INK, color: PAPER, border: 0, padding: "9px 0", borderRadius: 999, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: sans }}>Book session</button>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <SectionTitle right="RECOMMENDED BY MAYA">Specialists to add</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+          {suggested.map((s, i) => (
+            <div key={i} style={{ padding: 18, background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6" }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{s.role}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.65)" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{s.rate}</span>
+                <Pill>{s.tag.toUpperCase()}</Pill>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <ChatWidget tabs={clientChatTabs} />
+    </DashPage>
+  );
+}

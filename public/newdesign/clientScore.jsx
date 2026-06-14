@@ -1,0 +1,197 @@
+function ClientScorePage() {
+  // 5-tier monthly-points reward structure.
+  // [name, threshold (number), display "PTS / N+", benefit copy]
+  const tiers = [
+    ["Raw",    0,     "0+",      "Starting level"],
+    ["Tempo",  750,   "750+",    "2× redemption value"],
+    ["Form",   2000,  "2,000+",  "Early access drops + streak boosts"],
+    ["Peak",   5000,  "5,000+",  "Priority booking + 1 free intro / mo"],
+    ["Legend", 15000, "15,000+", "Annual Shape merch + service credit"],
+  ];
+
+  // Live score state. When signed in, the API hydrates this with the
+  // user's own ledger totals. When signed out, we keep the static demo
+  // numbers so the page still renders for marketing.
+  const [live, setLive] = React.useState(null);
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/client/score', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive && d && typeof d.points_total === 'number') setLive(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const myPoints = live ? live.points_total : 1284;
+  // Find current tier (highest threshold <= myPoints) and next tier.
+  let currentIdx = 0;
+  for (let i = tiers.length - 1; i >= 0; i--) { if (myPoints >= tiers[i][1]) { currentIdx = i; break; } }
+  const currentTier = tiers[currentIdx];
+  const nextTier = tiers[currentIdx + 1] || null;
+  const ptsToNext = nextTier ? nextTier[1] - myPoints : 0;
+  const tierFloor = currentTier[1];
+  const tierCeiling = nextTier ? nextTier[1] : tierFloor;
+  const progressPct = nextTier ? Math.min(100, Math.max(0, ((myPoints - tierFloor) / (tierCeiling - tierFloor)) * 100)) : 100;
+
+  const staticBreakdown = [
+    ["Workouts logged",   420, "14d streak · +8 this week"],
+    ["Plan adherence",    280, "92% · last 30d"],
+    ["Habits",            120, <>78% adherence · 9 active · <a href="ClientHabits.html" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>open →</a></>],
+    ["PRs hit",           180, "4 this quarter"],
+    ["Community",          84, "12 posts, 38 kudos"],
+    ["Coach endorsements",160, "Maya + Rae weekly"],
+    ["Radio participation",60, "4 rooms joined"],
+    ["Referrals",         100, "2 friends on Shape"],
+  ];
+  const breakdown = live && Array.isArray(live.breakdown_total) && live.breakdown_total.length
+    ? live.breakdown_total.map(b => [b.label, b.points, ""])
+    : staticBreakdown;
+  const total = breakdown.reduce((a, b) => a + b[1], 0);
+
+  // Recent ledger entries
+  const fmtWhen = (iso) => {
+    const d = new Date(iso);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const y = new Date(today); y.setDate(y.getDate() - 1);
+    const dd = new Date(d); dd.setHours(0,0,0,0);
+    const t = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (dd.getTime() === today.getTime()) return `Today · ${t}`;
+    if (dd.getTime() === y.getTime()) return `Yesterday · ${t}`;
+    return `${d.toLocaleDateString([], { weekday: 'short' })} · ${t}`;
+  };
+  const staticLedger = [
+    { when: "Today · 9:14 AM",     what: "Workout logged · Upper Pull",   delta: 8  },
+    { when: "Today · 8:02 AM",     what: "Habits · 5 of 6 done",          delta: 18 },
+    { when: "Yesterday · 7:48 PM", what: "Plan adherence · day complete", delta: 12 },
+    { when: "Yesterday · 6:30 PM", what: "Coach endorsement · Maya",      delta: 24 },
+    { when: "Tue · 9:00 AM",       what: "Workout logged · Lower power",  delta: 8  },
+    { when: "Tue · 12:30 PM",      what: "Meal logged · on plan",         delta: 4  },
+    { when: "Mon · 6:15 AM",       what: "Squat PR · +5 lb",              delta: 32 },
+    { when: "Mon · 6:00 PM",       what: "Community kudos · 4 received",  delta: 4  },
+  ];
+  const ledger = live && Array.isArray(live.recent) && live.recent.length
+    ? live.recent.slice(0, 8).map(r => ({
+        when: fmtWhen(r.earned_at),
+        what: r.note || (r.source_kind || 'Score event'),
+        delta: r.delta,
+      }))
+    : staticLedger;
+
+  const ORANGE = "#c1641f";
+
+  return (
+    <DashPage
+      navItems={clientNavItems("score")}
+      payoutCard={clientPayoutCard}
+      eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
+      title={myPoints.toLocaleString()}
+      subtitle={`You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
+      </>}
+    >
+      {/* Reward tiers — 5-tier ladder */}
+      <Card style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Reward tiers</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>LIFETIME POINTS</span>
+          </div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>{tiers.length} TIERS</span>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          {tiers.map(([t, , r, d], i) => {
+            const isCurrent = i === currentIdx;
+            return (
+              <div key={t} style={{
+                display: "grid", gridTemplateColumns: "100px 1fr auto", gap: 24, alignItems: "center",
+                padding: "18px 8px",
+                borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.08)",
+                background: isCurrent ? "rgba(10,197,168,0.06)" : "transparent",
+                margin: i === 0 ? "0 -8px" : "0 -8px",
+                borderRadius: 6,
+              }}>
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: ORANGE, fontWeight: 500 }}>PTS</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: INK, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{r}</div>
+                </div>
+                <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: isCurrent ? INK : "rgba(242,237,228,0.85)", lineHeight: 1 }}>
+                  {t}
+                  {isCurrent && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginLeft: 12, verticalAlign: "middle" }}>YOU ARE HERE</span>}
+                </div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase", textAlign: "right", maxWidth: 280 }}>{d}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace" }}>
+          <span>{myPoints.toLocaleString()}</span>
+          {nextTier && <span>{nextTier[0].toUpperCase()} AT {nextTier[1].toLocaleString()}</span>}
+        </div>
+        <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+          <div style={{ height: "100%", width: `${progressPct}%`, background: TEAL, borderRadius: 999 }} />
+        </div>
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
+        <Card>
+          <SectionTitle right={`TOTAL ${total.toLocaleString()}`}>Score breakdown</SectionTitle>
+          {breakdown.map(([l, v, sub], i) => {
+            const w = (v / Math.max(...breakdown.map(b => b[1]))) * 100;
+            return (
+              <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
+                <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Card>
+            <SectionTitle>This week's gains</SectionTitle>
+            <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>+{live ? live.week_gain : 36}</div>
+            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{live ? "last 7 days" : "vs 28 last week"}</div>
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community kudos</span><span>+4</span></div>
+            </div>
+          </Card>
+          <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH TO {nextTier ? nextTier[0].toUpperCase() : "—"}</div>
+            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>{nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.` : "You're at the top tier. Keep the streak alive."}</div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Recent points · Ledger */}
+      <Card style={{ marginTop: 20 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>Recent points</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>LEDGER</span>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          {ledger.map((row, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "180px 1fr auto", gap: 16, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{row.when}</div>
+              <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>{row.what}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>+{row.delta}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)" }}>
+          <span>SHOWING LAST 8 ENTRIES</span>
+          <a href="#" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>VIEW FULL LEDGER →</a>
+        </div>
+      </Card>
+    </DashPage>
+  );
+}
