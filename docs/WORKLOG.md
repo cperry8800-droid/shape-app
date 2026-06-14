@@ -130,8 +130,15 @@ changelog whenever something ships.
   rendered by the client + trainer + nutritionist apps (`BSClientChat`,
   window-exposed). Added swim/cycle/rest demo cards; preview generator
   `scripts/feed-reaction-preview.mjs` renders the real mapping. 101/101 tests,
-  `public/m` in sync. *Phase 2 (parked):* long-press expressive palette
-  (Fire/Props chips) rolling up under the same unified count.
+  `public/m` in sync.
+- **Phase 2 SHIPPED (same day) — long-press expressive palette.** A press-and-hold
+  (~420ms) on the reaction opens a small inline chip row of alternate reaction
+  **words** (no emoji): the post's contextual verb leads, then the universal set
+  **Fire · Props · Crushing it · Don't stop**. Picking one **re-labels MY reaction
+  but stays the SAME unified like** (count never forks — 41→42; persists only when
+  the like state flips, a relabel is local). The button then shows my chosen word.
+  Default + fallback verb stays **Props**. `bsReactionPalette(defaultVerb)` (+3
+  tests, 104/104). Co-sign composes unchanged; applies to all profiles.
 
 ### 2026-06-14 — Mobile Home restructure (one today, no duplication) + dashboard header gap
 - **Client Home (`BSClientHome`) restructured** — layout/hierarchy only, the
