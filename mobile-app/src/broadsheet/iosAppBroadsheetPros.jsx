@@ -1455,21 +1455,32 @@ function bsClientMatchesQuery(c, query) {
   if (!q) return true;
   return (c.n || '').toLowerCase().includes(q) || (c.prog || '').toLowerCase().includes(q) || (c.r || '').toLowerCase().includes(q);
 }
-function BSProStatusPill({ s }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const gold = '#d8b25a';
-  const map = {
-    'on track': ['ON TRACK', teal],
-    'review form': ['NEEDS EYES', gold],
-    'deload soon': ['DELOAD', t.RUST],
-    'onboard': ['NEW', gold],
-    'missed': ['MISSED', t.RUST],
-    'pr': ['PR', teal],
-    'past': ['PAST', t.INK50],
-  };
-  const [label, color] = map[s] || ['ACTIVE', t.INK50];
-  return <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color, border: `1px solid ${color}`, borderRadius: 999, padding: '5px 9px', whiteSpace: 'nowrap' }}>{label}</span>;
+// Roster triage — derive a severity + a one-line DIRECTIVE ("what to do") for
+// every client from its status, using the SAME red → amber → new → green
+// vocabulary as the Today "Who needs you" triage feed. Source-agnostic: the `s`
+// status is set for demo AND live rosters, so the Clients page reads as a triage
+// surface (sorted at-risk first, each row leading with the action), not a flat
+// list. rank orders the list: 0 red, 1 amber, 2 new, 3 on-track, 5 past.
+function bsRosterSeverity(c, role) {
+  const s = (c && c.s) || 'on track';
+  const nut = role === 'nutritionist';
+  switch (s) {
+    case 'missed':
+      return { sev: 'red', rank: 0, label: 'NEEDS YOU', directive: nut ? 'No logs lately — send a nudge.' : 'Missed — no check-in. Reach out.' };
+    case 'review form':
+      return { sev: 'amber', rank: 1, label: 'NEEDS YOU', directive: nut ? 'Food log waiting on your review.' : 'Check-in form waiting on your review.' };
+    case 'deload soon':
+      return { sev: 'amber', rank: 1, label: 'NEEDS YOU', directive: 'Deload due — adjust the block.' };
+    case 'onboard':
+      return { sev: 'new', rank: 2, label: 'NEW', directive: nut ? 'New — send the intake form.' : 'New — send the intake + first plan.' };
+    case 'pr':
+      return { sev: 'green', rank: 3, label: 'PR', directive: 'PR this week — send some props.' };
+    case 'past':
+      return { sev: 'past', rank: 5, label: 'PAST', directive: 'Past client — re-engage when ready.' };
+    case 'on track':
+    default:
+      return { sev: 'green', rank: 3, label: 'ON TRACK', directive: nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.' };
+  }
 }
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
@@ -1579,28 +1590,67 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             return <button key={k} onClick={() => setRoster(k)} style={{ flex: 1, borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
           })}
         </div>
-        {/* Client list — clean divider rows */}
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column' }}>
-          {clients.length === 0 && (
-            <div style={{ padding: '22px 2px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No matching clients.</div>
-          )}
-          {clients.map((c, i) => {
-            const subtitle = `${c.prog || (c.r || '').split('·')[0].trim()}${c.streak != null ? ` · ${c.streak}d streak` : ''}`;
-            return (
-              <button key={i} onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', border: 0, borderTop: i ? `1px solid ${t.HAIR}` : 0, background: 'transparent', padding: '14px 2px' }}>
-                <BSFacetAvatar size={42} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: t.W.display, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{c.n}</div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.35 }}>{subtitle}</div>
+        {/* Triage-led list — sorted at-risk first, grouped (Needs you → New →
+            On track → Past), each row leading with ONE directive (what to do) +
+            a severity spine/pill. Program/streak detail moves to the client
+            page; the page LEADS with a verdict, like the Today triage feed. */}
+        {(() => {
+          const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
+          const bucketOf = (sig) => (sig.rank <= 1 ? 'Needs you' : sig.sev === 'new' ? 'New' : sig.sev === 'past' ? 'Past' : 'On track');
+          const bucketCol = (b) => (b === 'Needs you' ? SEVCOL.red : b === 'New' ? teal : b === 'Past' ? t.INK50 : SEVCOL.green);
+          const rows = clients.map((c) => ({ c, sig: bsRosterSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
+          const needsYou = rows.filter((r) => r.sig.rank <= 1).length;
+          const onTrack = rows.filter((r) => r.sig.sev === 'green').length;
+          const newN = rows.filter((r) => r.sig.sev === 'new').length;
+          const counts = rows.reduce((m, r) => { const b = bucketOf(r.sig); m[b] = (m[b] || 0) + 1; return m; }, {});
+          return (
+            <>
+              {/* Verdict — the page's lead directive (who needs you, at a glance) */}
+              {rows.length > 0 && (
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', color: needsYou ? SEVCOL.red : SEVCOL.green }}>
+                    {needsYou ? `${needsYou} ${needsYou === 1 ? 'needs' : 'need'} you` : 'All clear'}
+                  </span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+                    · {onTrack} on track{newN ? ` · ${newN} new` : ''}
+                  </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <BSProStatusPill s={c.s} />
-                  <span style={{ color: t.INK50, fontSize: 16, lineHeight: 1 }}>›</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+              )}
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column' }}>
+                {rows.length === 0 && (
+                  <div style={{ padding: '22px 2px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No matching clients.</div>
+                )}
+                {rows.map(({ c, sig }, i) => {
+                  const b = bucketOf(sig);
+                  const showHeader = i === 0 || bucketOf(rows[i - 1].sig) !== b;
+                  const col = SEVCOL[sig.sev] || t.AMBER;
+                  const actionable = sig.rank <= 2;
+                  return (
+                    <React.Fragment key={`${c.n}-${i}`}>
+                      {showHeader && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: i ? '15px 2px 7px' : '6px 2px 7px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bucketCol(b) }}>{b}</span>
+                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{counts[b]}</span>
+                        </div>
+                      )}
+                      <button onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 12, alignItems: 'center', border: 0, borderLeft: `3px solid ${col}`, borderTop: (!showHeader && i) ? `1px solid ${t.HAIR}` : 0, background: 'transparent', padding: '13px 4px 13px 11px' }}>
+                        <BSFacetAvatar size={42} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{c.n}</div>
+                          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: actionable ? col : t.INK50, lineHeight: 1.3 }}>{sig.directive}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '5px 9px', whiteSpace: 'nowrap' }}>{sig.label}</span>
+                          <span style={{ color: t.INK50, fontSize: 16, lineHeight: 1 }}>›</span>
+                        </div>
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
       </div>
       <BSFooter left={footerLeft} right={footerRight} />
     </BSPage>
