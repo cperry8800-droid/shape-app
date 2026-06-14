@@ -121,6 +121,10 @@ const _BS_HABIT_DEMO_ROWS = [
 
 function _bsHabitGridModel(habits) {
   if (!habits || habits.length === 0) {
+    // Signed in with no habits yet → EMPTY (the page shows "add your first one");
+    // the demo habit set is the signed-out preview only.
+    const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+    if (signedIn) return { days: _bsLast7().map((d) => _bsDowLetter(d)), rows: [], demo: false };
     return { days: _BS_HABIT_GRID_DAYS, rows: _BS_HABIT_DEMO_ROWS, demo: true };
   }
   const dates = _bsLast7();

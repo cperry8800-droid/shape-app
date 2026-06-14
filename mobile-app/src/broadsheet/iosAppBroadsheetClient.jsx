@@ -11947,6 +11947,16 @@ const BS_GOALS_DEFAULT = {
     { t: 'Hit 150g protein daily', cur: 120, tgt: 150, sub: 'g protein · per day', cat: 'nutrition' },
   ],
 };
+// Empty goals for a SIGNED-IN account with nothing set yet — zeroed, NOT the demo
+// "Lean by August" goal (that's the signed-out preview only). A real goal +
+// weigh-ins merge in once loaded from client_goals.
+const BS_GOALS_EMPTY = {
+  share: false, primaryGoal: '',
+  overall: { title: '', by: null, unit: 'kg', start: 0, startMonth: '', now: 0, target: 0, weighIns: [], why: '' },
+  trainingMeta: { title: '', subtitle: '' },
+  nutritionMeta: { title: '', subtitle: '' },
+  training: [], nutrition: [],
+};
 function bsGoalIsoFromWeeks(w) { const d = new Date(); d.setDate(d.getDate() + (Number(w) || 0) * 7); return d.toISOString().slice(0, 10); }
 function bsGoalDaysUntil(iso) { if (!iso) return null; const ms = new Date(iso).getTime() - Date.now(); return Math.max(0, Math.round(ms / 86400000)); }
 // Live body-comp helpers — derive "now" + the trend series from logged weigh-ins.
@@ -12734,7 +12744,10 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   _bsScrollTopOnMount();
-  const [data, setData] = useStateBSC(BS_GOALS_DEFAULT);
+  // Signed in → start EMPTY (no demo "Lean by August"); a real goal loads in. The
+  // demo goal is the signed-out preview only.
+  const _goalsSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [data, setData] = useStateBSC(_goalsSignedIn ? BS_GOALS_EMPTY : BS_GOALS_DEFAULT);
   const [tab, setTab] = useStateBSC('overall'); // overall | training | nutrition
   const [editing, setEditing] = useStateBSC(null); // goal-list edit: 'new' | index | null
   const [editOverall, setEditOverall] = useStateBSC(false);
@@ -12841,9 +12854,9 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
     return () => { alive = false; };
   }, [loggedIn]);
   const persist = (next) => { setData(next); try { window.shapeDb?.saveUserGoals?.('client_goals', next); } catch (e) {} };
-  const overall = data.overall || BS_GOALS_DEFAULT.overall;
-  const trainingMeta = data.trainingMeta || BS_GOALS_DEFAULT.trainingMeta;
-  const nutritionMeta = data.nutritionMeta || BS_GOALS_DEFAULT.nutritionMeta;
+  const overall = data.overall || (loggedIn ? BS_GOALS_EMPTY.overall : BS_GOALS_DEFAULT.overall);
+  const trainingMeta = data.trainingMeta || (loggedIn ? BS_GOALS_EMPTY.trainingMeta : BS_GOALS_DEFAULT.trainingMeta);
+  const nutritionMeta = data.nutritionMeta || (loggedIn ? BS_GOALS_EMPTY.nutritionMeta : BS_GOALS_DEFAULT.nutritionMeta);
   const goals = Array.isArray(data[tab]) ? data[tab] : [];
   const saveGoal = (g) => { const arr = goals.slice(); if (editing === 'new') arr.push(g); else arr[editing] = g; persist({ ...data, [tab]: arr }); setEditing(null); };
   const deleteGoal = () => { const arr = goals.filter((_, i) => i !== editing); persist({ ...data, [tab]: arr }); setEditing(null); };
