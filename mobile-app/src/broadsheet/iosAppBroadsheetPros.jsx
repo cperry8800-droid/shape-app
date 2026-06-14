@@ -14,10 +14,11 @@ import { createPortal } from 'react-dom';
 // point bsDemoRoster at it and both surfaces move together.)
 function BSProTriageFeed({ role = 'trainer', onSeeAll = () => {} }) {
   const t = useBS();
+  const roster = useBSProRoster(role); // demo first paint → live roster when signed in
   const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: t.isLight ? '#0a8f87' : '#34d6c5', green: '#7bbf5a', past: t.INK50 };
-  const flagged = bsDemoRoster(role, t)
+  const flagged = roster
     .filter((c) => c.active !== false)
-    .map((c) => ({ c, sig: bsRosterSeverity(c, role) }))
+    .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
     .filter((x) => x.sig.rank <= 1)
     .sort((a, b) => a.sig.rank - b.sig.rank);
   const message = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId, n: c.n } } })); } catch (e) {} };
@@ -1525,6 +1526,59 @@ function bsNutriDemoRoster(t) {
 function bsDemoRoster(role, t) {
   return role === 'nutritionist' ? bsNutriDemoRoster(t) : bsTrainerDemoRoster(t);
 }
+// Map an engine triage row (LIVE roster) → the roster-row shape the UI renders,
+// carrying a pre-computed `_sig` (severity + directive) from the REAL signals so
+// the home card + Clients page show the same verdict. The detail page only needs
+// `userId` to fetch everything live; the rest is best-effort from the record.
+function bsRowFromTriage(row, role, t) {
+  const p = (row && row.client && row.client.profile) || {};
+  const rec = (row && row.client) || {};
+  const name = p.name || 'Client';
+  const initials = name.trim().split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+  const palette = [t.GREEN, t.RUST, t.AMBER, t.BLUE, '#8a5cf6'];
+  let h = 0; for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0;
+  const sev = row.severity || 'green';
+  const rank = sev === 'red' ? 0 : sev === 'amber' ? 1 : 3;
+  const reason = ((row.reasons || (row.flags || []).map((f) => f.reason)).filter(Boolean))[0];
+  const nut = role === 'nutritionist';
+  const directive = reason || (sev === 'green' ? (nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.') : 'Needs your attention this week.');
+  const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
+    : (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
+  const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
+  return {
+    userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
+    avatar: p.avatar || p.photo || undefined,
+    prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
+    streak, d: adh != null ? `${adh}%` : '',
+    s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : 'on track',
+    active: true,
+    _sig: { sev, rank, label: sev === 'green' ? 'ON TRACK' : 'NEEDS YOU', directive },
+  };
+}
+// Severity for a roster row — prefers the live engine `_sig` when present, else
+// derives from the demo row's `s` status. Single path for both surfaces.
+function bsRowSeverity(c, role) {
+  return (c && c._sig) || bsRosterSeverity(c, role);
+}
+// Shared roster source: the rich demo roster on first paint / signed-out, then
+// the REAL coach roster (ShapeSignals.triageLive, scored by the engine) once it
+// resolves. The coach Today card + both Clients pages all read this, so they're
+// always in agreement. triageLive is cached per-role so they share one fetch.
+function useBSProRoster(role) {
+  const t = useBS();
+  const [live, setLive] = useStateBSP(null); // null = not loaded; array = live rows
+  useEffectBSP(() => {
+    let on = true;
+    const S = (typeof window !== 'undefined' && window.ShapeSignals) || null;
+    if (!S || !S.triageLive) return undefined;
+    S.triageLive(role).then((feed) => {
+      if (!on) return;
+      if (Array.isArray(feed) && feed.length) setLive(feed.map((r) => bsRowFromTriage(r, role, t)));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [role]);
+  return live || bsDemoRoster(role, t);
+}
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
 function bsProMeInit() {
@@ -1641,7 +1695,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
           const bucketOf = (sig) => (sig.rank <= 1 ? 'Needs you' : sig.sev === 'new' ? 'New' : sig.sev === 'past' ? 'Past' : 'On track');
           const bucketCol = (b) => (b === 'Needs you' ? SEVCOL.red : b === 'New' ? teal : b === 'Past' ? t.INK50 : SEVCOL.green);
-          const rows = clients.map((c) => ({ c, sig: bsRosterSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
+          const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
           const needsYou = rows.filter((r) => r.sig.rank <= 1).length;
           const onTrack = rows.filter((r) => r.sig.sev === 'green').length;
           const newN = rows.filter((r) => r.sig.sev === 'new').length;
@@ -1706,7 +1760,7 @@ function BSTrainerClients() {
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
-  const COACH_CLIENTS = bsTrainerDemoRoster(t);
+  const COACH_CLIENTS = useBSProRoster('trainer'); // demo → live roster when signed in
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
@@ -4022,7 +4076,7 @@ function BSNutriClients() {
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
-  const NUTRI_CLIENTS = bsNutriDemoRoster(t);
+  const NUTRI_CLIENTS = useBSProRoster('nutritionist'); // demo → live roster when signed in
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))

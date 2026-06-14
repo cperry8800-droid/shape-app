@@ -72,6 +72,26 @@ async function coachRecords(role) {
   });
 }
 
+// Live-roster triage, cached + de-duped per role (so the coach Today card and
+// the Clients page share ONE fetch). NO mock fallback — returns [] when there's
+// no live roster, so the UI can fall back to its own rich demo roster and keep
+// the two surfaces in agreement.
+const _triageCache = {}; // role → { at, promise }
+async function triageLive(role) {
+  const now = Date.now();
+  const hit = _triageCache[role];
+  if (hit && now - hit.at < 30000) return hit.promise;
+  const promise = (async () => {
+    const e = engine(); if (!e) return [];
+    const records = await coachRecords(role);
+    if (!records.length) return [];
+    return call(e.getTriageFeed, role, records) || [];
+  })();
+  _triageCache[role] = { at: now, promise };
+  promise.catch(() => { if (_triageCache[role] && _triageCache[role].promise === promise) delete _triageCache[role]; });
+  return promise;
+}
+
 // ── Engine pass-throughs + the consumable API for Phase 2 ─────────────────────
 window.ShapeSignals = {
   // The raw engine (same object the website's window.DashSignals exposes).
@@ -81,6 +101,10 @@ window.ShapeSignals = {
   // Record builders (live; null/[] when the data isn't there yet).
   selfRecord,
   coachRecords,
+
+  // Live-roster triage feed (severity-ranked; NO mock fallback, cached 30s per
+  // role). [] when there's no live roster → the UI shows its demo roster instead.
+  triageLive,
 
   // Coach: severity-ranked at-risk feed ("who needs you and why"). Falls back to
   // the engine's demo personas when there's no live roster (signed-out preview).
