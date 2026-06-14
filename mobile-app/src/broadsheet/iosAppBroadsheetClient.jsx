@@ -7203,6 +7203,9 @@ function bsActivityFromPost(p) {
     // honest: empty when self-coached, so the card's "Programmed by" row hides.
     coach: (typeof p.coach === 'string' && p.coach.trim()) ? p.coach.trim() : null,
     program: (typeof p.program === 'string' && p.program.trim()) ? p.program.trim() : '',
+    // PR delta stamped at publish (vs the author's prior best); empty until a
+    // genuine new best exists — the card shows the number with no delta otherwise.
+    delta: (typeof p.delta === 'string' && p.delta.trim()) ? p.delta.trim() : null,
     typeLabel: isRun ? 'Run' : 'Workout',
     title,
     body: p.note || '',
@@ -7299,8 +7302,16 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
       else if (kind === 'photo') payload = { ...base, title: title.trim() || 'Photo', note: body.trim(), photoUrl, metrics: { kind: 'photo' } };
       else if (kind === 'video') payload = { ...base, title: title.trim() || 'Video', note: body.trim(), metrics: { kind: 'video', video_url: videoUrl.trim() } };
       else if (kind === 'workout') {
-        const stats = [['Duration', woA], ['Distance', woB], ['Effort', woC]].map(([l, v]) => ({ l, v: String(v || '').trim() })).filter((s) => s.v);
-        payload = { ...base, title: title.trim() || woType, note: body.trim(), activityType: woType.toLowerCase(), metrics: { kind: 'workout', workoutStats: stats } };
+        let stats; const extra = {};
+        if (woType === 'Strength') {
+          stats = [['Load', woB], ['Top set', woC]].map(([l, v]) => ({ l, v: String(v || '').trim() })).filter((s) => s.v);
+          if (woA.trim()) extra.lift = woA.trim();   // keys the prior-best lookup
+          if (woB.trim()) extra.load = woB.trim();   // numeric load → delta basis
+        } else {
+          stats = [['Duration', woA], ['Dist / Vol', woB], ['Effort', woC]].map(([l, v]) => ({ l, v: String(v || '').trim() })).filter((s) => s.v);
+        }
+        const woTitle = title.trim() || (woType === 'Strength' && woA.trim() ? woA.trim() : woType);
+        payload = { ...base, title: woTitle, note: body.trim(), activityType: woType.toLowerCase(), metrics: { kind: 'workout', workoutStats: stats, ...extra } };
       } else {
         let u = linkUrl.trim(); if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
         const host = bsLinkHost(u);
@@ -7368,11 +7379,19 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
           {kind === 'workout' && (
             <>
               <div><span style={label}>Type</span><div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{['Strength', 'Run', 'Ride', 'Conditioning', 'Mobility'].map((w) => <button key={w} onClick={() => setWoType(w)} style={{ ...chip(woType === w), fontSize: 9.5, padding: '7px 12px' }}>{w}</button>)}</div></div>
+              {(() => {
+                // Strength captures a structured Lift + Load so the card can lead
+                // with the load and light up an honest PR delta vs the last best.
+                const f = woType === 'Strength'
+                  ? [['Lift', 'Deadlift', woA, setWoA], ['Load', '245 lb', woB, setWoB], ['Top set', '1×3', woC, setWoC]]
+                  : [['Duration', '52 min', woA, setWoA], ['Dist / Vol', '5 km', woB, setWoB], ['Effort', 'RPE 8', woC, setWoC]];
+                return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <div><span style={label}>Duration</span><input value={woA} onChange={(e) => setWoA(e.target.value)} placeholder="52 min" style={field} /></div>
-                <div><span style={label}>Dist / Vol</span><input value={woB} onChange={(e) => setWoB(e.target.value)} placeholder="5 km" style={field} /></div>
-                <div><span style={label}>Effort</span><input value={woC} onChange={(e) => setWoC(e.target.value)} placeholder="RPE 8" style={field} /></div>
+                {f.map(([lab, ph, val, set]) => <div key={lab}><span style={label}>{lab}</span><input value={val} onChange={(e) => set(e.target.value)} placeholder={ph} style={field} /></div>)}
               </div>
+                );
+              })()}
+              {woType === 'Strength' && <div style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginTop: 6, letterSpacing: '0.04em' }}>Load leads the card; a new PR vs your last best lights up automatically.</div>}
             </>
           )}
 

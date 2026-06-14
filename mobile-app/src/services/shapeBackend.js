@@ -1824,6 +1824,7 @@ function communityPostFromRow(row) {
     workoutStats: Array.isArray(metrics.workoutStats) ? metrics.workoutStats : null,
     coach: typeof metrics.coach === 'string' ? metrics.coach : '',
     program: typeof metrics.program === 'string' ? metrics.program : '',
+    delta: typeof metrics.delta === 'string' ? metrics.delta : '',
     repostOf: (metrics.repostOf && typeof metrics.repostOf === 'object') ? metrics.repostOf : null,
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
     avatar: authorName.trim()[0]?.toUpperCase() || 'S',
@@ -2319,6 +2320,30 @@ async function createCommunityPost({
   if (_isWorkoutPost && !mergedMetrics.coach) {
     const cp = await resolveAuthorCoachProgram();
     if (cp.coach) { mergedMetrics.coach = cp.coach; if (cp.program) mergedMetrics.program = cp.program; }
+  }
+  // Strength PR delta — when the post carries a structured lift + load, diff the
+  // load against the author's prior best for that lift (the pr_wall_posts ledger,
+  // owner-readable) and stamp "+X" ONLY when it's a genuine new best. Honest: the
+  // very first time a lift is logged there's no prior best → no delta, just the
+  // number. Then announce the PR (advances the ledger + posts to #PR Wall — the
+  // RPC re-gates on public). Best-effort, never blocks the post.
+  const _lift = (mergedMetrics.lift && String(mergedMetrics.lift).trim()) || '';
+  const _loadNum = mergedMetrics.load ? parseFloat(String(mergedMetrics.load).replace(/[^0-9.]/g, '')) : NaN;
+  const _unit = (mergedMetrics.load && /kg/i.test(String(mergedMetrics.load))) ? 'kg' : 'lb';
+  if (supabase && state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
+    try {
+      const { data: prev } = await supabase
+        .from('pr_wall_posts').select('best_value, posted_at')
+        .eq('user_id', state.user.id).eq('lift_key', _lift.toLowerCase()).maybeSingle();
+      const prevBest = (prev && Number.isFinite(Number(prev.best_value))) ? Number(prev.best_value) : null;
+      if (prevBest != null && _loadNum > prevBest) {
+        const gain = Math.round((_loadNum - prevBest) * 10) / 10;
+        let when = '';
+        try { const d = prev.posted_at ? new Date(prev.posted_at) : null; if (d && !isNaN(d)) when = ` on ${d.toLocaleDateString([], { month: 'short' })} best`; } catch (e) {}
+        mergedMetrics.delta = `+${gain} ${_unit}${when}`;
+      }
+    } catch (e) { /* delta is best-effort */ }
+    try { if (window.ShapePRWall && window.ShapePRWall.post) window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit }); } catch (e) {}
   }
   const payload = {
     author_id: state.user.id,
