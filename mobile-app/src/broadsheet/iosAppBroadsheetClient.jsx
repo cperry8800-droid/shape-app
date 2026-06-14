@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -1946,7 +1946,15 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goMarket
     }
     return () => { on = false; };
   }, []);
-  const liveWeek = React.useMemo(() => (livePlan ? bsHomeLiveWeek(livePlan, t) : null), [livePlan, t]);
+  // Signed in with no assigned plan → an EMPTY week (no workouts/meals/dots), NOT
+  // the demo week. There are no coaches on Shape yet, so a real account shows its
+  // real (empty) plan; the demo week is only the signed-out preview.
+  const bsHomeSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const liveWeek = React.useMemo(() => {
+    if (livePlan) return bsHomeLiveWeek(livePlan, t);
+    if (bsHomeSignedIn) return bsHomeLiveWeek({ training: { hasPlan: false, workouts: [] }, meals: { hasPlan: false, days: [] } }, t);
+    return null;
+  }, [livePlan, bsHomeSignedIn, t]);
 
   const [selIdx, setSelIdx] = useStateBSC(todayIdx); // selected weekday 0..6 (today by default)
   // "Up next" follows the day you tap in the week strip (not just today).
@@ -3207,13 +3215,17 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Train deck / live session / preview show the same workout as the home hero
   // and the calendar for each day. Real assigned plans still win (liveProgram).
   const MOCK_PROGRAM = React.useMemo(() => bsBuildDemoTrainProgram(t), [t]);
+  // Signed in with no assigned plan → EMPTY week (no coaches yet); the demo
+  // program is only the signed-out preview.
+  const bsTrainSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const EMPTY_PROGRAM = React.useMemo(() => bsEmptyTrainProgram(t), [t]);
 
   // Apply the coach's "Adjust program" intent (client_programs.detail.training) onto
   // the deck so the per-day workouts reflect what the coach set — intensity scales
   // loads/RPE, the weekly split re-themes days + sets rest days, the note rides along.
   const PROGRAM = React.useMemo(
-    () => bsApplyTrainAdjust(liveProgram || MOCK_PROGRAM, bsTrainProgram.detail?.training, t),
-    [liveProgram, MOCK_PROGRAM, bsTrainProgram.detail, t]
+    () => bsApplyTrainAdjust(liveProgram || (bsTrainSignedIn ? EMPTY_PROGRAM : MOCK_PROGRAM), bsTrainProgram.detail?.training, t),
+    [liveProgram, MOCK_PROGRAM, EMPTY_PROGRAM, bsTrainSignedIn, bsTrainProgram.detail, t]
   );
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
@@ -5285,7 +5297,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     },
   ], [t]);
 
-  const PROGRAM = liveProgram || MOCK_PROGRAM;
+  // Signed in with no assigned meal plan → EMPTY menu (no coaches yet); the demo
+  // menu is only the signed-out preview. buildMealProgram([]) yields 7 "open
+  // day" records the Eat render already handles (no meals · 0 targets).
+  const bsEatSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const PROGRAM = liveProgram || (bsEatSignedIn ? buildMealProgram([]) : MOCK_PROGRAM);
   const recipeArchive = PROGRAM
     .filter(p => p.recipe)
     .map((p, idx) => ({

@@ -218,6 +218,24 @@ export function bsBuildDemoTrainProgram(t) {
   });
 }
 
+// Empty 7-day program for a SIGNED-IN account with no assigned plan. There are
+// no coaches on Shape yet, so a real user sees "no workout assigned" days — NOT
+// the demo program (that's only the signed-out preview). Same shape the Train
+// deck/hero render, with moves:[] so the hero shows its Rest/empty state.
+export function bsEmptyTrainProgram(t) {
+  const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const monday = new Date(); monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const dateNum = (i) => { const d = new Date(monday); d.setDate(d.getDate() + i); return d.getDate(); };
+  return DOW.map((dl, i) => ({
+    d: `${dl} ${dateNum(i)}`, kicker: 'No program', title: 'No workout.', tag: 'REST',
+    tagColor: t.INK50, accent: t.INK50, headline: 'No workout assigned.', time: '', timeLabel: '',
+    meta: 'No session',
+    copy: 'No training assigned yet — when you’re working with a coach, your week shows up here.',
+    moves: [], total: '0 sessions', coachLine: '',
+  }));
+}
+
 // Scale a parsed load string ("185 lb", "24 kg", "BW", "—") by a factor, rounding
 // to the nearest 5 for barbell-ish numbers. Non-numeric loads pass through.
 function bsScaleLoad(load, scale) {
