@@ -19,7 +19,19 @@ const ROLEC = { trainer: "#c0533b", nutritionist: "#a07a2e" };
 const initials = (n) => n.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 const TIER_VALS = ["#a78bfa", "#fb7185", "#34d6c5", "#d8a23a", "#8a93a0"];
 const avColor = (n) => { let s = 0; for (const ch of String(n)) s = (s * 31 + ch.charCodeAt(0)) >>> 0; return TIER_VALS[s % TIER_VALS.length]; };
-const AV = (name, size = 22, ring) => `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:999px;background:${avColor(name)};color:#0c0a08;font-family:'SFMono-Regular',monospace;font-weight:800;font-size:${Math.round(size * 0.42)}px;${ring ? `box-shadow:0 0 0 1.5px ${ring}` : ""}">${initials(name)}</span>`;
+const shade = (hex, f) => { const h = hex.replace("#", ""); const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16); const m = (v) => Math.round(v * f).toString(16).padStart(2, "0"); return `#${m(r)}${m(g)}${m(b)}`; };
+// The real BSFacetAvatar look: a rotated rounded-square gem (tier-gradient) with a
+// dark inner window and counter-rotated initials.
+const AV = (name, size = 22) => {
+  const c = avColor(name); const inset = Math.max(2, Math.round(size * 0.055));
+  return `<span style="position:relative;display:inline-block;width:${size}px;height:${size}px;flex-shrink:0">
+    <span style="position:absolute;inset:0;transform:rotate(45deg);border-radius:27%;background:linear-gradient(135deg, ${c}, ${shade(c, 0.5)});box-shadow:0 4px 12px ${c}55, inset 1px 1px 2px rgba(255,255,255,0.35)">
+      <span style="position:absolute;inset:${inset}px;border-radius:23%;overflow:hidden;background:#0f0c0a;display:grid;place-items:center">
+        <span style="transform:rotate(-45deg);font-family:${T.serif};font-weight:600;font-size:${Math.round(size * 0.42)}px;color:#fbf7ef;line-height:1;text-shadow:0 1px 2px rgba(0,0,0,0.55)">${initials(name)}</span>
+      </span>
+    </span>
+  </span>`;
+};
 
 // Crisp geometric action icons (mirror bsFeedIcon in the app) — less-analog
 // replacements for ↑ ↳ ↗ ✉ ⇄. currentColor stroke inherits the pill tint.
@@ -107,8 +119,8 @@ const card = (a) => {
         ${bsReactionPalette(verb).map((w) => { const on = w === a.picked; return `<span style="flex-shrink:0;height:28px;padding:0 12px;display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:${on ? tc : tc + "12"};color:${on ? "#fff" : tc};border:1px solid ${on ? tc : tc + "66"};font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase">${ICON("react", 11)}<span>${w}</span></span>`; }).join("")}
         <span style="flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid ${T.hair};color:${T.muted};font-family:${T.mono};font-size:11px;font-weight:800">×</span>
       </div>` : ""}
-      ${a.likers ? `<div style="display:flex;align-items:center;gap:8px;margin-top:12px">
-        <span style="display:inline-flex">${a.likers.slice(0, 4).map((l, i) => `<span style="margin-left:${i ? -8 : 0}px;position:relative;z-index:${10 - i}">${AV(l.name, 22, T.card)}</span>`).join("")}</span>
+      ${a.likers ? `<div style="display:flex;align-items:center;gap:9px;margin-top:12px">
+        <span style="display:inline-flex;align-items:center;gap:5px">${a.likers.slice(0, 4).map((l) => AV(l.name, 22)).join("")}</span>
         <span style="font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${T.muted}">${a.likers.length === 1 ? `${a.likers[0].name} reacted` : `${a.likers[0].name.split(" ")[0]} + ${a.likers.length - 1} you follow reacted`} ›</span>
       </div>` : ""}
       <div style="display:flex;align-items:center;gap:7px;margin-top:12px">

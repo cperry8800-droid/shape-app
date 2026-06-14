@@ -10386,12 +10386,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
               : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
             return (
-              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-                <span style={{ display: 'inline-flex' }}>
+              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                   {likeFacepile.map((l, i) => (
-                    <span key={i} style={{ marginLeft: i ? -8 : 0, borderRadius: 999, boxShadow: `0 0 0 1.5px ${card}`, zIndex: likeFacepile.length - i }}>
-                      <BSFacetAvatar size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
-                    </span>
+                    <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                   ))}
                 </span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
