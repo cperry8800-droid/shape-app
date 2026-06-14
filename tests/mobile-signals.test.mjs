@@ -103,3 +103,25 @@ test("self record drives buildMilestones + goal projection without error", () =>
     assert.ok(proj && typeof proj.state === "string");
   }
 });
+
+// ── Goals page contract — the exact goal object BSGoalsOverall builds ─────────
+// The client Goals page passes { target, start, now, unit, history:[{d,kg}] }
+// (bsGoalWeighIns shape) straight to window.ShapeSignals.goalProjection. Lock
+// that the engine reads the {d,kg} points and projects an on-pace ETA. `now` is
+// passed explicitly so the assertion is deterministic regardless of run date.
+test("Goals-page goal shape ({d,kg} history) projects an on-pace ETA", () => {
+  const proj = DashSignals.projectGoal(
+    {
+      target: 76, start: 80, now: 78, unit: "kg",
+      history: [
+        { d: "2026-04-20", kg: 80 }, { d: "2026-04-27", kg: 79.5 },
+        { d: "2026-05-04", kg: 79 }, { d: "2026-05-11", kg: 78.5 },
+        { d: "2026-05-18", kg: 78 },
+      ],
+    },
+    new Date("2026-05-20T00:00:00Z")
+  );
+  assert.equal(proj.state, "on-pace");
+  assert.ok(proj.projectedLabel, "projectedLabel is set for an on-pace goal");
+  assert.equal(proj.toGo, 2, "toGo derives from the {d,kg} history (78 → 76)");
+});

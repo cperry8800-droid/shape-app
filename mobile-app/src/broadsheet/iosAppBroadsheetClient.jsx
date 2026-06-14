@@ -11987,12 +11987,40 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
     if (!isNaN(da) && !isNaN(db) && db > da) { const wks = Math.max(1, (db - da) / (7 * 86400000)); return Math.round((dk / wks) * 10) / 10; }
     return Math.round((dk / Math.max(1, wi.length - 1)) * 10) / 10;
   })();
-  const onTrack = wPace == null ? null : (range > 0 ? wPace < 0 : range < 0 ? wPace > 0 : Math.abs(wPace) < 0.2);
+  // Engine pace projection (least-squares over the last 8 weeks) — the projected
+  // completion date at the current pace + the week-over-week slip. The SAME
+  // engine the website goal page and the coach pre-session brief use, via
+  // window.ShapeSignals (loaded at boot; null-guarded so it degrades gracefully).
+  const goalProj = (() => {
+    try {
+      const S = (typeof window !== 'undefined') && window.ShapeSignals;
+      if (!S || !S.goalProjection || !(start && target)) return null;
+      const goal = { target, start, now, unit, history: bsGoalWeighIns(overall) };
+      const p = S.goalProjection(goal);
+      if (!p) return null;
+      let slip = null; try { slip = S.goalSlipDays ? S.goalSlipDays(goal) : null; } catch (e) {}
+      return { ...p, slip };
+    } catch (e) { return null; }
+  })();
+  const slipFlag = !!(goalProj && goalProj.slip != null && isFinite(goalProj.slip) && goalProj.slip >= 7);
+  const paceVal = (goalProj && goalProj.ratePerWeek != null) ? goalProj.ratePerWeek : wPace;
+  // ETA stat — the projected completion date, or an honest state when the pace
+  // can't promise one (stalled / 1y+ / needs a fresh log).
+  const etaStat = (() => {
+    if (!goalProj) return { l: 'ETA', c: t.INK50, v: '—', sub: 'log to project' };
+    const st = goalProj.state;
+    if (st === 'achieved') return { l: 'ETA', c: t.GREEN, v: 'Hit', u: ' ✓', sub: 'reached' };
+    if (st === 'on-pace' && goalProj.projectedLabel) return { l: 'ETA', c: slipFlag ? t.AMBER : t.GREEN, v: goalProj.projectedLabel, sub: slipFlag ? `+${goalProj.slip}d this wk` : 'at this pace' };
+    if (st === 'stalled') return { l: 'ETA', c: t.RUST, v: 'Stalled', sub: 'pace flat' };
+    if (st === 'far') return { l: 'ETA', c: t.AMBER, v: '1y+', sub: 'at this pace' };
+    if (st === 'stale') return { l: 'ETA', c: t.AMBER, v: 'Refresh', sub: 'log to update' };
+    return { l: 'ETA', c: t.INK50, v: '—', sub: 'log to project' };
+  })();
   const stats = [
     { l: 'Current', c: teal,    v: now.toLocaleString(), u: unit, sub: 'Latest weigh-in' },
     { l: 'To go',   c: t.RUST,  v: toGo.toLocaleString(), u: unit, sub: `of ${range} ${unit}` },
-    { l: 'Weekly pace', c: t.AMBER, v: wPace != null ? wPace.toLocaleString() : '—', u: wPace != null ? unit : '', sub: 'per week' },
-    { l: 'On track', c: t.GREEN, v: onTrack == null ? '—' : onTrack ? 'Yes' : 'Off', u: '', sub: byLabel ? `goal ${byLabel}` : 'toward goal' },
+    { l: 'Weekly pace', c: t.AMBER, v: paceVal != null ? paceVal.toLocaleString() : '—', u: paceVal != null ? unit : '', sub: 'per week' },
+    etaStat,
   ];
   // Milestones derived from the real goal trajectory (start → quarter points →
   // target); each marked done once your latest weigh-in has reached it.
@@ -12078,7 +12106,17 @@ function BSGoalsOverall({ overall, onLog, onEdit = () => {}, onOpenProgress = ()
               </div>
             ))}
           </div>
-          <button onClick={onEdit} style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}>Edit targets →</button>
+          {goalProj && (() => {
+            const st = goalProj.state; let txt = null, c = teal;
+            if (st === 'achieved') txt = 'Goal reached ✓';
+            else if (st === 'on-pace' && goalProj.projectedLabel) { txt = `On pace for ${goalProj.projectedLabel}`; if (slipFlag) { txt += ` · ETA +${goalProj.slip}d`; c = t.AMBER; } }
+            else if (st === 'stalled') { txt = 'Pace stalled — time to adjust'; c = t.RUST; }
+            else if (st === 'far') { txt = 'Over a year at this pace'; c = t.AMBER; }
+            else if (st === 'stale') { txt = 'Log a weigh-in to refresh the ETA'; c = t.AMBER; }
+            if (!txt) return null;
+            return <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, border: `1px solid ${c}66`, borderLeft: `3px solid ${c}`, background: `${c}14`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c }}>{txt}</div>;
+          })()}
+          <button onClick={onEdit} style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, display: 'block' }}>Edit targets →</button>
         </BSPlate>
       </div>
 
