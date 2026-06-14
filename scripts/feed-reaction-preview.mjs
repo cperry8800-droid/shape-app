@@ -18,6 +18,20 @@ const TIER = { PEAK: "#a78bfa", LEGEND: "#fb7185", FORM: "#34d6c5", TEMPO: "#d8a
 const ROLEC = { trainer: "#c0533b", nutritionist: "#a07a2e" };
 const initials = (n) => n.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
+// Crisp geometric action icons (mirror bsFeedIcon in the app) — less-analog
+// replacements for ↑ ↳ ↗ ✉ ⇄. currentColor stroke inherits the pill tint.
+const ICON = (name, size = 12) => {
+  const o = `width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="square" stroke-linejoin="miter" style="display:block;flex-shrink:0"`;
+  const d = {
+    react: `<path d="M8 13.5V3.5"/><path d="M3.8 7.7L8 3.5l4.2 4.2"/>`,
+    comment: `<path d="M2.3 3.2h11.4v7H6.4L3.8 12.6V10.2H2.3z"/>`,
+    share: `<circle cx="12" cy="3.4" r="1.7"/><circle cx="4" cy="8" r="1.7"/><circle cx="12" cy="12.6" r="1.7"/><path d="M10.5 4.3 5.5 7.1M5.5 8.9l5 2.8"/>`,
+    send: `<path d="M14.5 1.8 1.6 7.2l4.8 1.7 1.7 4.9z"/><path d="M14.5 1.8 6.4 8.9"/>`,
+    repost: `<path d="M2.8 5.6H11M9 3.6 11 5.6 9 7.6"/><path d="M13.2 10.4H5M7 8.4 5 10.4 7 12.4"/>`,
+  }[name];
+  return `<svg ${o}>${d}</svg>`;
+};
+
 // The same demo cards the app feed now carries.
 const CARDS = [
   { kind: "pr", who: "Priya Shah", role: "Client", city: "Gold St. Barbell · NYC", tier: "PEAK", ago: "6m",
@@ -83,16 +97,16 @@ const card = (a) => {
         <span style="position:absolute;left:9px;bottom:7px;font-family:${T.mono};font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.45);padding:2px 5px;border-radius:3px">GPS route</span></div>` : ""}
       <div style="margin-top:11px;font-family:${T.mono};font-size:8px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${T.muted}">▸ Session details <span style="opacity:.5">(${a.sec.map((s) => s[0]).join(" · ")})</span></div>
       ${a.paletteOpen ? `<div style="display:flex;align-items:center;gap:6px;margin-top:11px;overflow-x:auto">
-        ${bsReactionPalette(verb).map((w) => { const on = w === a.picked; return `<span style="flex-shrink:0;height:28px;padding:0 12px;display:inline-flex;align-items:center;border-radius:999px;background:${on ? tc : tc + "12"};color:${on ? "#fff" : tc};border:1px solid ${on ? tc : tc + "66"};font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase">↑ ${w}</span>`; }).join("")}
+        ${bsReactionPalette(verb).map((w) => { const on = w === a.picked; return `<span style="flex-shrink:0;height:28px;padding:0 12px;display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:${on ? tc : tc + "12"};color:${on ? "#fff" : tc};border:1px solid ${on ? tc : tc + "66"};font-family:${T.mono};font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase">${ICON("react", 11)}<span>${w}</span></span>`; }).join("")}
         <span style="flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid ${T.hair};color:${T.muted};font-family:${T.mono};font-size:11px;font-weight:800">×</span>
       </div>` : ""}
       <div style="display:flex;align-items:center;gap:7px;margin-top:12px">
-        <span style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 14px;border-radius:999px;background:${a.picked ? tc : tc + "14"};color:${a.picked ? "#fff" : tc};border:1px solid ${tc};font-family:${T.mono};font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">↑ ${a.picked || verb} · ${count + (a.picked ? 1 : 0)}</span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">↳ ${a.replies}</span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">↗ Share</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;padding:0 14px;border-radius:999px;background:${a.picked ? tc : tc + "14"};color:${a.picked ? "#fff" : tc};border:1px solid ${tc};font-family:${T.mono};font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">${ICON("react", 12)}<span>${a.picked || verb} · ${count + (a.picked ? 1 : 0)}</span></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">${ICON("comment", 12)}<span>${a.replies}</span></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;gap:5px;height:27px;padding:0 11px;border-radius:999px;background:transparent;color:${T.muted};border:1px solid ${T.hair};font-family:${T.mono};font-size:8.5px;font-weight:800;text-transform:uppercase">${ICON("share", 12)}<span>Share</span></span>
         <span style="margin-left:auto"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">✉</span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">⇄</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("send", 13)}</span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:999px;border:1px solid ${T.hair};color:${T.muted}">${ICON("repost", 13)}</span>
       </div>
     </div>
   </div>`;

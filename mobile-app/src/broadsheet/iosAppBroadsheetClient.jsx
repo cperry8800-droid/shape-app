@@ -9543,6 +9543,27 @@ function BSNoraProfile({ onClose }) {
   return surface ? createPortal(sheet, surface) : sheet;
 }
 
+// Feed action glyphs — crisp geometric inline SVGs (replace the typographic
+// ↑ ↳ ↗ ✉ ⇄ for a less-analog, instrument look). Monochrome, square caps, and
+// `currentColor` stroke so each inherits its pill's tint (tier when active,
+// muted otherwise). One helper, sized per call.
+function bsFeedIcon(name, size = 12) {
+  const p = { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'square', strokeLinejoin: 'miter', 'aria-hidden': true, style: { display: 'block', flexShrink: 0 } };
+  switch (name) {
+    case 'react':   // boost — sharp upward arrow
+      return <svg {...p}><path d="M8 13.5V3.5" /><path d="M3.8 7.7L8 3.5l4.2 4.2" /></svg>;
+    case 'comment': // squared speech plate w/ tail
+      return <svg {...p}><path d="M2.3 3.2h11.4v7H6.4L3.8 12.6V10.2H2.3z" /></svg>;
+    case 'share':   // 3-node share graph
+      return <svg {...p}><circle cx="12" cy="3.4" r="1.7" /><circle cx="4" cy="8" r="1.7" /><circle cx="12" cy="12.6" r="1.7" /><path d="M10.5 4.3 5.5 7.1M5.5 8.9l5 2.8" /></svg>;
+    case 'send':    // paper plane
+      return <svg {...p}><path d="M14.5 1.8 1.6 7.2l4.8 1.7 1.7 4.9z" /><path d="M14.5 1.8 6.4 8.9" /></svg>;
+    case 'repost':  // opposed cycle arrows
+      return <svg {...p}><path d="M2.8 5.6H11M9 3.6 11 5.6 9 7.6" /><path d="M13.2 10.4H5M7 8.4 5 10.4 7 12.4" /></svg>;
+    default: return null;
+  }
+}
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   useBSPresence(); // re-render avatars as people come online / go offline
@@ -10311,7 +10332,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               {palette.map((w) => {
                 const on = liked && (myExpr || cheer) === w;
                 return (
-                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>↑ {w}</button>
+                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>{bsFeedIcon('react', 11)}<span>{w}</span></button>
                 );
               })}
               <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
@@ -10330,12 +10351,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               onContextMenu={(e) => e.preventDefault()}
               onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
               title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>↑ {myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</button>
-            <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>↳ {(a.replies || 0) + comments.length}</button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, true)}>↗ Share</button>
+              style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>{bsFeedIcon('react', 12)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
+            <button onClick={() => openActComments(key, cmtOpen)} style={{ ...actPill(false, true), ...(cmtOpen ? { background: `${TEALB}1f`, color: TEALB, border: `1px solid ${TEALB}` } : {}) }}>{bsFeedIcon('comment', 12)}<span>{(a.replies || 0) + comments.length}</span></button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, true)}>{bsFeedIcon('share', 12)}<span>Share</span></button>
             <span style={{ marginLeft: 'auto' }} />
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>✉</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>⇄</button>
+            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 13)}</button>
+            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 13)}</button>
           </div>
             );
           })()}
