@@ -181,6 +181,51 @@ function PlanBillingCard({ signedIn }) {
   );
 }
 
+// Connected apps — LIVE. Real connection state from /api/integrations/status;
+// CONNECT runs the actual OAuth (/api/integrations/<id>/authorize), DISCONNECT
+// revokes it. Providers without a web OAuth are labelled honestly (Apple Health
+// is HealthKit/app-only; MyFitnessPal isn't wired yet) instead of a fake toggle.
+function ConnectedAppsCard({ signedIn }) {
+  const [connected, setConnected] = React.useState(null); // Set<id> | null = loading
+  const load = React.useCallback(() => {
+    if (!signedIn) { setConnected(new Set()); return; }
+    fetch("/api/integrations/status", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const s = new Set();
+        (d && Array.isArray(d.providers) ? d.providers : []).forEach(p => { if (p.connected) s.add(p.id); });
+        setConnected(s);
+      }).catch(() => setConnected(new Set()));
+  }, [signedIn]);
+  React.useEffect(() => { load(); }, [load]);
+  const ret = () => encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.hash) : "/newdesign/ClientApp.html#profile");
+  const connect = (id) => { window.location.href = "/api/integrations/" + id + "/authorize?return=" + ret(); };
+  const disconnect = (id) => {
+    fetch("/api/integrations/" + id + "/disconnect", { method: "POST", credentials: "same-origin" })
+      .then(() => setConnected(prev => { const n = new Set(prev); n.delete(id); return n; }))
+      .catch(() => {});
+  };
+  const oauthRow = (id, label, note) => {
+    const loading = connected == null;
+    const on = !loading && connected.has(id);
+    return <Row key={id} label={label}
+      value={loading ? "Checking…" : (on ? "Connected" + (note ? " · " + note : "") : "Not connected")}
+      action={loading ? undefined : (on ? "DISCONNECT" : "CONNECT")}
+      onAction={loading ? undefined : (on ? () => disconnect(id) : () => connect(id))} />;
+  };
+  return (
+    <Card>
+      <SectionTitle>Connected apps</SectionTitle>
+      {oauthRow("strava", "Strava")}
+      {oauthRow("whoop", "Whoop", "syncing")}
+      {oauthRow("garmin", "Garmin")}
+      {oauthRow("oura", "Oura")}
+      <Row label="Apple Health" value="Sync from the iOS app" action="APP ONLY" />
+      <Row label="MyFitnessPal" value="Not yet supported" action="SOON" />
+    </Card>
+  );
+}
+
 // Account & settings — rides BELOW the living profile (the page leads with
 // the profile itself, same concept as the app's Me tab; signed-out = demo).
 function ClientMeSettings() {
@@ -254,9 +299,10 @@ function ClientMeSettings() {
       if (!user) { setLoaded(true); return; }
       setSignedIn(true);
       const remote = await window.shapeDb.getClientProfile();
-      if (remote && Object.keys(remote).length > 0) {
-        setProfile(p => ({ ...p, ...remote }));
-      }
+      // Signed in → drop the demo persona base so unfilled preferences read "—",
+      // not Priya Shah's sample values (matches the app-wide demo zero-out). Only
+      // the user's real saved fields show; the demo stays the signed-out preview.
+      setProfile(remote && Object.keys(remote).length > 0 ? remote : {});
       try {
         if (window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function") {
           setOnlineVisible(window.ShapeWebPresence.visible() !== false);
@@ -269,6 +315,25 @@ function ClientMeSettings() {
   async function handleLogout() {
     if (window.shapeDb) await window.shapeDb.signOut();
     window.location.href = "/login";
+  }
+
+  // Danger zone — wired to real flows. Membership pause/cancel goes to the Stripe
+  // billing portal; data export + account deletion (no self-serve endpoint yet)
+  // open the support channel so the request is actually actioned, not a no-op.
+  async function pauseMembership() {
+    if (!signedIn) { window.location.href = "/pricing"; return; }
+    try {
+      const r = await fetch("/api/stripe/billing-portal", { method: "POST", credentials: "same-origin" });
+      const d = r.ok ? await r.json() : null;
+      window.location.href = (d && d.url) ? d.url : "/pricing";
+    } catch (e) { window.location.href = "/pricing"; }
+  }
+  function contactSupport() {
+    try { if (typeof window.__openChat === "function") { window.__openChat(); return; } } catch (e) {}
+    window.location.href = "/contact.html";
+  }
+  function deleteAccount() {
+    if (window.confirm("Delete your Shape account? This can't be undone. We'll confirm by email before anything is removed.")) contactSupport();
   }
 
   const p = profile;
@@ -299,14 +364,7 @@ function ClientMeSettings() {
 
         <PlanBillingCard signedIn={signedIn} />
 
-        <Card>
-          <SectionTitle>Connected apps</SectionTitle>
-          <Row label="Apple Health" value={p.appleHealth ? "Connected" : "Not connected"} action={p.appleHealth ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("appleHealth")} />
-          <Row label="Whoop" value={p.whoop ? "Connected · syncing" : "Not connected"} action={p.whoop ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("whoop")} />
-          <Row label="Strava" value={p.stravaConnected ? "Connected" : "Not connected"} action={p.stravaConnected ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("stravaConnected")} />
-          <Row label="MyFitnessPal" value={p.myFitnessPal ? "Connected" : "Not connected"} action={p.myFitnessPal ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("myFitnessPal")} />
-          <Row label="Garmin" value={p.garmin ? "Connected" : "Not connected"} action={p.garmin ? "DISCONNECT" : "CONNECT"} onAction={() => toggleField("garmin")} />
-        </Card>
+        <ConnectedAppsCard signedIn={signedIn} />
 
         <Card>
           <SectionTitle>Nutrition preferences</SectionTitle>
@@ -361,9 +419,9 @@ function ClientMeSettings() {
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>
         <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
-          <button style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
-          <button style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
+          <button onClick={contactSupport} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
+          <button onClick={pauseMembership} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
+          <button onClick={deleteAccount} style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
         </div>
       </Card>
       {editOpen && (
