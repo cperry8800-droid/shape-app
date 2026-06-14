@@ -13142,11 +13142,14 @@ function BSMeKpis({ onOpen = () => {}, embedded = false }) {
     ]).then(([prog, train, nutr]) => { if (on) setD({ prog, train, nutr }); }).catch(() => {});
     return () => { on = false; };
   }, []);
-  // Merge live ShapeProgress over the demo defaults — exactly like BSClientProgress —
-  // so the numbers match the full progress page (was reading the wrong fields → 0s).
-  const O = { kpis: { ...BSPROG_DEMO.overall.kpis, ...((d && d.prog && d.prog.kpis) || {}) } };
-  const TR = { stats: { ...BSPROG_DEMO.train.stats, ...((d && d.train && d.train.stats) || {}) }, prs: (d && d.train && d.train.prs) || BSPROG_DEMO.train.prs };
-  const NU = { ...BSPROG_DEMO.nutri, ...((d && d.nutr) || {}), today: { ...BSPROG_DEMO.nutri.today, ...((d && d.nutr && d.nutr.today) || {}) } };
+  // Merge live ShapeProgress over the base — exactly like BSClientProgress — so the
+  // numbers match the full progress page. Signed in → zeroed base (no demo numbers
+  // on a real profile); signed-out preview → demo base.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const PB = signedIn ? BSPROG_EMPTY : BSPROG_DEMO;
+  const O = { kpis: { ...PB.overall.kpis, ...((d && d.prog && d.prog.kpis) || {}) } };
+  const TR = { stats: { ...PB.train.stats, ...((d && d.train && d.train.stats) || {}) }, prs: (d && d.train && d.train.prs) || PB.train.prs };
+  const NU = { ...PB.nutri, ...((d && d.nutr) || {}), today: { ...PB.nutri.today, ...((d && d.nutr && d.nutr.today) || {}) } };
   const k = O.kpis;
   const wc = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v || 0))} lb`;
   const cards = [
@@ -17229,6 +17232,26 @@ const BSPROG_DEMO = {
     hydration7d: [1.4, 2.6, 2.2, 3.1, 0, 2.8, 1.8],
   },
 };
+// Zeroed base for SIGNED-IN accounts — same shape as BSPROG_DEMO so every render
+// path stays safe (KPIs → '—', charts → "Not enough data yet.", empty lists), but
+// nothing demo shows. Live ShapeProgress data merges over this; the demo base is
+// the signed-out preview only.
+const BSPROG_EMPTY = {
+  overall: {
+    kpis: { weightChange: null, weightLatest: null, bodyFatLatest: null, bodyFatFirst: null, restingHr: null, restingHrDelta: null, sleepAvg: null },
+    prs: [],
+    series: { weight: [], bodyFat: [], strength: [], restingHr: [], sleep: [], hrv: [], volume: [], protein: [], hydration: [] },
+  },
+  train: {
+    stats: { completedCount: 0, thisWeekCount: 0, volume7dLb: 0, avgRpe: null, currentStreak: 0, longestStreak: 0, totalVolumeLb: 0 },
+    prs: [], volumeByDay: [], muscleSplit: [], recentSessions: [], weeklyFocus: null,
+  },
+  nutri: {
+    today: { calories: null, protein: null, carbs: null, fat: null },
+    targets: { calories: null, protein: null, carbs: null, fat: null },
+    week: [], loggedDays7: 0, adherentDays7: 0, currentStreak: 0, longestStreak: 0, topFoods: [], hydration7d: [],
+  },
+};
 const BSPROG_TREND_TABS = [
   { k: 'weight', label: 'Weight', unit: 'lb', color: '#34d6c5', fmt: (v) => Math.round(v) },
   { k: 'bodyFat', label: 'Body fat', unit: '%', color: '#7ed4ff', fmt: (v) => v.toFixed(1) },
@@ -17277,7 +17300,10 @@ function BSClientNextPlate() {
       let record = null, demo = false;
       try { record = await S.selfRecord(); } catch (e) {}
       const hasData = record && (record.goals || record.weighIns || (record.streaks && record.streaks.current != null));
-      if (!hasData) { try { record = (E.buildMockClients && E.buildMockClients()[0]) || null; demo = !!record; } catch (e) {} }
+      // Signed-out preview only gets the demo persona; a signed-in account with no
+      // data falls straight to the honest "Log a weigh-in." prompt below.
+      const sIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+      if (!hasData && !sIn) { try { record = (E.buildMockClients && E.buildMockClients()[0]) || null; demo = !!record; } catch (e) {} }
       if (!on) return;
       let headline = null, sub = null;
       if (record) {
@@ -17324,9 +17350,12 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
     window.ShapeProgressPhotos?.mine?.().then((rows) => { if (on && Array.isArray(rows)) setPhotoRows(rows); }).catch(() => {});
     return () => { on = false; };
   }, []);
-  const O = { ...BSPROG_DEMO.overall, ...(prog || {}), series: { ...BSPROG_DEMO.overall.series, ...((prog && prog.series) || {}) }, kpis: { ...BSPROG_DEMO.overall.kpis, ...((prog && prog.kpis) || {}) } };
-  const TR = { ...BSPROG_DEMO.train, ...(train || {}), stats: { ...BSPROG_DEMO.train.stats, ...((train && train.stats) || {}) } };
-  const NU = { ...BSPROG_DEMO.nutri, ...(nutri || {}), targets: { ...BSPROG_DEMO.nutri.targets, ...((nutri && nutri.targets) || {}) }, today: { ...BSPROG_DEMO.nutri.today, ...((nutri && nutri.today) || {}) } };
+  // Signed in → zeroed base (real data merges over it); signed-out preview → demo.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const PB = signedIn ? BSPROG_EMPTY : BSPROG_DEMO;
+  const O = { ...PB.overall, ...(prog || {}), series: { ...PB.overall.series, ...((prog && prog.series) || {}) }, kpis: { ...PB.overall.kpis, ...((prog && prog.kpis) || {}) } };
+  const TR = { ...PB.train, ...(train || {}), stats: { ...PB.train.stats, ...((train && train.stats) || {}) } };
+  const NU = { ...PB.nutri, ...(nutri || {}), targets: { ...PB.nutri.targets, ...((nutri && nutri.targets) || {}) }, today: { ...PB.nutri.today, ...((nutri && nutri.today) || {}) } };
 
   // Instrument plate language: squared section cards with an accent spine;
   // KPI tiles match the Me-page progress grid (squared, per-stat spine).
