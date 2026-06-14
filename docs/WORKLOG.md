@@ -100,6 +100,48 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-14 — App↔website parity: directive-led sweep + shared signal engine
+- **The website dashboard's intelligence layer now runs in the mobile app.**
+  `mobile-app/src/main.jsx` side-effect-imports the canonical engine
+  (`public/newdesign/dashSignals.js` → `window.DashSignals`); new
+  `services/signalsMap.mjs` (pure ESM mappers) + `services/shapeSignals.js`
+  (`window.ShapeSignals`: `selfRecord`, `coachRecords`, `triage(role)`,
+  `goalProjection`, `goalSlipDays`, …) feed the app's existing `window.Shape*`
+  data into it. One engine, three consumers (website `<script>`, Node tests,
+  app Vite import). `vite.config.ts` `server.fs.allow:['..']` for the cross-root
+  dev import. Tests: `tests/mobile-signals.test.mjs` (8 — mapped records flow
+  through the real engine; the `{d,kg}` goal shape projects an on-pace ETA).
+- **Every primary surface now LEADS with one directive, in the instrument-plate
+  (`BSPlate`) language, with the dense stat grids trimmed:**
+  - **Coach Today** — "Who needs you" triage feed moved to the TOP (above the
+    schedule), now a tight **top-3** glance with **"See all N →"** + a "+N more"
+    row that opens the Clients tab. Schedule rows + the Habits card got the new
+    design (the habits card is the client-home "Daily habits." plate).
+  - **Coach Clients roster** — triage-led: a verdict lead ("3 need you · …"),
+    sorted at-risk→on-track with group headers, each row a severity spine + a
+    one-line **directive** (what to do) + pill; program/streak detail dropped to
+    the client page. New `bsRosterSeverity(client, role)`.
+  - **Coach client detail** — opens with a **"Your move"** plate (severity +
+    directive + read + CTA); KPI grid cut 4→2; the redundant "Analysis · last 30
+    days" trendline removed.
+  - **Client Home** — new **"Today · your move"** plate (next workout → meal →
+    habits → done, each with its CTA); "Weekly totals" trimmed 4→2.
+  - **Client Eat** — new **"Today"** next-meal directive above the (quiet)
+    calorie strip. **Train** already led with its session hero + Start.
+  - **Client meal logger / "Logged." / home week strip** — onto instrument
+    plates (clipped one-tap action, squared mode tabs, BSPlate summaries, the
+    ink→accent ledger).
+  - **Client Goals (Overall + Nutrition)** — real engine **pace-projection ETA**
+    (least-squares `projectGoal` over 8 wks + week-over-week slip): an "ETA"
+    stat (projected date / Stalled / 1y+ / Refresh) replacing the demo
+    "On track"/"Adherence", plus an ETA chip in the hero. Honest "—" when the
+    history is too sparse to project.
+- Shipped across commits `f5587dd1`→`98dda474` on **main** (dev branch kept
+  identical); CI green on each (web typecheck+build, mobile build + public/m
+  sync); 94/94 tests throughout. *Follow-ups:* wire the coach roster severity to
+  live `ShapeSignals.triage` once rosters carry `userId`s; port milestones /
+  joint-attention coach nudges into the app.
+
 ### 2026-06-12 — Dashboard side nav stays on Profile/Me + client "Me" → "Profile" (#1285)
 - **`LiveProfilePage` gains `shell`** (`{ navItems, payoutCard }`): the living
   profile renders INSIDE the dashboard chrome (site Header + `DashSidebar` +
