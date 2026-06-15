@@ -8804,6 +8804,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
   const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
+  // Signed-in own profile zeroes its demo sub-data (rings/disciplines/offerings/
+  // certs/lifts/philosophy). Viewing OTHER coaches keeps the illustrative
+  // fallback; signed-out preview is unchanged.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+  const ownZero = isSelf && signedIn;
   const isNutri = person.kind === 'NUTRI';
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
@@ -8827,15 +8832,19 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const sigilToNext = _sigTop ? 1 : Math.max(0.05, Math.min(0.97, (_sigPts - _sigFloor) / Math.max(1, _sigNext - _sigFloor)));
   const sigilNextTier = _sigTop ? bsCoachTier(baseTier) : bsCoachTier(['base', 'tempo', 'form', 'peak', 'legend'][_sigIdx + 1]);
   const _sigClamp = (v) => Math.max(0.1, Math.min(0.98, v));
-  // Live values when we have them (your own profile); else anchored to tier progress.
-  const _ringVal = (live, fallback) => (live != null && Number.isFinite(live)) ? _sigClamp(live) : _sigClamp(fallback);
+  // Live values when we have them (your own profile); else anchored to tier
+  // progress. On your OWN signed-in profile with no live rings, zero them out
+  // (no demo fill) — viewing others / signed-out keeps the illustrative anchor.
+  const _ringVal = (live, fallback) => (live != null && Number.isFinite(live)) ? _sigClamp(live) : (ownZero ? 0 : _sigClamp(fallback));
   const sigilRings = [
     ['Habits', _ringVal(ringLive && ringLive.habits, sigilToNext + 0.14)],
     ['Client workouts', _ringVal(ringLive && ringLive.clientWorkouts, sigilToNext - 0.1)],
     ['Own activity', _ringVal(ringLive && ringLive.ownActivity, sigilToNext + 0.02)],
   ];
   const roleLabel = isNutri ? 'Nutritionist · RD' : 'Trainer · CPT';
-  const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.');
+  // Real bio/goal shows on your own profile; the demo fallback is suppressed when
+  // signed-in (own) — the section hides if you haven't written one.
+  const philosophy = (!isPrivate && ((live && live.goal) || (live && live.bio) || person.bio)) || (ownZero ? '' : (isNutri ? 'Fuel the work you’re doing.' : 'Get strong, stay strong.'));
   // ── Storefront: the profile IS the marketplace listing. Subscribe / Book run
   // the same global Stripe + booking services the old detail page used. ──
   const commerce = person.commerce || null;
@@ -8864,12 +8873,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     return () => { on = false; };
   }, [name]);
   const disLabel = isNutri ? 'Practice focus' : 'Coaching focus';
-  const disciplines = isNutri ? [['Performance', 0.9], ['Gut health', 0.82], ['Iron & ferritin', 0.86], ['Recovery', 0.8]] : [['Strength', 0.95], ['Hypertrophy', 0.88], ['Powerlifting', 0.8], ['Form audit', 0.92]];
-  const lifts = isNutri ? [['Clients', '200+'], ['Rating', '9.9'], ['Years', '7']] : [['Clients', '90+'], ['Rating', '9.94'], ['Years', '9']];
+  // Own signed-in profile zeroes the demo sub-data (no live source yet); viewing
+  // others / signed-out keeps the illustrative example.
+  const disciplines = ownZero ? [] : (isNutri ? [['Performance', 0.9], ['Gut health', 0.82], ['Iron & ferritin', 0.86], ['Recovery', 0.8]] : [['Strength', 0.95], ['Hypertrophy', 0.88], ['Powerlifting', 0.8], ['Form audit', 0.92]]);
+  const lifts = ownZero ? [] : (isNutri ? [['Clients', '200+'], ['Rating', '9.9'], ['Years', '7']] : [['Clients', '90+'], ['Rating', '9.94'], ['Years', '9']]);
   const week = [88, 60, 92, 70, 95, 50, 80];
-  const certs = isNutri
+  const certs = ownZero ? [] : (isNutri
     ? [['RD', 'Registered Dietitian', '2018'], ['CSSD', 'Sports Dietetics Specialist', '2020'], ['FODMAP', 'Monash FODMAP-trained', '2022']]
-    : [['NASM-CPT', 'Certified Personal Trainer', '2016'], ['USAW-L1', 'USA Weightlifting', '2020'], ['FMS-L2', 'Functional Movement Screen', '2021']];
+    : [['NASM-CPT', 'Certified Personal Trainer', '2016'], ['USAW-L1', 'USA Weightlifting', '2020'], ['FMS-L2', 'Functional Movement Screen', '2021']]);
   // Offerings, categorised so the Coaching tab can sub-tab them (like the website
   // catalogue): trainers → Workouts / Programs / Coaching; nutritionists →
   // Meals / Diets / Coaching. Each row: [cat, kind, name, sub, price].
@@ -8914,7 +8925,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       if (url) bsOpenCheckout(url);
     } catch (e) { window.__bsToast?.((e && e.message) || 'Could not start checkout.', 'err'); }
   };
-  const offerings = realOfferings.length ? realOfferings : demoOfferings;
+  // Own signed-in profile shows only your real published plans (never the demo
+  // catalogue) — empty until you publish; others / signed-out keep demo.
+  const offerings = realOfferings.length ? realOfferings : (ownZero ? [] : demoOfferings);
   const offerCats = isNutri ? ['All', 'Meals', 'Diets', 'Coaching'] : ['All', 'Workouts', 'Programs', 'Coaching'];
   const visibleOfferings = offerTab === 'All' ? offerings : offerings.filter((o) => o[0] === offerTab);
   const rating = isNutri ? '9.9' : '9.94', reviewCount = isNutri ? 198 : 284;
@@ -9038,33 +9051,42 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
           )}
           {tab === 'about' && (<>
-          {/* philosophy */}
+          {/* philosophy — hidden on your own signed-in profile until you write one */}
+          {philosophy ? (
           <div style={{ textAlign: 'center', marginTop: 24, padding: '0 6px' }}>
             <Kick>{isNutri ? 'Practice philosophy' : 'Coaching philosophy'}</Kick>
             <div style={{ fontFamily: SERIF, fontSize: 23, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.18, color: bsTHexA(INK, 0.92), marginTop: 8 }}>“{philosophy}”</div>
           </div>
+          ) : null}
 
           {/* discipline legend */}
           <div style={{ marginTop: 28 }}>
             <Kick>{disLabel}</Kick>
+            {disciplines.length ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 12 }}>
               {disciplines.map(([label, val], i) => { const col = i === 0 ? c : i === disciplines.length - 1 ? TEAL : bsTHexA(c, 0.8); return (
                 <div key={label} style={{ ...card, padding: '12px 13px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: col }} /><span style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.82) }}>{label}</span></div><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', marginTop: 6 }}>{Math.round(val * 100)}<span style={{ fontSize: 12, color: bsTHexA(INK, 0.4) }}>/100</span></div><div style={{ height: 3, borderRadius: 2, background: bsTHexA(INK, 0.1), marginTop: 8, overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: col, borderRadius: 2 }} /></div></div>
               ); })}
             </div>
+            ) : (
+            <div style={{ ...card, padding: '14px 15px', marginTop: 12, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Set your focus in Customize</div>
+            )}
           </div>
 
-          {/* track record */}
+          {/* track record — hidden on your own signed-in profile until there's data */}
+          {lifts.length ? (
           <div style={{ marginTop: 24 }}>
             <Kick>Track record</Kick>
             <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
               {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
           </div>
+          ) : null}
 
           {/* certifications */}
           <div style={{ marginTop: 28 }}>
             <Kick>Certifications</Kick>
+            {certs.length ? (
             <div style={{ ...card, padding: 4, marginTop: 12 }}>
               {certs.map(([abbr, body, year], i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.07)}` : 'none' }}>
@@ -9074,6 +9096,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                 </div>
               ))}
             </div>
+            ) : (
+            <div style={{ ...card, padding: '14px 15px', marginTop: 12, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>No certifications added yet</div>
+            )}
           </div>
 
           </>)}
@@ -9101,7 +9126,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               ); })}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              {visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
+              {visibleOfferings.length ? visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
                 const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
                 return (
                 <div key={i} style={{ ...card, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -9111,7 +9136,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                     : <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.02em', color: price === 'Free' ? TEAL : INK, flex: 'none' }}>{price}</div>}
                 </div>
                 );
-              })}
+              }) : (
+                <div style={{ ...card, padding: '14px 15px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Publish your first plan to list it here</div>
+              )}
             </div>
           </div>
 
