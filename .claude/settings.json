@@ -10,5 +10,16 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "shape-app-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "cperry8800-droid/shape-app"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "hello@shape-app-plugins": true
   }
 }

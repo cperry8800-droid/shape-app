@@ -13,14 +13,23 @@ any of these (each loads differently):
 | `hooks/hooks.json` | hooks | **automatically** on their events |
 | `.mcp.json` | MCP servers | **automatically** (tools then callable) |
 
-## Important: a folder here does NOT auto-load
+## This repo is wired to auto-load these
 
-Dropping a plugin in this folder doesn't make Claude Code use it. To enable it:
+- `/.claude-plugin/marketplace.json` (marketplace **`shape-app-plugins`**) lists the
+  plugins in this folder.
+- `.claude/settings.json` registers that marketplace (`extraKnownMarketplaces`) and
+  enables plugins (`enabledPlugins`), so cloning + **trusting** the repo loads them —
+  web sessions included. The marketplace source is the GitHub repo, so it activates
+  once these files are on the branch Claude Code fetches (the repo's default branch)
+  and the workspace is trusted.
 
-- Register a **marketplace** — a `.claude-plugin/marketplace.json` that lists the
-  plugins — then `/plugin install <name>@<marketplace>` from your client, **or**
-- Add project-scope plugin config to **`.claude/settings.json`** so it travels
-  with the repo into every session (including Claude Code web sessions).
+**Sample:** the `hello/` plugin adds a `/hello:greet` command.
 
-Ask Claude to scaffold a working sample plugin + a `marketplace.json` and wire it
-into `.claude/settings.json` if you want it to load automatically.
+**Add your own:**
+1. Copy `hello/` → `.claude/plugins/<your-plugin>/` and edit its
+   `.claude-plugin/plugin.json` (`name`) + add `commands/` / `skills/` / `hooks/`.
+2. Add an entry to `plugins[]` in `/.claude-plugin/marketplace.json`
+   (`name` + `"source": "./.claude/plugins/<your-plugin>"`).
+3. Enable it in `.claude/settings.json` → `enabledPlugins`:
+   `"<your-plugin>@shape-app-plugins": true`.
+4. Validate: `claude plugin validate .`
