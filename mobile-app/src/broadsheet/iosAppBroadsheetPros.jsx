@@ -1,43 +1,50 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-// Phase 2 prototype — "Who needs you." The coach home now LEADS with the shared
-// signal engine's triage feed (window.ShapeSignals.triage): the same severity-
-// ranked at-risk verdict the website dashboard shows, with the reason + a
-// one-tap Message — instead of a hardcoded "next best action" sentence. Falls
-// back to the engine's demo personas when there's no live roster (preview).
-// "Who needs you" — the FLAGGED subset (red/amber) of the SAME roster the
-// Clients page renders, scored by the SAME bsRosterSeverity. So Today and the
-// Clients tab always agree (same names, severities, directives): Today is the
-// top-3 glance, Clients is the full sorted list. (Reads the roster directly,
-// NOT ShapeSignals.triage — the engine's demo personas differed from the roster
-// and were the source of the home↔clients mismatch. When a live roster lands,
-// point bsDemoRoster at it and both surfaces move together.)
-function BSProTriageFeed({ role = 'trainer', onSeeAll = () => {} }) {
+// Phase 2 — "Needs you today." Two coach surfaces share ONE engine
+// (bsRowSeverity — prefers the live getTriageFeed `_sig`, else the local status
+// scorer) reading ONE roster (useBSProRoster). They are never two ranked lists:
+//   • TODAY shows only the urgent-TODAY subset — red no-shows + anyone with a
+//     session / review / due item on the selected day's schedule — a tight 2-3
+//     row glance. It NEVER reproduces the full book; "See all →" deep-links to
+//     the Clients roster (the canonical, ranked, filterable source).
+//   • CLIENTS (BSProRosterView) IS that book: every client, grouped
+//     red → amber → green, with search + phase filters.
+// Same verdict logic on both; they differ in SCOPE (today-urgent vs whole book)
+// and companion content (schedule vs filters). Reuse the engine — don't fork it.
+function BSProTriageFeed({ role = 'trainer', schedule = [], isToday = true, onSeeAll = () => {} }) {
   const t = useBS();
   const roster = useBSProRoster(role); // demo first paint → live roster when signed in
   const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: t.isLight ? '#0a8f87' : '#34d6c5', green: '#7bbf5a', past: t.INK50 };
-  const flagged = roster
+  // A flagged client is today-urgent when they're red (a missed / no-show —
+  // urgent regardless of the clock) OR they have a session / review / due item
+  // on the selected day's schedule (matched by name against the schedule rows).
+  const subjects = (schedule || []).map((it) => String(it.title || '').toLowerCase().replace(/^new:\s*/, ''));
+  const onSchedule = (name) => { const n = String(name || '').toLowerCase().trim(); return !!n && subjects.some((s) => s.includes(n)); };
+  const flaggedAll = roster
     .filter((c) => c.active !== false)
     .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
     .filter((x) => x.sig.rank <= 1)
     .sort((a, b) => a.sig.rank - b.sig.rank);
+  const urgent = flaggedAll.filter((x) => x.sig.sev === 'red' || onSchedule(x.c.n));
+  const shown = urgent.slice(0, 3);
+  const moreOnRoster = flaggedAll.length - shown.length; // the rest live on the roster
   const message = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId, n: c.n } } })); } catch (e) {} };
   return (
     <div style={{ padding: `4px ${t.padX}px 8px` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <BSEyebrow color={t.ACCENT}>Who needs you</BSEyebrow>
-        {flagged.length ? (
-          <button type="button" onClick={onSeeAll} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>See all {flagged.length} →</button>
+        <BSEyebrow color={t.ACCENT}>{isToday ? 'Needs you today' : 'Needs you'}</BSEyebrow>
+        {flaggedAll.length ? (
+          <button type="button" onClick={onSeeAll} style={{ border: 0, background: 'transparent', cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>See all {flaggedAll.length} →</button>
         ) : <BSEyebrow>All clear</BSEyebrow>}
       </div>
       <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
-        {flagged.length === 0 && (
-          <BSPlate c={SEVCOL.green} pad="13px 15px">
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.02em' }}>Everyone's on track.</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>No clients flagged today</div>
+        {urgent.length === 0 && (
+          <BSPlate c={SEVCOL.green} pad="13px 15px" onClick={flaggedAll.length ? onSeeAll : undefined} role={flaggedAll.length ? 'button' : undefined} style={{ cursor: flaggedAll.length ? 'pointer' : 'default', textAlign: 'left' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.02em' }}>{flaggedAll.length ? 'Nothing urgent today.' : "Everyone's on track."}</div>
+            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{flaggedAll.length ? `${flaggedAll.length} on your roster · See all →` : 'No clients flagged'}</div>
           </BSPlate>
         )}
-        {flagged.slice(0, 3).map(({ c, sig }) => {
+        {shown.map(({ c, sig }) => {
           const col = SEVCOL[sig.sev] || t.AMBER;
           return (
             <BSPlate key={c.n} c={col} tick={sig.sev === 'red'} pad="12px 14px">
@@ -54,9 +61,9 @@ function BSProTriageFeed({ role = 'trainer', onSeeAll = () => {} }) {
             </BSPlate>
           );
         })}
-        {flagged.length > 3 && (
+        {urgent.length > 0 && moreOnRoster > 0 && (
           <button type="button" onClick={onSeeAll} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>+{flagged.length - 3} more need you</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>+{moreOnRoster} more on your roster</span>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>See all →</span>
           </button>
         )}
@@ -1342,14 +1349,17 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </div>
       )}
 
-      {/* Lead: "Who needs you" — a tight top-3 priority glance; the full sorted
-          triage roster lives on the Clients tab ("See all →"). */}
-      <BSProTriageFeed role="trainer" onSeeAll={() => onWidgetOpen('clients')} />
+      {/* TODAY = the clock: lead with the day — the schedule (live-now above). */}
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
       <BSProScheduleRows items={bookings} onOpen={goCalendar} emptyText="Off day · nothing booked" />
+      {/* The urgent-TODAY subset only (red + today's sessions/reviews); the full
+          ranked book lives on Clients ("See all →"). */}
+      <div style={{ marginTop: 10 }}>
+        <BSProTriageFeed role="trainer" schedule={bookings} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
+      </div>
 
       <div style={{ marginTop: 8 }}>
         <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
@@ -1505,6 +1515,7 @@ function bsTrainerDemoRoster(t) {
     { i: 'J', c: t.BLUE,   n: 'Jamal Green',    prog: 'Strength',           streak: 21, r: 'PEAK · W11',  d: '1D AGO',   s: 'pr',          active: true },
     { i: 'R', c: t.AMBER,  n: 'Riley Kim',      prog: 'Cut Block',          streak: 6,  r: 'CUT · W8',    d: '1D AGO',   s: 'review form', active: true },
     { i: 'Q', c: t.BLUE,   n: 'Quinn Choi',     prog: 'Build Phase',        streak: 11, r: 'BUILD · W2',  d: '3D AGO',   s: 'on track',    active: true },
+    { i: 'D', c: t.AMBER,  n: 'Devon Pierce',   prog: 'Strength',           streak: 9,  r: 'BUILD · W9',  d: '2D AGO',   s: 'deload soon', active: true },
     { i: 'B', c: t.INK50,  n: 'Bailey Cruz',    prog: 'Finished block',     streak: 0,  r: 'PAST · finished block', d: '6W AGO', s: 'past', active: false },
     { i: 'T', c: t.INK50,  n: 'Taylor Reed',    prog: 'Paused',             streak: 0,  r: 'PAST · paused', d: '3M AGO', s: 'past',        active: false },
   ];
@@ -1518,6 +1529,7 @@ function bsNutriDemoRoster(t) {
     { i: 'P', c: t.BLUE,  n: 'Pat Doan',     prog: 'Intake',          streak: 0,  r: 'INTAKE',           d: 'NEW', s: 'onboard',     active: true },
     { i: 'C', c: t.AMBER, n: 'Casey Lee',    prog: 'Build · 2400',    streak: 9,  r: 'BUILD · 2400',     d: '64%', warn: true, s: 'missed', active: true },
     { i: 'D', c: t.RUST,  n: 'Drew Park',    prog: 'Build · 2200',    streak: 7,  r: 'BUILD · 2200',     d: '58%', warn: true, s: 'missed', active: true },
+    { i: 'H', c: t.AMBER, n: 'Harper Quinn', prog: 'Build · 2600 kcal', streak: 5, r: 'BUILD · 2600 KCAL', d: '68%', warn: true, s: 'review form', active: true },
     { i: 'M', c: t.INK50, n: 'Morgan Liu',   prog: 'Ended Apr',       streak: 0,  r: 'PAST · ended Apr', d: '—', s: 'past', active: false },
     { i: 'T', c: t.INK50, n: 'Taylor Reed',  prog: 'Paused',          streak: 0,  r: 'PAST · paused',    d: '—', s: 'past', active: false },
     { i: 'N', c: t.INK50, n: 'Noah Bennett', prog: 'Completed',       streak: 0,  r: 'PAST · completed', d: '—', s: 'past', active: false },
@@ -4048,13 +4060,16 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         </div>
       </div>
 
-      {/* Lead: "Who needs you" — the shared signal engine's triage feed. */}
-      <BSProTriageFeed role="nutritionist" onSeeAll={() => onWidgetOpen('clients')} />
+      {/* TODAY = the clock: lead with the day — the schedule. */}
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
       />
       <BSProScheduleRows items={schedule} onOpen={goCalendar} emptyText="Off day · nothing scheduled" />
+      {/* The urgent-TODAY subset only; the full ranked book lives on Clients. */}
+      <div style={{ marginTop: 10 }}>
+        <BSProTriageFeed role="nutritionist" schedule={schedule} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
+      </div>
 
       <div style={{ marginTop: 22 }}>
         <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />

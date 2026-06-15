@@ -8428,12 +8428,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             </svg>
             {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
                 never slides onto the identity strip below */}
-            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 22px))`, top: `${here.y - 54}px` }}>
-              <BSFacetAvatar size={44} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
+            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 32px))`, top: `${here.y - 74}px` }}>
+              <BSFacetAvatar size={64} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
               <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>{heroPctLabel}%</div>
             </div>
             {/* current level (base) + next level (by the summit flag, top-right) */}
-            <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: SANS, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.01em', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 9px', borderRadius: 999 }}>{curLevel}</div>
+            <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: SANS, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 10px', borderRadius: 999 }}>{curLevel}</div>
             <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 42, fontFamily: SANS, fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA(BG, 0.8), border: `1px solid ${bsTHexA(bsTierColor(String(nextLevel || curLevel).toLowerCase()), 0.4)}`, padding: '3px 10px', borderRadius: 999 }}>{nextLevel || curLevel}</div>
             {/* identity strip */}
             <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
