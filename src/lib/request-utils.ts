@@ -23,7 +23,7 @@ export type JsonBody<T> = { ok: true; data: T } | { ok: false; response: NextRes
 //   const body = parsed.data;
 export async function readJson<T = unknown>(
   req: Request,
-  opts?: { maxBytes?: number }
+  opts?: { maxBytes?: number; allowEmpty?: boolean }
 ): Promise<JsonBody<T>> {
   const max = opts?.maxBytes ?? JSON_BODY_LIMIT;
   const reject = (status: number, error: string): JsonBody<T> => ({
@@ -41,7 +41,12 @@ export async function readJson<T = unknown>(
     return reject(400, 'Could not read request body.');
   }
   if (raw.length > max) return reject(413, 'Payload too large.');
-  if (!raw.trim()) return reject(400, 'Empty request body.');
+  if (!raw.trim()) {
+    // Some endpoints are legitimately called with no body (defaults / action
+    // routes). allowEmpty preserves that; otherwise an empty body is rejected.
+    if (opts?.allowEmpty) return { ok: true, data: {} as T };
+    return reject(400, 'Empty request body.');
+  }
 
   try {
     return { ok: true, data: JSON.parse(raw) as T };
