@@ -7341,6 +7341,7 @@ function bsActivityFromPost(p) {
     // metrics.cadenceTrace / metrics.elevTrace). Null when the post lacks them.
     cadenceTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.cadenceTrace) && p.rawMetrics.cadenceTrace.length > 1) ? p.rawMetrics.cadenceTrace : null,
     elevTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.elevTrace) && p.rawMetrics.elevTrace.length > 1) ? p.rawMetrics.elevTrace : null,
+    paceTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.paceTrace) && p.rawMetrics.paceTrace.length > 1) ? p.rawMetrics.paceTrace : null,
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
@@ -9702,6 +9703,46 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   if (summaryStats.length > 4) { outputStats = summaryStats.slice(4).concat(outputStats); summaryStats = summaryStats.slice(0, 4); }
   const sumCols = summaryStats.length === 4 ? 2 : (Math.min(summaryStats.length, 3) || 1);
   const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
+  // Total distance (for the x-axis mile markers) parsed from the distance stat.
+  const distStat = (d.heroStat && /dist/i.test(d.heroStat[0])) ? d.heroStat : allStats.find(([k]) => /dist/i.test(k));
+  const distanceMi = distStat ? (parseFloat(String(distStat[1]).replace(/[^\d.]/g, '')) || null) : null;
+  const fmtPaceSec = (s) => { const m = Math.floor(s / 60), ss = Math.round(s % 60); return `${m}:${String(ss).padStart(2, '0')}`; };
+  // Strava-style area chart: a filled metric-over-distance plot with a y-axis
+  // (3 ticks) + x-axis mile markers + faint gridlines. `invert` puts the LOW
+  // value on top (pace — faster reads higher). Pure (no hooks) — called inline.
+  const AreaChart = ({ vals, color, invert, fmt, idKey, height = 104 }) => {
+    if (!Array.isArray(vals) || vals.length < 2) return null;
+    const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1, W = 100, top = 5, bot = 95, span = bot - top;
+    const yOf = (v) => invert ? (top + ((v - lo) / rng) * span) : (bot - ((v - lo) / rng) * span);
+    const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(2)} ${yOf(v).toFixed(2)}`).join(' ');
+    const gid = `ac-${idKey}-${String(color).replace(/[^a-z0-9]/gi, '')}`;
+    const fmtv = fmt || ((v) => `${Math.round(v)}`);
+    const yTicks = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
+    const step = distanceMi && distanceMi > 0 ? Math.max(1, Math.round(distanceMi / 5)) : 0;
+    const xTicks = [];
+    if (step) for (let m = step; m < distanceMi - 0.15; m += step) xTicks.push(m);
+    return (
+      <div style={{ paddingLeft: 34 }}>
+        <div style={{ position: 'relative' }}>
+          {yTicks.map((tk, i) => (
+            <span key={i} style={{ position: 'absolute', left: -34, width: 30, textAlign: 'right', top: `calc(${tk.y}% - 5px)`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: muted, fontVariantNumeric: 'tabular-nums' }}>{fmtv(tk.v)}</span>
+          ))}
+          <svg viewBox={`0 0 ${W} 100`} preserveAspectRatio="none" style={{ width: '100%', height, display: 'block' }} aria-hidden>
+            <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.38" /><stop offset="100%" stopColor={color} stopOpacity="0.04" /></linearGradient></defs>
+            {yTicks.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke={bsTHexA(t.INK, 0.08)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
+            {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke={bsTHexA(t.INK, 0.06)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
+            <path d={`${line} L${W} 100 L0 100 Z`} fill={`url(#${gid})`} />
+            <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
+        </div>
+        {xTicks.length > 0 && (
+          <div style={{ position: 'relative', height: 13, marginTop: 4 }}>
+            {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <span key={i} style={{ position: 'absolute', left: `${xp}%`, top: 0, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: muted }}>{m} mi</span>; })}
+          </div>
+        )}
+      </div>
+    );
+  };
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
@@ -9773,33 +9814,20 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </div>
           </>
         )}
-        {/* HEART RATE — a live trace (with avg/peak/low labels), then time-in-zone
-            as clearly LABELED horizontal bars (one per zone — far easier to read
-            than a thin stacked bar). Avg HR now leads in the Summary above. */}
+        {/* PACE — a pace-over-distance area chart (inverted: faster reads higher),
+            with a y-axis of paces + x-axis mile markers, like the examples. */}
+        {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
+          <>
+            <div style={eyebrow}>{tick}Pace{bestPaceStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: tc, background: `${tc}1a`, border: `1px solid ${tc}55`, borderRadius: 999, padding: '2px 8px' }}>Fastest {bestPaceStat[1]}</span>}</div>
+            {AreaChart({ vals: d.paceTrace, color: tc, invert: true, fmt: fmtPaceSec, idKey: 'pace', height: 116 })}
+          </>
+        )}
+        {/* HEART RATE — a bpm-over-distance area chart (y-axis bpm + x-axis miles),
+            then time-in-zone as LABELED horizontal bars. Avg HR leads in Summary. */}
         {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
             <div style={eyebrow}>{tick}Heart rate</div>
-            {Array.isArray(d.trace) && d.trace.length > 1 && (() => {
-              const vals = d.trace, lo = Math.min(...vals), hi = Math.max(...vals), avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length), W = 100, H = 38, rng = (hi - lo) || 1;
-              const y = (v) => H - ((v - lo) / rng) * (H - 5) - 2.5;
-              const pts = vals.map((v, i) => [(i / (vals.length - 1)) * W, y(v)]);
-              const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
-              const gid = `hrg-${String(d.key).replace(/[^a-z0-9]/gi, '')}`;
-              return (
-                <div style={{ position: 'relative' }}>
-                  <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 64, display: 'block' }} aria-hidden>
-                    <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={tc} stopOpacity="0.34" /><stop offset="100%" stopColor={tc} stopOpacity="0" /></linearGradient></defs>
-                    <path d={`${line} L${W} ${H} L0 ${H} Z`} fill={`url(#${gid})`} />
-                    {/* avg reference line */}
-                    <line x1="0" y1={y(avg).toFixed(1)} x2={W} y2={y(avg).toFixed(1)} stroke={tc} strokeWidth="0.6" strokeDasharray="2 2" opacity="0.5" vectorEffect="non-scaling-stroke" />
-                    <path d={line} fill="none" stroke={tc} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-                  </svg>
-                  <span style={{ position: 'absolute', top: 0, right: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>peak {hi}</span>
-                  <span style={{ position: 'absolute', bottom: 0, left: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>low {lo}</span>
-                  <span style={{ position: 'absolute', top: `${(y(avg) / H) * 100}%`, right: 1, transform: 'translateY(-130%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, color: tc }}>avg {avg}</span>
-                </div>
-              );
-            })()}
+            {Array.isArray(d.trace) && d.trace.length > 1 && AreaChart({ vals: d.trace, color: tc, fmt: (v) => `${Math.round(v)}`, idKey: 'hr', height: 116 })}
             {Array.isArray(d.zones) && d.zones.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
                 {d.zones.map(([zl, pct], i) => (
@@ -9856,51 +9884,21 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </>
           );
         })()}
-        {/* CADENCE — a trace over the activity (steps/min over time) so the
-            rhythm reads, not a single number. */}
-        {!isComments && hasCadGraph && (() => {
-          const vals = d.cadenceTrace, lo = Math.min(...vals), hi = Math.max(...vals), avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length), W = 100, H = 34, rng = (hi - lo) || 1;
-          const y = (v) => H - ((v - lo) / rng) * (H - 6) - 3;
-          const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
-          const gid = `cadg-${String(d.key).replace(/[^a-z0-9]/gi, '')}`;
-          return (
-            <>
-              <div style={eyebrow}>{tick}Cadence{cadStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>avg {cadStat[1]}</span>}</div>
-              <div style={{ position: 'relative' }}>
-                <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 54, display: 'block' }} aria-hidden>
-                  <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={tc} stopOpacity="0.2" /><stop offset="100%" stopColor={tc} stopOpacity="0" /></linearGradient></defs>
-                  <path d={`${line} L${W} ${H} L0 ${H} Z`} fill={`url(#${gid})`} />
-                  <path d={line} fill="none" stroke={tc} strokeWidth="1.3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-                </svg>
-                <span style={{ position: 'absolute', top: 0, right: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>{hi} spm</span>
-                <span style={{ position: 'absolute', bottom: 0, left: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>{lo} spm</span>
-              </div>
-            </>
-          );
-        })()}
-        {/* ELEVATION — a filled terrain profile (altitude over the route) so the
-            climb reads as a shape, with total gain as a chip. */}
-        {!isComments && hasElevGraph && (() => {
-          const vals = d.elevTrace, lo = Math.min(...vals), hi = Math.max(...vals), W = 100, H = 38, rng = (hi - lo) || 1;
-          const EC = '#8a93a0';
-          const y = (v) => H - ((v - lo) / rng) * (H - 4) - 2;
-          const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
-          const gid = `elvg-${String(d.key).replace(/[^a-z0-9]/gi, '')}`;
-          return (
-            <>
-              <div style={eyebrow}>{tick}Elevation{elevStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>+{elevStat[1]} gain</span>}</div>
-              <div style={{ position: 'relative' }}>
-                <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 58, display: 'block' }} aria-hidden>
-                  <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={EC} stopOpacity="0.32" /><stop offset="100%" stopColor={EC} stopOpacity="0.04" /></linearGradient></defs>
-                  <path d={`${line} L${W} ${H} L0 ${H} Z`} fill={`url(#${gid})`} />
-                  <path d={line} fill="none" stroke={EC} strokeWidth="1.2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-                </svg>
-                <span style={{ position: 'absolute', top: 0, right: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>↑ {hi} ft</span>
-                <span style={{ position: 'absolute', bottom: 0, left: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>↓ {lo} ft</span>
-              </div>
-            </>
-          );
-        })()}
+        {/* CADENCE — steps/min over distance (y-axis spm + x-axis miles). */}
+        {!isComments && hasCadGraph && (
+          <>
+            <div style={eyebrow}>{tick}Cadence{cadStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>avg {cadStat[1]}</span>}</div>
+            {AreaChart({ vals: d.cadenceTrace, color: tc, fmt: (v) => `${Math.round(v)}`, idKey: 'cad', height: 92 })}
+          </>
+        )}
+        {/* ELEVATION — altitude profile over distance (y-axis ft + x-axis miles),
+            in a slate tone so it reads as terrain. */}
+        {!isComments && hasElevGraph && (
+          <>
+            <div style={eyebrow}>{tick}Elevation{elevStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>+{elevStat[1]} gain</span>}</div>
+            {AreaChart({ vals: d.elevTrace, color: '#8a93a0', fmt: (v) => `${Math.round(v)}`, idKey: 'elev', height: 96 })}
+          </>
+        )}
         {/* OUTPUT — the remaining device metrics (stride, ground, training, …) in
             their own clearly-labeled section, NOT packed up top. */}
         {!isComments && outputStats.length > 0 && (
@@ -10581,7 +10579,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
     { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' }, likers: [{ name: 'Jordan Ellis', role: 'Client' }, { name: 'Sam Reyes', role: 'Client' }, { name: 'Maya Okafor', role: 'Trainer' }], comments: [{ who: 'Jordan Ellis', text: 'That bar speed was unreal — congrats!', follows: true }, { who: 'Sam Reyes', text: 'Eight months of work right there.', follows: true }, { who: 'Avery Lin', text: 'Huge.', follows: false }, { who: 'Noah Kim', text: 'Form looked dialed the whole set.', follows: false }, { who: 'Mara Diaz', text: 'Inspiring. Tackling my own DL block next week.', follows: false }, { who: 'Dana Lewis', text: 'Exactly what we trained for. Proud of you.', follows: false }], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '235 lb × 3', 'RPE 8'], ['Set 3', '245 lb × 3', 'RPE 9 · PR']] } },
-    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], cadenceTrace: [168, 172, 174, 176, 175, 178, 177, 179, 178, 176, 180, 181, 179, 177, 180, 182, 181, 178, 181, 183, 182, 180, 183, 184, 182, 181, 184, 186, 185, 179], elevTrace: [42, 48, 61, 78, 70, 64, 82, 96, 88, 75, 90, 112, 104, 92, 86, 100, 124, 116, 98, 108, 132, 120, 110, 128, 146, 134, 118, 102, 88, 70], breakdown: { label: 'Mile splits', rows: [['Miles 1–6', '8:55/mi', 'Warm-up'], ['Miles 7–12', '8:44/mi', 'Steady'], ['Miles 13–18', '8:31/mi', 'Negative split']] } },
+    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], cadenceTrace: [168, 172, 174, 176, 175, 178, 177, 179, 178, 176, 180, 181, 179, 177, 180, 182, 181, 178, 181, 183, 182, 180, 183, 184, 182, 181, 184, 186, 185, 179], elevTrace: [42, 48, 61, 78, 70, 64, 82, 96, 88, 75, 90, 112, 104, 92, 86, 100, 124, 116, 98, 108, 132, 120, 110, 128, 146, 134, 118, 102, 88, 70], paceTrace: [548, 532, 540, 525, 538, 520, 528, 515, 524, 533, 512, 521, 530, 510, 519, 508, 517, 526, 506, 515, 524, 504, 513, 522, 502, 511, 519, 500, 509, 517], breakdown: { label: 'Mile splits', rows: [['Miles 1–6', '8:55/mi', 'Warm-up'], ['Miles 7–12', '8:44/mi', 'Steady'], ['Miles 13–18', '8:31/mi', 'Negative split']] } },
     { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Pace', '1:42/100m'], ['Time', '34:10']], kudos: 19, replies: 2 },
     { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
     { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 40 km', stats: [['Distance', '40.2 km'], ['Avg power', '241 W'], ['Time', '1:18']], kudos: 23, replies: 3 },
@@ -10685,7 +10683,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
       routeObj, showRoute, breakdown: a.breakdown || null,
-      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null,
+      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (

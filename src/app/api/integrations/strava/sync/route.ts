@@ -322,20 +322,26 @@ async function fetchStreams(
   accessToken: string,
   activityId: number,
   isRide: boolean
-): Promise<{ hr: number[] | null; cadence: number[] | null; elev: number[] | null }> {
+): Promise<{ hr: number[] | null; cadence: number[] | null; elev: number[] | null; pace: number[] | null }> {
   try {
     const data = await stravaGet<{
       heartrate?: { data?: number[] };
       cadence?: { data?: number[] };
       altitude?: { data?: number[] };
-    }>(accessToken, `/activities/${activityId}/streams?keys=heartrate,cadence,altitude&key_by_type=true`);
+      velocity_smooth?: { data?: number[] };
+    }>(accessToken, `/activities/${activityId}/streams?keys=heartrate,cadence,altitude,velocity_smooth&key_by_type=true`);
+    // velocity (m/s) → pace seconds-per-mile; clamp slow/stopped samples to 20:00/mi.
+    const vel = data?.velocity_smooth?.data;
+    const paceRaw = Array.isArray(vel) ? vel.map((v) => (v > 0.5 ? Math.min(1609.344 / v, 1200) : 1200)) : [];
     return {
-      hr: downsampleStream(data?.heartrate?.data ?? [], 40),
-      cadence: downsampleStream(data?.cadence?.data ?? [], 40, isRide ? 1 : 2),
-      elev: downsampleStream(data?.altitude?.data ?? [], 40, 3.28084),
+      hr: downsampleStream(data?.heartrate?.data ?? [], 50),
+      cadence: downsampleStream(data?.cadence?.data ?? [], 50, isRide ? 1 : 2),
+      elev: downsampleStream(data?.altitude?.data ?? [], 50, 3.28084),
+      // Pace chart is foot-sport only (rides show speed/power, not pace-per-mile).
+      pace: isRide ? null : downsampleStream(paceRaw, 50),
     };
   } catch {
-    return { hr: null, cadence: null, elev: null };
+    return { hr: null, cadence: null, elev: null, pace: null };
   }
 }
 
@@ -384,11 +390,12 @@ async function importStravaActivities(
       streamsFetched += 1;
       const sport = (activity.sport_type || activity.type || '').toLowerCase();
       const isRide = /ride|bike|cycl|ebike|handcycle/.test(sport);
-      const { hr, cadence, elev } = await fetchStreams(accessToken, activity.id, isRide);
+      const { hr, cadence, elev, pace } = await fetchStreams(accessToken, activity.id, isRide);
       const m = payload.metrics as Record<string, unknown>;
       if (hr) m.hrTrace = hr;
       if (cadence) m.cadenceTrace = cadence;
       if (elev) m.elevTrace = elev;
+      if (pace) m.paceTrace = pace;
     }
 
     const result = existing?.id
