@@ -10,6 +10,18 @@ reviews:
   review_status: true
   poem: false
   collapse_walkthrough: false
+  # Pre-merge checks — all advisory (warning) so they never block the owner's
+  # bypass merges; turned off where they'd only be noise for this repo.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"            # JSX/TS codebase uses inline comments, not docstrings — 80% would warn on every PR
+    issue_assessment:
+      mode: "off"            # PR-driven solo repo, not issue-tracked
+    title:
+      mode: "warning"
+      requirements: "Concise, descriptive title; conventional-commit style preferred — e.g. feat/fix/docs/chore(scope): summary."
+    description:
+      mode: "warning"
   auto_review:
     enabled: true
     drafts: false
