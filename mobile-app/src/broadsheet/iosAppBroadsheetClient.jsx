@@ -9690,10 +9690,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-      {/* masthead — same chrome as every other page (top hairline + logo/Vol·No
-          + search/avatar), then a back + context row. */}
+      {/* masthead — same chrome as every other page (logo/Vol·No + search/avatar),
+          then a back + context row. No top hairline (clean edge). */}
       <div style={{ flexShrink: 0, position: 'relative', padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px' }}>
-        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 'env(safe-area-inset-top, 0px)', height: 1, background: bsTHexA(t.INK, 0.5) }} />
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
