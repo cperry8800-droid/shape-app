@@ -43,6 +43,19 @@ const RATE_LIMIT_SKIP = [
   '/api/health',
 ];
 
+// Max request body size (App Router has no default). Upload + server-to-server
+// batch routes get a larger ceiling; everything else is capped tight. Enforced
+// up front via Content-Length; per-route readJson() also caps the real bytes.
+const JSON_BODY_MAX = 1_000_000; // 1 MB
+const LARGE_BODY_MAX = 30 * 1024 * 1024; // 30 MB
+const LARGE_BODY_PREFIXES = [
+  '/api/apply',
+  '/api/client/progress-photos',
+  '/api/nutrition/meal-note',
+  '/api/nutrition/voice',
+  '/api/integrations/garmin/webhook',
+];
+
 // Which role a private portal page belongs to, or null if the page is public.
 //
 // Gated:     /newdesign/Client<X>.html, Trainer<X>.html, Nutritionist<X>.html
@@ -99,6 +112,23 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const apiPath = request.nextUrl.pathname;
+
+  // ---- Request size guard (all API routes) ---------------------------------
+  // Reject oversized bodies up front (no App Router default). Route-aware:
+  // upload / batch routes get a larger ceiling. Content-Length based; the
+  // per-route readJson() caps the real byte count as defense in depth.
+  if (apiPath.startsWith('/api/') && request.method !== 'GET' && request.method !== 'OPTIONS') {
+    const cl = Number(request.headers.get('content-length') || '0');
+    if (cl > 0) {
+      const large = LARGE_BODY_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'));
+      if (cl > (large ? LARGE_BODY_MAX : JSON_BODY_MAX)) {
+        return NextResponse.json(
+          { error: 'Payload too large.', code: 'payload_too_large' },
+          { status: 413, headers: { 'cache-control': 'no-store' } }
+        );
+      }
+    }
+  }
 
   // ---- Rate limiting (all API routes, web + app) ---------------------------
   // Strict brute-force tier for auth writes (5 / 15 min by IP); a general

@@ -118,6 +118,26 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-15 — Input hardening: reject oversized/malformed payloads + size guard
+- **Centralized request-size guard in the proxy** (`src/lib/supabase/
+  middleware.ts`): every `/api/*` body request is capped by Content-Length —
+  **1 MB** general, **30 MB** for upload/batch routes (apply · progress-photos ·
+  meal-note · voice · garmin webhook) — returning **413** before the handler runs
+  (App Router has no default cap). Covers all 106 routes, web + app.
+- **Shared `readJson()`** (`src/lib/request-utils.ts`): a size-bounded (413),
+  empty/malformed-safe (400) JSON reader returning a typed `{ok,data} |
+  {ok,response}`. Applied to the unauthenticated/public write routes (the
+  attacker-reachable surface): contact · app-waitlist · intake · consultation ·
+  apply (JSON branch) · community/feed · support/chat. These already
+  clamp/validate every field (`cleanText`/`isEmail`/`isISODate`); this adds the
+  missing byte cap + consistent malformed rejection.
+- **XSS:** there is **no `dangerouslySetInnerHTML`** anywhere (app/web/mobile) —
+  output is React/JSX-escaped, so input "sanitization" here is size/shape/type
+  bounding, not HTML-stripping (which would corrupt legit content for no gain).
+- *Scope:* the size cap is global; the readJson malformed/parse guard is on the
+  public routes (chosen scope). Authenticated routes (behind auth + RLS) can adopt
+  `readJson` incrementally. No migration; tsc + next build + 104 tests green.
+
 ### 2026-06-15 — API rate limiting (all routes · web + app) + 5/15min on auth
 - **Every `/api/*` route is now rate-limited in the proxy** (`src/lib/supabase/
   middleware.ts`) — one chokepoint covering BOTH surfaces, since the website

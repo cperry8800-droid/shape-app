@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/email';
-import { cleanText as clean, isEmail } from '@/lib/request-utils';
+import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import {
   REQUIRED_PROVIDER_EXPERIENCE_YEARS,
   hasBackgroundCheckConsent,
@@ -71,7 +71,9 @@ async function parseApplyRequest(req: NextRequest): Promise<{
 }> {
   const contentType = req.headers.get('content-type') || '';
   if (!contentType.includes('multipart/form-data')) {
-    return { body: await req.json(), files: [] };
+    const parsed = await readJson<Record<string, unknown>>(req);
+    if (!parsed.ok) throw new Error('invalid_json');
+    return { body: parsed.data, files: [] };
   }
 
   const form = await req.formData();

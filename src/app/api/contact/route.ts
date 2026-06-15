@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
-import { cleanText as clean, isEmail } from '@/lib/request-utils';
+import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,12 +24,9 @@ const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunit
 const MAX_FIELD = 5000;
 
 export async function POST(req: NextRequest) {
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsed = await readJson<Record<string, unknown>>(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const firstName = clean(body.firstName, 100);
   const lastName = clean(body.lastName, 100);
