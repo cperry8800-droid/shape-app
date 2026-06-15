@@ -1500,31 +1500,24 @@ function BSProAnalyticsScreen({ role = 'trainer' }) {
   );
 }
 
+// Roster filters are PHASE only (CUT / BUILD / PEAK). Status (on track / needs
+// you / new) is shown by the section grouping + summary line, so it's not also a
+// chip; the at-risk cut is the separate "Needs you" toggle in BSProRosterView.
 const BS_ROSTER_FILTERS = {
   trainer: [
-    { k: 'all', label: 'ALL' }, { k: 'ontrack', label: 'ON TRACK' }, { k: 'eyes', label: 'NEEDS EYES' },
-    { k: 'new', label: 'NEW' }, { k: 'cut', label: 'CUT' }, { k: 'build', label: 'BUILD' }, { k: 'peak', label: 'PEAK' },
+    { k: 'all', label: 'ALL' }, { k: 'cut', label: 'CUT' }, { k: 'build', label: 'BUILD' }, { k: 'peak', label: 'PEAK' },
   ],
   nutritionist: [
-    { k: 'all', label: 'ALL' }, { k: 'ontrack', label: 'ON TRACK' }, { k: 'eyes', label: 'NEEDS EYES' },
-    { k: 'new', label: 'NEW' }, { k: 'cut', label: 'CUT' }, { k: 'build', label: 'BUILD' },
+    { k: 'all', label: 'ALL' }, { k: 'cut', label: 'CUT' }, { k: 'build', label: 'BUILD' },
   ],
 };
 function bsClientMatchesFilter(c, key, role) {
   if (key === 'all') return true;
   const r = (c.r || '').toUpperCase();
-  if (key === 'new') return r.includes('INTAKE') || c.d === 'NEW' || c.s === 'onboard';
   if (key === 'cut') return r.startsWith('CUT');
   if (key === 'build') return r.startsWith('BUILD');
   if (key === 'peak') return r.startsWith('PEAK');
-  if (role === 'nutritionist') {
-    if (key === 'ontrack') return c.good === true || c.s === 'on track';
-    if (key === 'eyes') return c.warn === true || c.s === 'review form' || c.s === 'missed';
-  } else {
-    if (key === 'ontrack') return c.s === 'on track';
-    if (key === 'eyes') return c.s === 'review form' || c.s === 'deload soon' || c.s === 'missed';
-  }
-  return false;
+  return true;
 }
 function bsClientMatchesQuery(c, query) {
   const q = (query || '').trim().toLowerCase();
@@ -1726,7 +1719,7 @@ function BSProAvatarButton({ size = 38 }) {
   const open = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
   return <BSFacetAvatar size={size} c={bsTierColor(tier)} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
 }
-function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, onOpen, footerLeft, footerRight }) {
+function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
@@ -1735,7 +1728,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
       {/* Standard page header — logo + Vol·No row, mono kicker, display title
           (same formatting as the chat/home pages; no more custom serif header). */}
       <BSPageHeader
-        kicker={`${activeCount} Active · +${newThisMonth} this month`}
+        kicker={newThisMonth > 0 ? `${activeCount} Active · +${newThisMonth} this month` : `${activeCount} Active`}
         title="Your clients."
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
       />
@@ -1745,8 +1738,11 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
         </div>
-        {/* Filter pills — wrap to fit the frame (no off-screen overflow) */}
+        {/* Filter — a single "Needs you" toggle + PHASE chips. Status is already
+            shown by the section grouping + summary line below, so it isn't
+            re-cut here (no ON TRACK / NEEDS EYES / NEW chips). */}
         <div style={{ marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          <button onClick={() => setNeedsYou(!needsYou)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${needsYou ? teal : t.RULE}`, background: needsYou ? `${teal}1c` : 'transparent', color: needsYou ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>NEEDS YOU</button>
           {filters.map(f => {
             const on = filter === f.k;
             return <button key={f.k} onClick={() => setFilter(f.k)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{f.label}</button>;
@@ -1832,10 +1828,12 @@ function BSTrainerClients() {
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
+  const [needsYou, setNeedsYou] = useStateBSP(false);
   const COACH_CLIENTS = useBSProRoster('trainer'); // demo → live roster when signed in
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
+    .filter(c => !needsYou || bsRowSeverity(c, 'trainer').rank <= 1)
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
@@ -1869,6 +1867,8 @@ function BSTrainerClients() {
       setQuery={setCQuery}
       filter={cFilter}
       setFilter={setCFilter}
+      needsYou={needsYou}
+      setNeedsYou={setNeedsYou}
       onOpen={(c) => setFullClient(c)}
       footerLeft="The Coach Edition"
       footerRight="Clients"
@@ -4185,10 +4185,12 @@ function BSNutriClients() {
   const [roster, setRoster] = useStateBSP('active'); // 'active' | 'past'
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
+  const [needsYou, setNeedsYou] = useStateBSP(false);
   const NUTRI_CLIENTS = useBSProRoster('nutritionist'); // demo → live roster when signed in
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))
+    .filter(c => !needsYou || bsRowSeverity(c, 'nutritionist').rank <= 1)
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
@@ -4222,6 +4224,8 @@ function BSNutriClients() {
       setQuery={setCQuery}
       filter={cFilter}
       setFilter={setCFilter}
+      needsYou={needsYou}
+      setNeedsYou={setNeedsYou}
       onOpen={(c) => setFullClient(c)}
       footerLeft="The Nutri Edition"
       footerRight="Clients"
