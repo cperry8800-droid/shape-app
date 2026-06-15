@@ -7342,6 +7342,7 @@ function bsActivityFromPost(p) {
     cadenceTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.cadenceTrace) && p.rawMetrics.cadenceTrace.length > 1) ? p.rawMetrics.cadenceTrace : null,
     elevTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.elevTrace) && p.rawMetrics.elevTrace.length > 1) ? p.rawMetrics.elevTrace : null,
     paceTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.paceTrace) && p.rawMetrics.paceTrace.length > 1) ? p.rawMetrics.paceTrace : null,
+    powerTrace: (p.rawMetrics && Array.isArray(p.rawMetrics.powerTrace) && p.rawMetrics.powerTrace.length > 1) ? p.rawMetrics.powerTrace : null,
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
@@ -9703,10 +9704,25 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   if (summaryStats.length > 4) { outputStats = summaryStats.slice(4).concat(outputStats); summaryStats = summaryStats.slice(0, 4); }
   const sumCols = summaryStats.length === 4 ? 2 : (Math.min(summaryStats.length, 3) || 1);
   const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
-  // Total distance (for the x-axis mile markers) parsed from the distance stat.
+  // Total distance (for the x-axis mile markers) — only when the distance stat
+  // is in miles (runs/rides); swims/others report metres, so skip the markers.
   const distStat = (d.heroStat && /dist/i.test(d.heroStat[0])) ? d.heroStat : allStats.find(([k]) => /dist/i.test(k));
-  const distanceMi = distStat ? (parseFloat(String(distStat[1]).replace(/[^\d.]/g, '')) || null) : null;
+  const distRaw = distStat ? String(distStat[1]) : '';
+  const distanceMi = /mi/i.test(distRaw) ? (parseFloat(distRaw.replace(/[^\d.]/g, '')) || null) : null;
   const fmtPaceSec = (s) => { const m = Math.floor(s / 60), ss = Math.round(s % 60); return `${m}:${String(ss).padStart(2, '0')}`; };
+  // GRAPH-TYPE RULE (by activity) — the primary velocity chart is Pace for foot
+  // sports (M:SS, faster reads higher), Speed for rides (mph, higher reads
+  // higher), Pace/100m for swims. Power is its own chart when watts are present.
+  // HR (+zones), Cadence, Elevation, Splits all render whenever their series
+  // exists, for ANY activity (honest-absent otherwise).
+  const sport = String(d.sport || d.typeLabel || '').toLowerCase();
+  const isRideSport = /ride|bike|cycl|spin|watt|peloton/.test(sport);
+  const isSwimSport = /swim/.test(sport);
+  const paceCfg = isRideSport
+    ? { label: 'Speed', invert: false, fmt: (v) => `${Number(v).toFixed(1)}`, chip: 'Top', chipRe: /max.*speed|top.*speed/i }
+    : { label: 'Pace', invert: true, fmt: fmtPaceSec, chip: 'Fastest', chipRe: null };
+  const paceChipStat = paceCfg.chipRe ? allStats.find(([k]) => paceCfg.chipRe.test(k)) : bestPaceStat;
+  const powerStat = allStats.find(([k]) => /power|watt/i.test(k)) || null;
   // Strava-style area chart: a filled metric-over-distance plot with a y-axis
   // (3 ticks) + x-axis mile markers + faint gridlines. `invert` puts the LOW
   // value on top (pace — faster reads higher). Pure (no hooks) — called inline.
@@ -9814,12 +9830,19 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </div>
           </>
         )}
-        {/* PACE — a pace-over-distance area chart (inverted: faster reads higher),
-            with a y-axis of paces + x-axis mile markers, like the examples. */}
+        {/* PACE / SPEED — the primary velocity chart over distance, per the rule:
+            Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}
         {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
           <>
-            <div style={eyebrow}>{tick}Pace{bestPaceStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: tc, background: `${tc}1a`, border: `1px solid ${tc}55`, borderRadius: 999, padding: '2px 8px' }}>Fastest {bestPaceStat[1]}</span>}</div>
-            {AreaChart({ vals: d.paceTrace, color: tc, invert: true, fmt: fmtPaceSec, idKey: 'pace', height: 116 })}
+            <div style={eyebrow}>{tick}{paceCfg.label}{paceChipStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: tc, background: `${tc}1a`, border: `1px solid ${tc}55`, borderRadius: 999, padding: '2px 8px' }}>{paceCfg.chip} {paceChipStat[1]}</span>}</div>
+            {AreaChart({ vals: d.paceTrace, color: tc, invert: paceCfg.invert, fmt: paceCfg.fmt, idKey: 'pace', height: 116 })}
+          </>
+        )}
+        {/* POWER — watts over distance (rides, when a power meter is present). */}
+        {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
+          <>
+            <div style={eyebrow}>{tick}Power{powerStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>avg {powerStat[1]}</span>}</div>
+            {AreaChart({ vals: d.powerTrace, color: '#d8b25a', fmt: (v) => `${Math.round(v)}`, idKey: 'pwr', height: 96 })}
           </>
         )}
         {/* HEART RATE — a bpm-over-distance area chart (y-axis bpm + x-axis miles),
@@ -10578,11 +10601,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // "Today on Shape" community page): real workouts logged by members, with
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
-    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' }, likers: [{ name: 'Jordan Ellis', role: 'Client' }, { name: 'Sam Reyes', role: 'Client' }, { name: 'Maya Okafor', role: 'Trainer' }], comments: [{ who: 'Jordan Ellis', text: 'That bar speed was unreal — congrats!', follows: true }, { who: 'Sam Reyes', text: 'Eight months of work right there.', follows: true }, { who: 'Avery Lin', text: 'Huge.', follows: false }, { who: 'Noah Kim', text: 'Form looked dialed the whole set.', follows: false }, { who: 'Mara Diaz', text: 'Inspiring. Tackling my own DL block next week.', follows: false }, { who: 'Dana Lewis', text: 'Exactly what we trained for. Proud of you.', follows: false }], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '235 lb × 3', 'RPE 8'], ['Set 3', '245 lb × 3', 'RPE 9 · PR']] } },
+    { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' }, likers: [{ name: 'Jordan Ellis', role: 'Client' }, { name: 'Sam Reyes', role: 'Client' }, { name: 'Maya Okafor', role: 'Trainer' }], comments: [{ who: 'Jordan Ellis', text: 'That bar speed was unreal — congrats!', follows: true }, { who: 'Sam Reyes', text: 'Eight months of work right there.', follows: true }, { who: 'Avery Lin', text: 'Huge.', follows: false }, { who: 'Noah Kim', text: 'Form looked dialed the whole set.', follows: false }, { who: 'Mara Diaz', text: 'Inspiring. Tackling my own DL block next week.', follows: false }, { who: 'Dana Lewis', text: 'Exactly what we trained for. Proud of you.', follows: false }], stats: [['Top set', '245 lb'], ['Reps', '3'], ['Avg HR', '138 bpm'], ['Max HR', '162 bpm'], ['Calories', '420'], ['Volume', '8,150 lb']], zones: [['Z1', 28], ['Z2', 34], ['Z3', 24], ['Z4', 11], ['Z5', 3]], trace: [96, 112, 138, 122, 104, 118, 152, 134, 110, 124, 158, 140, 116, 128, 161, 142, 118, 132, 162, 144, 120, 134, 159, 138, 114, 130, 156, 136, 112, 108], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '235 lb × 3', 'RPE 8'], ['Set 3', '245 lb × 3', 'RPE 9 · PR']] } },
     { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], cadenceTrace: [168, 172, 174, 176, 175, 178, 177, 179, 178, 176, 180, 181, 179, 177, 180, 182, 181, 178, 181, 183, 182, 180, 183, 184, 182, 181, 184, 186, 185, 179], elevTrace: [42, 48, 61, 78, 70, 64, 82, 96, 88, 75, 90, 112, 104, 92, 86, 100, 124, 116, 98, 108, 132, 120, 110, 128, 146, 134, 118, 102, 88, 70], paceTrace: [548, 532, 540, 525, 538, 520, 528, 515, 524, 533, 512, 521, 530, 510, 519, 508, 517, 526, 506, 515, 524, 504, 513, 522, 502, 511, 519, 500, 509, 517], breakdown: { label: 'Mile splits', rows: [['Miles 1–6', '8:55/mi', 'Warm-up'], ['Miles 7–12', '8:44/mi', 'Steady'], ['Miles 13–18', '8:31/mi', 'Negative split']] } },
-    { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Pace', '1:42/100m'], ['Time', '34:10']], kudos: 19, replies: 2 },
+    { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Avg pace', '1:42/100m'], ['Best pace', '1:33/100m'], ['Time', '34:10'], ['Avg HR', '139 bpm'], ['Max HR', '158 bpm'], ['Calories', '410'], ['SWOLF', '38']], zones: [['Z1', 14], ['Z2', 48], ['Z3', 28], ['Z4', 9], ['Z5', 1]], trace: [118, 124, 131, 136, 134, 140, 138, 143, 141, 137, 144, 148, 145, 140, 146, 151, 148, 143, 149, 154, 150, 145, 151, 156, 152, 147, 153, 158, 155, 142], paceTrace: [108, 104, 106, 102, 105, 101, 103, 100, 102, 106, 99, 101, 104, 98, 100, 97, 99, 103, 96, 99, 102, 95, 98, 101, 94, 97, 100, 93, 96, 100], breakdown: { label: '500m splits', rows: [['Split 1', '1:46/100m', 'Build'], ['Split 2', '1:42/100m', 'Steady'], ['Split 3', '1:39/100m', 'Push'], ['Split 4', '1:34/100m', 'Sprint']] }, kudos: 19, replies: 2 },
     { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
-    { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 40 km', stats: [['Distance', '40.2 km'], ['Avg power', '241 W'], ['Time', '1:18']], kudos: 23, replies: 3 },
+    { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 25 mi', stats: [['Distance', '25.1 mi'], ['Avg speed', '19.3 mph'], ['Time', '1:18:04'], ['Avg power', '241 W'], ['Max power', '612 W'], ['Avg HR', '148 bpm'], ['Max HR', '171 bpm'], ['Cadence', '89 rpm'], ['Elevation', '1,240 ft'], ['Calories', '1,180'], ['Max speed', '34.2 mph']], zones: [['Z1', 8], ['Z2', 22], ['Z3', 30], ['Z4', 28], ['Z5', 12]], trace: [126, 132, 140, 152, 161, 149, 138, 145, 158, 167, 154, 142, 150, 163, 170, 156, 144, 152, 165, 171, 158, 146, 154, 166, 169, 151, 140, 157, 168, 159], paceTrace: [17.2, 18.4, 21.0, 24.5, 22.1, 18.0, 16.4, 19.2, 23.6, 26.1, 21.4, 17.8, 19.6, 24.0, 27.2, 20.8, 16.9, 19.0, 23.1, 28.4, 22.6, 18.2, 20.1, 24.8, 26.6, 19.4, 16.2, 20.6, 25.4, 21.8], powerTrace: [198, 224, 268, 312, 286, 210, 182, 236, 298, 332, 274, 204, 244, 306, 348, 262, 190, 232, 296, 358, 284, 214, 252, 318, 336, 246, 186, 258, 322, 276], cadenceTrace: [84, 86, 88, 91, 90, 85, 83, 87, 90, 93, 89, 84, 88, 92, 94, 88, 83, 87, 91, 95, 90, 85, 89, 93, 94, 87, 82, 90, 94, 89], elevTrace: [120, 138, 172, 226, 290, 248, 196, 244, 318, 402, 356, 288, 232, 308, 396, 470, 412, 340, 286, 360, 452, 528, 470, 398, 462, 540, 480, 396, 312, 240], breakdown: { label: 'Intervals', rows: [['Climb 1', '6:24', '298 W'], ['Climb 2', '6:02', '312 W'], ['Climb 3', '5:48', '326 W']] }, kudos: 23, replies: 3 },
     { kind: 'workout', who: 'Casey Morgan', role: 'Client', city: 'Shape · Brooklyn', tier: 'FORM', ago: '2h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
     { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
     { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3 },
@@ -10683,7 +10706,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
       title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
       routeObj, showRoute, breakdown: a.breakdown || null,
-      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null,
+      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (

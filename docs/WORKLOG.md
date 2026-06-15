@@ -100,6 +100,40 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-15 — Session-details graphs: Strava-style charts + per-activity GRAPH-TYPE RULE (all activities, live data)
+- **The activity **Session details** page now renders pro-grade, axis-labeled
+  area charts** (modeled on Strava/Garmin), driven by the post's REAL device
+  data and applied to **every activity type** (runs, rides, swims, strength,
+  recovery, …). The page is sectioned (Summary → primary velocity → Power → HR
+  → Splits → Cadence → Elevation → Output); each chart renders **only when its
+  series is present** (honest-absent otherwise) — demo cards are the signed-out
+  fallback.
+- **GRAPH-TYPE RULE (activity → charts)** — the canonical mapping. The primary
+  velocity chart is **sport-specific**; everything else is data-gated:
+  - **Pace** (M:SS, y-axis inverted so faster reads higher) → run · walk · hike.
+  - **Pace /100m** (M:SS, inverted) → swim.
+  - **Speed** (mph, not inverted) → ride/cycle. **Power** (W) is its own chart
+    when a power meter is present (rides).
+  - **Heart rate** = bpm area chart + **time-in-zone** labeled bars (Z1–Z5) →
+    ANY activity with HR (incl. strength/lifting).
+  - **Cadence** (spm runs / rpm rides), **Elevation** (ft terrain profile) →
+    whenever the stream exists; **Splits** = a column chart (mile splits for
+    runs, intervals for rides/swims, working **sets** for strength).
+  - **Summary** = the mains (hero distance + Time · Avg pace/speed · Avg HR ·
+    Calories); leftover scalars fall to **Output**. Mile x-axis markers appear
+    only when distance is in **miles** (runs/rides), skipped for metric swims.
+  - Implemented in `iosAppBroadsheetClient.jsx` (`AreaChart` primitive + the
+    `paceCfg` per-sport switch in `BSActivityDetail`); the rule is mirrored
+    **server-side** in `fetchStreams` (sport → which velocity unit).
+- **Live data wiring (applies to real accounts, not just demo):** Strava sync
+  now pulls `heartrate, cadence, altitude, velocity_smooth, watts` in ONE
+  streams call per new activity → `metrics.{hrTrace,cadenceTrace,elevTrace,
+  paceTrace,powerTrace}` (velocity converted per sport: mph / sec-per-100m /
+  sec-per-mile; altitude→ft; run cadence→spm; watts→power). These flow through
+  `communityPostFromRow.rawMetrics` → `bsActivityFromPost` → the detail. WHOOP
+  posts (no per-second streams) still get **zones + stats**, honestly trace-less.
+  Stream fetch is capped per sync (rate limit) and only for NEW posts.
+
 ### 2026-06-14 — Feed reactions: activity-mapped verb (one unified count) + coach co-sign
 - **The single fixed "Spot" is now a DISPLAY-ONLY verb mapped from the post's
   activity type**, over **ONE unified reaction count** (the verb never forks the
