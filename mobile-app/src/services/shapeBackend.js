@@ -2123,6 +2123,7 @@ async function saveWorkoutSessionLog({
   durationSeconds = 0,
   setLogs = [],
   sensorSamples = [],
+  hr = null, // { avg, max, samples } from a worn Bluetooth monitor during the session
   privacy = 'private',
   clientWorkoutId = null,
   providerId = null,
@@ -2155,6 +2156,17 @@ async function saveWorkoutSessionLog({
     summary,
   }).catch((error) => ({ stored: 'error', error }));
 
+  // Full stat set for the card (first 3) + detail page (all) — sets, duration,
+  // and the worn-monitor heart rate when one was connected during the session.
+  const minutes = Math.round(durationSeconds / 60);
+  const workoutStats = [
+    { label: 'Sets', value: `${completedSets}` },
+    { label: 'Duration', value: `${minutes} min` },
+  ];
+  if (hr && Number.isFinite(Number(hr.avg))) workoutStats.push({ label: 'Avg HR', value: `${Math.round(hr.avg)} bpm` });
+  if (hr && Number.isFinite(Number(hr.max))) workoutStats.push({ label: 'Max HR', value: `${Math.round(hr.max)} bpm` });
+  if (avgRestSeconds) workoutStats.push({ label: 'Avg rest', value: `${avgRestSeconds}s` });
+
   const feedPost = await createCommunityPost({
     title,
     status: 'Sensor-authored workout log',
@@ -2169,6 +2181,9 @@ async function saveWorkoutSessionLog({
       completedSets,
       avgSetSeconds,
       avgRestSeconds,
+      averageHeartRate: hr && Number.isFinite(Number(hr.avg)) ? Math.round(hr.avg) : null,
+      maxHeartRate: hr && Number.isFinite(Number(hr.max)) ? Math.round(hr.max) : null,
+      workoutStats,
       setLogs: setLogs.map((entry) => ({
         key: entry.key,
         moveIndex: entry.moveIndex,

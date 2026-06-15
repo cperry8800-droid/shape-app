@@ -15196,6 +15196,30 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
   const [reviewEffort, setReviewEffort] = useStateBSC(null); // post-workout effort
   const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
+  // Live heart rate from a worn Bluetooth monitor (window.ShapeHRM). Samples are
+  // collected through the whole session → avg + max land on the workout's stats.
+  const [hrNow, setHrNow] = useStateBSC(null);             // current bpm (live chip)
+  const [hrmOn, setHrmOn] = useStateBSC(false);            // a monitor is connected
+  const hrSamplesRef = React.useRef([]);                   // [{ bpm, t }]
+  const hrMaxRef = React.useRef(0);
+  React.useEffect(() => {
+    const onHr = (e) => {
+      const bpm = e && e.detail && e.detail.bpm;
+      if (typeof bpm === 'number' && bpm > 0) {
+        setHrNow(bpm); setHrmOn(true);
+        hrSamplesRef.current.push({ bpm, t: Date.now() });
+        if (bpm > hrMaxRef.current) hrMaxRef.current = bpm;
+      }
+    };
+    window.addEventListener('shape:hrm', onHr);
+    try { const cur = window.ShapeHRM?.current?.(); if (cur) { setHrNow(cur); setHrmOn(true); } if (window.ShapeHRM?.connected?.()) setHrmOn(true); } catch (err) {}
+    return () => window.removeEventListener('shape:hrm', onHr);
+  }, []);
+  const connectHrm = async () => {
+    if (!window.ShapeHRM?.available?.()) { window.__bsToast?.('No Bluetooth heart-rate monitor available on this device.', 'info'); return; }
+    try { await window.ShapeHRM.connect(); setHrmOn(true); window.__bsToast?.('Heart-rate monitor connected', 'ok'); }
+    catch (err) { window.__bsToast?.('Could not connect the monitor.', 'warn'); }
+  };
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart] = useStateBSC(Date.now());
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
@@ -15315,11 +15339,16 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       // The structured log + coach review always save privately. When "Share to
       // community" is on, the feed post goes public — carrying the real set logs,
       // so the activity card's detail page shows the per-set breakdown.
+      const hrSamples = hrSamplesRef.current;
+      const hr = hrSamples.length
+        ? { avg: Math.round(hrSamples.reduce((s, x) => s + x.bpm, 0) / hrSamples.length), max: hrMaxRef.current || null, samples: hrSamples.length }
+        : null;
       await window.ShapeWorkoutLogs?.saveSessionLog?.({
         title: `${moves[0]?.m || 'Workout'} session`,
         workout: moves[0]?.m || 'workout',
         durationSeconds: elapsedSec,
         setLogs,
+        hr,
         review: { feel: reviewFeel, effort: reviewEffort },
         privacy: shareToFeed ? 'community' : 'private',
       });
@@ -15352,6 +15381,20 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
           <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block' }} /> Live · {fmt(elapsedSec)}
         </span>
         <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{doneSets}/{totalSets}</span>
+      </div>
+
+      {/* Live heart rate from a worn Bluetooth monitor — its avg/max land on the
+          workout's stats. Tap to connect one when none is paired. */}
+      <div style={{ padding: `2px ${t.padX}px 0`, display: 'flex', justifyContent: 'center' }}>
+        {hrmOn && hrNow ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#c0392b' : '#ff6b6b' }}>
+            {bsFeedIcon('heart', 12, true)} {hrNow} bpm · live
+          </span>
+        ) : (
+          <button onClick={connectHrm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '5px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>
+            {bsFeedIcon('heart', 11)} Connect HR monitor
+          </button>
+        )}
       </div>
 
       {/* Rest timer — pinned at the very top while resting between sets (instrument plate) */}
