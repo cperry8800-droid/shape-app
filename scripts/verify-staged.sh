@@ -11,7 +11,7 @@
 #   - any code staged            -> npm test
 #
 # Bypass once (e.g. a known-safe WIP commit):  SKIP_VERIFY=1 git commit ...
-set -uo pipefail
+set -o pipefail
 
 if [ "${SKIP_VERIFY:-}" = "1" ]; then
   echo "verify: SKIP_VERIFY=1 set — skipping checks"
@@ -27,7 +27,10 @@ mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACM)
 ts_changed=0
 mobile_changed=0
 code_changed=0
-declare -a parse_mod parse_script
+# Explicit empty-array init (not `declare -a`) so `${#arr[@]}` is "set" even on
+# bash 3.2 (macOS) — a declared-but-unassigned array reads as unbound there.
+parse_mod=()
+parse_script=()
 
 for f in "${STAGED[@]}"; do
   case "$f" in
