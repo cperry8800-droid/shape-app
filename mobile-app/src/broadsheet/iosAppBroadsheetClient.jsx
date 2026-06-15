@@ -2727,11 +2727,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </BSPlate>
       )}
 
-      {/* YOUR GOAL — long-term pace, below today's actions (today's move first) */}
-      <div style={{ padding: `0 ${t.padX}px 12px` }}>
-        <BSMeGoalCard compact onOpen={() => setGoalsPage(true)} />
-      </div>
-
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
