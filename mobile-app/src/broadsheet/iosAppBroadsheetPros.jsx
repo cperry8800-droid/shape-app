@@ -198,6 +198,9 @@ const bsMyInitials  = () => { try { return (window.bsMyInitials && window.bsMyIn
 const bsMyTierColor = () => { try { return (window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'; } catch (e) { return '#8a8f98'; } };
 // Coach tier ladder (scheme J) translator — set on window by the client bundle.
 const bsCoachTier   = (x) => { try { return (window.bsCoachTier && window.bsCoachTier(x)) || x; } catch (e) { return x; } };
+// Signed-in (live account) check for coach surfaces — demo data is preview-only,
+// so signed-in falls back to empty (not the demo schedule/roster/etc.).
+function bsProSignedIn() { try { return !!(window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id); } catch (e) { return false; } }
 
 // Hydrate the coach's Shape Score tier into window.ShapeScore at app startup so
 // every coach avatar (home header, Me) reflects the right tier color before the
@@ -1284,7 +1287,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   // Live when the coach has any real calendar events this week (empty days show
   // empty); demo roster in preview / before any sessions are booked.
   const hasReal = realByDate && Object.values(realByDate).some((l) => l && l.length);
-  const bookings = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (TRAINER_BOOKINGS[dataDay] || []);
+  const bookings = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (bsProSignedIn() ? [] : (TRAINER_BOOKINGS[dataDay] || []));
 
   // Per-day lead. selDay 14 = today's narrative.
   const TRAINER_LEAD = {
@@ -1296,14 +1299,20 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
     25: { count: '0', kicker: 'Mon · May 18',  copy: 'Off day. Programming refresh on the docket.' },
     26: { count: '1', kicker: 'Tue · May 19',  copy: 'Open hours — drop-in consults only.' },
   };
-  const lead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
-  const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
   // Live-now banner: REAL presence only. A roster client (with a real userId)
   // currently in a 'workout' surfaces the banner; signed-out keeps the demo
   // banner as a preview. Re-renders on presence change.
   useProPresenceTick();
   const trainerRoster = useBSProRoster('trainer');
   const coachSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+  const activeCount = trainerRoster.filter(c => c.active !== false).length;
+  // Day-shape hero lead. Signed-out keeps the rich demo narrative; signed-in is
+  // honest off the day's real bookings (no demo session counts/copy).
+  const demoLead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
+  const lead = coachSignedIn
+    ? { count: String(bookings.length), copy: bookings.length ? `${bookings.length} ${bookings.length === 1 ? 'session' : 'sessions'} ${isToday ? 'today' : 'scheduled'}.` : (isToday ? 'No sessions scheduled today.' : 'Nothing scheduled.') }
+    : demoLead;
+  const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
   const liveClients = isToday ? trainerRoster.filter((c) => c.active !== false && c.userId && window.ShapePresence && window.ShapePresence.activityOf && window.ShapePresence.activityOf(c.userId) === 'workout') : [];
   const liveClient = liveClients[0] || null;
   return (
@@ -1312,7 +1321,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
-        rightKicker="14 active clients"
+        rightKicker={coachSignedIn ? `${activeCount} active ${activeCount === 1 ? 'client' : 'clients'}` : '14 active clients'}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
@@ -1336,7 +1345,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         onSelectDay={setSelDay}
         dots={hasReal
           ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
-          : dataByIdx.map(dd => ({
+          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => ({
           20: [t.RUST, t.RUST, t.BLUE],
           21: [t.RUST, t.RUST, t.RUST],
           22: [t.AMBER, t.GREEN],
@@ -1379,7 +1388,9 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         <BSProTriageFeed role="trainer" schedule={bookings} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
       </div>
 
-      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row style. */}
+      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row
+          style. Demo-only: there's no live ops feed, so hide it when signed in. */}
+      {!coachSignedIn && (<>
       <BSSection title="Queue" meta="3 to clear" />
       <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
         {[
@@ -1393,6 +1404,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           </button>
         ))}
       </div>
+      </>)}
 
       {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
       <div style={{ marginTop: 8 }}>
@@ -1634,7 +1646,10 @@ function useBSProRoster(role) {
     }).catch(() => {});
     return () => { on = false; };
   }, [role]);
-  return live || bsDemoRoster(role, t);
+  // Signed-in with no live clients → empty roster (not the demo cast). The demo
+  // roster is preview-only; signed-out shows it as the example coach book.
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+  return live || (signedIn ? [] : bsDemoRoster(role, t));
 }
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
@@ -1824,6 +1839,7 @@ function BSTrainerClients() {
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -1846,7 +1862,7 @@ function BSTrainerClients() {
       activeCount={activeCount}
       pastCount={pastCount}
       totalCount={COACH_CLIENTS.length}
-      newThisMonth={3}
+      newThisMonth={signedIn ? 0 : 3}
       roster={roster}
       setRoster={setRoster}
       query={cQuery}
@@ -2621,7 +2637,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const statusLabel = isPast ? 'PAST' : client.warn ? 'WATCH' : isNutri ? 'STRONG' : 'ON TRACK';
   const phaseUp = (isNutri ? (phase.nutritionPhase || 'Cut') : (phase.trainingPhase || 'Build')).toUpperCase();
   const headEyebrow = isNutri ? `${phaseUp} · 2100 KCAL` : `${phaseUp} · WEEK 6 OF 12`;
-  const sinceLabel = isNutri ? 'Since Feb 2026 · 19d streak' : 'Since Jan 2026 · 14d streak';
+  // Real clients show '—' (no live since/streak source) — never the demo literal;
+  // demo rows (no clientUid · signed-out preview) keep the example label.
+  const sinceLabel = clientUid ? '—' : (isNutri ? 'Since Feb 2026 · 19d streak' : 'Since Jan 2026 · 14d streak');
 
   // Live weigh-ins (share-gated) drive the body chart; else illustrative demo.
   const liveW = (cGoals && cGoals.share !== false && cGoals.overall && Array.isArray(cGoals.overall.weighIns))
@@ -2705,6 +2723,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       <span style={{ fontFamily: t.MONO, fontSize: 9, color: it.cta ? accent : t.INK50, fontWeight: it.cta ? 800 : 400, letterSpacing: '0.06em' }}>{it.d}</span>
     </div>
   ));
+  // Empty-state row for a signed-in real client with no live data yet.
+  const emptyNote = (txt) => (
+    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>
+  );
 
   // ---- header (shared across tabs) ----
   const fireEvt = (name) => { try { window.dispatchEvent(new CustomEvent(name, { detail: { client } })); } catch (e) {} };
@@ -2737,9 +2759,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   );
 
   // ---- PROFILE tab ----
+  // Real clients with no live value show '—'/0 (never the demo literal); demo
+  // rows (no clientUid) keep the example numbers.
+  const adhBig = adherencePct != null ? String(adherencePct) : (clientUid ? '—' : '92');
+  const attBig = attendancePct != null ? String(attendancePct) : (clientUid ? '—' : '96');
+  const days7Show = days7 != null ? days7 : (clientUid ? 0 : 6);
+  const sDoneShow = sDone != null ? sDone : (clientUid ? 0 : 38);
+  const sPlanShow = sPlan != null ? sPlan : (clientUid ? 0 : 41);
   const bigCard = isNutri
-    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adherencePct != null ? String(adherencePct) : '92', small: '%', sub: `${days7 != null ? days7 : 6}/7 days logged · ${bwDelta} ${bwUnit}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
-    : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attendancePct != null ? String(attendancePct) : '96', small: '%', sub: `${sDone != null ? sDone : 38}/${sPlan != null ? sPlan : 41} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
+    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged · ${bwDelta} ${bwUnit}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
+    : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attBig, small: '%', sub: `${sDoneShow}/${sPlanShow} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
   const renderBigCard = () => (
     <BSPlate c={accent} tick bracket pad="18px 18px 18px 24px">
       <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{bigCard.eyebrow}</div>
@@ -2767,22 +2796,26 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // attendance/adherence + sessions/days-logged, and streak rides in the header;
   // these are the non-duplicative coaching signals.
   const stats = isNutri ? [
-    { label: 'AVG INTAKE', labelColor: gold, big: kcalStr || '2,040', sub: 'TARGET 2,180' },
-    { label: 'PROTEIN HIT', labelColor: teal, big: '88', small: '%', sub: 'OF TARGET DAYS' },
+    { label: 'AVG INTAKE', labelColor: gold, big: kcalStr || (clientUid ? '—' : '2,040'), sub: 'TARGET 2,180' },
+    { label: 'PROTEIN HIT', labelColor: teal, big: clientUid ? '—' : '88', small: clientUid ? undefined : '%', sub: 'OF TARGET DAYS' },
   ] : [
-    { label: 'AVG RPE', labelColor: rust, big: avgRpe != null ? avgRpe.toFixed(1) : '8.0', sub: 'EFFORT LOGGED' },
-    { label: 'PRS', labelColor: gold, big: prs != null ? String(prs) : '3', sub: 'THIS BLOCK' },
+    { label: 'AVG RPE', labelColor: rust, big: avgRpe != null ? avgRpe.toFixed(1) : (clientUid ? '—' : '8.0'), sub: 'EFFORT LOGGED' },
+    { label: 'PRS', labelColor: gold, big: prs != null ? String(prs) : (clientUid ? '—' : '3'), sub: 'THIS BLOCK' },
   ];
-  const lifts = liftRows || [
+  // Real clients with no strength rollup → empty (empty-state); demo rows keep
+  // the example lifts.
+  const lifts = liftRows || (clientUid ? [] : [
     { n: 'Back Squat', v: '82.5 kg', d: '+7.5', p: 0.92 },
     { n: 'Bench Press', v: '52.5 kg', d: '+5.0', p: 0.55 },
     { n: 'Deadlift', v: '110 kg', d: '+10', p: 1.0 },
     { n: 'Overhead Press', v: '35 kg', d: '+2.5', p: 0.38 },
-  ];
+  ]);
+  // Real clients with no live macros → '—' values (never demo grams); demo rows
+  // keep the example averages.
   const macros = [
-    { n: 'Protein', cur: avgP != null ? avgP : 165, tgt: 170, c: teal },
-    { n: 'Carbs', cur: avgC != null ? avgC : 190, tgt: 200, c: gold },
-    { n: 'Fat', cur: avgF != null ? avgF : 60, tgt: 62, c: rust },
+    { n: 'Protein', cur: avgP != null ? avgP : (clientUid ? null : 165), tgt: 170, c: teal },
+    { n: 'Carbs', cur: avgC != null ? avgC : (clientUid ? null : 190), tgt: 200, c: gold },
+    { n: 'Fat', cur: avgF != null ? avgF : (clientUid ? null : 60), tgt: 62, c: rust },
   ];
   const trackRow = (label, value, deltaColor, delta, pct, barColor) => (
     <div style={{ padding: '12px 0', borderTop: `1px solid ${t.HAIR}` }}>
@@ -2793,7 +2826,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       <div style={{ marginTop: 8, height: 3, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.min(1, pct) * 100}%`, background: barColor, borderRadius: 999 }} /></div>
     </div>
   );
-  const recent = liveRecent || (isNutri ? [
+  // Real clients with no live recent activity → empty (empty-state); demo rows
+  // keep the example logs/sessions.
+  const recent = liveRecent || (clientUid ? [] : (isNutri ? [
     { n: 'Tue · 2,040 kcal', s: '162P / 188C / 58F · on target', d: 'Today' },
     { n: 'Mon · 2,110 kcal', s: '168P / 201C / 61F · +protein', d: 'Mon' },
     { n: 'Sun · 1,980 kcal', s: '155P / 176C / 64F · low carb', d: 'Sun' },
@@ -2802,13 +2837,14 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     { n: 'Squat form video', s: 'Uploaded · awaiting review', d: '2h' },
     { n: 'Pull Day B', s: 'Completed · 48 min · RPE 7', d: 'Mon' },
     { n: 'Leg Day', s: 'Completed · 61 min · RPE 9', d: 'Sat' },
-  ]);
-  const inbox = isNutri
+  ]));
+  // No live inbox/note source — real clients show empty (demo rows keep example).
+  const inbox = clientUid ? [] : (isNutri
     ? [{ n: 'Food log · this week', s: 'Submitted 4h ago · 18 entries', d: 'Review', cta: true }]
-    : [{ n: 'Squat form video', s: 'Uploaded 2h ago · 1:42', d: 'Review', cta: true }];
-  const note = isNutri
+    : [{ n: 'Squat form video', s: 'Uploaded 2h ago · 1:42', d: 'Review', cta: true }]);
+  const note = clientUid ? '' : (isNutri
     ? 'Adherence excellent. Refeed Saturday to support training — bump carbs +40g.'
-    : 'Knee valgus on heavy squats — cue knees out, film week 6 top set.';
+    : 'Knee valgus on heavy squats — cue knees out, film week 6 top set.');
   // 30-day read — a one-line "what's happening" summary. Surfaced in the
   // directive lead at the TOP of the page now (the old standalone Analysis
   // trendline duplicated the body chart, so it was dropped in the density pass).
@@ -2822,7 +2858,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {!isNutri && (
         <div>
           <Section eyebrow="STRENGTH" title="Key lifts" trailing="HISTORY →" />
-          {lifts.map((l, i) => <div key={i} style={i === 0 ? { } : null}>{trackRow(l.n, l.v, accent, l.d, l.p, accent)}</div>)}
+          {lifts.length ? lifts.map((l, i) => <div key={i} style={i === 0 ? { } : null}>{trackRow(l.n, l.v, accent, l.d, l.p, accent)}</div>) : emptyNote('No lifts logged yet')}
         </div>
       )}
       <div>
@@ -2838,12 +2874,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {isNutri && (
         <div>
           <Section eyebrow="MACROS" title="Daily average vs target" />
-          {macros.map((m, i) => <div key={i}>{trackRow(m.n, `${m.cur} g`, m.c, `${m.tgt} g`, m.cur / m.tgt, m.c)}</div>)}
+          {macros.map((m, i) => <div key={i}>{trackRow(m.n, m.cur != null ? `${m.cur} g` : '—', m.c, `${m.tgt} g`, m.cur != null ? m.cur / m.tgt : 0, m.c)}</div>)}
         </div>
       )}
       <div>
         <Section eyebrow="ACTIVITY" title={isNutri ? 'Recent logs' : 'Recent sessions'} />
-        {numberedList(recent)}
+        {recent.length ? numberedList(recent) : emptyNote(isNutri ? 'No logs yet' : 'No sessions yet')}
       </div>
       {clientUid && cKit.checkins.length > 0 && (() => {
         const ck = cKit.checkins[0];
@@ -2877,14 +2913,16 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       })()}
       <div>
         <Section eyebrow="INBOX" title="Needs your eyes" />
-        {numberedList(inbox)}
+        {inbox.length ? numberedList(inbox) : emptyNote('Nothing waiting on you')}
       </div>
-      <div>
-        <Section eyebrow="PRIVATE" title={isNutri ? 'Clinical note' : 'Coach note'} />
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
+      {note ? (
+        <div>
+          <Section eyebrow="PRIVATE" title={isNutri ? 'Clinical note' : 'Coach note'} />
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 
@@ -4022,7 +4060,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
   const isToday = selIdx === todayIdx;
   const dataDay = dataByIdx[selIdx];
   const hasReal = realByDate && Object.values(realByDate).some((l) => l && l.length);
-  const schedule = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (NUTRI_SCHEDULE[dataDay] || []);
+  const schedule = hasReal ? ((selDate && realByDate[_ds(selDate)]) || []) : (bsProSignedIn() ? [] : (NUTRI_SCHEDULE[dataDay] || []));
 
   // Per-day lead narrative.
   const NUTRI_LEAD = {
@@ -4034,7 +4072,15 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
     25: { count: '0', kicker: 'Sun · May 17', copy: 'Off day. No sessions scheduled.' },
     26: { count: '1', kicker: 'Mon · May 18', copy: 'Open hours — drop-in consults only.' },
   };
-  const lead = NUTRI_LEAD[dataDay] || NUTRI_LEAD[22];
+  const nutriRoster = useBSProRoster('nutritionist');
+  const coachSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+  const activeCount = nutriRoster.filter(c => c.active !== false).length;
+  // Day-shape hero lead. Signed-out keeps the demo narrative; signed-in is
+  // honest off the day's real schedule (no demo session counts/copy).
+  const demoLead = NUTRI_LEAD[dataDay] || NUTRI_LEAD[22];
+  const lead = coachSignedIn
+    ? { count: String(schedule.length), copy: schedule.length ? `${schedule.length} ${schedule.length === 1 ? 'session' : 'sessions'} ${isToday ? 'today' : 'scheduled'}.` : (isToday ? 'No sessions scheduled today.' : 'Nothing scheduled.') }
+    : demoLead;
   const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
 
   return (
@@ -4043,7 +4089,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         leftKicker={`${_BS_DOW[todayIdx]} · ${_BS_MON[dates[todayIdx].getMonth()]} ${dates[todayIdx].getDate()} · ${dates[todayIdx].getFullYear()}`}
-        rightKicker="22 plans · 5 sessions"
+        rightKicker={coachSignedIn ? `${activeCount} active ${activeCount === 1 ? 'client' : 'clients'}` : '22 plans · 5 sessions'}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
@@ -4067,7 +4113,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         onSelectDay={setSelDay}
         dots={hasReal
           ? dates.map((d) => ((realByDate[_ds(d)] || []).slice(0, 3).map((b) => b.tagColor)))
-          : dataByIdx.map(dd => ({
+          : bsProSignedIn() ? dates.map(() => []) : dataByIdx.map(dd => ({
           20: [t.BLUE, t.BLUE],
           21: [t.GREEN, t.BLUE, t.BLUE],
           22: [t.BLUE],
@@ -4089,7 +4135,9 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         <BSProTriageFeed role="nutritionist" schedule={schedule} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
       </div>
 
-      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row style. */}
+      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row
+          style. Demo-only: there's no live ops feed, so hide it when signed in. */}
+      {!coachSignedIn && (<>
       <BSSection title="Queue" meta="3 to clear" />
       <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
         {[
@@ -4103,6 +4151,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           </button>
         ))}
       </div>
+      </>)}
 
       {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
       <div style={{ marginTop: 8 }}>
@@ -4143,6 +4192,7 @@ function BSNutriClients() {
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} role="nutritionist" />;
   }
@@ -4165,7 +4215,7 @@ function BSNutriClients() {
       activeCount={activeCount}
       pastCount={pastCount}
       totalCount={NUTRI_CLIENTS.length}
-      newThisMonth={3}
+      newThisMonth={signedIn ? 0 : 3}
       roster={roster}
       setRoster={setRoster}
       query={cQuery}
