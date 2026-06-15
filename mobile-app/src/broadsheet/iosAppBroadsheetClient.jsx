@@ -10737,8 +10737,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     <BSPage>
       {/* Tab-aware masthead — "CHAT" eyebrow + serif title that follows the
           active tab (Community / Channels / Friends / Your team). */}
-      <div style={{ padding: `44px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+      <div style={{ padding: `44px ${t.padX}px 0`, position: 'relative' }}>
+        {/* Top hairline rule — same masthead top border as the other pages
+            (BSMasthead draws this; the feed had it suppressed). */}
+        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 44, height: 1, background: bsTHexA(t.INK, 0.5) }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingTop: 9 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
