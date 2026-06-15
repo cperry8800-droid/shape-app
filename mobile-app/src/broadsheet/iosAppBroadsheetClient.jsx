@@ -7221,6 +7221,38 @@ function bsMapActivityPosts(data) {
   });
 }
 // Build a Strava-style activity "proof card" model from a real community post —
+// The detail page's per-set / per-split breakdown — built from REAL captured
+// data: the in-app live session's set logs (load × reps per set) or a provider's
+// splits/laps (Strava etc.). Returns null when the post carries neither, so the
+// section is honestly absent rather than faked.
+function bsBuildBreakdown(p) {
+  const m = (p && p.rawMetrics) || {};
+  const sl = Array.isArray(m.setLogs) ? m.setLogs.filter((s) => s && s.completed !== false) : [];
+  if (sl.length) {
+    const moves = [...new Set(sl.map((s) => s.moveName).filter(Boolean))];
+    const multi = moves.length > 1;
+    const rows = sl.map((s) => {
+      const load = s.actualLoad || s.targetLoad || '';
+      const reps = s.actualReps || s.targetReps || '';
+      const val = load && reps ? `${load} × ${reps}` : (load || reps || '—');
+      const label = multi ? `${s.moveName} · Set ${s.setNumber}` : `Set ${s.setNumber}`;
+      const note = s.setDurationSeconds ? `${s.setDurationSeconds}s` : '';
+      return [label, String(val), String(note)];
+    });
+    return { label: multi ? 'Working sets' : `${moves[0] || 'Working'} · sets`, rows };
+  }
+  const splits = Array.isArray(m.splits) ? m.splits : (Array.isArray(m.laps) ? m.laps : []);
+  if (splits.length) {
+    const rows = splits.slice(0, 14).map((s, i) => {
+      const label = s.label || `Split ${i + 1}`;
+      const val = s.pace || s.time || s.value || s.split || '—';
+      const note = s.note || (s.hr ? `${s.hr} bpm` : (s.elevation != null ? `${s.elevation}` : ''));
+      return [String(label), String(val), String(note || '')];
+    });
+    return { label: 'Splits', rows };
+  }
+  return null;
+}
 // the rich Log-activity *workout* posts (metrics.workoutStats) and sensor-imported
 // workouts (Strava/Whoop/Garmin → statA/B/C + GPS route). Returns null for plain
 // notes/photos (those live in the channel feeds), so the COMMUNITY feed shows real
@@ -7284,6 +7316,9 @@ function bsActivityFromPost(p) {
     city: p.sourceProviderLabel ? `via ${p.sourceProviderLabel}` : '',
     statsRow,
     fullStats: fullStats || statsRow,
+    // Real per-set / per-split breakdown for the detail page (live-session set
+    // logs or provider splits); null when the post carries neither.
+    breakdown: bsBuildBreakdown(p),
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
@@ -9631,7 +9666,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
       </div>
       {/* scroll body */}
-      <div ref={bodyRef} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px' }}>
+      <div ref={bodyRef} className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px' }}>
         {/* author */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           <BSFacetAvatar size={44} c={tc} initial={bsInitials(d.who)} name={d.who} photo={d.avatarPhoto} showRank={false} onClick={() => onProfile && onProfile({ who: d.who, kind: d.roleKind, tier: d.realTier, init: bsInitials(d.who), city: d.city, userId: a.real ? a.userId : undefined, public: true, photo: d.avatarPhoto })} />
@@ -15154,6 +15189,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
   const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
   const [reviewEffort, setReviewEffort] = useStateBSC(null); // post-workout effort
+  const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart] = useStateBSC(Date.now());
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
@@ -15270,15 +15306,18 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
   const finishSession = async () => {
     try {
+      // The structured log + coach review always save privately. When "Share to
+      // community" is on, the feed post goes public — carrying the real set logs,
+      // so the activity card's detail page shows the per-set breakdown.
       await window.ShapeWorkoutLogs?.saveSessionLog?.({
         title: `${moves[0]?.m || 'Workout'} session`,
         workout: moves[0]?.m || 'workout',
         durationSeconds: elapsedSec,
         setLogs,
         review: { feel: reviewFeel, effort: reviewEffort },
-        privacy: 'private',
+        privacy: shareToFeed ? 'community' : 'private',
       });
-      window.__bsToast?.('Private sensor workout log saved for coach review', 'ok');
+      window.__bsToast?.(shareToFeed ? 'Workout shared to the community feed' : 'Private sensor workout log saved for coach review', 'ok');
     } catch (error) {
       window.__bsToast?.(error?.message || 'Workout log saved locally only', 'warn');
     }
@@ -15482,6 +15521,19 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         {(reviewFeel || reviewEffort) && (
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>✓ Saved with your log — Jordan will see it</div>
         )}
+      </div>
+
+      {/* Share to community — posts the session publicly with its per-set breakdown */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <button onClick={() => setShareToFeed(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 5, border: `1px solid ${shareToFeed ? teal : t.RULE}`, borderLeft: shareToFeed ? `3px solid ${teal}` : `1px solid ${t.RULE}`, background: shareToFeed ? `${teal}14` : t.PAPER2, cursor: 'pointer', textAlign: 'left' }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>Share to the community</span>
+            <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>Posts your sets + breakdown to the feed</span>
+          </span>
+          <span style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: shareToFeed ? teal : t.RULE, position: 'relative', transition: 'background 0.15s' }}>
+            <span style={{ position: 'absolute', top: 3, left: shareToFeed ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.15s' }} />
+          </span>
+        </button>
       </div>
 
       {/* End workout early */}

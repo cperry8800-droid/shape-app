@@ -2176,6 +2176,10 @@ async function saveWorkoutSessionLog({
         setNumber: entry.setNumber,
         targetReps: entry.targetReps,
         targetLoad: entry.targetLoad,
+        // The ACTUAL lifted load/reps captured in the live session — these drive
+        // the detail page's per-set breakdown.
+        actualReps: entry.actualReps != null ? entry.actualReps : null,
+        actualLoad: entry.actualLoad != null ? entry.actualLoad : null,
         startedAt: entry.startedAt,
         finishedAt: entry.finishedAt || entry.capturedAt,
         capturedAt: entry.capturedAt,
