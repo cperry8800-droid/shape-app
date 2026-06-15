@@ -118,6 +118,33 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-15 — API rate limiting (all routes · web + app) + 5/15min on auth
+- **Every `/api/*` route is now rate-limited in the proxy** (`src/lib/supabase/
+  middleware.ts`) — one chokepoint covering BOTH surfaces, since the website
+  (cookie, 96 same-origin `fetch('/api/...')`) and the mobile app (native →
+  `VITE_API_BASE_URL` with Bearer; `/m/` web → same-origin) both hit the same
+  Next deployment. Two tiers: **auth writes** (`/api/auth/*` non-GET) =
+  **5 / 15 min by IP** (the brute-force tier); **general** = **100 / min** per
+  caller. Signed-in callers are keyed by **user id** (cookie `user.id`, or the
+  Bearer token's `sub` via unverified parse) so shared NAT IPs aren't
+  collectively throttled; anonymous + auth callers key by IP.
+- **Backed by Postgres** (no new infra, matches the existing DB-in-middleware
+  pattern): migration **`2026-06-15-rate-limits.sql`** (**run on Supabase**) —
+  RLS-locked `rate_limits` table + atomic SECURITY DEFINER `check_rate_limit(key,
+  max, window_seconds)` (fixed-window counter, opportunistic GC, granted to
+  anon+authenticated). Helper `src/lib/rate-limit.ts` (edge-safe).
+- **Fails OPEN** (and is a silent no-op until the migration is applied) so the
+  limiter can never take the API down. On limit: **429** + `Retry-After` +
+  `X-RateLimit-*`. **Skips** server-to-server / monitoring routes (stripe +
+  garmin webhooks, push/dispatch, health) and `OPTIONS` preflight.
+- *Scope:* covers all of OUR `/api/*` endpoints (shared by web + app). Calls the
+  app/website make **directly to Supabase** (data RPCs/reads via the publishable
+  key) are governed by Supabase's own limits + RLS, not this. **The real
+  login/signup/OTP brute-force protection must be set in Supabase Auth → Rate
+  Limits** — those credential requests go straight to Supabase, bypassing the
+  Next app (the app's `/api/auth/*` are only session-bridge/signout helpers).
+  The legacy `mobile-app/server` Express app isn't part of the deployed surface.
+
 ### 2026-06-15 — Session-details graphs: Strava-style charts + per-activity GRAPH-TYPE RULE (all activities, live data)
 - **The activity **Session details** page now renders pro-grade, axis-labeled
   area charts** (modeled on Strava/Garmin), driven by the post's REAL device

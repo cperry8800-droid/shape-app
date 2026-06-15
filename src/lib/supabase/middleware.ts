@@ -6,6 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient as createBearerClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import { computeMembership } from '@/lib/membership-core';
+import { checkRateLimit, jwtSub } from '@/lib/rate-limit';
 
 type PortalRole = 'client' | 'trainer' | 'nutritionist';
 
@@ -23,6 +24,23 @@ const GATED_API_PREFIXES = [
   '/api/calendar',
   '/api/conversations',
   '/api/messages',
+];
+
+// ---- Rate limits ----------------------------------------------------------
+// AUTH writes (sign-in bridge / sign-out) are the strict brute-force tier;
+// every other /api route shares a general per-caller tier. Enforced in the
+// proxy, so BOTH the website (cookie) and the app (Bearer / same-origin /m)
+// are covered by one chokepoint. Backed by the check_rate_limit RPC.
+const AUTH_MAX = 5;
+const AUTH_WINDOW_S = 15 * 60; // 5 attempts / 15 min
+const API_MAX = 100;
+const API_WINDOW_S = 60; // 100 requests / min
+// Server-to-server + monitoring endpoints that must not be IP-throttled.
+const RATE_LIMIT_SKIP = [
+  '/api/stripe/webhook',
+  '/api/integrations/garmin/webhook',
+  '/api/push/dispatch',
+  '/api/health',
 ];
 
 // Which role a private portal page belongs to, or null if the page is public.
@@ -80,11 +98,68 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const apiPath = request.nextUrl.pathname;
+
+  // ---- Rate limiting (all API routes, web + app) ---------------------------
+  // Strict brute-force tier for auth writes (5 / 15 min by IP); a general
+  // per-caller tier for every other /api route. Signed-in callers are keyed by
+  // user id (cookie session OR the Bearer token's sub) so shared NAT IPs aren't
+  // collectively throttled; anonymous + auth callers fall back to IP. Fails
+  // OPEN (and no-ops until the migration is applied) so it can't take the API
+  // down. GET /api/auth/session is a per-page-load session read → general tier.
+  if (
+    request.method !== 'OPTIONS' &&
+    apiPath.startsWith('/api/') &&
+    !RATE_LIMIT_SKIP.some((p) => apiPath === p || apiPath.startsWith(p + '/'))
+  ) {
+    try {
+      const fwd = request.headers.get('x-forwarded-for') || '';
+      const ip = fwd.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown';
+      const isAuth = apiPath === '/api/auth' || apiPath.startsWith('/api/auth/');
+      const strict = isAuth && request.method !== 'GET';
+      const max = strict ? AUTH_MAX : API_MAX;
+      const windowSec = strict ? AUTH_WINDOW_S : API_WINDOW_S;
+
+      let subject = `ip:${ip}`;
+      if (!strict) {
+        if (user?.id) {
+          subject = `u:${user.id}`;
+        } else {
+          const m = (request.headers.get('authorization') || '').match(/^Bearer\s+(.+)$/i);
+          const sub = m ? jwtSub(m[1]) : null;
+          if (sub) subject = `u:${sub}`;
+        }
+      }
+
+      const rl = await checkRateLimit(
+        supabase as unknown as SupabaseClient,
+        `${strict ? 'auth' : 'api'}:${subject}`,
+        max,
+        windowSec
+      );
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { error: 'Too many requests — please slow down and try again shortly.', code: 'rate_limited' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(rl.resetSeconds),
+              'X-RateLimit-Limit': String(rl.limit),
+              'X-RateLimit-Remaining': String(rl.remaining),
+              'cache-control': 'no-store',
+            },
+          }
+        );
+      }
+    } catch {
+      /* fail open — a limiter fault must never take down the API */
+    }
+  }
+
   // ---- Paid API member gate ------------------------------------------------
   // Server-side enforcement for the paid client API prefixes. Honors a Bearer
   // token (native app) as well as the cookie session (web). Fails OPEN on any
   // unexpected error so a gate fault can never take down the paid routes.
-  const apiPath = request.nextUrl.pathname;
   if (GATED_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'))) {
     try {
       const authHeader = request.headers.get('authorization') || '';
