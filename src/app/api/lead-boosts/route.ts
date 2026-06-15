@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,11 +66,9 @@ export async function POST(request: Request) {
   }
 
   let body: { role?: unknown; days?: unknown; providerId?: unknown } = {};
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
+  const bodyResult = await readJson<{ role?: unknown; days?: unknown; providerId?: unknown }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  body = bodyResult.data;
 
   const role = normalizeRole(body.role);
   const days = Number(body.days ?? 0);

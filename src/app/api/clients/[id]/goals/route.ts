@@ -18,6 +18,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { canWriteClientGoals } from '@/lib/access-guards.mjs';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -95,7 +96,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Only a coach on this client can set goals.' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const incoming = Array.isArray(body.goals) ? (body.goals as GoalIn[]) : null;
   if (!incoming) return NextResponse.json({ error: 'goals[] is required.' }, { status: 400 });
   const goals = incoming.map(sanitizeGoal).filter((g): g is NonNullable<typeof g> => g !== null);

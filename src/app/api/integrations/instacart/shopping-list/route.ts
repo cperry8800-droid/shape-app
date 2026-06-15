@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -72,10 +73,12 @@ export async function POST(request: Request) {
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as {
+  const bodyResult = await readJson<{
     items?: Array<string | LineItem>;
     title?: string;
-  };
+  }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
 
   let lineItems: LineItem[] = [];
   if (Array.isArray(body.items) && body.items.length) {

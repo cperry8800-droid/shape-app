@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createAnonClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 async function clientForRequest(request: Request) {
   const auth = request.headers.get('authorization') ?? '';
@@ -258,7 +259,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Not a nutritionist.' }, { status: 403 });
   }
 
-  const body = (await req.json().catch(() => null)) as
+  const bodyResult = await readJson<
     | {
         clientId?: unknown;
         action?: unknown;
@@ -266,7 +267,10 @@ export async function POST(req: Request) {
         payload?: unknown;
         itemId?: unknown;
       }
-    | null;
+    | null
+  >(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
 
   const clientId = String(body?.clientId ?? '').trim();
   const action = String(body?.action ?? '').trim();

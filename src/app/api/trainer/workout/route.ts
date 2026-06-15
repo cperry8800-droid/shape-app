@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
 
-  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const clientIds = Array.isArray(body.clientIds) ? body.clientIds.map(String).filter(Boolean) : [];
   const title = String(body.title ?? '').trim().slice(0, 200);
   const description = body.description ? String(body.description).slice(0, 2000) : null;

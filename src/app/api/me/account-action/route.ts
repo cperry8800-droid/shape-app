@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +21,9 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
+  const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const action = String((body as { action?: unknown }).action || '');
   if (!ALLOWED.has(action)) {
     return NextResponse.json({ error: 'Invalid action.' }, { status: 400 });

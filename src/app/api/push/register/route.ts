@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,9 @@ export const dynamic = 'force-dynamic';
 const PLATFORMS = ['ios', 'android', 'web', 'unknown'];
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const token = String((body as { token?: unknown }).token ?? '').trim();
   const platform = PLATFORMS.includes(String((body as { platform?: unknown }).platform))
     ? String((body as { platform?: unknown }).platform)
@@ -35,7 +38,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const body = await request.json().catch(() => ({}));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const token = String((body as { token?: unknown }).token ?? '').trim();
   if (!token) return NextResponse.json({ error: 'Missing token.' }, { status: 400 });
 

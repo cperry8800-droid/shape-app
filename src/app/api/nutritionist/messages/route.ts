@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,9 +97,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => null)) as
+  const bodyResult = await readJson<
     | { conversationId?: unknown; message?: unknown }
-    | null;
+    | null
+  >(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const conversationId = String(body?.conversationId ?? '').trim();
   const message = String(body?.message ?? '').trim();
 

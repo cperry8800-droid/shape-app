@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 
 export const runtime = 'nodejs';
@@ -26,7 +27,9 @@ export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { playlistId?: string; url?: string; public?: boolean };
+  const bodyResult = await readJson<{ playlistId?: string; url?: string; public?: boolean }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const playlistId = extractPlaylistId(body.playlistId || body.url || '');
   if (!playlistId) {
     return NextResponse.json({ error: 'A valid Spotify playlist link or id is required.' }, { status: 400 });

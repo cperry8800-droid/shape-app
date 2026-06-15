@@ -24,6 +24,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -268,7 +269,9 @@ export async function GET(request: Request) {
 
 // ── POST ─────────────────────────────────────────────────────────────────────
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
@@ -320,7 +323,9 @@ export async function POST(request: Request) {
 
 // ── PATCH ────────────────────────────────────────────────────────────────────
 export async function PATCH(request: Request) {
-  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
@@ -356,7 +361,9 @@ export async function PATCH(request: Request) {
 
 // ── DELETE ───────────────────────────────────────────────────────────────────
 export async function DELETE(request: Request) {
-  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);

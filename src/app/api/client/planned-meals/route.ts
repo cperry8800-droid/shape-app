@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,9 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const name = String(body.name ?? '').trim();
   if (!name) return NextResponse.json({ error: 'Missing name.' }, { status: 400 });
   const row = {
@@ -60,7 +63,9 @@ export async function DELETE(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const mealRef = String(body.mealRef ?? '').trim();
   if (!mealRef) return NextResponse.json({ error: 'Missing mealRef.' }, { status: 400 });
   const date = typeof body.date === 'string' && body.date ? body.date : todayStr();

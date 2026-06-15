@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,10 +37,12 @@ export async function POST(request: Request) {
   const user = await resolveUser(request);
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as {
+  const bodyResult = await readJson<{
     musicUserToken?: string;
     storefront?: string;
-  };
+  }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const musicUserToken = (body.musicUserToken ?? '').trim();
   if (!musicUserToken) {
     return NextResponse.json({ error: 'Missing musicUserToken.' }, { status: 400 });

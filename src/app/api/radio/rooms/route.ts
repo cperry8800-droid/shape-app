@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { cleanText } from '@/lib/request-utils';
+import { cleanText, readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -98,7 +98,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Sign in before scheduling a radio room.' }, { status: 401 });
 
   const client = await clientForRequest(request);
-  const body = await request.json().catch(() => null as unknown);
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const payload = body as {
     role?: unknown;
     topic?: unknown;
