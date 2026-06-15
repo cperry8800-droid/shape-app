@@ -9677,11 +9677,22 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-      {/* header — no top/bottom rule (Session details + Comments, per request) */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(12px + env(safe-area-inset-top,0px)) 14px 11px' }}>
-        <button onClick={onClose} aria-label="Back" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 17, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
-        <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
+      {/* masthead — same chrome as every other page (top hairline + logo/Vol·No
+          + search/avatar), then a back + context row. */}
+      <div style={{ flexShrink: 0, position: 'relative', padding: 'calc(env(safe-area-inset-top,0px) + 13px) 16px 11px' }}>
+        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 'env(safe-area-inset-top, 0px)', height: 1, background: bsTHexA(t.INK, 0.5) }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>Vol. 1 · No. 1</div>
+          </div>
+          <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} size={30} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
+          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
+        </div>
       </div>
       {/* scroll body */}
       <div ref={bodyRef} className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 20px' }}>
@@ -10629,19 +10640,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
             </div>
           )}
-          {/* secondary stats peek + Session details — ALWAYS present; opens the
-              full-screen activity page with the complete breakdown */}
-          {secStats.length > 0 && (
-            <div style={{ display: 'flex', marginTop: 11, paddingTop: 10, borderTop: `1px solid ${hair}` }}>
-              {secStats.map(([k, v], i) => (
-                <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: i ? `1px solid ${hair}` : 0, paddingLeft: i ? 11 : 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{k}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: cardInk, marginTop: 2, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 10, padding: '9px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
+          {/* The card stays a glance — the full metric readout lives on the
+              Session-details page (this link / tapping the hero opens it). */}
+          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 11, padding: '10px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc }}>Session details · full activity</span>
             <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
           </button>
