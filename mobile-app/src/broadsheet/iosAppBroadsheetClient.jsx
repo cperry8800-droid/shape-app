@@ -10746,8 +10746,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <BSHeaderTools onProfile={onProfile} size={32} />
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
-          <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 24, letterSpacing: '-0.03em', color: t.INK, margin: '2px 0 0', lineHeight: 1 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
+          <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
             {tab === 'feed' ? 'Community' : tab === 'channels' ? 'Channels' : tab === 'support' ? 'Support' : 'Your team'}
           </h1>
         </div>
