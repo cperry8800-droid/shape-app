@@ -974,31 +974,18 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
 
 // Persistent "you're previewing" banner shown over the app for non-members who
 // chose to look around — keeps the Join CTA present without blocking the view.
-function BSPreviewBanner({ t, role = 'client', onRole = () => {}, onJoin }) {
+function BSPreviewBanner({ t, onJoin }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [dismissed, setDismissed] = useStateBSM(false);
   if (dismissed) return null;
-  // Profile-type switcher — preview each account type's demo data WITHOUT signing
-  // up (client / trainer / nutritionist). Switching role re-renders the matching
-  // demo app (the role effect auto-loads the coach bundle).
-  const roles = [['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutritionist']];
   return (
-    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginRight: 1 }}>View as</span>
-        {roles.map(([k, l]) => {
-          const on = role === k;
-          return <button key={k} onClick={() => onRole(k)} style={{ borderRadius: 999, padding: '4px 10px', cursor: 'pointer', border: `1px solid ${t.PAPER}`, background: on ? t.PAPER : 'transparent', color: on ? t.INK : t.PAPER, opacity: on ? 1 : 0.55, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</button>;
-        })}
+    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Preview · demo data</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>These numbers are an example of a live account — not real tracking. Switch profile type in Settings.</div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Preview · demo data</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>An example of a live account — not real tracking.</div>
-        </div>
-        <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>$5/mo →</button>
-        <button onClick={() => setDismissed(true)} aria-label="Dismiss" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
-      </div>
+      <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>$5/mo →</button>
+      <button onClick={() => setDismissed(true)} aria-label="Dismiss" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
     </div>
   );
 }
@@ -1007,10 +994,10 @@ function BSPreviewBanner({ t, role = 'client', onRole = () => {}, onJoin }) {
 // "Want music while you move?" overlay) — hold it until that's answered and the
 // user is actually in the app. Reads the radio context, so it must render inside
 // BSRadioProvider (it does — it's rendered alongside <App>).
-function BSPreviewBannerGated({ t, role, onRole, onJoin }) {
+function BSPreviewBannerGated({ t, onJoin }) {
   const r = useBSRadio();
   if (r?.showPrompt) return null;
-  return <BSPreviewBanner t={t} role={role} onRole={onRole} onJoin={onJoin} />;
+  return <BSPreviewBanner t={t} onJoin={onJoin} />;
 }
 
 function BSAppShell({ tweaks, setTweak }) {
@@ -1333,7 +1320,7 @@ function BSAppShell({ tweaks, setTweak }) {
             // so a browsing prospect never mistakes them for real tracking.
             <>
               <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-              <BSPreviewBannerGated t={t} role={role} onRole={(r) => { setRole(r); setTweak('role', r); }} onJoin={() => { if (authUserId) bsmStartCheckout(); else { setPreviewMode(false); setLoginMode('create'); setStage('login'); } }} />
+              <BSPreviewBannerGated t={t} onJoin={() => { if (authUserId) bsmStartCheckout(); else { setPreviewMode(false); setLoginMode('create'); setStage('login'); } }} />
             </>
           ) : (
             <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />

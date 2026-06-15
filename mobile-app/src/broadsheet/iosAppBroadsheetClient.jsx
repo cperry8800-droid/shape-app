@@ -17464,6 +17464,37 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         );
       })()}
 
+      {/* PREVIEW AS — signed-out demo only: switch profile type to browse each
+          account type's demo data without an account. (Signed-in multi-role
+          accounts use Profile mode below.) */}
+      {!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) && (
+        <>
+          <SectionHead title="Preview as" meta="Demo data" />
+          <div style={{ padding: `14px ${t.padX}px 18px` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
+              Profile type
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['client', 'Client'], ['trainer', 'Trainer'], ['nutritionist', 'Nutrition']].map(([key, label]) => {
+                const on = (tweaks.role || 'client') === key;
+                return (
+                  <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: t.RADIUS_SM,
+                    flex: 1, padding: '9px 9px', cursor: 'pointer',
+                    border: `1px solid ${on ? t.INK : t.RULE}`,
+                    background: on ? t.INK : 'transparent',
+                    color: on ? t.PAPER : t.INK,
+                    fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  }}>{label}</button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
+              Browse each account type's demo data — no sign-up needed.
+            </div>
+          </div>
+        </>
+      )}
+
       {/* PROFILE MODE — only for people with more than one account; lists just
           the roles they actually created so they can switch between them. */}
       {hasMultipleAccounts && (() => {
