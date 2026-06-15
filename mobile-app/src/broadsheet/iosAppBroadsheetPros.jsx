@@ -218,6 +218,12 @@ function formatReviewSeconds(value) {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
+// Live wall-clock HH:MM for the Today hero (replaces the old hardcoded '09:42').
+function bsNowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function demoWorkoutReviewSessions(role = 'trainer') {
   const isNutri = role === 'nutritionist';
   return [
@@ -1292,7 +1298,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       <div style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
           <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber value={lead.count} unit="SESSIONS" size={Math.round(t.headlineHero * 0.62)} />
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
@@ -4018,7 +4024,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.RUST}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
+          <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
         </div>
         <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
