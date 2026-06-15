@@ -17,9 +17,16 @@
         "source": "github",
         "repo": "cperry8800-droid/shape-app"
       }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
     }
   },
   "enabledPlugins": {
-    "hello@shape-app-plugins": true
+    "hello@shape-app-plugins": true,
+    "superpowers@superpowers-marketplace": true
   }
 }
