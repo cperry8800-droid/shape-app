@@ -13,6 +13,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -46,11 +47,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   let body: { provider_role?: string; provider_id?: number } = {};
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
+  const bodyResult = await readJson<{ provider_role?: string; provider_id?: number }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  body = bodyResult.data;
 
   const providerRole = body.provider_role as ProviderRole;
   const providerId = Number(body.provider_id);

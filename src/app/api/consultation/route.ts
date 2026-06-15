@@ -12,7 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
 import { buildIcs, sendEmail } from '@/lib/email';
-import { cleanText as clean, isEmail } from '@/lib/request-utils';
+import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,12 +36,9 @@ function parseTime(s: string): { hour: number; minute: number } | null {
 }
 
 export async function POST(req: NextRequest) {
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsedBody = await readJson<Record<string, unknown>>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.data;
 
   const providerIdRaw = Number(body.providerId ?? body.provider_id ?? 0);
   const providerRoleRaw = clean(body.professionalType ?? body.provider_role, 20).toLowerCase();

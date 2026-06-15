@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "shape-app-plugins",
+  "description": "Custom Claude Code plugins for the Shape app repository.",
+  "owner": {
+    "name": "Shape"
+  },
+  "plugins": [
+    {
+      "name": "hello",
+      "source": "./.claude/plugins/hello",
+      "description": "Sample plugin (a /hello:greet command) — copy it to scaffold your own.",
+      "version": "1.0.0"
+    }
+  ]
+}

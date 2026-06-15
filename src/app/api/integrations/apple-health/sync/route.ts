@@ -9,6 +9,7 @@ import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { upsertSnapshot, type SnapshotPatch } from '@/lib/health-snapshot';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -139,7 +140,9 @@ export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { days?: DayInput[]; workouts?: WorkoutInput[] };
+  const bodyResult = await readJson<{ days?: DayInput[]; workouts?: WorkoutInput[] }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const days = Array.isArray(body.days) ? body.days : [];
   const workouts = Array.isArray(body.workouts) ? body.workouts : [];
 

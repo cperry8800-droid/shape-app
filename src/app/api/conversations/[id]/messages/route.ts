@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,9 @@ export async function POST(
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
+  const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const text = typeof body?.body === 'string' ? body.body.trim() : '';
   if (!text) return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
 

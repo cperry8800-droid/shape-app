@@ -25,6 +25,14 @@ changelog whenever something ships.
   dev branch (the current `claude/*` working branch — it differs per session) are
   always kept identical (push both to the same commit); treat `origin/main` as the
   single source of truth.
+- **Session handoffs → `docs/HANDOFF-<YYYY-MM-DD>.md`.** Longer-form end-of-session
+  handoffs (state snapshot · what shipped · architecture you'll need · open
+  follow-ups) live as their own dated file in `docs/`, separate from this
+  changelog. **At session start, read the newest `docs/HANDOFF-*.md`** (`ls -t
+  docs/HANDOFF-*.md | head -1`) alongside this WORKLOG — standalone docs are NOT
+  auto-loaded into context, so this pointer is how they get found. When you write
+  one, keep the short shipped-summary as a dated entry in this file's changelog too,
+  and name the handoff file so it sorts by date.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
@@ -70,6 +78,16 @@ changelog whenever something ships.
   if a preview URL asks you to log in, that's Vercel Deployment Protection
   (Project Settings → Deployment Protection to relax it).
 - **Verify before committing:** parse-check changed JS, `tsc --noEmit` for TS, build, copy `public/m`.
+  This is now **automated** by a tracked **pre-commit hook** (`.githooks/pre-commit`
+  → `scripts/verify-staged.sh`): on `git commit` it runs only the checks the *staged*
+  change can break (JSX parse-check · `tsc --noEmit` · mobile build + `public/m` diff ·
+  `npm test`), skips docs/config-only commits, and **blocks the commit on failure**.
+  Bypass once with `SKIP_VERIFY=1 git commit …`. It's armed via `git config
+  core.hooksPath .githooks` — web sessions re-arm it + install deps automatically via
+  the **SessionStart hook** (`.claude/hooks/session-start.sh`, registered in
+  `.claude/settings.json`); **on your own machine run `git config core.hooksPath
+  .githooks` once** to enable it locally. CI (`ci.yml`) still runs the full builds on
+  PRs into `main` / pushes to `main`+`staging` as the hard gate.
 
 ## Architecture map (mobile broadsheet)
 
@@ -99,6 +117,56 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-15 — Input hardening: reject oversized/malformed payloads + size guard
+- **Centralized request-size guard in the proxy** (`src/lib/supabase/
+  middleware.ts`): every `/api/*` body request is capped by Content-Length —
+  **1 MB** general, **30 MB** for upload/batch routes (apply · progress-photos ·
+  meal-note · voice · garmin webhook) — returning **413** before the handler runs
+  (App Router has no default cap). Covers all 106 routes, web + app.
+- **Shared `readJson()`** (`src/lib/request-utils.ts`): a size-bounded (413),
+  empty/malformed-safe (400) JSON reader returning a typed `{ok,data} |
+  {ok,response}`. Applied to the unauthenticated/public write routes (the
+  attacker-reachable surface): contact · app-waitlist · intake · consultation ·
+  apply (JSON branch) · community/feed · support/chat. These already
+  clamp/validate every field (`cleanText`/`isEmail`/`isISODate`); this adds the
+  missing byte cap + consistent malformed rejection.
+- **XSS:** there is **no `dangerouslySetInnerHTML`** anywhere (app/web/mobile) —
+  output is React/JSX-escaped, so input "sanitization" here is size/shape/type
+  bounding, not HTML-stripping (which would corrupt legit content for no gain).
+- *Scope:* the size cap is global; the readJson malformed/parse guard now covers
+  **every** JSON-body `/api` route — the public write routes PLUS all authenticated
+  routes (full rollout, `commit 720832c`), with `allowEmpty:true` preserving
+  empty-body-tolerant routes (e.g. billing-portal). The two server-to-server
+  webhooks (garmin, push/dispatch) are excluded (large/external payloads, already
+  size-tiered). No migration; tsc + next build + 104 tests green.
+
+### 2026-06-15 — API rate limiting (all routes · web + app) + 5/15min on auth
+- **Every `/api/*` route is now rate-limited in the proxy** (`src/lib/supabase/
+  middleware.ts`) — one chokepoint covering BOTH surfaces, since the website
+  (cookie, 96 same-origin `fetch('/api/...')`) and the mobile app (native →
+  `VITE_API_BASE_URL` with Bearer; `/m/` web → same-origin) both hit the same
+  Next deployment. Two tiers: **auth writes** (`/api/auth/*` non-GET) =
+  **5 / 15 min by IP** (the brute-force tier); **general** = **100 / min** per
+  caller. Signed-in callers are keyed by **user id** (cookie `user.id`, or the
+  Bearer token's `sub` via unverified parse) so shared NAT IPs aren't
+  collectively throttled; anonymous + auth callers key by IP.
+- **Backed by Postgres** (no new infra, matches the existing DB-in-middleware
+  pattern): migration **`2026-06-15-rate-limits.sql`** (**run on Supabase**) —
+  RLS-locked `rate_limits` table + atomic SECURITY DEFINER `check_rate_limit(key,
+  max, window_seconds)` (fixed-window counter, opportunistic GC, granted to
+  anon+authenticated). Helper `src/lib/rate-limit.ts` (edge-safe).
+- **Fails OPEN** (and is a silent no-op until the migration is applied) so the
+  limiter can never take the API down. On limit: **429** + `Retry-After` +
+  `X-RateLimit-*`. **Skips** server-to-server / monitoring routes (stripe +
+  garmin webhooks, push/dispatch, health) and `OPTIONS` preflight.
+- *Scope:* covers all of OUR `/api/*` endpoints (shared by web + app). Calls the
+  app/website make **directly to Supabase** (data RPCs/reads via the publishable
+  key) are governed by Supabase's own limits + RLS, not this. **The real
+  login/signup/OTP brute-force protection must be set in Supabase Auth → Rate
+  Limits** — those credential requests go straight to Supabase, bypassing the
+  Next app (the app's `/api/auth/*` are only session-bridge/signout helpers).
+  The legacy `mobile-app/server` Express app isn't part of the deployed surface.
 
 ### 2026-06-15 — Session-details graphs: Strava-style charts + per-activity GRAPH-TYPE RULE (all activities, live data)
 - **The activity **Session details** page now renders pro-grade, axis-labeled

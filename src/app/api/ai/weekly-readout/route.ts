@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 import {
   computeCorrelations,
   type CorrelationResult,
@@ -224,11 +225,9 @@ async function generateReadout(
 
 export async function POST(request: Request) {
   let body: { user_id?: string; window_days?: number } = {};
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    body = {};
-  }
+  const bodyResult = await readJson<{ user_id?: string; window_days?: number }>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  body = bodyResult.data;
 
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();

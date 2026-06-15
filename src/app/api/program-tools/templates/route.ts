@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { cleanText } from '@/lib/request-utils';
+import { cleanText, readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -45,12 +45,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sign in before saving program drafts.' }, { status: 401 });
   }
 
-  let body: ProgramTemplateBody;
-  try {
-    body = (await request.json()) as ProgramTemplateBody;
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
+  const bodyResult = await readJson<ProgramTemplateBody>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
 
   const providerRole = normalizeProviderRole(body.providerRole);
   const providerId = Number(body.providerId || 0);

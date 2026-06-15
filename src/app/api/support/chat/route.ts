@@ -14,6 +14,7 @@
 // responder that still surfaces coach actions for coach-related questions.
 
 import { NextResponse } from 'next/server';
+import { readJson } from '@/lib/request-utils';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
 
 export const runtime = 'nodejs';
@@ -231,7 +232,9 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { messages?: ChatMessage[] };
+  const parsed = await readJson<{ messages?: ChatMessage[] }>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });

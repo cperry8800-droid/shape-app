@@ -19,6 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -94,12 +95,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
-  }
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const sessionId = String(body.sessionId ?? '');
   const action = String(body.action ?? '').toLowerCase();
   if (!sessionId) return NextResponse.json({ error: 'Missing sessionId.' }, { status: 400 });

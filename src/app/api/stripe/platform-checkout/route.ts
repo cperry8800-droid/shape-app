@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { stripe } from '@/lib/stripe';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -34,11 +35,9 @@ export async function POST(request: Request) {
   }
 
   let body: Body = {};
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    body = {};
-  }
+  const bodyResult = await readJson<Body>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  body = bodyResult.data;
 
   // Resolve user — cookie session (Next.js pages) OR Bearer token (legacy).
   let userEmail: string | null = null;

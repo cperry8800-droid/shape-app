@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
-import { cleanText as clean } from '@/lib/request-utils';
+import { cleanText as clean, readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,12 +38,9 @@ function sanitizeDetails(input: unknown): Record<string, string> {
 }
 
 export async function POST(req: NextRequest) {
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsed = await readJson<Record<string, unknown>>(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   // Accept either cookie-based auth (Next.js flow) or an Authorization
   // Bearer access_token (legacy /public/*.html flow where supabase-js keeps

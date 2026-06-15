@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,9 @@ export async function GET() {
 // in localStorage. This route lets them push that session into the Next.js
 // auth cookies so server-rendered /dashboard/* routes recognize the user.
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null as unknown);
+  const bodyResult = await readJson<unknown>(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const tokens = body as { access_token?: string; refresh_token?: string } | null;
   if (!tokens || !tokens.access_token || !tokens.refresh_token) {
     return NextResponse.json({ error: 'missing_tokens' }, { status: 400 });

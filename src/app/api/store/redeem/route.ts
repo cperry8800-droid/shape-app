@@ -22,6 +22,7 @@ import {
   type StoreItem,
 } from '@/lib/store-catalogue';
 import { sendEmail } from '@/lib/email';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -110,7 +111,9 @@ async function fulfillEmails(item: StoreItem, code: string, email: string | null
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const itemId = String((body as { itemId?: unknown }).itemId ?? '').trim();
   if (!itemId) return NextResponse.json({ error: 'Missing itemId.' }, { status: 400 });
 

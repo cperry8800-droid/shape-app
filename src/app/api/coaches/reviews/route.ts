@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,12 +53,9 @@ export async function GET(request: Request) {
 
 // POST { coach, kind, rating(1-10), text } — authenticated.
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
-  }
+  const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const slug = cleanText(body.coach, 160);
   const kind = cleanText(body.kind, 20) === 'nutritionist' ? 'nutritionist' : 'trainer';
   const rating = clampRating(body.rating);

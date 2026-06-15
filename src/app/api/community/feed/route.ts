@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { readJson } from '@/lib/request-utils';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 
@@ -45,7 +46,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const client = await clientForRequest(request);
-  const body = await request.json().catch(() => null as unknown);
+  const parsed = await readJson<Record<string, unknown>>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const payload = body as {
     activityType?: unknown;
     title?: unknown;

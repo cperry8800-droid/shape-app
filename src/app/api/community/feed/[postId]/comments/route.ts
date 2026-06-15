@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,9 @@ export async function POST(
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = await request.json().catch(() => null as unknown);
+  const bodyResult = await readJson<unknown>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const text = String((body as { body?: unknown } | null)?.body ?? '').trim();
   if (!text) return NextResponse.json({ error: 'Comment cannot be empty.' }, { status: 400 });
 

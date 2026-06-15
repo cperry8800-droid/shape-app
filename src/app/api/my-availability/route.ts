@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,12 +47,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { role?: string; slots?: Array<{ weekday: number; start_minute: number; duration_min?: number }> };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'invalid json' }, { status: 400 });
-  }
+  const bodyResult = await readJson<{ role?: string; slots?: Array<{ weekday: number; start_minute: number; duration_min?: number }> }>(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const role = (body.role ?? '').toLowerCase() as Role;
   if (role !== 'trainer' && role !== 'nutritionist') {
     return NextResponse.json({ error: 'invalid role' }, { status: 400 });

@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -85,11 +86,9 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   let body: CheckoutBody = {};
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
+  const bodyResult = await readJson<CheckoutBody>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  body = bodyResult.data;
 
   const providerRole = providerRoleFrom(body.coach?.provider_role || body.coach?.role || body.role);
   const providerId = providerIdFrom(body.coach);

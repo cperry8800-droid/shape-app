@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -247,12 +248,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  let json: unknown = {};
-  try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
-  }
+  const jsonResult = await readJson<unknown>(request, { allowEmpty: true });
+  if (!jsonResult.ok) return jsonResult.response;
+  const json = jsonResult.data;
 
   const body = cleanBody(json);
   const generated = await generateWithOpenAI(body).catch((error) => {

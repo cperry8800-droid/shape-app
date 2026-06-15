@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +60,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Sign in before messaging a coach.' }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => null as unknown);
+  const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const payload = body as { providerRole?: unknown; providerId?: unknown; message?: unknown } | null;
   const providerRole = normalizeProviderRole(payload?.providerRole);
   const providerId = Number(payload?.providerId);

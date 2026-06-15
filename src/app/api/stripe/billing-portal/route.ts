@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,7 +53,9 @@ export async function POST(req: Request) {
   let returnUrl = 'https://www.theshapecommunity.com/m/';
   try {
     const url = new URL(req.url);
-    const body = (await req.json().catch(() => ({}))) as { returnPath?: unknown };
+    const bodyResult = await readJson<{ returnPath?: unknown }>(req, { allowEmpty: true });
+    if (!bodyResult.ok) return bodyResult.response;
+    const body = bodyResult.data;
     const path = typeof body?.returnPath === 'string' ? body.returnPath : '/m/';
     returnUrl = `${url.protocol}//${url.host}${path}`;
   } catch {

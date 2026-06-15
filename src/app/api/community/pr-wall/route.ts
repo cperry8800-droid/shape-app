@@ -4,6 +4,7 @@
 // so non-public members + non-PRs post nothing. Applies to every role.
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,12 +13,14 @@ export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const body = (await request.json().catch(() => null)) as {
+  const bodyResult = await readJson<{
     lift?: unknown;
     value?: unknown;
     unit?: unknown;
     reps?: unknown;
-  } | null;
+  } | null>(request, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
 
   const lift = String(body?.lift ?? '').trim();
   const value = Number(body?.value);

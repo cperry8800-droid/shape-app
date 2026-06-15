@@ -4,6 +4,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readJson } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,9 @@ const VALID_ROLES = ['client', 'trainer', 'nutritionist'] as const;
 type Role = (typeof VALID_ROLES)[number];
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null as unknown);
+  const bodyResult = await readJson<unknown>(req, { allowEmpty: true });
+  if (!bodyResult.ok) return bodyResult.response;
+  const body = bodyResult.data;
   const next = (body as { role?: string } | null)?.role;
   if (!next || !VALID_ROLES.includes(next as Role)) {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
