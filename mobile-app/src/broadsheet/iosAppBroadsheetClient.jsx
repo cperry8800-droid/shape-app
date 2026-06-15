@@ -2329,6 +2329,42 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         noTopRule
       />
 
+      {/* THIS WEEK — calendar preview (moved to the TOP of the page) */}
+      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
+        </span>
+        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 14px` }}>
+        <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 8 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+          {weekDates.map((date, idx) => {
+            const on    = idx === selIdx;
+            const today = idx === todayIdx;
+            const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
+            return (
+              <button key={idx} onClick={() => setSelIdx(idx)} style={{ borderRadius: 5,
+                position: 'relative', overflow: 'hidden',
+                border: `1px solid ${on ? t.ACCENT : (today ? `rgba(${t.inkRGB},0.3)` : t.HAIR)}`,
+                background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : (today ? t.PAPER2 : 'transparent'),
+                color: t.INK,
+                padding: '6px 0 5px', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              }}>
+                {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{_BS_DOWL[idx]}</span>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
+                <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
+                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 3, borderRadius: 1, background: c }} />)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <BSTicker items={(() => {
         const tk = ticker || {};
         const fmtSleep = (h) => {
@@ -2438,44 +2474,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </BSPlate>
       )}
 
-      {/* NOW PLAYING — Shape Radio (moved above This week) */}
+      {/* NOW PLAYING — Shape Radio */}
       <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — calendar preview (moved above the Today/Log/Habits/Score row) */}
-      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ This week</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>Wk {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
-        </span>
-        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Month view →</button>
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 14px` }}>
-        <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 8 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-          {weekDates.map((date, idx) => {
-            const on    = idx === selIdx;
-            const today = idx === todayIdx;
-            const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
-            return (
-              <button key={idx} onClick={() => setSelIdx(idx)} style={{ borderRadius: 5,
-                position: 'relative', overflow: 'hidden',
-                border: `1px solid ${on ? t.ACCENT : (today ? `rgba(${t.inkRGB},0.3)` : t.HAIR)}`,
-                background: on ? `linear-gradient(170deg, ${t.ACCENT}2e, ${t.ACCENT}0a 70%), ${t.PAPER2}` : (today ? t.PAPER2 : 'transparent'),
-                color: t.INK,
-                padding: '6px 0 5px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              }}>
-                {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2.5, background: t.ACCENT }} />}
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{_BS_DOWL[idx]}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 17, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{date.getDate()}</span>
-                <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
-                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 3, borderRadius: 1, background: c }} />)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/* The day's plan beneath the move. The section header shows only on
           non-today views — the "Your move" hero owns the single "Today" narrative. */}
