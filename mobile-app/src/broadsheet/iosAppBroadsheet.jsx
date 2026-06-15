@@ -648,6 +648,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         }}>{title}</div>
       )}
 
+      {(leftKicker || rightKicker) && (
       <div style={{
         marginTop: title ? (compact ? 7 : 14) : 8, paddingTop: compact ? 8 : 10, borderTop: `1px solid ${t.RULE}`,
         display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 1,
@@ -656,6 +657,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         <span>{leftKicker}</span>
         <span>{rightKicker}</span>
       </div>
+      )}
     </div>
   );
 }
