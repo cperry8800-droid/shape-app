@@ -74,19 +74,18 @@ function SessionDetailsModal({ p, onClose }) {
   const heroStat = allStats[0] || null;
   const heroKey = heroStat ? String(heroStat[0]).toLowerCase() : null;
   const rest = allStats.filter((st) => String(st[0]).toLowerCase() !== heroKey);
-  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, calRe = /cal/i, cadRe = /cadence/i, elevRe = /elev|ascent|altitude|climb/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
+  const paceRe = /pace|speed/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, cadRe = /cadence/i, elevRe = /elev|ascent|altitude|climb/i;
   const bestPaceStat = rest.find((st) => paceRe.test(st[0]) && bestPaceRe.test(st[0])) || null;
-  const avgHrStat = rest.find((st) => hrRe.test(st[0]) && /avg|average/i.test(st[0])) || rest.find((st) => hrRe.test(st[0]) && !/max|peak/i.test(st[0])) || null;
-  const calStat = rest.find((st) => calRe.test(st[0])) || null;
   const cadStat = rest.find((st) => cadRe.test(st[0])) || null;
   const elevStat = rest.find((st) => elevRe.test(st[0])) || null;
-  const powerStat = rest.find((st) => /power|watt/i.test(st[0])) || null;
   const paceChipStat = paceCfg.chipRe ? rest.find((st) => paceCfg.chipRe.test(st[0])) : bestPaceStat;
-  let summaryStats = rest.filter((st) => st !== bestPaceStat && !hrRe.test(st[0]) && !calRe.test(st[0]) && (summaryRe.test(st[0]) || (paceRe.test(st[0]) && !bestPaceRe.test(st[0]))));
-  [avgHrStat, calStat].forEach((st) => { if (st && summaryStats.indexOf(st) < 0) summaryStats.push(st); });
-  let outputStats = rest.filter((st) => st !== bestPaceStat && st !== avgHrStat && st !== calStat && !hrRe.test(st[0]) && summaryStats.indexOf(st) < 0 && !(cadenceTrace && cadRe.test(st[0])) && !(elevTrace && elevRe.test(st[0])));
-  if (summaryStats.length > 4) { outputStats = summaryStats.slice(4).concat(outputStats); summaryStats = summaryStats.slice(0, 4); }
-  const sumCols = summaryStats.length === 4 ? 2 : (Math.min(summaryStats.length, 3) || 1);
+  // Top Summary holds EVERY scalar that doesn't have its own chart — no orphan
+  // bottom grid. Excluded only: cadence/elevation when charted (chart's chip) +
+  // best-pace/top-speed (the primary velocity chart's chip).
+  const isChartedScalar = (k) => (cadenceTrace && cadRe.test(k)) || (elevTrace && elevRe.test(k));
+  const summaryStats = rest.filter((st) => st !== bestPaceStat && !isChartedScalar(st[0]));
+  const outputStats = [];
+  const sumCols = summaryStats.length <= 3 ? (summaryStats.length || 1) : 2;
   const distStat = (heroStat && /dist/i.test(heroStat[0])) ? heroStat : allStats.find((st) => /dist/i.test(st[0]));
   const distanceMi = (distStat && /mi/i.test(String(distStat[1]))) ? (parseFloat(String(distStat[1]).replace(/[^\d.]/g, "")) || null) : null;
   const ZC = ["#5b8def", "#34d6c5", "#d8b25a", "#e8843c", "#e0463c"];
@@ -130,7 +129,7 @@ function SessionDetailsModal({ p, onClose }) {
           <WebAreaChart vals={paceTrace} color={TEAL_BRIGHT} invert={paceCfg.invert} fmt={paceCfg.fmt} distanceMi={distanceMi} height={116} />
         </>)}
         {powerTrace && (<>
-          <Eyebrow chip={powerStat ? greyChip("avg " + powerStat[1]) : null}>Power</Eyebrow>
+          <Eyebrow>Power</Eyebrow>
           <WebAreaChart vals={powerTrace} color="#d8b25a" fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={96} />
         </>)}
         {(trace || (zones && zones.length > 0)) && (<>

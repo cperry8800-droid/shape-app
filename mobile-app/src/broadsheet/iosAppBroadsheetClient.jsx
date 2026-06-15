@@ -9688,21 +9688,21 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, calRe = /cal/i, cadRe = /cadence/i, elevRe = /elev|ascent|altitude|climb/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
   const hrStats = allStats.filter(([k]) => hrRe.test(k) && !paceRe.test(k));
   const bestPaceStat = allStats.find(([k]) => paceRe.test(k) && bestPaceRe.test(k)) || null;
-  // Avg HR + Calories are promoted into the MAIN Summary; the HR graph stays below.
-  const avgHrStat = allStats.find(([k]) => hrRe.test(k) && /avg|average/i.test(k)) || allStats.find(([k]) => hrRe.test(k) && !/max|peak/i.test(k)) || null;
-  const calStat = allStats.find(([k]) => calRe.test(k)) || null;
   // Cadence + Elevation get their OWN graph sections when a series is present;
-  // the scalar then rides as a chip on that graph (and leaves the Output grid).
+  // the scalar then rides as a chip on that graph.
   const cadStat = allStats.find(([k]) => cadRe.test(k)) || null;
   const elevStat = allStats.find(([k]) => elevRe.test(k)) || null;
   const hasCadGraph = Array.isArray(d.cadenceTrace) && d.cadenceTrace.length > 1;
   const hasElevGraph = Array.isArray(d.elevTrace) && d.elevTrace.length > 1;
-  let summaryStats = allStats.filter(([k, v], idx) => allStats[idx] !== bestPaceStat && !hrRe.test(k) && !calRe.test(k) && (summaryRe.test(k) || (paceRe.test(k) && !bestPaceRe.test(k))));
-  [avgHrStat, calStat].forEach((s) => { if (s && !summaryStats.includes(s)) summaryStats.push(s); });
-  let outputStats = allStats.filter((s) => s !== bestPaceStat && s !== avgHrStat && s !== calStat && !hrStats.includes(s) && !summaryStats.includes(s) && !(hasCadGraph && cadRe.test(s[0])) && !(hasElevGraph && elevRe.test(s[0])));
-  if (!summaryStats.length && outputStats.length) { summaryStats = outputStats.slice(0, 4); outputStats = outputStats.slice(4); }
-  if (summaryStats.length > 4) { outputStats = summaryStats.slice(4).concat(outputStats); summaryStats = summaryStats.slice(0, 4); }
-  const sumCols = summaryStats.length === 4 ? 2 : (Math.min(summaryStats.length, 3) || 1);
+  // The top "Summary" holds EVERY scalar that doesn't have its own chart — no
+  // orphan stats in a bottom grid. Excluded only: cadence/elevation when they
+  // HAVE a chart (shown as that chart's chip) + best-pace/top-speed (the primary
+  // velocity chart's chip). Everything else — avg/max HR, avg/max power, pace,
+  // calories, stride, … — reads up top.
+  const isChartedScalar = (k) => (hasCadGraph && cadRe.test(k)) || (hasElevGraph && elevRe.test(k));
+  const summaryStats = allStats.filter((s) => s !== bestPaceStat && !isChartedScalar(s[0]));
+  const outputStats = [];
+  const sumCols = summaryStats.length <= 3 ? (summaryStats.length || 1) : 2;
   const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
   // Total distance (for the x-axis mile markers) — only when the distance stat
   // is in miles (runs/rides); swims/others report metres, so skip the markers.
@@ -9841,7 +9841,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {/* POWER — watts over distance (rides, when a power meter is present). */}
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
-            <div style={eyebrow}>{tick}Power{powerStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>avg {powerStat[1]}</span>}</div>
+            <div style={eyebrow}>{tick}Power</div>
             {AreaChart({ vals: d.powerTrace, color: '#d8b25a', fmt: (v) => `${Math.round(v)}`, idKey: 'pwr', height: 96 })}
           </>
         )}
@@ -11083,9 +11083,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const isSample = String(ch.id || '').startsWith('sample');
             return (
               <div key={ch.id} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 2px', borderTop: i ? `1px solid ${hair}66` : 0 }}>
-                {(() => { const cc = bsChannelColor(ch.name); return (
-                <div style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: `${cc}1f`, border: `1px solid ${cc}55`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BSChannelIcon name={ch.name} size={16} /></div>
-                ); })()}
                 <button onClick={() => ch.joined ? openChannelNow(ch) : joinChannelNow(ch)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>#{ch.name}</span>
