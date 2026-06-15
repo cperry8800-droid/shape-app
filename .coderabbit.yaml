@@ -1,0 +1,41 @@
+# CodeRabbit — automated AI code review on every PR.
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+# NOTE: this file configures CodeRabbit; it only takes effect once the CodeRabbit
+# GitHub App is installed on this repo (https://coderabbit.ai → add this repo).
+language: en-US
+reviews:
+  profile: chill                 # fewer nitpicks; "assertive" for stricter reviews
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - staging
+  # Skip generated/built output — review the source, not the bundle.
+  path_filters:
+    - "!public/m/**"
+    - "!**/*.min.js"
+    - "!**/*-lock.json"
+  path_instructions:
+    - path: "mobile-app/src/broadsheet/**"
+      instructions: >-
+        Broadsheet mobile app. Flag: theme-token violations (hardcoded ink/paper
+        on themed surfaces, or theme tokens on fixed-background screens),
+        demo-vs-live data leaks, and changes to shared components
+        (BSPage/BSPlate/BSClientFeed/BSFacetAvatar) that ripple across multiple
+        profiles or roles. Remember edits here require re-syncing public/m.
+    - path: "public/newdesign/**"
+      instructions: >-
+        Self-contained website pages (HTML + babel .jsx). Flag missing ?v=
+        cache-bust bumps on edited referenced .jsx, and theme-token violations.
+    - path: "src/app/api/**"
+      instructions: >-
+        Next.js API routes. Flag missing auth/RLS scoping, IDOR on dynamic-id
+        routes, and unbounded request bodies (use the shared readJson guard).
+chat:
+  auto_reply: true

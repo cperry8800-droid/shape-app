@@ -65,6 +65,15 @@ changelog whenever something ships.
   shared code that other profiles/pages also render. Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
+- **Review stack before shipping (required).** Three layers gate every
+  non-trivial change: **(1) `/code-review`** — run the skill on the diff before
+  merging (Claude reviews for logic bugs + the regressions listed above);
+  **(2) CodeRabbit** — auto-reviews every PR into `main`/`staging` (config in
+  `.coderabbit.yaml`; requires the CodeRabbit GitHub App installed on the repo);
+  **(3) required checks** — `main` branch protection requires the CI checks
+  (`Web (typecheck + build)` + `Mobile (build + public/m sync)`) green before a
+  merge (GitHub → Settings → Branches; once on, merging on red is impossible).
+  Docs/config-only commits may skip layer 1.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -117,6 +126,20 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-15 — Review stack: /code-review + CodeRabbit + required checks
+- Three review layers now gate non-trivial changes (documented under "How we
+  work"): **(1)** the `/code-review` skill run on the diff before merge;
+  **(2)** **CodeRabbit** auto-review on every PR into `main`/`staging` — config
+  added in **`.coderabbit.yaml`** (chill profile; skips the generated `public/m`
+  bundle + lockfiles; path-instructions for `mobile-app/broadsheet`,
+  `public/newdesign`, and `src/app/api`); **(3)** **required status checks** on
+  `main` (Web + Mobile must be green to merge).
+- **Manual one-time setup (can't be done from the repo):** install the
+  **CodeRabbit GitHub App** on `cperry8800-droid/shape-app` (coderabbit.ai →
+  add repo), and enable **branch protection** (Settings → Branches → rule on
+  `main`) requiring "Require a PR before merging" + the two CI status checks.
+  Until both are done, CodeRabbit won't comment and red checks won't block.
 
 ### 2026-06-15 — Input hardening: reject oversized/malformed payloads + size guard
 - **Centralized request-size guard in the proxy** (`src/lib/supabase/
