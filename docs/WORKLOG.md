@@ -74,6 +74,17 @@ changelog whenever something ships.
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)`) green before a
   merge (GitHub → Settings → Branches; once on, merging on red is impossible).
   Docs/config-only commits may skip layer 1.
+- **CI checks on every PR (current set).** What runs on a PR into `main`:
+  - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
+    build)** and **Mobile (build + public/m sync)**. These two are the
+    **required** checks for branch protection on `main`.
+  - **`android-build.yml`** (only when `mobile-app/**` changes) — **Build debug
+    APK** (debug-signed, no secrets). A **release APK** job is opt-in and runs
+    only once the `ANDROID_KEYSTORE_*` repo secrets are added.
+  - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
+    reports `neutral`) + Preview Comments.
+  - **CodeRabbit** — assertive AI review (`.coderabbit.yaml`); comments on every
+    PR but is advisory, not a blocking status check.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -140,6 +151,10 @@ changelog whenever something ships.
   add repo), and enable **branch protection** (Settings → Branches → rule on
   `main`) requiring "Require a PR before merging" + the two CI status checks.
   Until both are done, CodeRabbit won't comment and red checks won't block.
+- **Now live:** CodeRabbit App installed + reviewing PRs (profile **assertive**
+  in `.coderabbit.yaml` — repo config overrides the dashboard; it reviewed
+  PR #1290). The full per-PR check set is documented under "How we work →
+  CI checks on every PR". Branch protection (required Web + Mobile) still pending.
 
 ### 2026-06-15 — Input hardening: reject oversized/malformed payloads + size guard
 - **Centralized request-size guard in the proxy** (`src/lib/supabase/
