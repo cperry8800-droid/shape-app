@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data &amp; Compliance — Shape</title>
+<meta name="description" content="Shape Privacy Policy — how we collect, use, and protect your data.">
+<link rel="canonical" href="https://theshapecommunity.com/privacy.html">
+<meta property="og:site_name" content="Shape">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://theshapecommunity.com/privacy.html">
+<meta property="og:title" content="Privacy Policy — Shape">
+<meta property="og:description" content="Shape Privacy Policy — how we collect, use, and protect your data.">
+<meta property="og:image" content="https://theshapecommunity.com/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Privacy Policy — Shape">
+<meta name="twitter:description" content="Shape Privacy Policy — how we collect, use, and protect your data.">
+<meta name="twitter:image" content="https://theshapecommunity.com/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1612">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --paper:#1a1612;
+    --ink:#f2ede4;
+    --teal:#0ac5a8;
+    --teal-bright:#2ee0c4;
+    --serif:'Fraunces',serif;
+    --sans:'Space Grotesk',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--teal);color:var(--paper)}
+
+  .nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(26,22,18,0.45);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(242,237,228,0.08)}
+  .nav-inner{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:16px 48px;gap:40px}
+  .nav-logo svg{width:52px;height:auto}
+  .nav-links{display:flex;gap:30px;align-items:center;justify-content:center;white-space:nowrap}
+  .nav-item{position:relative;display:inline-flex;align-items:center}
+  .nav-item > a{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:rgba(242,237,228,0.72);display:inline-flex;align-items:center;gap:5px;line-height:1;padding-bottom:3px;border-bottom:1.5px solid transparent;cursor:pointer;transition:color .15s}
+  .nav-item > a .caret{font-size:9px;opacity:.6}
+  .nav-item:hover > a{color:var(--ink)}
+  .nav-drop{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:10px;min-width:220px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s}
+  .nav-item:hover .nav-drop{opacity:1;visibility:visible;pointer-events:auto}
+  .nav-drop-inner{background:rgba(26,22,18,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(242,237,228,0.1);border-radius:8px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,0.5)}
+  .nav-drop-inner a{display:block;padding:10px 14px;font-size:13px;color:rgba(242,237,228,0.85);border-radius:4px;white-space:nowrap;letter-spacing:0;text-transform:none;transition:background .15s,color .15s}
+  .nav-drop-inner a:hover{background:rgba(10,197,168,0.12);color:var(--ink)}
+  .nav-cta{display:flex;align-items:center;gap:18px}
+  .nav-cta .login{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:rgba(242,237,228,0.72)}
+  .nav-cta .primary{background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;font-weight:500}
+  .nav-spacer{height:85px}
+
+  .hero{padding:80px 40px 40px;max-width:1320px;margin:0 auto;text-align:center}
+  .hero .eyebrow{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:24px}
+  .hero h1{font-family:var(--serif);font-size:clamp(52px,7vw,104px);letter-spacing:-.035em;font-weight:400;margin:0 0 20px;line-height:.95}
+  .hero h1 em{font-style:italic;color:var(--teal)}
+  .hero .updated{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:20px}
+
+  .wrap{max-width:1320px;margin:0 auto;padding:60px 40px 100px;display:grid;grid-template-columns:260px 1fr;gap:60px;align-items:start}
+
+  .toc{position:sticky;top:110px;border-left:1px solid rgba(242,237,228,0.12);padding-left:22px}
+  .toc .toc-label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(242,237,228,.45);margin-bottom:16px}
+  .toc a{display:block;font-size:13px;color:rgba(242,237,228,.7);padding:7px 0;line-height:1.35;transition:color .15s,transform .15s}
+  .toc a:hover{color:var(--teal-bright);transform:translateX(2px)}
+  .toc a .num{font-family:var(--mono);font-size:10.5px;color:var(--teal);margin-right:10px}
+
+  .content{max-width:760px}
+  .section{margin-bottom:56px;scroll-margin-top:110px}
+  .section .num{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--teal);margin-bottom:10px;text-transform:uppercase}
+  .section h2{font-family:var(--serif);font-size:34px;letter-spacing:-.02em;font-weight:400;margin:0 0 18px;line-height:1.08}
+  .section p{font-size:15.5px;color:rgba(242,237,228,.78);line-height:1.7;margin:0 0 14px}
+  .section ul{list-style:none;padding:0;margin:0 0 14px}
+  .section ul li{font-size:15.5px;color:rgba(242,237,228,.72);line-height:1.7;padding-left:20px;position:relative;margin-bottom:6px}
+  .section ul li::before{content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:999px;background:var(--teal)}
+  .section a{color:var(--teal-bright);border-bottom:1px solid rgba(46,224,196,.35)}
+  .section a:hover{border-bottom-color:var(--teal-bright)}
+
+  .contact-card{margin-top:40px;background:rgba(10,197,168,.07);border:1px solid rgba(10,197,168,.22);border-radius:12px;padding:32px}
+  .contact-card h3{font-family:var(--serif);font-size:24px;font-weight:400;margin:0 0 8px;letter-spacing:-.01em}
+  .contact-card p{color:rgba(242,237,228,.7);font-size:14.5px;line-height:1.6;margin:0 0 18px}
+  .contact-card .btn{display:inline-block;background:var(--teal);color:var(--paper);padding:12px 20px;border-radius:6px;font-size:13px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;transition:background .2s}
+  .contact-card .btn:hover{background:var(--teal-bright)}
+
+  .footer{padding:100px 40px 60px;background:var(--ink);color:var(--paper);margin-top:60px}
+  .footer-inner{max-width:1320px;margin:0 auto}
+  .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:40px;padding-top:40px;border-top:1px solid rgba(26,22,18,.12)}
+  .footer-logo svg{width:64px;height:auto}
+  .footer-desc{font-size:13px;color:rgba(26,22,18,.55);margin-top:16px;max-width:280px}
+  .footer-col h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(26,22,18,.5);margin:0 0 16px;font-weight:500}
+  .footer-col a{display:block;font-size:13px;margin-bottom:8px;color:rgba(26,22,18,.8)}
+  .footer-base{margin-top:60px;padding-top:24px;border-top:1px solid rgba(26,22,18,.08);display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(26,22,18,.5)}
+
+  @media (max-width: 900px){
+    .nav-links,.nav-cta{display:none}
+    .nav-inner{padding:12px 18px}
+    .nav-spacer{height:68px}
+    .hero{padding:60px 22px 30px}
+    .wrap{padding:40px 22px 80px;grid-template-columns:1fr;gap:32px}
+    .toc{position:static;border-left:0;border-top:1px solid rgba(242,237,228,0.12);padding-left:0;padding-top:22px}
+    .section h2{font-size:28px}
+    .footer{padding:60px 22px 40px}
+    .footer-grid{grid-template-columns:1fr 1fr;gap:28px;padding-top:28px}
+    .footer-grid > :first-child{grid-column:1 / -1}
+    .footer-base{flex-direction:column;gap:10px;align-items:flex-start}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="newdesign/index.html" aria-label="Shape">
+      <img src="/shape-logo-new-white.png?v=3" alt="Shape" style="height:94px;width:auto;display:block">
+    </a>
+    <div class="nav-links">
+      <div class="nav-item"><a>Clients<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Client.html">Overview</a><a href="newdesign/ClientDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Trainers<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Coach.html">Overview</a><a href="newdesign/TrainerDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Nutritionists<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Nutritionist.html">Overview</a><a href="newdesign/NutritionistDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a href="newdesign/Marketplace.html">Marketplace</a></div>
+      <div class="nav-item"><a href="newdesign/Community.html">Community</a></div>
+      <div class="nav-item"><a>Rewards<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Score.html">Shape Score</a><a href="newdesign/Store.html">Shape Store</a></div></div></div>
+      <div class="nav-item"><a href="newdesign/Radio.html">Radio</a></div>
+      <div class="nav-item"><a href="newdesign/Pricing.html">Pricing</a></div>
+    </div>
+    <div class="nav-cta">
+      <a class="login" href="newdesign/Login.html">Log in</a>
+      <a class="primary" href="newdesign/Landing.html">Get started</a>
+    </div>
+  </div>
+</nav>
+<div class="nav-spacer"></div>
+
+<section class="hero">
+  <div class="eyebrow">Legal</div>
+  <h1>Data &amp; <em>compliance.</em></h1>
+  <div class="updated">Last updated — June 15, 2026</div>
+</section>
+
+<div class="wrap">
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-label">Contents</div>
+    <a href="#s1"><span class="num">01</span>Where your data lives</a>
+    <a href="#s2"><span class="num">02</span>Subprocessors</a>
+    <a href="#s3"><span class="num">03</span>Security measures</a>
+    <a href="#s4"><span class="num">04</span>Health &amp; sensitive data</a>
+    <a href="#s5"><span class="num">05</span>Your rights &amp; requests</a>
+    <a href="#s6"><span class="num">06</span>Coaches &amp; data responsibility</a>
+    <a href="#s7"><span class="num">07</span>Breach response</a>
+    <a href="#s8"><span class="num">08</span>Contact</a>
+  </aside>
+
+  <article class="content">
+    <section class="section" id="intro">
+      <p>This page summarizes where your Shape data lives, who processes it, how we secure it, and how we approach privacy and compliance. It complements our <a href="/privacy.html">Privacy Policy</a> and <a href="/terms.html">Terms of Service</a>.</p>
+    </section>
+
+    <section class="section" id="s1">
+      <div class="num">01</div>
+      <h2>Where your data lives</h2>
+      <p>Shape runs on Supabase (managed Postgres database, authentication, and file storage) hosted in the United States. Files such as progress photos and voice notes are kept in private storage buckets and served only through short-lived signed URLs.</p>
+    </section>
+
+    <section class="section" id="s2">
+      <div class="num">02</div>
+      <h2>Subprocessors</h2>
+      <p>We rely on a small set of vetted subprocessors to operate Shape. Each is bound by contract to use data only to provide its service to Shape.</p>
+      <ul>
+        <li><strong>Supabase</strong> — database, authentication, and storage.</li>
+        <li><strong>Stripe</strong> — payments and payouts.</li>
+        <li><strong>Vercel</strong> — hosting.</li>
+        <li><strong>Cloudflare</strong> — DNS and network.</li>
+        <li><strong>Resend</strong> — transactional email.</li>
+        <li><strong>OpenAI</strong> — powers the in-app "Nora" assistant. Only the text of your support questions is sent, never your health records or account data.</li>
+        <li><strong>Wearable &amp; audio providers you choose to connect</strong> — Strava, Garmin, Whoop, Apple Health, Oura, and Spotify.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s3">
+      <div class="num">03</div>
+      <h2>Security measures</h2>
+      <p>We protect your data with layered, industry-standard safeguards:</p>
+      <ul>
+        <li>TLS 1.2+ in transit.</li>
+        <li>Encryption at rest.</li>
+        <li>Per-user row-level security so each person (and only their linked coach) can reach their data.</li>
+        <li>Private, signed-URL storage for sensitive files.</li>
+        <li>API rate limiting and request size/shape validation.</li>
+        <li>Integration tokens stored server-side, never in the app bundle.</li>
+        <li>Least-privilege service keys.</li>
+        <li>Automated dependency audits and code review on every change.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s4">
+      <div class="num">04</div>
+      <h2>Health &amp; sensitive data</h2>
+      <p>Health information you enter on Shape is consumer health data, not HIPAA "Protected Health Information," and we treat it as sensitive. It is share-gated to the coach(es) you choose, and your safety screening is shared with a linked coach so they can work with you safely. For full detail, see our Privacy Policy's <a href="/privacy.html#shealth">Health &amp; medical data</a> section.</p>
+    </section>
+
+    <section class="section" id="s5">
+      <div class="num">05</div>
+      <h2>Your rights &amp; requests</h2>
+      <p>You can access, export, correct, or delete your data from Settings or by email; we verify identity and respond within 30 days. We honor GDPR (EEA/UK) and CCPA/CPRA (California) rights, including sensitive-data protections. We do not sell personal data, and we do not use your health or fitness data for advertising or to train machine-learning models. Email <a href="mailto:christopher.perry@theshapecommunity.com">christopher.perry@theshapecommunity.com</a>.</p>
+    </section>
+
+    <section class="section" id="s6">
+      <div class="num">06</div>
+      <h2>Coaches &amp; data responsibility</h2>
+      <p>Trainers and nutritionists are independent professionals. When coaching you they receive only the data needed and agree to keep it confidential, use it solely to coach you, and meet their own legal and professional obligations. Shape provides the security tooling; coaches are responsible for their own conduct and compliance.</p>
+    </section>
+
+    <section class="section" id="s7">
+      <div class="num">07</div>
+      <h2>Breach response</h2>
+      <p>If a breach affects your personal data, we notify you and any regulator required by law, typically within 72 hours of discovery.</p>
+    </section>
+
+    <section class="section" id="s8">
+      <div class="num">08</div>
+      <h2>Contact</h2>
+      <p>Reach us at <a href="mailto:christopher.perry@theshapecommunity.com">christopher.perry@theshapecommunity.com</a> for any data, security, or compliance question. For security reports, please use the same address.</p>
+    </section>
+
+    <div class="contact-card">
+      <h3>Questions about your data?</h3>
+      <p>We'll walk you through what we hold, how it's used, and how to export or delete it. One business day turnaround.</p>
+      <a class="btn" href="/contact.html">Contact privacy team →</a>
+    </div>
+  </article>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div>
+        <a class="footer-logo" href="newdesign/index.html" aria-label="Shape">
+          <img src="/shape-logo-new-black.png?v=4" alt="Shape" style="height:115px;width:auto;display:block">
+        </a>
+        <p class="footer-desc">Real coaches. One marketplace. One platform.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="newdesign/Marketplace.html">Marketplace</a>
+        <a href="newdesign/Score.html">Shape Score</a>
+        <a href="newdesign/Radio.html">Radio</a>
+        <a href="newdesign/ClientDashboard.html">Dashboard</a>
+      </div>
+      <div class="footer-col">
+        <h4>For trainers</h4>
+        <a href="newdesign/SignupTrainer.html">Apply</a>
+        <a href="newdesign/TrainerDashboard.html">Payouts</a>
+        <a href="newdesign/TrainerPrograms.html">Programs</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="newdesign/index.html">About</a>
+        <a href="newdesign/Team.html#press">Press</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="/help.html">Help</a>
+        <a href="/contact.html">Contact</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/data-compliance.html">Data &amp; compliance</a>
+      </div>
+    </div>
+    <div class="footer-base">
+      <span>© 2026 SHAPE</span>
+      <span>BROOKLYN · LISBON · MELBOURNE</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/newdesign/globalChatButton.js?v=20260613" defer></script>
+</body>
+</html>
