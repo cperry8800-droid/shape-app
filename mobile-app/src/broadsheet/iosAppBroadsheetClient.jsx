@@ -9673,7 +9673,20 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     if (isComments) { setTimeout(() => { try { composerRef.current && composerRef.current.focus(); } catch (e) {} }, 320); }
   }, []);
   const facepile = (d.followedLikers && d.followedLikers.length ? d.followedLikers : d.allLikers).slice(0, 5);
-  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, margin: '20px 0 10px', display: 'flex', alignItems: 'center', gap: 8 };
+  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, margin: '22px 0 11px', display: 'flex', alignItems: 'center', gap: 8 };
+  const tick = <span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />;
+  // Categorize the device stats so the page reads as a few clear SECTIONS, not
+  // one packed grid. Hero stat (the headline number) is excluded from the rest.
+  const heroKey = d.heroStat ? String(d.heroStat[0]).toLowerCase() : null;
+  const allStats = (!isComments && Array.isArray(d.detailStats)) ? d.detailStats.filter(([k]) => String(k).toLowerCase() !== heroKey) : [];
+  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
+  const hrStats = allStats.filter(([k]) => hrRe.test(k) && !paceRe.test(k));
+  const bestPaceStat = allStats.find(([k]) => paceRe.test(k) && bestPaceRe.test(k)) || null;
+  let summaryStats = allStats.filter(([k, v], idx) => allStats[idx] !== bestPaceStat && !hrRe.test(k) && (summaryRe.test(k) || (paceRe.test(k) && !bestPaceRe.test(k))));
+  let outputStats = allStats.filter((s) => s !== bestPaceStat && !hrStats.includes(s) && !summaryStats.includes(s));
+  if (!summaryStats.length && outputStats.length) { summaryStats = outputStats.slice(0, 3); outputStats = outputStats.slice(3); }
+  if (summaryStats.length > 3) { outputStats = summaryStats.slice(3).concat(outputStats); summaryStats = summaryStats.slice(0, 3); }
+  const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
@@ -9731,93 +9744,127 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <span style={{ position: 'absolute', left: 10, bottom: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 6px', borderRadius: 3 }}>GPS route</span>
           </div>
         )}
-        {/* STATS PAGE — futuristic instrument readout: borderless metric grid,
-            heart-rate trace + zones, and visual splits. */}
-        {!isComments && Array.isArray(d.detailStats) && d.detailStats.length > 0 && (
+        {/* SUMMARY — only the MAIN stats (the hero number is shown above; this is
+            the 2–3 headline figures). Everything else lives in its own section. */}
+        {!isComments && summaryStats.length > 0 && (
           <>
-            <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />The numbers</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', columnGap: 16 }}>
-              {d.detailStats.map(([k, v], i) => (
-                <div key={i} style={{ padding: '12px 0', borderTop: i >= 3 ? `1px solid ${bsTHexA(t.INK, 0.08)}` : 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.42) }}>{k}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+            <div style={eyebrow}>{tick}Summary</div>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(summaryStats.length, 3)}, 1fr)`, columnGap: 16 }}>
+              {summaryStats.map(([k, v], i) => (
+                <div key={i}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{k}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
                 </div>
               ))}
             </div>
           </>
         )}
-        {/* HEART RATE — a live-trace sparkline + the time-in-zone distribution */}
-        {!isComments && (d.trace || d.zones) && (
+        {/* HEART RATE — avg/max chips, a live trace, then time-in-zone as clearly
+            LABELED horizontal bars (one per zone — far easier to read than a
+            thin stacked bar). */}
+        {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length) || hrStats.length > 0) && (
           <>
-            <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Heart rate</div>
+            <div style={eyebrow}>{tick}Heart rate
+              {hrStats.length > 0 && (
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  {hrStats.map(([k, v], i) => (
+                    <span key={i} style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>{String(k).replace(/\s*hr$/i, '')} {v}</span>
+                  ))}
+                </span>
+              )}
+            </div>
             {Array.isArray(d.trace) && d.trace.length > 1 && (() => {
-              const vals = d.trace, lo = Math.min(...vals), hi = Math.max(...vals), W = 100, H = 36, rng = (hi - lo) || 1;
-              const pts = vals.map((v, i) => [(i / (vals.length - 1)) * W, H - ((v - lo) / rng) * (H - 5) - 2.5]);
+              const vals = d.trace, lo = Math.min(...vals), hi = Math.max(...vals), avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length), W = 100, H = 38, rng = (hi - lo) || 1;
+              const y = (v) => H - ((v - lo) / rng) * (H - 5) - 2.5;
+              const pts = vals.map((v, i) => [(i / (vals.length - 1)) * W, y(v)]);
               const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
               const gid = `hrg-${String(d.key).replace(/[^a-z0-9]/gi, '')}`;
               return (
                 <div style={{ position: 'relative' }}>
-                  <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 60, display: 'block' }} aria-hidden>
+                  <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 64, display: 'block' }} aria-hidden>
                     <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={tc} stopOpacity="0.34" /><stop offset="100%" stopColor={tc} stopOpacity="0" /></linearGradient></defs>
                     <path d={`${line} L${W} ${H} L0 ${H} Z`} fill={`url(#${gid})`} />
-                    <path d={line} fill="none" stroke={tc} strokeWidth="1.3" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+                    {/* avg reference line */}
+                    <line x1="0" y1={y(avg).toFixed(1)} x2={W} y2={y(avg).toFixed(1)} stroke={tc} strokeWidth="0.6" strokeDasharray="2 2" opacity="0.5" vectorEffect="non-scaling-stroke" />
+                    <path d={line} fill="none" stroke={tc} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
                   </svg>
-                  <span style={{ position: 'absolute', top: 0, right: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>↑ {hi}</span>
-                  <span style={{ position: 'absolute', bottom: 0, left: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>↓ {lo}</span>
+                  <span style={{ position: 'absolute', top: 0, right: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>peak {hi}</span>
+                  <span style={{ position: 'absolute', bottom: 0, left: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, color: muted }}>low {lo}</span>
+                  <span style={{ position: 'absolute', top: `${(y(avg) / H) * 100}%`, right: 1, transform: 'translateY(-130%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, color: tc }}>avg {avg}</span>
                 </div>
               );
             })()}
-            {Array.isArray(d.zones) && d.zones.length > 0 && (() => {
-              const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
-              return (
-                <div style={{ marginTop: 13 }}>
-                  <div style={{ display: 'flex', height: 11, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
-                    {d.zones.map(([zl, pct], i) => (pct > 0 ? <div key={i} style={{ flexGrow: pct, flexBasis: 0, minWidth: 2, background: ZC[i % 5] }} /> : null))}
+            {Array.isArray(d.zones) && d.zones.length > 0 && (
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {d.zones.map(([zl, pct], i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: ZC[i % 5], flexShrink: 0 }} />
+                    <span style={{ width: 18, flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: t.INK }}>{zl}</span>
+                    <div style={{ flex: 1, height: 9, borderRadius: 999, background: bsTHexA(t.INK, 0.07), overflow: 'hidden' }}>
+                      <div style={{ width: `${Math.max(pct, 1.5)}%`, height: '100%', borderRadius: 999, background: ZC[i % 5] }} />
+                    </div>
+                    <span style={{ width: 30, flexShrink: 0, textAlign: 'right', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: pct >= 30 ? t.INK : muted, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
                   </div>
-                  <div style={{ display: 'flex', marginTop: 8 }}>
-                    {d.zones.map(([zl, pct], i) => (
-                      <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                        <span style={{ display: 'block', width: 7, height: 7, borderRadius: 2, background: ZC[i % 5], margin: '0 auto' }} />
-                        <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', color: t.INK, marginTop: 4 }}>{zl}</div>
-                        <div style={{ fontFamily: t.MONO, fontSize: 7, color: muted, marginTop: 1 }}>{pct}%</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+                ))}
+              </div>
+            )}
           </>
         )}
-        {/* SPLITS / SETS — each row a pace/load bar; the fastest split leads */}
+        {/* SPLITS — a real COLUMN chart so the trend reads at a glance: each
+            column's height tracks speed (faster = taller), the fastest in accent,
+            its pace above + segment label below. Falls back to load for strength. */}
         {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0 && (() => {
-          const parse = (s) => { const m = String(s).match(/(\d+):(\d+)/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
-          const secs = d.breakdown.rows.map((r) => parse(r[1]));
-          const valid = secs.filter((s) => s != null);
-          const mn = valid.length ? Math.min(...valid) : null, mx = valid.length ? Math.max(...valid) : null;
+          const rows = d.breakdown.rows;
+          const paceVals = rows.map((r) => { const m = String(r[1]).match(/(\d+):(\d+)/); return m ? (+m[1]) * 60 + (+m[2]) : null; });
+          const isPace = paceVals.every((v) => v != null);
+          let perf;
+          if (isPace) { const mx = Math.max(...paceVals); perf = paceVals.map((v) => mx - v + (mx * 0.18)); } // faster = bigger; keep a baseline so all bars show
+          else { perf = rows.map((r) => { const m = String(r[1]).match(/[\d.]+/); return m ? +m[0] : 0; }); }
+          const pmax = Math.max(...perf, 1);
+          const bestIdx = isPace ? paceVals.indexOf(Math.min(...paceVals)) : perf.indexOf(Math.max(...perf));
           return (
             <>
-              <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />{d.breakdown.label || 'Breakdown'}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {d.breakdown.rows.map((r, i) => {
-                  const s = secs[i];
-                  const w = (s != null && mx > mn) ? 42 + ((mx - s) / (mx - mn)) * 58 : 72;
-                  const fastest = s != null && s === mn && mx > mn;
+              <div style={eyebrow}>{tick}{d.breakdown.label || 'Splits'}
+                {bestPaceStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: tc, background: `${tc}1a`, border: `1px solid ${tc}55`, borderRadius: 999, padding: '2px 8px' }}>Best {bestPaceStat[1]}</span>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 132 }}>
+                {rows.map((r, i) => {
+                  const barH = 24 + (perf[i] / pmax) * 88;
+                  const best = i === bestIdx && rows.length > 1;
                   return (
-                    <div key={i}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>{r[0]}</span>
-                        <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{r[1]}{r[2] ? <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: (fastest || /pr/i.test(String(r[2]))) ? tc : muted, marginLeft: 9 }}>{r[2]}</span> : null}</span>
-                      </div>
-                      <div style={{ height: 5, borderRadius: 999, background: bsTHexA(t.INK, 0.07), overflow: 'hidden' }}>
-                        <div style={{ width: `${w}%`, height: '100%', borderRadius: 999, background: fastest ? tc : `${tc}5c` }} />
-                      </div>
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: best ? tc : t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap' }}>{r[1]}</span>
+                      <div style={{ width: '100%', maxWidth: 52, height: barH, borderRadius: '7px 7px 2px 2px', background: best ? tc : `${tc}3d`, boxShadow: best ? `0 0 0 1px ${tc}` : 'none' }} />
                     </div>
                   );
                 })}
               </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 9 }}>
+                {rows.map((r, i) => (
+                  <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
+                    {r[2] && <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? tc : bsTHexA(t.INK, 0.4), marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[2]}</div>}
+                  </div>
+                ))}
+              </div>
             </>
           );
         })()}
+        {/* OUTPUT — the remaining device metrics (cadence, elevation, calories,
+            stride, …) in their own clearly-labeled section, NOT packed up top. */}
+        {!isComments && outputStats.length > 0 && (
+          <>
+            <div style={eyebrow}>{tick}Output</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', columnGap: 16 }}>
+              {outputStats.map(([k, v], i) => (
+                <div key={i} style={{ padding: '12px 0', borderTop: i >= 3 ? `1px solid ${bsTHexA(t.INK, 0.08)}` : 0 }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.42) }}>{k}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
         {/* COMMENTS PAGE — reactions summary (likes open their own sheet) + the
             thread. No workout stats here; those live on Session details. */}
         {isComments && (
@@ -10483,7 +10530,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // the actual stats — PRs, runs with splits, logged sessions.
   const COMMUNITY_ACTIVITIES = [
     { kind: 'pr', who: 'Priya Shah', role: 'Client', city: 'Gold St. Barbell · NYC', tier: 'PEAK', ago: '6m', body: 'Block 3 paying off. Felt like there was a 4th in the tank.', lift: 'Deadlift', topset: '1×3', load: '245 lb', e1rm: '268 lb', kudos: 41, replies: 6, cosign: { name: 'Dana Lewis', role: 'trainer' }, likers: [{ name: 'Jordan Ellis', role: 'Client' }, { name: 'Sam Reyes', role: 'Client' }, { name: 'Maya Okafor', role: 'Trainer' }], comments: [{ who: 'Jordan Ellis', text: 'That bar speed was unreal — congrats!', follows: true }, { who: 'Sam Reyes', text: 'Eight months of work right there.', follows: true }, { who: 'Avery Lin', text: 'Huge.', follows: false }, { who: 'Noah Kim', text: 'Form looked dialed the whole set.', follows: false }, { who: 'Mara Diaz', text: 'Inspiring. Tackling my own DL block next week.', follows: false }, { who: 'Dana Lewis', text: 'Exactly what we trained for. Proud of you.', follows: false }], breakdown: { label: 'Working sets', rows: [['Set 1', '225 lb × 3', 'RPE 7'], ['Set 2', '235 lb × 3', 'RPE 8'], ['Set 3', '245 lb × 3', 'RPE 9 · PR']] } },
-    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [128, 132, 138, 141, 145, 148, 150, 149, 152, 154, 153, 156, 155, 158, 157, 159, 161, 160, 163, 162, 165, 164, 167, 166, 169, 168, 171, 173, 176, 158], breakdown: { label: 'Mile splits', rows: [['Miles 1–6', '8:55/mi', 'Warm-up'], ['Miles 7–12', '8:44/mi', 'Steady'], ['Miles 13–18', '8:31/mi', 'Negative split']] } },
+    { kind: 'run', who: 'Drew Oyelaran', role: 'Client', city: 'East River Loop · NYC', tier: 'LEGEND', ago: '34m', body: 'Last long run before taper. Negative split the back 6.', distance: '18.2 mi', pace: '8:42/mi', duration: '2:38', elev: '540 ft', route: true, kudos: 28, replies: 4, likers: [{ name: 'Sam Reyes', role: 'Client' }, { name: 'Priya Shah', role: 'Client' }], comments: [{ who: 'Sam Reyes', text: 'Negative split on a long run is elite.', follows: true }], stats: [['Distance', '18.2 mi'], ['Avg pace', '8:42/mi'], ['Best pace', '8:24/mi'], ['Time', '2:38:14'], ['Avg HR', '154 bpm'], ['Max HR', '176 bpm'], ['Cadence', '178 spm'], ['Elevation', '540 ft'], ['Calories', '2,140'], ['Stride', '1.18 m'], ['Ground', '242 ms'], ['Training', '4.2 · HI']], zones: [['Z1', 6], ['Z2', 34], ['Z3', 41], ['Z4', 17], ['Z5', 2]], trace: [121, 134, 142, 138, 146, 151, 148, 156, 152, 149, 158, 162, 157, 153, 160, 166, 161, 155, 164, 169, 163, 159, 167, 172, 165, 161, 170, 174, 176, 158], breakdown: { label: 'Mile splits', rows: [['Miles 1–6', '8:55/mi', 'Warm-up'], ['Miles 7–12', '8:44/mi', 'Steady'], ['Miles 13–18', '8:31/mi', 'Negative split']] } },
     { kind: 'workout', typeLabel: 'Swim', activityType: 'swim', who: 'Lena Fischer', role: 'Client', city: 'Metropolitan Pool · NYC', tier: 'FORM', ago: '52m', body: 'Long-course meters. Stroke felt smooth the whole set.', title: 'Masters swim · 2 km', stats: [['Distance', '2,000 m'], ['Pace', '1:42/100m'], ['Time', '34:10']], kudos: 19, replies: 2 },
     { kind: 'workout', typeLabel: 'Rest', activityType: 'recovery', who: 'Theo Nakamura', role: 'Client', city: 'Recovery day · home', tier: 'TEMPO', ago: '1h', body: 'Full rest. Legs needed it after the week of volume.', title: 'Rest & recover', stats: [['Sleep', '8h 10m'], ['HRV', '74 ms'], ['Readiness', '91%']], kudos: 12, replies: 1 },
     { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 40 km', stats: [['Distance', '40.2 km'], ['Avg power', '241 W'], ['Time', '1:18']], kudos: 23, replies: 3 },
