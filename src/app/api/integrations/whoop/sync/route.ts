@@ -80,6 +80,22 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
     distanceKm !== null ? `${distanceKm} km` : null,
   ].filter(Boolean);
 
+  // Full device-captured stat set, Strain-led (WHOOP's signature metric). Only
+  // metrics WHOOP returned are included. Card shows the first 3; detail shows all.
+  const maxHr = typeof score.max_heart_rate === 'number' ? Math.round(score.max_heart_rate) : null;
+  const kcal = typeof score.kilojoule === 'number' ? `${Math.round(score.kilojoule * 0.239006)} kcal` : null;
+  const distMi = typeof score.distance_meter === 'number' && score.distance_meter > 0 ? `${(score.distance_meter / 1609.344).toFixed(2)} mi` : null;
+  const elevFt = typeof score.altitude_gain_meter === 'number' ? `${Math.round(score.altitude_gain_meter * 3.28084)} ft` : null;
+  const workoutStats: { label: string; value: string }[] = [];
+  const addStat = (label: string, value: string | null) => { if (value && value !== '-') workoutStats.push({ label, value }); };
+  addStat('Strain', strain !== null ? String(strain) : null);
+  addStat('Avg HR', avgHr !== null ? `${avgHr} bpm` : null);
+  addStat('Duration', minutes !== null ? `${minutes} min` : null);
+  addStat('Calories', kcal);
+  addStat('Max HR', maxHr !== null ? `${maxHr} bpm` : null);
+  addStat('Distance', distMi);
+  addStat('Elevation', elevFt);
+
   return {
     author_id: userId,
     author_name: profile?.full_name || fallbackName,
@@ -99,6 +115,7 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
       distanceMeter: score.distance_meter ?? null,
       altitudeGainMeter: score.altitude_gain_meter ?? null,
       zoneDurations: score.zone_durations ?? null,
+      workoutStats,
       labels: ['Duration', 'Avg HR', 'Strain'],
       values: [
         minutes !== null ? `${minutes} min` : 'WHOOP',

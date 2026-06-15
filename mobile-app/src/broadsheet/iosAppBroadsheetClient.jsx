@@ -9645,14 +9645,14 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const t = useBS();
   const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1), card = bsTHexA(t.INK, 0.03);
   const tc = d.tc, a = d.a;
+  // Two distinct pages: 'stats' (Session details — JUST the workout/activity
+  // numbers) and 'comments' (the conversation + composer). Likes are their own
+  // sheet (the facepile → "Who reacted"). Never mixed.
+  const isComments = d.focus === 'comments';
   const composerRef = React.useRef(null);
   const bodyRef = React.useRef(null);
-  const cmtRef = React.useRef(null);
   React.useEffect(() => {
-    if (d.focus === 'comments') {
-      setTimeout(() => { try { cmtRef.current && cmtRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 200);
-      setTimeout(() => { try { composerRef.current && composerRef.current.focus(); } catch (e) {} }, 380);
-    }
+    if (isComments) { setTimeout(() => { try { composerRef.current && composerRef.current.focus(); } catch (e) {} }, 320); }
   }, []);
   const facepile = (d.followedLikers && d.followedLikers.length ? d.followedLikers : d.allLikers).slice(0, 5);
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, margin: '20px 0 10px', display: 'flex', alignItems: 'center', gap: 8 };
@@ -9662,7 +9662,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
       {/* header */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(12px + env(safe-area-inset-top,0px)) 14px 11px', borderBottom: `1px solid ${hair}` }}>
         <button onClick={onClose} aria-label="Back" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 17, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Activity</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
         <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
       </div>
       {/* scroll body */}
@@ -9702,8 +9702,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <span style={{ position: 'absolute', left: 10, bottom: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 6px', borderRadius: 3 }}>GPS route</span>
           </div>
         )}
-        {/* every stat */}
-        {Array.isArray(d.detailStats) && d.detailStats.length > 0 && (
+        {/* STATS PAGE — just the workout/activity numbers + breakdown */}
+        {!isComments && Array.isArray(d.detailStats) && d.detailStats.length > 0 && (
           <>
             <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />The numbers</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: hair, border: `1px solid ${hair}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -9716,8 +9716,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </div>
           </>
         )}
-        {/* per-activity breakdown (splits / sets) */}
-        {d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0 && (
+        {/* per-activity breakdown (splits / sets) — stats page only */}
+        {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0 && (
           <>
             <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />{d.breakdown.label || 'Breakdown'}</div>
             <div style={{ border: `1px solid ${hair}`, borderRadius: 12, overflow: 'hidden' }}>
@@ -9731,27 +9731,33 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </div>
           </>
         )}
-        {/* reactions / who reacted */}
-        <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Reactions · {count}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? tc : `${tc}14`, color: liked ? '#fff' : tc, border: `1px solid ${tc}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · {count}</span></button>
-          {facepile.length > 0 && (
-            <button onClick={onOpenLikers} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-              <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => <BSFacetAvatar key={i} size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>Who reacted ›</span>
-            </button>
-          )}
-        </div>
-        {/* comments */}
-        <div ref={cmtRef} style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Comments · {comments.length}</div>
-        {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6 }}>No comments yet — be the first.</div>}
-        {comments.map((c, i) => <BSFeedComment key={i} c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />)}
+        {/* COMMENTS PAGE — reactions summary (likes open their own sheet) + the
+            thread. No workout stats here; those live on Session details. */}
+        {isComments && (
+          <>
+            <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Reactions · {count}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? tc : `${tc}14`, color: liked ? '#fff' : tc, border: `1px solid ${tc}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · {count}</span></button>
+              {facepile.length > 0 && (
+                <button onClick={onOpenLikers} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+                  <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => <BSFacetAvatar key={i} size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />)}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>Who reacted ›</span>
+                </button>
+              )}
+            </div>
+            <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Comments · {comments.length}</div>
+            {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6 }}>No comments yet — be the first.</div>}
+            {comments.map((c, i) => <BSFeedComment key={i} c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />)}
+          </>
+        )}
       </div>
-      {/* sticky composer */}
+      {/* sticky composer — comments page only */}
+      {isComments && (
       <div style={{ flexShrink: 0, borderTop: `1px solid ${hair}`, padding: '10px 14px calc(12px + env(safe-area-inset-bottom,0px))', display: 'grid', gridTemplateColumns: '1fr 62px', gap: 8, alignItems: 'center', background: t.PAPER }}>
         <input ref={composerRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') onSend(); }} placeholder="Add a comment…" style={{ minWidth: 0, height: 42, background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 999, padding: '0 16px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none', letterSpacing: '-0.005em' }} />
         <button onClick={onSend} disabled={!draft.trim()} style={{ height: 42, border: 0, borderRadius: 999, background: draft.trim() ? t.ACCENT : t.SURFACE, color: draft.trim() ? '#031f1c' : t.INK50, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: draft.trim() ? 'pointer' : 'default', opacity: draft.trim() ? 1 : 0.86 }}>Send</button>
       </div>
+      )}
     </div>
   );
   return surface ? createPortal(view, surface) : view;

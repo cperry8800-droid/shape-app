@@ -32,6 +32,10 @@ type StravaActivity = {
   max_speed?: number;
   average_heartrate?: number;
   max_heartrate?: number;
+  average_cadence?: number;
+  average_watts?: number;
+  max_watts?: number;
+  weighted_average_watts?: number;
   suffer_score?: number;
   kudos_count?: number;
   comment_count?: number;
@@ -149,6 +153,62 @@ function pacePerMile(distanceMeters?: number, movingSeconds?: number): string | 
   return `${min}:${sec.toString().padStart(2, '0')}/mi`;
 }
 
+function pacePer100m(distanceMeters?: number, movingSeconds?: number): string | null {
+  if (!distanceMeters || !movingSeconds || distanceMeters <= 0) return null;
+  const s = movingSeconds / (distanceMeters / 100);
+  const min = Math.floor(s / 60);
+  const sec = Math.round(s % 60);
+  return `${min}:${sec.toString().padStart(2, '0')}/100m`;
+}
+
+function feet(meters?: number | null): string | null {
+  if (typeof meters !== 'number') return null;
+  return `${Math.round(meters * 3.28084)} ft`;
+}
+
+function mph(metersPerSecond?: number | null): string | null {
+  if (typeof metersPerSecond !== 'number' || metersPerSecond <= 0) return null;
+  return `${(metersPerSecond * 2.23694).toFixed(1)} mph`;
+}
+
+// The full set of device-captured stats for an activity, ordered per sport so the
+// card's 3-up leads with the right ones and the detail page shows the rest. Only
+// metrics the wearable actually returned are included — never a fabricated value.
+function buildActivityStats(activity: StravaActivity): { label: string; value: string }[] {
+  const sport = (activity.sport_type || activity.type || '').toLowerCase();
+  const isRide = /ride|bike|cycl|ebike|handcycle/.test(sport);
+  const isSwim = /swim/.test(sport);
+  const isWalkHike = /walk|hike|snowshoe/.test(sport);
+  const hr = (v?: number) => (typeof v === 'number' ? `${Math.round(v)} bpm` : null);
+  const kcal = typeof activity.calories === 'number' ? `${Math.round(activity.calories)} kcal` : null;
+  const dist = miles(activity.distance);
+  const time = minutes(activity.moving_time) ?? minutes(activity.elapsed_time);
+  const elev = feet(activity.total_elevation_gain);
+  const watts = typeof activity.average_watts === 'number' ? `${Math.round(activity.average_watts)} W` : null;
+  const maxWatts = typeof activity.max_watts === 'number' ? `${Math.round(activity.max_watts)} W` : null;
+  const cadence = typeof activity.average_cadence === 'number'
+    ? `${Math.round(activity.average_cadence * (isRide ? 1 : 2))} ${isRide ? 'rpm' : 'spm'}` : null;
+  const effort = typeof activity.suffer_score === 'number' ? `${Math.round(activity.suffer_score)}` : null;
+  const out: { label: string; value: string }[] = [];
+  const add = (label: string, value: string | null) => { if (value && value !== '-') out.push({ label, value }); };
+  if (isSwim) {
+    add('Distance', dist); add('Pace', pacePer100m(activity.distance, activity.moving_time) ?? time);
+    add('Time', time); add('Avg HR', hr(activity.average_heartrate)); add('Max HR', hr(activity.max_heartrate)); add('Calories', kcal);
+  } else if (isRide) {
+    add('Distance', dist); add('Avg power', watts); add('Time', time); add('Avg speed', mph(activity.average_speed));
+    add('Avg HR', hr(activity.average_heartrate)); add('Max HR', hr(activity.max_heartrate)); add('Elevation', elev);
+    add('Calories', kcal); add('Max power', maxWatts); add('Max speed', mph(activity.max_speed)); add('Cadence', cadence); add('Effort', effort);
+  } else if (isWalkHike) {
+    add('Distance', dist); add('Time', time); add('Elevation', elev); add('Avg HR', hr(activity.average_heartrate)); add('Calories', kcal); add('Cadence', cadence);
+  } else { // run + default
+    add('Distance', dist); add('Pace', pacePerMile(activity.distance, activity.moving_time) ?? time); add('Time', time);
+    add('Avg HR', hr(activity.average_heartrate)); add('Max HR', hr(activity.max_heartrate)); add('Cadence', cadence);
+    add('Elevation', elev); add('Calories', kcal); add('Avg speed', mph(activity.average_speed)); add('Effort', effort);
+  }
+  if (out.length === 0) { add('Time', time); add('Avg HR', hr(activity.average_heartrate)); add('Calories', kcal); }
+  return out;
+}
+
 function activityPostPayload(
   activity: StravaActivity,
   userId: string,
@@ -191,6 +251,12 @@ function activityPostPayload(
       kudosCount: activity.kudos_count ?? null,
       commentCount: activity.comment_count ?? null,
       calories: activity.calories ?? null,
+      averageCadence: activity.average_cadence ?? null,
+      averageWatts: activity.average_watts ?? null,
+      maxWatts: activity.max_watts ?? null,
+      // The full device-captured stat set (sport-ordered) — the card shows the
+      // first 3, the detail page shows them all.
+      workoutStats: buildActivityStats(activity),
       statA: distance,
       statB: pace,
       statC: avgHr !== null ? `${avgHr} bpm` : duration,
