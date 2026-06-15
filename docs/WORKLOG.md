@@ -25,6 +25,14 @@ changelog whenever something ships.
   dev branch (the current `claude/*` working branch — it differs per session) are
   always kept identical (push both to the same commit); treat `origin/main` as the
   single source of truth.
+- **Session handoffs → `docs/HANDOFF-<YYYY-MM-DD>.md`.** Longer-form end-of-session
+  handoffs (state snapshot · what shipped · architecture you'll need · open
+  follow-ups) live as their own dated file in `docs/`, separate from this
+  changelog. **At session start, read the newest `docs/HANDOFF-*.md`** (`ls -t
+  docs/HANDOFF-*.md | head -1`) alongside this WORKLOG — standalone docs are NOT
+  auto-loaded into context, so this pointer is how they get found. When you write
+  one, keep the short shipped-summary as a dated entry in this file's changelog too,
+  and name the handoff file so it sorts by date.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
