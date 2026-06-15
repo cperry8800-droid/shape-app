@@ -218,6 +218,12 @@ function formatReviewSeconds(value) {
   return `${min}:${String(sec).padStart(2, '0')}`;
 }
 
+// Live wall-clock HH:MM for the Today hero (replaces the old hardcoded '09:42').
+function bsNowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function demoWorkoutReviewSessions(role = 'trainer') {
   const isNutri = role === 'nutritionist';
   return [
@@ -1072,6 +1078,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const goSettings = () => setShowSettings(true);
   const openHomeWidget = (action) => {
     if (action === 'reviews') { setShowReviews(true); return; }
+    if (action === 'clients') { setTab('clients'); return; }
     if (action === 'programs' || action === 'playlists') {
       setProgramInitialTab(action === 'playlists' ? 'playlists' : 'programs');
       setTab('programs');
@@ -1234,7 +1241,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       { time: '19:00', tag: 'PRGM', tagColor: t.AMBER, title: 'Block 3 release', sub: 'Push to all · auto-send', last: true },
     ],
     22: [
-      { time: '10:00', tag: 'PRGM', tagColor: t.AMBER, title: 'Maya program',  sub: 'Final review · 1h block' },
+      { time: '10:00', tag: 'PRGM', tagColor: t.AMBER, title: 'Sofia program', sub: 'Final review · 1h block' },
       { time: '14:00', tag: 'INTK', tagColor: t.GREEN, title: 'Tasha Yeo',      sub: 'Intake call · 30m', last: true },
     ],
     23: [
@@ -1267,15 +1274,15 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   // Per-day lead. selDay 14 = today's narrative.
   const TRAINER_LEAD = {
     20: { count: '3', kicker: 'Mon · May 11',  copy: 'Light Monday — catch-up day for async reviews.' },
-    21: { count: '8', kicker: "Lead · Today's roster", copy: "First at 7am. Two free hours at noon to write Maya's program." },
-    22: { count: '2', kicker: 'Fri · May 15',  copy: 'Quiet day. Block out the morning for Maya.' },
+    21: { count: '8', kicker: "Today", copy: "First at 7am. Two free hours at noon to write Sofia's program." },
+    22: { count: '2', kicker: 'Fri · May 15',  copy: 'Quiet day. Block out the morning for Sofia.' },
     23: { count: '2', kicker: 'Sat · May 16',  copy: 'One live, one async. Easy build-up to Friday.' },
     24: { count: '2', kicker: 'Sun · May 17',  copy: 'Two heavy sessions — Casey & Quinn back-to-back area.' },
     25: { count: '0', kicker: 'Mon · May 18',  copy: 'Off day. Programming refresh on the docket.' },
     26: { count: '1', kicker: 'Tue · May 19',  copy: 'Open hours — drop-in consults only.' },
   };
   const lead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
-  const leadKicker = isToday ? "Lead · Today's roster" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
+  const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
   return (
     <BSPage>
       <BSMasthead
@@ -1287,36 +1294,19 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         showDotTexture={false}
       />
 
-      <BSTicker items={(() => {
-        const tk = ticker || {};
-        return [
-          { label: 'BOOKED',  value: tk.bookedToday != null ? `${tk.bookedToday} SESN` : '8 SESN', note: 'TODAY' },
-          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '14', note: 'ACTIVE' },
-          { label: 'ADHR',    value: tk.avgAdherencePct != null ? `${tk.avgAdherencePct}%` : '78%', color: '#a3e09a' },
-          { label: 'PRGRM',   value: tk.programsCount != null ? String(tk.programsCount) : '12',  note: 'PUBLISHED' },
-          { label: '7D LOG',  value: tk.workouts7d != null ? `${tk.workouts7d} WO` : '32 WO', note: 'ROSTER' },
-        ];
-      })()} />
-
-      {/* Edition strip — sub-hero under the masthead */}
-      <div style={{
-        padding: `8px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
-          Coaches Edition · No. {dates[todayIdx].getDate()}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
-        </span>
+      {/* TODAY = the clock: lead with the day-shape hero. */}
+      <div style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+          <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
+          <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
+        </div>
+        <BSHeadlineNumber value={lead.count} unit="SESSIONS" size={Math.round(t.headlineHero * 0.62)} />
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
+          {lead.copy}
+        </div>
       </div>
 
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — trainer view, dots = booking density */}
+      {/* THIS WEEK — trainer view, dots = booking density (selects the day) */}
       <BSProWeekStrip
         goCalendar={goCalendar}
         selDay={selDay}
@@ -1334,17 +1324,6 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         }[dd] || []))}
       />
 
-      <div style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-          <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
-          <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
-        </div>
-        <BSHeadlineNumber value={lead.count} unit="SESSIONS" size={Math.round(t.headlineHero * 0.62)} />
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
-          {lead.copy}
-        </div>
-      </div>
-
       {isToday && (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
           <button onClick={() => onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1360,7 +1339,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         </div>
       )}
 
-      {/* TODAY = the clock: lead with the day — the schedule (live-now above). */}
+      {/* Today's schedule (live-now above). */}
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
@@ -1372,13 +1351,40 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         <BSProTriageFeed role="trainer" schedule={bookings} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
       </div>
 
-      <div style={{ marginTop: 8 }}>
-        <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
+      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row style. */}
+      <BSSection title="Queue" meta="3 to clear" />
+      <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
+        {[
+          { label: '4 form clips · Review', onClick: () => onOpenReviews() },
+          { label: 'Publish Block 3 edits', onClick: () => onWidgetOpen('programs') },
+          { label: 'Send Pull Day Tempo playlist', onClick: () => onWidgetOpen('playlists') },
+        ].map((q) => (
+          <button key={q.label} type="button" onClick={q.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{q.label}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>→</span>
+          </button>
+        ))}
       </div>
+
+      {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
       <div style={{ marginTop: 8 }}>
-        <BSProHomeWidgets role="trainer" onOpen={onWidgetOpen} />
+        <BSNowPlaying onOpen={goRadio} />
       </div>
-      <BSReviewQueueCard role="trainer" onOpen={onOpenReviews} />
+
+      {/* Edition strip — demoted above the footer */}
+      <div style={{
+        padding: `8px ${t.padX}px 12px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        background: t.PAPER2,
+      }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
+          Coaches Edition · No. {dates[todayIdx].getDate()}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
+          Vol. I
+        </span>
+      </div>
 
       <BSFooter left="The Coach Edition" right="Pg 1 of 4" />
     </BSPage>
@@ -3994,14 +4000,14 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
   const NUTRI_LEAD = {
     20: { count: '2', kicker: 'Mon · May 11', copy: 'Quiet Monday — one intake, one follow-up.' },
     21: { count: '4', kicker: 'Tue · May 12', copy: 'One intake, three follow-ups. First at 9am.' },
-    22: { count: '5', kicker: "Lead · Today's schedule", copy: 'Two intakes, three follow-ups. First at 11am.' },
+    22: { count: '5', kicker: "Today", copy: 'Two intakes, three follow-ups. First at 11am.' },
     23: { count: '2', kicker: 'Fri · May 15', copy: 'Light Friday — one intake, one macro check.' },
     24: { count: '2', kicker: 'Sat · May 16', copy: 'Two follow-ups. Easy weekend cadence.' },
     25: { count: '0', kicker: 'Sun · May 17', copy: 'Off day. No sessions scheduled.' },
     26: { count: '1', kicker: 'Mon · May 18', copy: 'Open hours — drop-in consults only.' },
   };
   const lead = NUTRI_LEAD[dataDay] || NUTRI_LEAD[22];
-  const leadKicker = isToday ? "Lead · Today's schedule" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
+  const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
 
   return (
     <BSPage>
@@ -4014,36 +4020,19 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         showDotTexture={false}
       />
 
-      <BSTicker items={(() => {
-        const tk = ticker || {};
-        return [
-          { label: 'CONSLT', value: tk.consultsToday != null ? `${tk.consultsToday} TODAY` : '5 TODAY', note: tk.upcomingSessions != null ? `${tk.upcomingSessions} UPCOMING` : '12 UPCOMING' },
-          { label: 'CLIENTS', value: tk.activeClients != null ? String(tk.activeClients) : '22', note: 'ACTIVE' },
-          { label: 'ADHR',   value: tk.proteinAdherencePct != null ? `${tk.proteinAdherencePct}%` : '78%', color: '#a3e09a', note: 'PROTEIN' },
-          { label: 'NEW',    value: tk.newClients7d != null ? `+${tk.newClients7d} 7D` : '+3 7D',    color: '#7ed4ff' },
-          { label: 'LOGS',   value: tk.avgLogsPerClient != null ? `${tk.avgLogsPerClient} AVG` : '22 AVG', note: 'PER CLIENT' },
-        ];
-      })()} />
-
-      {/* Edition strip — sub-hero under the masthead */}
-      <div style={{
-        padding: `8px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
-          Coaches Edition · No. {dates[todayIdx].getDate()}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
-        </span>
+      {/* TODAY = the clock: lead with the day-shape hero. */}
+      <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+          <BSEyebrow color={t.RUST}>{leadKicker}</BSEyebrow>
+          <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
+        </div>
+        <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
+        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
+          {lead.copy}
+        </div>
       </div>
 
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
-
-      {/* THIS WEEK — nutritionist view, dots = consult density */}
+      {/* THIS WEEK — nutritionist view, dots = consult density (selects the day) */}
       <BSProWeekStrip
         goCalendar={goCalendar}
         selDay={selDay}
@@ -4061,18 +4050,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         }[dd] || []))}
       />
 
-      <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-          <BSEyebrow color={t.RUST}>{lead.kicker}</BSEyebrow>
-          <BSEyebrow>{isToday ? '09:42' : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
-        </div>
-        <BSHeadlineNumber value={lead.count} unit="SESSIONS" />
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
-          {lead.copy}
-        </div>
-      </div>
-
-      {/* TODAY = the clock: lead with the day — the schedule. */}
+      {/* Today's schedule. */}
       <BSSection
         title={isToday ? "Today's schedule" : `Schedule · ${_BS_MON[selDate.getMonth()]} ${selDay}`}
         meta={<span onClick={goCalendar} style={{ cursor: 'pointer', textDecoration: 'underline' }}>Open calendar →</span>}
@@ -4083,13 +4061,40 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         <BSProTriageFeed role="nutritionist" schedule={schedule} isToday={isToday} onSeeAll={() => onWidgetOpen('clients')} />
       </div>
 
-      <div style={{ marginTop: 22 }}>
-        <BSProHabits tweaks={tweaks} onOpen={onOpenHabits} />
+      {/* ONE ops queue — non-client actions, reusing the triage "+N more" row style. */}
+      <BSSection title="Queue" meta="3 to clear" />
+      <div style={{ padding: `4px ${t.padX}px 0`, display: 'grid', gap: 7 }}>
+        {[
+          { label: '2 client reviews', onClick: () => onOpenReviews() },
+          { label: 'Send grocery swap', onClick: () => onWidgetOpen('grocery') },
+          { label: 'Publish carb-load template', onClick: () => onWidgetOpen('plans') },
+        ].map((q) => (
+          <button key={q.label} type="button" onClick={q.onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 6, background: 'transparent', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{q.label}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>→</span>
+          </button>
+        ))}
       </div>
+
+      {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
       <div style={{ marginTop: 8 }}>
-        <BSProHomeWidgets role="nutritionist" onOpen={onWidgetOpen} />
+        <BSNowPlaying onOpen={goRadio} />
       </div>
-      <BSReviewQueueCard role="nutritionist" onOpen={onOpenReviews} />
+
+      {/* Edition strip — demoted above the footer */}
+      <div style={{
+        padding: `8px ${t.padX}px 12px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        background: t.PAPER2,
+      }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
+          Coaches Edition · No. {dates[todayIdx].getDate()}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
+          Vol. I
+        </span>
+      </div>
 
       <BSFooter left="The Nutri Edition" right="Pg 1 of 4" />
     </BSPage>
