@@ -696,10 +696,11 @@ function CoachDashboardPage({ role }) {
         }))
       : [cfg.emptySchedule];
 
-  // True-Today stat bar (step 5): derived from the data layer — identical
-  // math for demo and live, so the bar is never fabricated.
-  let kpisOut = kpis;
-  if (cfg.derivedKpis) {
+  // Practice stat strip — derived from the data layer (identical math for demo
+  // and live, never fabricated). Shown as a SECOND row under the financial
+  // summary strip on BOTH coach Today pages, with role-aware labels.
+  const practiceKpis = (() => {
+    const isNutri = role === "nutritionist";
     const consultRows = schedule.filter((s) => s.time !== "—");
     const next = consultRows.find((s) => s.status === "NEXT" || s.status === "PENDING");
     const ready = queue.filter((r) => r.state === "ready").length;
@@ -708,13 +709,13 @@ function CoachDashboardPage({ role }) {
       ? Math.round((withLogs.reduce((s, c) => s + Math.min(7, c.foodLogs.daysLogged7d), 0) / (withLogs.length * 7)) * 100)
       : null;
     const mrr = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
-    kpisOut = [
-      { k: String(consultRows.length), l: "Consults today", sub: next ? "next " + next.time : "all done" },
-      { k: String(queue.length), l: "Plans due", sub: ready + " ready" },
-      { k: compliance != null ? compliance + "%" : "—", l: "Roster compliance", sub: "food logs · 7d" },
+    return [
+      { k: String(consultRows.length), l: isNutri ? "Consults today" : "Sessions today", sub: next ? "next " + next.time : "all done" },
+      { k: String(queue.length), l: isNutri ? "Plans due" : "Programs due", sub: ready + " ready" },
+      { k: compliance != null ? compliance + "%" : "—", l: "Roster compliance", sub: isNutri ? "food logs · 7d" : "logged · 7d" },
       { k: mrr ? dashMoney(mrr) : "—", l: "Monthly recurring", sub: clients.length + " client" + (clients.length === 1 ? "" : "s") },
     ];
-  }
+  })();
 
   const calendarEvents = live && Array.isArray(live.calendar)
     ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
@@ -741,7 +742,8 @@ function CoachDashboardPage({ role }) {
       payoutCard={live
         ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }
         : cfg.payoutCard()}
-      kpis={kpisOut}
+      kpis={kpis}
+      kpis2={practiceKpis}
       scheduleTitle={cfg.scheduleTitle}
       calendarEvents={calendarEvents}
       schedule={schedule}

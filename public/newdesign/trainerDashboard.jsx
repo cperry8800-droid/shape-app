@@ -179,6 +179,7 @@ function DashShell({
   navItems,     // [{ label, count, active }]
   payoutCard,   // { label, amount, sub } or null
   kpis,         // [{ k, l, sub }]
+  kpis2,        // optional SECOND KPI strip, rendered under the first (coach Today shows both)
   topSection,   // optional { title, render } — rendered immediately after KPI strip, before todayItems
   todayItems,   // optional [{ time, kind, title, sub, cta }]
   scheduleTitle,
@@ -223,28 +224,31 @@ function DashShell({
           </div>
         </div>
 
-        {/* KPI strip — single card w/ dividers */}
-        <div style={{
-          display: "grid", gridTemplateColumns: `repeat(${kpis.length},1fr)`,
-          background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
-          borderRadius: 10, marginBottom: 20, overflow: "hidden",
-        }}>
-          {kpis.map((k, i) => (
-            <div key={i} style={{
-              padding: "20px 20px",
-              borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none",
-              minWidth: 0,
-            }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
-              <div style={{
-                fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1,
-                whiteSpace: "nowrap",
-                fontVariantNumeric: "tabular-nums",
-              }}>{k.k}</div>
-              {k.sub && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>}
-            </div>
-          ))}
-        </div>
+        {/* KPI strip(s) — single card w/ dividers; coach Today shows two
+            (financial summary + practice). */}
+        {[kpis, kpis2].map((row, ri) => (Array.isArray(row) && row.length > 0) ? (
+          <div key={ri} style={{
+            display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`,
+            background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
+            borderRadius: 10, marginBottom: (ri === 0 && Array.isArray(kpis2) && kpis2.length) ? 12 : 20, overflow: "hidden",
+          }}>
+            {row.map((k, i) => (
+              <div key={i} style={{
+                padding: "20px 20px",
+                borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none",
+                minWidth: 0,
+              }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+                <div style={{
+                  fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1,
+                  whiteSpace: "nowrap",
+                  fontVariantNumeric: "tabular-nums",
+                }}>{k.k}</div>
+                {k.sub && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>}
+              </div>
+            ))}
+          </div>
+        ) : null)}
 
         {topSection && (
           <div style={{
