@@ -5,6 +5,202 @@
 // identical across roles. Only the sidebar nav and (optional) chat widget
 // vary per role.
 
+// ── Session-details graphs (website parity with the mobile app) ─────────────
+// Strava-style axis-labeled area charts driven by a post's REAL device metrics
+// (community_posts.metrics: hrTrace/paceTrace/cadenceTrace/elevTrace/powerTrace
+// + zoneDurations + workoutStats). Same GRAPH-TYPE RULE as the app: Pace for
+// run/walk/hike, Pace/100m for swim, Speed for ride; Power its own chart;
+// HR+zones/Cadence/Elevation/Splits whenever the series exists.
+function fmtPaceSec(s) { const m = Math.floor(s / 60), ss = Math.round(s % 60); return m + ":" + String(ss).padStart(2, "0"); }
+function sessArr(v) { return (Array.isArray(v) && v.length > 1) ? v : null; }
+function buildZonesFromDurations(m) {
+  const zd = (m && (m.zoneDurations || m.zone_durations)) || null;
+  if (zd && typeof zd === "object") {
+    const keys = ["zone_one_milli", "zone_two_milli", "zone_three_milli", "zone_four_milli", "zone_five_milli"];
+    const vals = keys.map(k => Number(zd[k]) || 0);
+    const total = vals.reduce((s, v) => s + v, 0);
+    if (total > 0) return vals.map((v, i) => ["Z" + (i + 1), Math.round((v / total) * 100)]);
+  }
+  return null;
+}
+
+function WebAreaChart({ vals, color, invert, fmt, distanceMi, height }) {
+  if (!Array.isArray(vals) || vals.length < 2) return null;
+  const H = height || 110;
+  const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1, W = 100, top = 5, bot = 95, span = bot - top;
+  const yOf = (v) => invert ? (top + ((v - lo) / rng) * span) : (bot - ((v - lo) / rng) * span);
+  const line = vals.map((v, i) => (i ? "L" : "M") + ((i / (vals.length - 1)) * W).toFixed(2) + " " + yOf(v).toFixed(2)).join(" ");
+  const gid = "wac-" + Math.random().toString(36).slice(2, 8);
+  const fmtv = fmt || ((v) => "" + Math.round(v));
+  const yT = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
+  const step = (distanceMi && distanceMi > 0) ? Math.max(1, Math.round(distanceMi / 5)) : 0;
+  const xT = [];
+  if (step) for (let mm = step; mm < distanceMi - 0.15; mm += step) xT.push(mm);
+  const mono = "'JetBrains Mono', monospace";
+  return (
+    <div style={{ paddingLeft: 36 }}>
+      <div style={{ position: "relative" }}>
+        {yT.map((tk, i) => <span key={i} style={{ position: "absolute", left: -36, width: 32, textAlign: "right", top: "calc(" + tk.y + "% - 6px)", fontFamily: mono, fontSize: 9, fontWeight: 600, color: "rgba(242,237,228,0.5)" }}>{fmtv(tk.v)}</span>)}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: H, display: "block" }} aria-hidden>
+          <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.34" /><stop offset="100%" stopColor={color} stopOpacity="0.03" /></linearGradient></defs>
+          {yT.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke="rgba(242,237,228,0.08)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
+          {xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke="rgba(242,237,228,0.05)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
+          <path d={line + " L" + W + " 100 L0 100 Z"} fill={"url(#" + gid + ")"} />
+          <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+      </div>
+      {xT.length > 0 && <div style={{ position: "relative", height: 14, marginTop: 4 }}>{xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <span key={i} style={{ position: "absolute", left: xp + "%", top: 0, transform: "translateX(-50%)", fontFamily: mono, fontSize: 8.5, fontWeight: 600, color: "rgba(242,237,228,0.5)" }}>{mm} mi</span>; })}</div>}
+    </div>
+  );
+}
+
+function SessionDetailsModal({ p, onClose }) {
+  const mono = "'JetBrains Mono', monospace";
+  const s = p.session || {};
+  const m = s.metrics || {};
+  const allStats = Array.isArray(s.stats) ? s.stats : [];
+  const trace = sessArr(m.hrTrace), paceTrace = sessArr(m.paceTrace), cadenceTrace = sessArr(m.cadenceTrace), elevTrace = sessArr(m.elevTrace), powerTrace = sessArr(m.powerTrace);
+  const zones = Array.isArray(s.zones) ? s.zones : buildZonesFromDurations(m);
+  const breakdown = s.breakdown || null;
+  // GRAPH-TYPE RULE — sport-specific primary velocity chart.
+  const sport = String(s.sport || "").toLowerCase();
+  const isRide = /ride|bike|cycl|spin|watt|peloton/.test(sport);
+  const isSwim = /swim/.test(sport);
+  const typeLabel = s.typeLabel || (isRide ? "Ride" : isSwim ? "Swim" : /run/.test(sport) ? "Run" : "Workout");
+  const paceCfg = isRide
+    ? { label: "Speed", invert: false, fmt: (v) => "" + Number(v).toFixed(1), chip: "Top", chipRe: /max.*speed|top.*speed/i }
+    : { label: "Pace", invert: true, fmt: fmtPaceSec, chip: "Fastest", chipRe: null };
+  // categorize stats (hero + summary + output), promote Avg HR + Calories into summary.
+  const heroStat = allStats[0] || null;
+  const heroKey = heroStat ? String(heroStat[0]).toLowerCase() : null;
+  const rest = allStats.filter((st) => String(st[0]).toLowerCase() !== heroKey);
+  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, calRe = /cal/i, cadRe = /cadence/i, elevRe = /elev|ascent|altitude|climb/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
+  const bestPaceStat = rest.find((st) => paceRe.test(st[0]) && bestPaceRe.test(st[0])) || null;
+  const avgHrStat = rest.find((st) => hrRe.test(st[0]) && /avg|average/i.test(st[0])) || rest.find((st) => hrRe.test(st[0]) && !/max|peak/i.test(st[0])) || null;
+  const calStat = rest.find((st) => calRe.test(st[0])) || null;
+  const cadStat = rest.find((st) => cadRe.test(st[0])) || null;
+  const elevStat = rest.find((st) => elevRe.test(st[0])) || null;
+  const powerStat = rest.find((st) => /power|watt/i.test(st[0])) || null;
+  const paceChipStat = paceCfg.chipRe ? rest.find((st) => paceCfg.chipRe.test(st[0])) : bestPaceStat;
+  let summaryStats = rest.filter((st) => st !== bestPaceStat && !hrRe.test(st[0]) && !calRe.test(st[0]) && (summaryRe.test(st[0]) || (paceRe.test(st[0]) && !bestPaceRe.test(st[0]))));
+  [avgHrStat, calStat].forEach((st) => { if (st && summaryStats.indexOf(st) < 0) summaryStats.push(st); });
+  let outputStats = rest.filter((st) => st !== bestPaceStat && st !== avgHrStat && st !== calStat && !hrRe.test(st[0]) && summaryStats.indexOf(st) < 0 && !(cadenceTrace && cadRe.test(st[0])) && !(elevTrace && elevRe.test(st[0])));
+  if (summaryStats.length > 4) { outputStats = summaryStats.slice(4).concat(outputStats); summaryStats = summaryStats.slice(0, 4); }
+  const sumCols = summaryStats.length === 4 ? 2 : (Math.min(summaryStats.length, 3) || 1);
+  const distStat = (heroStat && /dist/i.test(heroStat[0])) ? heroStat : allStats.find((st) => /dist/i.test(st[0]));
+  const distanceMi = (distStat && /mi/i.test(String(distStat[1]))) ? (parseFloat(String(distStat[1]).replace(/[^\d.]/g, "")) || null) : null;
+  const ZC = ["#5b8def", "#34d6c5", "#d8b25a", "#e8843c", "#e0463c"];
+  const Eyebrow = ({ children, chip }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "24px 0 12px" }}>
+      <span style={{ width: 15, height: 1.5, background: TEAL_BRIGHT, borderRadius: 2 }} />
+      <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL_BRIGHT }}>{children}</span>
+      {chip && <span style={{ marginLeft: "auto" }}>{chip}</span>}
+    </div>
+  );
+  const accentChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: TEAL_BRIGHT, background: "rgba(46,224,196,0.1)", border: "1px solid rgba(46,224,196,0.34)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
+  const greyChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", color: "rgba(242,237,228,0.6)", background: "rgba(242,237,228,0.06)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
+  return (
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(0,0,0,0.66)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px", overflowY: "auto" }}>
+      <div style={{ width: "100%", maxWidth: 560, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: "20px 24px 30px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Session details</span>
+          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: 2 }}>✕</button>
+        </div>
+        <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", color: INK, marginTop: 10 }}>{s.title || "Activity"}</div>
+        <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.55)", marginTop: 5 }}>{p.who} · {typeLabel}</div>
+        {heroStat && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontFamily: serif, fontSize: 42, fontWeight: 600, color: INK, lineHeight: 1, letterSpacing: "-0.02em" }}>{heroStat[1]}</div>
+            <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{heroStat[0]}</div>
+          </div>
+        )}
+        {summaryStats.length > 0 && (<>
+          <Eyebrow>Summary</Eyebrow>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(" + sumCols + ", 1fr)", columnGap: 16, rowGap: 16 }}>
+            {summaryStats.map((st, i) => (
+              <div key={i}>
+                <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>{st[0]}</div>
+                <div style={{ fontFamily: serif, fontSize: 23, fontWeight: 600, color: INK, marginTop: 4 }}>{st[1]}</div>
+              </div>
+            ))}
+          </div>
+        </>)}
+        {paceTrace && (<>
+          <Eyebrow chip={paceChipStat ? accentChip(paceCfg.chip + " " + paceChipStat[1]) : null}>{paceCfg.label}</Eyebrow>
+          <WebAreaChart vals={paceTrace} color={TEAL_BRIGHT} invert={paceCfg.invert} fmt={paceCfg.fmt} distanceMi={distanceMi} height={116} />
+        </>)}
+        {powerTrace && (<>
+          <Eyebrow chip={powerStat ? greyChip("avg " + powerStat[1]) : null}>Power</Eyebrow>
+          <WebAreaChart vals={powerTrace} color="#d8b25a" fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={96} />
+        </>)}
+        {(trace || (zones && zones.length > 0)) && (<>
+          <Eyebrow>Heart rate</Eyebrow>
+          {trace && <WebAreaChart vals={trace} color={TEAL_BRIGHT} fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={116} />}
+          {zones && zones.length > 0 && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 9 }}>
+              {zones.map((z, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: ZC[i % 5] }} />
+                  <span style={{ width: 18, fontFamily: mono, fontSize: 9, fontWeight: 700, color: INK }}>{z[0]}</span>
+                  <div style={{ flex: 1, height: 9, borderRadius: 999, background: "rgba(242,237,228,0.07)", overflow: "hidden" }}><div style={{ width: Math.max(z[1], 1.5) + "%", height: "100%", borderRadius: 999, background: ZC[i % 5] }} /></div>
+                  <span style={{ width: 32, textAlign: "right", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: z[1] >= 30 ? INK : "rgba(242,237,228,0.55)" }}>{z[1]}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>)}
+        {breakdown && Array.isArray(breakdown.rows) && breakdown.rows.length > 0 && (() => {
+          const rows = breakdown.rows;
+          const paceVals = rows.map((r) => { const mm = String(r[1]).match(/(\d+):(\d+)/); return mm ? (+mm[1]) * 60 + (+mm[2]) : null; });
+          const isPace = paceVals.every((v) => v != null);
+          let perf;
+          if (isPace) { const mx = Math.max(...paceVals); perf = paceVals.map((v) => mx - v + mx * 0.18); }
+          else { perf = rows.map((r) => { const mm = String(r[1]).match(/[\d.]+/); return mm ? +mm[0] : 0; }); }
+          const pmax = Math.max(...perf, 1);
+          const bestIdx = isPace ? paceVals.indexOf(Math.min(...paceVals)) : perf.indexOf(Math.max(...perf));
+          return (<>
+            <Eyebrow chip={bestPaceStat ? accentChip("Best " + bestPaceStat[1]) : null}>{breakdown.label || "Splits"}</Eyebrow>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 132 }}>
+              {rows.map((r, i) => { const barH = 24 + (perf[i] / pmax) * 88; const best = i === bestIdx && rows.length > 1; return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+                  <span style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: best ? TEAL_BRIGHT : INK, marginBottom: 6, whiteSpace: "nowrap" }}>{r[1]}</span>
+                  <div style={{ width: "100%", maxWidth: 52, height: barH, borderRadius: "7px 7px 2px 2px", background: best ? TEAL : "rgba(46,224,196,0.24)", boxShadow: best ? "0 0 0 1px " + TEAL : "none" }} />
+                </div>); })}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 9 }}>
+              {rows.map((r, i) => (
+                <div key={i} style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
+                  <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r[0]}</div>
+                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "rgba(242,237,228,0.4)", marginTop: 3 }}>{r[2]}</div>}
+                </div>
+              ))}
+            </div>
+          </>);
+        })()}
+        {cadenceTrace && (<>
+          <Eyebrow chip={cadStat ? greyChip("avg " + cadStat[1]) : null}>Cadence</Eyebrow>
+          <WebAreaChart vals={cadenceTrace} color={TEAL_BRIGHT} fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={92} />
+        </>)}
+        {elevTrace && (<>
+          <Eyebrow chip={elevStat ? greyChip("+" + elevStat[1] + " gain") : null}>Elevation</Eyebrow>
+          <WebAreaChart vals={elevTrace} color="#8a93a0" fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={96} />
+        </>)}
+        {outputStats.length > 0 && (<>
+          <Eyebrow>Output</Eyebrow>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", columnGap: 16 }}>
+            {outputStats.map((st, i) => (
+              <div key={i} style={{ padding: "12px 0", borderTop: i >= 3 ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
+                <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)" }}>{st[0]}</div>
+                <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 600, color: INK, marginTop: 4 }}>{st[1]}</div>
+              </div>
+            ))}
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
 function CommunityPage({ navItems, payoutCard, chatTabs }) {
   const ME = { who: "Priya M.", role: "Hypertrophy · 2,140" };
   const [composerOpen, setComposerOpen] = React.useState(false);
@@ -14,7 +210,17 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   const DEMO_FEED = [
     { kind: "pr", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
     { kind: "workout", who: "Elena R.", role: "Peak · 6,108", time: "32m", title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5, coach: "Maya Okafor", note: "Squats felt locked in today.", likes: 18, comments: 3, tag: "STRENGTH" },
-    { kind: "run", who: "Jonah W.", role: "Tempo · 980", time: "1h", distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", body: "Easy long. Brooklyn Half is Sunday — taper feels good.", likes: 24, comments: 6, tag: "RACING" },
+    { kind: "run", who: "Jonah W.", role: "Tempo · 980", time: "1h", distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", body: "Easy long. Brooklyn Half is Sunday — taper feels good.", likes: 24, comments: 6, tag: "RACING",
+      session: { sport: "run", title: "Long run · 8.4 mi",
+        stats: [["Distance", "8.4 mi"], ["Avg pace", "7:42/mi"], ["Best pace", "7:18/mi"], ["Time", "1:04:42"], ["Avg HR", "156 bpm"], ["Max HR", "174 bpm"], ["Cadence", "176 spm"], ["Elevation", "412 ft"], ["Calories", "1,020"]],
+        zones: [["Z1", 8], ["Z2", 38], ["Z3", 40], ["Z4", 12], ["Z5", 2]],
+        metrics: {
+          hrTrace: [124, 132, 140, 137, 145, 150, 147, 154, 151, 148, 156, 159, 155, 151, 158, 163, 159, 153, 161, 166, 160, 156, 163, 168, 162, 158, 166, 171, 174, 160],
+          paceTrace: [486, 472, 478, 466, 474, 460, 468, 456, 463, 470, 454, 461, 467, 452, 459, 450, 457, 464, 448, 455, 462, 446, 453, 460, 444, 451, 458, 442, 449, 455],
+          cadenceTrace: [168, 170, 172, 174, 173, 175, 174, 176, 175, 173, 177, 178, 176, 174, 177, 179, 178, 175, 178, 180, 179, 177, 180, 181, 179, 178, 181, 182, 181, 176],
+          elevTrace: [40, 48, 62, 80, 72, 64, 84, 98, 90, 76, 92, 116, 108, 94, 88, 104, 128, 118, 100, 112, 136, 122, 110, 128, 148, 134, 116, 100, 86, 68]
+        },
+        breakdown: { label: "Mile splits", rows: [["Miles 1–3", "7:52/mi", "Warm-up"], ["Miles 4–6", "7:41/mi", "Steady"], ["Miles 7–8", "7:24/mi", "Negative split"]] } } },
     { kind: "tier", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — 2× redemption value on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
     { kind: "meal", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
     { kind: "streak", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
@@ -46,26 +252,31 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
-        const live = d.posts.map(p => ({
-          // Always render live posts with the text-only 'post' renderer. The
-          // stat renderers (pr/run/workout/meal) require fields the feed API
-          // doesn't return (load, distance, duration, coach, kcal…) and would
-          // throw on .toUpperCase()/.split() of undefined. The activity_type
-          // still drives the section tag below.
-          kind: 'post',
-          id: p.id || null,
-          who: p.author_name || 'Shape member',
-          role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
-          time: since(p.created_at),
-          title: p.title,
-          body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
-          photo: p.photo_url || null,
-          mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
-          likes: Array.isArray(p.likes) ? p.likes.length : 0,
-          comments: Array.isArray(p.comments) ? p.comments.length : 0,
-          tag: tagFor(p.activity_type),
-          isLive: true,
-        }));
+        const live = d.posts.map(p => {
+          // Always render the body with the text-only 'post' renderer (the
+          // pr/run/workout/meal demo renderers need fields the feed API omits).
+          // BUT carry the real device metrics so activity posts get a Session
+          // details view (charts), mirroring the mobile app.
+          const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
+          const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
+          const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
+          return {
+            kind: 'post',
+            id: p.id || null,
+            who: p.author_name || 'Shape member',
+            role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
+            time: since(p.created_at),
+            title: p.title,
+            body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
+            photo: p.photo_url || null,
+            mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
+            likes: Array.isArray(p.likes) ? p.likes.length : 0,
+            comments: Array.isArray(p.comments) ? p.comments.length : 0,
+            tag: tagFor(p.activity_type),
+            isLive: true,
+            session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
+          };
+        });
         setFeed([...live, ...DEMO_FEED]);
       })
       .catch(() => {});
@@ -221,6 +432,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     const [liked, setLiked] = React.useState(false);
     const [likeCount, setLikeCount] = React.useState(p.likes);
     const [sendOpen, setSendOpen] = React.useState(false);
+    const [sessionOpen, setSessionOpen] = React.useState(false);
     const [showReplies, setShowReplies] = React.useState(false);
     const [draft, setDraft] = React.useState("");
     const [replies, setReplies] = React.useState([]);
@@ -288,12 +500,32 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             </div>
           </div>
         </div>
-        {p.kind === "pr"      && <PRStat p={p} />}
-        {p.kind === "workout" && <WorkoutStat p={p} />}
-        {p.kind === "run"     && <RunStat p={p} />}
-        {p.kind === "tier"    && <TierStat p={p} />}
-        {p.kind === "meal"    && <MealStat p={p} />}
-        {p.kind === "streak"  && <StreakStat p={p} />}
+        {p.session ? (
+          <button onClick={() => setSessionOpen(true)} style={{ width: "100%", textAlign: "left", cursor: "pointer", display: "block", background: "rgba(46,224,196,0.06)", border: "1px solid rgba(46,224,196,0.22)", borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, fontWeight: 600 }}>SESSION</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: TEAL_BRIGHT, fontWeight: 600 }}>Session details →</span>
+            </div>
+            <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginBottom: (p.session.stats && p.session.stats.length) ? 10 : 0 }}>{p.session.title}</div>
+            {p.session.stats && p.session.stats.length > 0 && (
+              <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
+                {p.session.stats.slice(0, 3).map((st, i) => (
+                  <div key={i}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{st[0]}</div>
+                    <div style={{ fontFamily: serif, fontSize: 19, color: INK, marginTop: 2, lineHeight: 1 }}>{st[1]}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </button>
+        ) : (<>
+          {p.kind === "pr"      && <PRStat p={p} />}
+          {p.kind === "workout" && <WorkoutStat p={p} />}
+          {p.kind === "run"     && <RunStat p={p} />}
+          {p.kind === "tier"    && <TierStat p={p} />}
+          {p.kind === "meal"    && <MealStat p={p} />}
+          {p.kind === "streak"  && <StreakStat p={p} />}
+        </>)}
         {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
         {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", maxHeight: 420, objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)" }} />}
         {Array.isArray(p.mentions) && p.mentions.length > 0 && (
@@ -335,6 +567,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           </button>
         </div>
         {sendOpen && <SendPostModal post={p} onClose={() => setSendOpen(false)} />}
+        {sessionOpen && <SessionDetailsModal p={p} onClose={() => setSessionOpen(false)} />}
 
         {showReplies && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)" }}>

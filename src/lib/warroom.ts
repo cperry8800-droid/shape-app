@@ -155,7 +155,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: [
-      { task: 'Feed activity "proof cards" now LIVE: the COMMUNITY feed builds Strava-style cards from real community posts that are workouts/runs (bsActivityFromPost — composer workoutStats + sensor statA/B/C + GPS route), with the author\'s live tier + avatar; demo cards are the signed-out / no-activity-yet fallback. Tapping a card opens the redesigned Session-details page with per-activity, axis-labeled graphs (Pace/Speed · HR+zones · Cadence · Elevation · Power · Splits) driven by REAL Strava streams, resampled by distance. Remaining: website parity for those graphs', status: 'in-progress', priority: 'P3' },
+      { task: 'Feed activity "proof cards" now LIVE: the COMMUNITY feed builds Strava-style cards from real community posts that are workouts/runs (bsActivityFromPost — composer workoutStats + sensor statA/B/C + GPS route), with the author\'s live tier + avatar; demo cards are the signed-out / no-activity-yet fallback. Tapping a card opens the redesigned Session-details page with per-activity, axis-labeled graphs (Pace/Speed · HR+zones · Cadence · Elevation · Power · Splits) driven by REAL Strava streams, resampled by distance — on BOTH mobile (BSActivityDetail) and the website dashboard Community feed (dashboardCommunity.jsx Session-details modal)', status: 'in-progress', priority: 'P3' },
       { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
       { task: 'GPS routes on feed cards — REAL polylines now render when a post carries normalized points (Strava imports do; privacyZonesApplied=true since Strava trims via the athlete\'s privacy zones). TO DO: (1) Garmin route extraction once their API access is approved — Activity Details GPS samples → downsample(80) → normalize, and apply OUR OWN start/end privacy-zone trimming (raw Garmin GPS has none — required before those routes go public); (2) Whoop has NO GPS hardware/API — routes will never come from Whoop, only strain/HR stats (already on cards)', status: 'in-progress', priority: 'P2' },
     ] },
@@ -629,7 +629,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Charts resampled EVENLY BY DISTANCE (cumulative distance stream) → x-axis mile markers are exact; time-uniform fallback for indoor/no-distance activities', status: 'done' },
         { label: 'Stream fetch capped per sync (STREAM_CAP=24) + NEW posts only — stays under Strava rate limit', status: 'done' },
         { label: 'WHOOP activities show zones + stats only (no per-second streams — honestly trace-less); demo cards are the signed-out fallback only', status: 'done' },
-        { label: 'Website parity for the session-details graphs (mobile-only today)', status: 'pending' },
+        { label: 'Website parity: dashboard Community feed activity posts open a Session-details modal (dashboardCommunity.jsx — same axis-labeled charts + GRAPH-TYPE RULE, driven by community_posts.metrics; demo run card included)', status: 'done' },
       ],
     },
     {
