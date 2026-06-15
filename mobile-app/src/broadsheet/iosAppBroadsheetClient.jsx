@@ -7333,10 +7333,10 @@ function bsActivityFromPost(p) {
     // Real per-set / per-split breakdown for the detail page (live-session set
     // logs or provider splits); null when the post carries neither.
     breakdown: bsBuildBreakdown(p),
-    // HR time-in-zone (real provider data); trace needs HR streams we don't fetch
-    // yet, so it stays null on real posts (demo cards supply an illustrative one).
+    // HR time-in-zone + the HR-over-time trace from real provider data (WHOOP
+    // zone_durations; Strava streams → metrics.hrTrace). Null when absent.
     zones: bsBuildZones(p),
-    trace: null,
+    trace: (p.rawMetrics && Array.isArray(p.rawMetrics.hrTrace) && p.rawMetrics.hrTrace.length > 1) ? p.rawMetrics.hrTrace : null,
     route,
     routeObj,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
@@ -10843,7 +10843,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: TEAL, boxShadow: `0 0 0 3px ${TEAL}33` }} />
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{liftingNow.toLocaleString()} online now</span>
           </div>
-          <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '8px 12px 4px' }}>
+          <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
             {railPeople.map((p, i) => {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);

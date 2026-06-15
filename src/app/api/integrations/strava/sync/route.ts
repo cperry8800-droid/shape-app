@@ -300,15 +300,46 @@ function stravaActivityRow(activity: StravaActivity, userId: string) {
   };
 }
 
+// HR over time for the activity's detail-page trace. Strava's streams API
+// returns one HR sample per second; downsample to ~40 points for the sparkline.
+async function fetchHrStream(accessToken: string, activityId: number): Promise<number[] | null> {
+  try {
+    const data = await stravaGet<{ heartrate?: { data?: number[] } }>(
+      accessToken,
+      `/activities/${activityId}/streams?keys=heartrate&key_by_type=true`
+    );
+    const hr = data?.heartrate?.data;
+    if (!Array.isArray(hr) || hr.length < 4) return null;
+    const N = 40;
+    if (hr.length <= N) return hr.map((v) => Math.round(v));
+    const out: number[] = [];
+    const step = hr.length / N;
+    for (let i = 0; i < N; i++) {
+      const start = Math.floor(i * step);
+      const end = Math.max(Math.floor((i + 1) * step), start + 1);
+      const slice = hr.slice(start, end);
+      out.push(Math.round(slice.reduce((s, v) => s + v, 0) / slice.length));
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 async function importStravaActivities(
   client: SupabaseClient,
   userId: string,
   profile: ProfileRow | null,
   fallbackName: string,
-  activities: StravaActivity[]
+  activities: StravaActivity[],
+  accessToken: string
 ) {
   let imported = 0;
   const errors: string[] = [];
+  // Cap stream calls per sync to stay well under Strava's rate limit; only NEW
+  // posts with HR get a trace fetched (existing posts already have theirs).
+  const STREAM_CAP = 24;
+  let streamsFetched = 0;
 
   for (const activity of activities) {
     if (!activity.id) continue;
@@ -317,7 +348,6 @@ async function importStravaActivities(
       .from('activities')
       .upsert(stravaActivityRow(activity, userId), { onConflict: 'user_id,source,external_id' });
 
-    const payload = activityPostPayload(activity, userId, profile, fallbackName);
     const { data: existing, error: lookupError } = await client
       .from('community_posts')
       .select('id')
@@ -329,6 +359,14 @@ async function importStravaActivities(
     if (lookupError) {
       errors.push(lookupError.message);
       continue;
+    }
+
+    const payload = activityPostPayload(activity, userId, profile, fallbackName);
+    // Real HR trace for the detail-page sparkline — new posts with HR only.
+    if (!existing?.id && typeof activity.average_heartrate === 'number' && streamsFetched < STREAM_CAP) {
+      streamsFetched += 1;
+      const hrTrace = await fetchHrStream(accessToken, activity.id);
+      if (hrTrace) (payload.metrics as Record<string, unknown>).hrTrace = hrTrace;
     }
 
     const result = existing?.id
@@ -373,7 +411,8 @@ export async function GET(request: Request) {
           user.id,
           (profile as ProfileRow | null) ?? null,
           user.email?.split('@')[0] || 'Shape member',
-          activities
+          activities,
+          accessToken
         )
       : null;
 
