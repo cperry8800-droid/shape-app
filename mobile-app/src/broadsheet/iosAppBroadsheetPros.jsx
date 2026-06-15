@@ -224,6 +224,21 @@ function bsNowHHMM() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// Re-render on live-presence change (coach Today live-now banner). Mirrors the
+// client bundle's useBSPresence, using the pros hooks. ShapePresence.activityOf
+// is hydrated app-wide by startActivity() on every signed-in session.
+function useProPresenceTick() {
+  const [v, setV] = useStateBSP(0);
+  useEffectBSP(() => {
+    const bump = () => setV((x) => x + 1);
+    let off = null;
+    try { off = window.ShapePresence && window.ShapePresence.onChange && window.ShapePresence.onChange(bump); } catch (e) {}
+    try { window.addEventListener('shape:presence', bump); } catch (e) {}
+    return () => { try { off && off(); } catch (e) {} try { window.removeEventListener('shape:presence', bump); } catch (e) {} };
+  }, []);
+  return v;
+}
+
 function demoWorkoutReviewSessions(role = 'trainer') {
   const isNutri = role === 'nutritionist';
   return [
@@ -1283,6 +1298,14 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
   };
   const lead = TRAINER_LEAD[dataDay] || TRAINER_LEAD[21];
   const leadKicker = isToday ? "Today" : `${_BS_DOW[selIdx]} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`;
+  // Live-now banner: REAL presence only. A roster client (with a real userId)
+  // currently in a 'workout' surfaces the banner; signed-out keeps the demo
+  // banner as a preview. Re-renders on presence change.
+  useProPresenceTick();
+  const trainerRoster = useBSProRoster('trainer');
+  const coachSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
+  const liveClients = isToday ? trainerRoster.filter((c) => c.active !== false && c.userId && window.ShapePresence && window.ShapePresence.activityOf && window.ShapePresence.activityOf(c.userId) === 'workout') : [];
+  const liveClient = liveClients[0] || null;
   return (
     <BSPage>
       <BSMasthead
@@ -1324,20 +1347,25 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         }[dd] || []))}
       />
 
-      {isToday && (
+      {isToday && (liveClient || !coachSignedIn) && (() => {
+        const lc = liveClient || { n: 'Alex Rivera', i: 'A', c: t.RUST };
+        const more = Math.max(0, liveClients.length - 1);
+        const title = liveClient ? (more ? `${lc.n} · +${more} more` : lc.n) : 'Alex Rivera · Upper Pull';
+        return (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
-          <button onClick={() => onWatchLive({ client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BSFacetAvatar size={30} c={t.RUST} initial="A" name="Alex Rivera" showRank={false} />
+          <button onClick={() => onWatchLive(liveClient ? { client: lc.n, clientId: lc.userId, workout: 'Live session' } : { client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <BSFacetAvatar size={30} c={lc.c || t.RUST} initial={lc.i || (lc.n || '?').charAt(0).toUpperCase()} name={lc.n} photo={lc.avatarUrl || lc.avatar || undefined} showRank={false} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
                 <span style={{ width: 5, height: 5, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live · training
               </div>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Alex Rivera · Upper Pull</div>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
             </div>
             <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
           </button>
         </div>
-      )}
+        );
+      })()}
 
       {/* Today's schedule (live-now above). */}
       <BSSection
