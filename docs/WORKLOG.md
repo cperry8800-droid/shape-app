@@ -134,9 +134,12 @@ changelog whenever something ships.
 - **XSS:** there is **no `dangerouslySetInnerHTML`** anywhere (app/web/mobile) —
   output is React/JSX-escaped, so input "sanitization" here is size/shape/type
   bounding, not HTML-stripping (which would corrupt legit content for no gain).
-- *Scope:* the size cap is global; the readJson malformed/parse guard is on the
-  public routes (chosen scope). Authenticated routes (behind auth + RLS) can adopt
-  `readJson` incrementally. No migration; tsc + next build + 104 tests green.
+- *Scope:* the size cap is global; the readJson malformed/parse guard now covers
+  **every** JSON-body `/api` route — the public write routes PLUS all authenticated
+  routes (full rollout, `commit 720832c`), with `allowEmpty:true` preserving
+  empty-body-tolerant routes (e.g. billing-portal). The two server-to-server
+  webhooks (garmin, push/dispatch) are excluded (large/external payloads, already
+  size-tiered). No migration; tsc + next build + 104 tests green.
 
 ### 2026-06-15 — API rate limiting (all routes · web + app) + 5/15min on auth
 - **Every `/api/*` route is now rate-limited in the proxy** (`src/lib/supabase/
