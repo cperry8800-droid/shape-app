@@ -9679,13 +9679,18 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // one packed grid. Hero stat (the headline number) is excluded from the rest.
   const heroKey = d.heroStat ? String(d.heroStat[0]).toLowerCase() : null;
   const allStats = (!isComments && Array.isArray(d.detailStats)) ? d.detailStats.filter(([k]) => String(k).toLowerCase() !== heroKey) : [];
-  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
+  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, calRe = /cal/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
   const hrStats = allStats.filter(([k]) => hrRe.test(k) && !paceRe.test(k));
   const bestPaceStat = allStats.find(([k]) => paceRe.test(k) && bestPaceRe.test(k)) || null;
-  let summaryStats = allStats.filter(([k, v], idx) => allStats[idx] !== bestPaceStat && !hrRe.test(k) && (summaryRe.test(k) || (paceRe.test(k) && !bestPaceRe.test(k))));
-  let outputStats = allStats.filter((s) => s !== bestPaceStat && !hrStats.includes(s) && !summaryStats.includes(s));
-  if (!summaryStats.length && outputStats.length) { summaryStats = outputStats.slice(0, 3); outputStats = outputStats.slice(3); }
-  if (summaryStats.length > 3) { outputStats = summaryStats.slice(3).concat(outputStats); summaryStats = summaryStats.slice(0, 3); }
+  // Avg HR + Calories are promoted into the MAIN Summary; the HR graph stays below.
+  const avgHrStat = allStats.find(([k]) => hrRe.test(k) && /avg|average/i.test(k)) || allStats.find(([k]) => hrRe.test(k) && !/max|peak/i.test(k)) || null;
+  const calStat = allStats.find(([k]) => calRe.test(k)) || null;
+  let summaryStats = allStats.filter(([k, v], idx) => allStats[idx] !== bestPaceStat && !hrRe.test(k) && !calRe.test(k) && (summaryRe.test(k) || (paceRe.test(k) && !bestPaceRe.test(k))));
+  [avgHrStat, calStat].forEach((s) => { if (s && !summaryStats.includes(s)) summaryStats.push(s); });
+  let outputStats = allStats.filter((s) => s !== bestPaceStat && s !== avgHrStat && s !== calStat && !hrStats.includes(s) && !summaryStats.includes(s));
+  if (!summaryStats.length && outputStats.length) { summaryStats = outputStats.slice(0, 4); outputStats = outputStats.slice(4); }
+  if (summaryStats.length > 4) { outputStats = summaryStats.slice(4).concat(outputStats); summaryStats = summaryStats.slice(0, 4); }
+  const sumCols = summaryStats.length === 4 ? 2 : (Math.min(summaryStats.length, 3) || 1);
   const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
@@ -9748,7 +9753,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && summaryStats.length > 0 && (
           <>
             <div style={eyebrow}>{tick}Summary</div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(summaryStats.length, 3)}, 1fr)`, columnGap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sumCols}, 1fr)`, columnGap: 16, rowGap: 16 }}>
               {summaryStats.map(([k, v], i) => (
                 <div key={i}>
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{k}</div>
@@ -9758,20 +9763,12 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </div>
           </>
         )}
-        {/* HEART RATE — avg/max chips, a live trace, then time-in-zone as clearly
-            LABELED horizontal bars (one per zone — far easier to read than a
-            thin stacked bar). */}
-        {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length) || hrStats.length > 0) && (
+        {/* HEART RATE — a live trace (with avg/peak/low labels), then time-in-zone
+            as clearly LABELED horizontal bars (one per zone — far easier to read
+            than a thin stacked bar). Avg HR now leads in the Summary above. */}
+        {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
-            <div style={eyebrow}>{tick}Heart rate
-              {hrStats.length > 0 && (
-                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                  {hrStats.map(([k, v], i) => (
-                    <span key={i} style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>{String(k).replace(/\s*hr$/i, '')} {v}</span>
-                  ))}
-                </span>
-              )}
-            </div>
+            <div style={eyebrow}>{tick}Heart rate</div>
             {Array.isArray(d.trace) && d.trace.length > 1 && (() => {
               const vals = d.trace, lo = Math.min(...vals), hi = Math.max(...vals), avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length), W = 100, H = 38, rng = (hi - lo) || 1;
               const y = (v) => H - ((v - lo) / rng) * (H - 5) - 2.5;
