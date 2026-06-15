@@ -138,6 +138,31 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-15 — Code review (step 1) of coach-Today / client-profile changes + Vercel Agent Review note
+- Ran the **`/code-review` skill (layer 1)** on this session's shipped mobile
+  diff (commits `8d02b6f1`→`30dfe69c`: coach Today triage scoping + client
+  Terrain facet-avatar size 44→64 + matched tier pills) — finder angles + one
+  independent reviewer pass. Findings:
+  - **(follow-up) `BSProTriageFeed` `onSchedule` is a substring match**
+    (`subjects.some(s => s.includes(name))`): (a) false-positive on substring
+    name collisions (e.g. "Drew" ⊂ "Andrew Park"); (b) on LIVE accounts calendar
+    titles are session names (or the `'Consult'` fallback), not client names, so
+    the "session/due item today" branch rarely fires and live "Needs you today"
+    collapses to RED-only. Demo works (titles are client names). Graceful (red
+    always shows; matches the existing best-effort live-wiring pattern) — not a
+    crash. Fix later: match on the event's client id/field (or word-boundary
+    name). Logged under "Known stubs / next".
+  - Cosmetic / pre-existing (no action): the hero "%" badge vs `curLevel` pill
+    can overlap at very low progress — PRE-EXISTING (the avatar bottom stayed at
+    `here.y - 10`; only the top moved up with the size bump, and the top at max
+    progress lands at `0` with no clipping); the `moreOnRoster` "+N more on your
+    roster" phrasing is intentionally loose; the `SEVCOL.red` literal is pre-existing.
+- **Vercel Agent Review:** confirmed it RUNS on every PR (it is NOT skipped) —
+  it posts a **`neutral`** conclusion, i.e. advisory (like CodeRabbit), not a
+  blocking status check. Making it *required* in branch protection would block
+  merges (a `neutral` result doesn't count as `success`), so keep it advisory.
+  It's a Vercel-side setting — not configurable from the repo.
+
 ### 2026-06-15 — Review stack: /code-review + CodeRabbit + required checks
 - Three review layers now gate non-trivial changes (documented under "How we
   work"): **(1)** the `/code-review` skill run on the diff before merge;
@@ -3060,6 +3085,11 @@ changelog whenever something ships.
   (Coach detail pages are now redesigned — see changelog.)
 
 ### Known stubs / next
+- Coach Today "Needs you today" (`BSProTriageFeed.onSchedule`): replace the
+  schedule-title substring match with a client id/field (or word-boundary name)
+  match, so the "has a session/due item today" branch works on LIVE accounts —
+  today it fires only on demo data (titles are client names); live collapses to
+  red-only. See the 2026-06-15 code-review changelog entry.
 - Food-database free-text search in the logger (Search tab uses local recents today).
 - Native mic + camera plugins for the iOS App Store build (WebView fallback today).
 - On-device "Shape reads macros" from a meal photo (currently photo → coach review only).
