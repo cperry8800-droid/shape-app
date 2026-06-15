@@ -301,7 +301,7 @@ function stravaActivityRow(activity: StravaActivity, userId: string) {
 }
 
 // Downsample a per-second stream to ~N points for the detail-page sparklines.
-function downsampleStream(arr: number[], N = 40, scale = 1): number[] | null {
+function downsampleStream(arr: number[] | undefined, N = 40, scale = 1): number[] | null {
   if (!Array.isArray(arr) || arr.length < 4) return null;
   if (arr.length <= N) return arr.map((v) => Math.round(v * scale));
   const out: number[] = [];
@@ -311,6 +311,25 @@ function downsampleStream(arr: number[], N = 40, scale = 1): number[] | null {
     const end = Math.max(Math.floor((i + 1) * step), start + 1);
     const slice = arr.slice(start, end);
     out.push(Math.round((slice.reduce((s, v) => s + v, 0) / slice.length) * scale));
+  }
+  return out;
+}
+
+// Resample a per-second metric stream onto N points EVENLY SPACED BY DISTANCE
+// (not time) using the cumulative distance stream — so the chart's x-axis is
+// true distance and the mile markers line up exactly (no even-pacing assumption).
+function resampleByDistance(values: number[] | undefined, distance: number[] | undefined, N = 50, scale = 1): number[] | null {
+  if (!Array.isArray(values) || values.length < 4 || !Array.isArray(distance) || distance.length !== values.length) return null;
+  const total = distance[distance.length - 1] - distance[0];
+  if (!(total > 0)) return null;
+  const out: number[] = [];
+  let j = 0;
+  for (let i = 0; i < N; i++) {
+    const target = distance[0] + (i / (N - 1)) * total;
+    while (j < distance.length - 2 && distance[j + 1] < target) j++;
+    const d0 = distance[j], d1 = distance[j + 1];
+    const f = d1 > d0 ? Math.max(0, Math.min(1, (target - d0) / (d1 - d0))) : 0;
+    out.push(Math.round((values[j] + (values[j + 1] - values[j]) * f) * scale));
   }
   return out;
 }
@@ -335,7 +354,8 @@ async function fetchStreams(
       altitude?: { data?: number[] };
       velocity_smooth?: { data?: number[] };
       watts?: { data?: number[] };
-    }>(accessToken, `/activities/${activityId}/streams?keys=heartrate,cadence,altitude,velocity_smooth,watts&key_by_type=true`);
+      distance?: { data?: number[] };
+    }>(accessToken, `/activities/${activityId}/streams?keys=heartrate,cadence,altitude,velocity_smooth,watts,distance&key_by_type=true`);
     const vel = data?.velocity_smooth?.data;
     // Convert velocity (m/s) into the sport's primary unit; clamp slow samples.
     let paceRaw: number[] = [];
@@ -344,12 +364,17 @@ async function fetchStreams(
       else if (isSwim) paceRaw = vel.map((v) => (v > 0.2 ? Math.min(100 / v, 600) : 600)); // sec/100m
       else paceRaw = vel.map((v) => (v > 0.5 ? Math.min(1609.344 / v, 1200) : 1200)); // sec/mile
     }
+    // Prefer DISTANCE-uniform resampling (true x-axis); fall back to time-uniform
+    // when there's no distance stream (e.g. indoor/treadmill).
+    const dist = data?.distance?.data;
+    const hasDist = Array.isArray(dist) && dist.length >= 4;
+    const sample = (vals: number[] | undefined, scale = 1) => (hasDist ? resampleByDistance(vals, dist, 50, scale) : downsampleStream(vals, 50, scale));
     return {
-      hr: downsampleStream(data?.heartrate?.data ?? [], 50),
-      cadence: downsampleStream(data?.cadence?.data ?? [], 50, isRide ? 1 : 2),
-      elev: downsampleStream(data?.altitude?.data ?? [], 50, 3.28084),
-      pace: downsampleStream(paceRaw, 50),
-      power: downsampleStream(data?.watts?.data ?? [], 50),
+      hr: sample(data?.heartrate?.data),
+      cadence: sample(data?.cadence?.data, isRide ? 1 : 2),
+      elev: sample(data?.altitude?.data, 3.28084),
+      pace: sample(paceRaw),
+      power: sample(data?.watts?.data),
     };
   } catch {
     return { hr: null, cadence: null, elev: null, pace: null, power: null };

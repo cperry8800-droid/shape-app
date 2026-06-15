@@ -155,7 +155,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
     { layer: 'Social graph', serves: 'Member + Coach', purpose: 'Connection + accountability.', pieces: ['Public profiles (Terrain / Signal)', 'Followers / following (+ requests)', 'Community feed (posts, photos, @tags)', 'Channels', 'DMs', 'Shape Radio'], gaps: [
-      { task: 'Feed activity "proof cards" now LIVE: the COMMUNITY feed builds Strava-style cards from real community posts that are workouts/runs (bsActivityFromPost — composer workoutStats + sensor statA/B/C + GPS route), with the author\'s live tier + avatar; demo cards are the signed-out / no-activity-yet fallback (empty state when signed in with none). Remaining: richer per-discipline stat parsing + website parity if a demo stream is ever added', status: 'in-progress', priority: 'P3' },
+      { task: 'Feed activity "proof cards" now LIVE: the COMMUNITY feed builds Strava-style cards from real community posts that are workouts/runs (bsActivityFromPost — composer workoutStats + sensor statA/B/C + GPS route), with the author\'s live tier + avatar; demo cards are the signed-out / no-activity-yet fallback. Tapping a card opens the redesigned Session-details page with per-activity, axis-labeled graphs (Pace/Speed · HR+zones · Cadence · Elevation · Power · Splits) driven by REAL Strava streams, resampled by distance. Remaining: website parity for those graphs', status: 'in-progress', priority: 'P3' },
       { task: 'Follow suggestions need real account volume', status: 'not-started', priority: 'P3' },
       { task: 'GPS routes on feed cards — REAL polylines now render when a post carries normalized points (Strava imports do; privacyZonesApplied=true since Strava trims via the athlete\'s privacy zones). TO DO: (1) Garmin route extraction once their API access is approved — Activity Details GPS samples → downsample(80) → normalize, and apply OUR OWN start/end privacy-zone trimming (raw Garmin GPS has none — required before those routes go public); (2) Whoop has NO GPS hardware/API — routes will never come from Whoop, only strain/HR stats (already on cards)', status: 'in-progress', priority: 'P2' },
     ] },
@@ -615,6 +615,21 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Trainer & nutritionist chat uses the shared role-aware feed', status: 'done' },
         { label: 'Radio intro: flowing sound-wave backdrop + compact/lowered hero', status: 'done' },
         { label: 'Website chat bubble role-aware (only filters once logged in) + single close', status: 'done' },
+        { label: 'Feed activity cards open the redesigned full-screen Session-details page (stats only) + a separate Comments page', status: 'done' },
+      ],
+    },
+    {
+      section: 'Activity session-details graphs (2026-06-15)',
+      items: [
+        { label: 'GRAPH-TYPE RULE (per activity, documented in WORKLOG): primary velocity = Pace (run/walk/hike) · Pace/100m (swim) · Speed mph (ride); Power (W) is its own chart when a power meter is present', status: 'done' },
+        { label: 'Strava-style axis-labeled AREA charts (y-axis ticks + mile markers + gridlines) for Pace/Speed · Heart rate · Cadence · Elevation · Power — each renders ONLY when its real series exists (honest-absent)', status: 'done' },
+        { label: 'Heart rate = bpm area chart + time-in-zone labeled bars (Z1–Z5); applies to ANY activity incl. strength/lifting', status: 'done' },
+        { label: 'Splits = column chart (mile splits / ride intervals / working sets); Summary = mains (hero Distance · Time · Avg pace/speed · Avg HR · Calories); leftover scalars → Output grid', status: 'done' },
+        { label: 'LIVE DATA: Strava sync pulls heartrate+cadence+altitude+velocity_smooth+watts+distance in ONE streams call/new activity → metrics.{hrTrace,cadenceTrace,elevTrace,paceTrace,powerTrace}; velocity converted per sport (mph / sec-per-100m / sec-per-mile)', status: 'done' },
+        { label: 'Charts resampled EVENLY BY DISTANCE (cumulative distance stream) → x-axis mile markers are exact; time-uniform fallback for indoor/no-distance activities', status: 'done' },
+        { label: 'Stream fetch capped per sync (STREAM_CAP=24) + NEW posts only — stays under Strava rate limit', status: 'done' },
+        { label: 'WHOOP activities show zones + stats only (no per-second streams — honestly trace-less); demo cards are the signed-out fallback only', status: 'done' },
+        { label: 'Website parity for the session-details graphs (mobile-only today)', status: 'pending' },
       ],
     },
     {

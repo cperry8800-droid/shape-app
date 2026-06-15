@@ -126,10 +126,14 @@ changelog whenever something ships.
     `paceCfg` per-sport switch in `BSActivityDetail`); the rule is mirrored
     **server-side** in `fetchStreams` (sport → which velocity unit).
 - **Live data wiring (applies to real accounts, not just demo):** Strava sync
-  now pulls `heartrate, cadence, altitude, velocity_smooth, watts` in ONE
-  streams call per new activity → `metrics.{hrTrace,cadenceTrace,elevTrace,
+  now pulls `heartrate, cadence, altitude, velocity_smooth, watts, distance` in
+  ONE streams call per new activity → `metrics.{hrTrace,cadenceTrace,elevTrace,
   paceTrace,powerTrace}` (velocity converted per sport: mph / sec-per-100m /
-  sec-per-mile; altitude→ft; run cadence→spm; watts→power). These flow through
+  sec-per-mile; altitude→ft; run cadence→spm; watts→power). **Each series is
+  resampled EVENLY BY DISTANCE** (via the cumulative distance stream) — so the
+  chart x-axis is true distance and the mile markers line up exactly (no
+  even-pacing assumption); falls back to time-uniform downsampling when there's
+  no distance stream (indoor/treadmill). These flow through
   `communityPostFromRow.rawMetrics` → `bsActivityFromPost` → the detail. WHOOP
   posts (no per-second streams) still get **zones + stats**, honestly trace-less.
   Stream fetch is capped per sync (rate limit) and only for NEW posts.
