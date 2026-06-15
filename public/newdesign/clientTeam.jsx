@@ -37,11 +37,6 @@ function ClientTeamPage() {
       { who: "Rae", t: "30g whey + 60g carbs within 45 min. Recovery window matters.", time: "14m", me: false },
     ]},
   ];
-  const suggested = [
-    { name: "Diego Alvarez",   role: "Run coach",       rate: "$90 / session", tag: "Endurance" },
-    { name: "Lina Park",       role: "Mobility specialist", rate: "$140 / mo",  tag: "Recovery" },
-    { name: "Jomo Singh",      role: "Physio",          rate: "$150 / session", tag: "Rehab" },
-  ];
   return (
     <DashPage
       navItems={clientNavItems("team")}
@@ -88,26 +83,6 @@ function ClientTeamPage() {
         ))}
       </div>
 
-      <Card>
-        <SectionTitle right="RECOMMENDED BY MAYA">Specialists to add</SectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
-          {suggested.map((s, i) => (
-            <div key={i} style={{ padding: 18, background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6" }} />
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
-                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{s.role}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.65)" }}>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{s.rate}</span>
-                <Pill>{s.tag.toUpperCase()}</Pill>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
       <ChatWidget tabs={clientChatTabs} />
     </DashPage>
   );
