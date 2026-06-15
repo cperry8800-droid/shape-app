@@ -17,15 +17,25 @@ function BSProTriageFeed({ role = 'trainer', schedule = [], isToday = true, onSe
   const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: t.isLight ? '#0a8f87' : '#34d6c5', green: '#7bbf5a', past: t.INK50 };
   // A flagged client is today-urgent when they're red (a missed / no-show —
   // urgent regardless of the clock) OR they have a session / review / due item
-  // on the selected day's schedule (matched by name against the schedule rows).
-  const subjects = (schedule || []).map((it) => String(it.title || '').toLowerCase().replace(/^new:\s*/, ''));
-  const onSchedule = (name) => { const n = String(name || '').toLowerCase().trim(); return !!n && subjects.some((s) => s.includes(n)); };
+  // on the selected day's schedule. Match by client id (live session events
+  // carry `clientId`) or by name (the `client`/`with` field, or the demo title
+  // which IS the client's name) — word-set, not a raw substring, so a short
+  // name like "Drew" can't match "Andrew Park".
+  const schedRows = schedule || [];
+  const schedIds = new Set(schedRows.map((it) => it.clientId).filter(Boolean));
+  const nameTokens = (s) => String(s || '').toLowerCase().replace(/^new:\s*/, '').split(/[^a-z0-9]+/i).filter(Boolean);
+  const schedTokenSets = schedRows.map((it) => new Set(nameTokens(it.client || it.title)));
+  const onSchedule = (c) => {
+    if (c && c.userId && schedIds.has(c.userId)) return true;
+    const want = nameTokens(c && c.n);
+    return want.length > 0 && schedTokenSets.some((have) => want.every((w) => have.has(w)));
+  };
   const flaggedAll = roster
     .filter((c) => c.active !== false)
     .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
     .filter((x) => x.sig.rank <= 1)
     .sort((a, b) => a.sig.rank - b.sig.rank);
-  const urgent = flaggedAll.filter((x) => x.sig.sev === 'red' || onSchedule(x.c.n));
+  const urgent = flaggedAll.filter((x) => x.sig.sev === 'red' || onSchedule(x.c));
   const shown = urgent.slice(0, 3);
   const moreOnRoster = flaggedAll.length - shown.length; // the rest live on the roster
   const message = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId, n: c.n } } })); } catch (e) {} };
@@ -1198,6 +1208,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
           title: ev.title || 'Session',
           sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
           state: ev.status === 'done' ? 'done' : undefined,
+          client: ev.with || '', clientId: ev.clientId || null,
         });
       });
       Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
@@ -3961,6 +3972,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
           title: ev.title || 'Consult',
           sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || 'Scheduled',
           state: ev.status === 'done' ? 'done' : undefined,
+          client: ev.with || '', clientId: ev.clientId || null,
         });
       });
       Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });

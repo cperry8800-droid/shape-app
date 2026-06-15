@@ -138,6 +138,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-15 — Fix: coach Today "Needs you today" matches by client id / name (review follow-up)
+- Addressed the code-review finding (below) immediately: `BSProTriageFeed` no
+  longer decides "has a session today" by a raw title substring. The live
+  schedule builders now thread the event's **client identity** (`ev.with` →
+  `client`, `ev.clientId`) onto each schedule row, and `onSchedule(c)` matches by
+  **clientId** (live session events) or a **word-set name** match (covers the
+  demo title + the live `with` field; "Drew" no longer matches "Andrew Park").
+  So the "session/due item today" branch now works on LIVE accounts, not just
+  demo. Mobile build + `public/m` resynced; 104 tests green; layer-1 review clean.
+
 ### 2026-06-15 — Code review (step 1) of coach-Today / client-profile changes + Vercel Agent Review note
 - Ran the **`/code-review` skill (layer 1)** on this session's shipped mobile
   diff (commits `8d02b6f1`→`30dfe69c`: coach Today triage scoping + client
@@ -3085,11 +3095,6 @@ changelog whenever something ships.
   (Coach detail pages are now redesigned — see changelog.)
 
 ### Known stubs / next
-- Coach Today "Needs you today" (`BSProTriageFeed.onSchedule`): replace the
-  schedule-title substring match with a client id/field (or word-boundary name)
-  match, so the "has a session/due item today" branch works on LIVE accounts —
-  today it fires only on demo data (titles are client names); live collapses to
-  red-only. See the 2026-06-15 code-review changelog entry.
 - Food-database free-text search in the logger (Search tab uses local recents today).
 - Native mic + camera plugins for the iOS App Store build (WebView fallback today).
 - On-device "Shape reads macros" from a meal photo (currently photo → coach review only).
