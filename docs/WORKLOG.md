@@ -78,6 +78,16 @@ changelog whenever something ships.
   if a preview URL asks you to log in, that's Vercel Deployment Protection
   (Project Settings → Deployment Protection to relax it).
 - **Verify before committing:** parse-check changed JS, `tsc --noEmit` for TS, build, copy `public/m`.
+  This is now **automated** by a tracked **pre-commit hook** (`.githooks/pre-commit`
+  → `scripts/verify-staged.sh`): on `git commit` it runs only the checks the *staged*
+  change can break (JSX parse-check · `tsc --noEmit` · mobile build + `public/m` diff ·
+  `npm test`), skips docs/config-only commits, and **blocks the commit on failure**.
+  Bypass once with `SKIP_VERIFY=1 git commit …`. It's armed via `git config
+  core.hooksPath .githooks` — web sessions re-arm it + install deps automatically via
+  the **SessionStart hook** (`.claude/hooks/session-start.sh`, registered in
+  `.claude/settings.json`); **on your own machine run `git config core.hooksPath
+  .githooks` once** to enable it locally. CI (`ci.yml`) still runs the full builds on
+  PRs into `main` / pushes to `main`+`staging` as the hard gate.
 
 ## Architecture map (mobile broadsheet)
 

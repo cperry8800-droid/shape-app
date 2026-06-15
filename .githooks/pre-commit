@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Tracked pre-commit hook. Activate locally with:  git config core.hooksPath .githooks
+# (Web sessions re-arm this automatically via .claude/hooks/session-start.sh.)
+exec "$(git rev-parse --show-toplevel)/scripts/verify-staged.sh"
