@@ -300,29 +300,42 @@ function stravaActivityRow(activity: StravaActivity, userId: string) {
   };
 }
 
-// HR over time for the activity's detail-page trace. Strava's streams API
-// returns one HR sample per second; downsample to ~40 points for the sparkline.
-async function fetchHrStream(accessToken: string, activityId: number): Promise<number[] | null> {
+// Downsample a per-second stream to ~N points for the detail-page sparklines.
+function downsampleStream(arr: number[], N = 40, scale = 1): number[] | null {
+  if (!Array.isArray(arr) || arr.length < 4) return null;
+  if (arr.length <= N) return arr.map((v) => Math.round(v * scale));
+  const out: number[] = [];
+  const step = arr.length / N;
+  for (let i = 0; i < N; i++) {
+    const start = Math.floor(i * step);
+    const end = Math.max(Math.floor((i + 1) * step), start + 1);
+    const slice = arr.slice(start, end);
+    out.push(Math.round((slice.reduce((s, v) => s + v, 0) / slice.length) * scale));
+  }
+  return out;
+}
+
+// HR / cadence / altitude over time for the detail-page graphs — ONE streams
+// call (Strava allows multiple keys). Cadence → spm for foot sports; altitude
+// → feet so the elevation profile's labels read in the same unit as the gain.
+async function fetchStreams(
+  accessToken: string,
+  activityId: number,
+  isRide: boolean
+): Promise<{ hr: number[] | null; cadence: number[] | null; elev: number[] | null }> {
   try {
-    const data = await stravaGet<{ heartrate?: { data?: number[] } }>(
-      accessToken,
-      `/activities/${activityId}/streams?keys=heartrate&key_by_type=true`
-    );
-    const hr = data?.heartrate?.data;
-    if (!Array.isArray(hr) || hr.length < 4) return null;
-    const N = 40;
-    if (hr.length <= N) return hr.map((v) => Math.round(v));
-    const out: number[] = [];
-    const step = hr.length / N;
-    for (let i = 0; i < N; i++) {
-      const start = Math.floor(i * step);
-      const end = Math.max(Math.floor((i + 1) * step), start + 1);
-      const slice = hr.slice(start, end);
-      out.push(Math.round(slice.reduce((s, v) => s + v, 0) / slice.length));
-    }
-    return out;
+    const data = await stravaGet<{
+      heartrate?: { data?: number[] };
+      cadence?: { data?: number[] };
+      altitude?: { data?: number[] };
+    }>(accessToken, `/activities/${activityId}/streams?keys=heartrate,cadence,altitude&key_by_type=true`);
+    return {
+      hr: downsampleStream(data?.heartrate?.data ?? [], 40),
+      cadence: downsampleStream(data?.cadence?.data ?? [], 40, isRide ? 1 : 2),
+      elev: downsampleStream(data?.altitude?.data ?? [], 40, 3.28084),
+    };
   } catch {
-    return null;
+    return { hr: null, cadence: null, elev: null };
   }
 }
 
@@ -362,11 +375,20 @@ async function importStravaActivities(
     }
 
     const payload = activityPostPayload(activity, userId, profile, fallbackName);
-    // Real HR trace for the detail-page sparkline — new posts with HR only.
-    if (!existing?.id && typeof activity.average_heartrate === 'number' && streamsFetched < STREAM_CAP) {
+    // Real HR / cadence / elevation traces for the detail-page graphs — new posts
+    // only (existing posts already have theirs), in one streams call per activity.
+    const hasStreamSignal = typeof activity.average_heartrate === 'number'
+      || typeof activity.average_cadence === 'number'
+      || (typeof activity.total_elevation_gain === 'number' && activity.total_elevation_gain > 0);
+    if (!existing?.id && hasStreamSignal && streamsFetched < STREAM_CAP) {
       streamsFetched += 1;
-      const hrTrace = await fetchHrStream(accessToken, activity.id);
-      if (hrTrace) (payload.metrics as Record<string, unknown>).hrTrace = hrTrace;
+      const sport = (activity.sport_type || activity.type || '').toLowerCase();
+      const isRide = /ride|bike|cycl|ebike|handcycle/.test(sport);
+      const { hr, cadence, elev } = await fetchStreams(accessToken, activity.id, isRide);
+      const m = payload.metrics as Record<string, unknown>;
+      if (hr) m.hrTrace = hr;
+      if (cadence) m.cadenceTrace = cadence;
+      if (elev) m.elevTrace = elev;
     }
 
     const result = existing?.id
