@@ -16518,6 +16518,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showTerms, setShowTerms] = useStateBSC(false);
   const [showHelp, setShowHelp] = useStateBSC(false);
   const [showPrivacy, setShowPrivacy] = useStateBSC(false);
+  const [showDataCompliance, setShowDataCompliance] = useStateBSC(false);
   const [showAbout, setShowAbout] = useStateBSC(initialPage === 'about-shape');
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
@@ -17049,6 +17050,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showPrivacy) {
     return <BSPrivacyPage onBack={() => setShowPrivacy(false)} onContact={() => { setShowPrivacy(false); setShowContact(true); }} />;
   }
+  if (showDataCompliance) {
+    return <BSDataCompliancePage onBack={() => setShowDataCompliance(false)} onContact={() => { setShowDataCompliance(false); setShowContact(true); }} />;
+  }
   if (showAbout) {
     return <BSAboutPage onBack={() => setShowAbout(false)} />;
   }
@@ -17223,6 +17227,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Contact support', r: '24h reply', action: () => setShowContact(true) },
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
+        { l: 'Data & compliance', r: 'Legal', action: () => setShowDataCompliance(true) },
       ],
     },
     { title: 'Nutrition', meta: '', rows: nutritionRows },
@@ -18749,7 +18754,7 @@ function BSTermsPage({ onBack, onContact }) {
     ['05', 'Content & conduct', 'Users keep ownership of uploaded content, but must avoid false claims, harassment, infringement, scraping, malware, impersonation, and unlawful activity.'],
     ['06', 'Shape Score & rewards', 'Points can be earned through qualifying activity and redeemed in Shape Store. Points are not cash, are not transferable, and may be adjusted for abuse.'],
     ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to christopher.perry@theshapecommunity.com.'],
-    ['08', 'Health disclaimer', 'Shape is not medical care. Training, nutrition, and coach guidance are informational and should not replace licensed medical advice.'],
+    ['08', 'Health disclaimer', 'Shape is not medical care; training, nutrition, and coach guidance are informational and don\'t replace licensed medical advice. Health/screening info you enter (PAR-Q, injuries, medications) helps your coach work with you safely and is shared only with your linked coach(es); see the Privacy Policy and Data & Compliance page for how it\'s stored and protected.'],
     ['09', 'Liability', 'Shape limits liability to the extent allowed by law. Some jurisdictions may provide rights that cannot be waived.'],
     ['10', 'Disputes', 'The terms include informal dispute resolution, arbitration, class-action waiver language, and Delaware governing law.'],
     ['11', 'Termination', 'Accounts may be closed by the user or removed by Shape for serious violations, fraud, safety issues, or breach of platform rules.'],
@@ -18767,7 +18772,7 @@ function BSTermsPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - May 21, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
         </div>
@@ -18833,14 +18838,15 @@ function BSPrivacyPage({ onBack, onContact }) {
   const t = useBS();
   const sections = [
     ['01', 'What we collect', 'Account details (name, email), your profile and goals, the workouts, meals, and habits you log, messages with your coach, payment info processed by Stripe, and basic device/usage data.'],
-    ['02', 'How we use it', 'To run your account, deliver coaching, personalize your plans and Shape Score, process payments, keep the platform safe, and improve the product.'],
-    ['03', 'Wearables & integrations', 'If you connect Strava, Whoop, Oura, Garmin, Apple Health, or Spotify, we access only what those scopes allow — to show your activity, recovery, and music. Disconnect any time in Settings.'],
-    ['04', 'Sharing', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. We do not sell your personal data.'],
-    ['05', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
-    ['06', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
-    ['07', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
-    ['08', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
-    ['09', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
+    ['02', 'Health & medical data', 'Coaching involves sensitive health info: your PAR-Q screening, injuries, medications, emergency contact, body measurements, progress photos, weigh-ins, weekly check-ins, and wearable recovery data (HR, HRV, sleep). We treat it as sensitive — per-user row-level access and private signed-URL storage for photos/voice. Only you and your linked coach(es) see it; your safety screening is shared so a coach can work with you safely. Shape is a fitness platform, not a healthcare provider — this is consumer health data, not HIPAA PHI — but we still protect it. View, export, or delete it any time in Settings.'],
+    ['03', 'How we use it', 'To run your account, deliver coaching, personalize your plans and Shape Score, process payments, keep the platform safe, and improve the product.'],
+    ['04', 'Wearables & integrations', 'If you connect Strava, Whoop, Oura, Garmin, Apple Health, or Spotify, we access only what those scopes allow — to show your activity, recovery, and music. Disconnect any time in Settings.'],
+    ['05', 'Sharing', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. We do not sell your personal data.'],
+    ['06', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
+    ['07', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
+    ['08', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
+    ['09', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
+    ['10', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
   ];
 
   return (
@@ -18854,7 +18860,7 @@ function BSPrivacyPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - May 21, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           How Shape collects, uses, and protects your data — across training, nutrition, recovery, payments, and the coaches you work with.
         </div>
@@ -18885,6 +18891,65 @@ function BSPrivacyPage({ onBack, onContact }) {
       </div>
 
       <BSFooter right="Privacy" />
+    </BSPage>
+  );
+}
+
+function BSDataCompliancePage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Where your data lives', 'Shape runs on Supabase (managed Postgres database, authentication, and file storage) hosted in the United States. Files like progress photos and voice notes are kept in private storage buckets, served only through short-lived signed URLs.'],
+    ['02', 'Subprocessors', 'Supabase (database, auth, storage), Stripe (payments/payouts), Vercel (hosting), Cloudflare (DNS/network), Resend (email), OpenAI (the in-app "Nora" assistant — only your support questions, never health records), and the wearable/audio providers you connect (Strava, Garmin, Whoop, Apple Health, Oura, Spotify). Each is bound by contract to use data only to provide its service to Shape.'],
+    ['03', 'Security measures', 'TLS 1.2+ in transit; encryption at rest; per-user row-level security so only you and your linked coach reach your data; private, signed-URL storage for sensitive files; API rate limiting and request validation; integration tokens stored server-side, never in the app bundle; least-privilege keys; automated dependency audits and code review on every change.'],
+    ['04', 'Health & sensitive data', 'Health info you enter is consumer health data, not HIPAA PHI, and we treat it as sensitive. It is share-gated to the coach(es) you choose; your safety screening is shared so a coach can work with you safely. See the Privacy Policy\'s Health & medical data section for detail.'],
+    ['05', 'Your rights & requests', 'Access, export, correct, or delete your data from Settings or by email; we verify identity and respond within 30 days. We honor GDPR (EEA/UK) and CCPA/CPRA (California) rights. We do not sell personal data, and we do not use your health or fitness data for advertising or to train ML models. Email christopher.perry@theshapecommunity.com.'],
+    ['06', 'Coaches & data responsibility', 'Trainers and nutritionists are independent professionals. When coaching you they receive only the data needed and agree to keep it confidential, use it solely to coach you, and meet their own legal obligations. Shape provides the security tooling; coaches are responsible for their own conduct and compliance.'],
+    ['07', 'Breach response', 'If a breach affects your personal data, we notify you and any regulator required by law, typically within 72 hours of discovery.'],
+    ['08', 'Contact', 'christopher.perry@theshapecommunity.com for any data, security, or compliance question — same address for security reports.'],
+  ];
+
+  return (
+    <BSPage>
+      <BSDetailHeader
+        onBack={onBack}
+        eyebrow="Legal"
+        kicker="Data & compliance"
+        title={<>Data &amp;<br/>compliance.</>}
+        trailing={<BSAvatar init="D" size={36} fill={t.INK} ink={t.PAPER} />}
+      />
+
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+          Where your Shape data lives, who processes it, how we secure it, and how we handle privacy & compliance.
+        </div>
+      </div>
+
+      <BSSection title="Summary" meta="At a glance" />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        {sections.map(([num, title, body], i, arr) => (
+          <div key={num} style={{
+            display: 'grid',
+            gridTemplateColumns: '34px 1fr',
+            gap: 12,
+            padding: `${t.rowY + 7}px 0`,
+            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+          }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+        <button onClick={() => { window.location.href = 'https://www.theshapecommunity.com/data-compliance.html'; }} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Open full</button>
+        {onContact && <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Contact support</button>}
+      </div>
+
+      <BSFooter right="Data" />
     </BSPage>
   );
 }
