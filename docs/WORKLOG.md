@@ -74,6 +74,17 @@ changelog whenever something ships.
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)`) green before a
   merge (GitHub → Settings → Branches; once on, merging on red is impossible).
   Docs/config-only commits may skip layer 1.
+- **CI checks on every PR (current set).** What runs on a PR into `main`:
+  - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
+    build)** and **Mobile (build + public/m sync)**. These two are the
+    **required** checks for branch protection on `main`.
+  - **`android-build.yml`** (only when `mobile-app/**` changes) — **Build debug
+    APK** (debug-signed, no secrets). A **release APK** job is opt-in and runs
+    only once the `ANDROID_KEYSTORE_*` repo secrets are added.
+  - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
+    reports `neutral`) + Preview Comments.
+  - **CodeRabbit** — assertive AI review (`.coderabbit.yaml`); comments on every
+    PR but is advisory, not a blocking status check.
 - **Test branch = `staging`** (long-lived, Vercel preview). Pushing any commit to
   `staging` auto-deploys to the stable preview URL
   **https://shape-app-git-staging-cperry8800-droids-projects.vercel.app** — production
@@ -127,6 +138,41 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-15 — Fix: coach Today "Needs you today" matches by client id / name (review follow-up)
+- Addressed the code-review finding (below) immediately: `BSProTriageFeed` no
+  longer decides "has a session today" by a raw title substring. The live
+  schedule builders now thread the event's **client identity** (`ev.with` →
+  `client`, `ev.clientId`) onto each schedule row, and `onSchedule(c)` matches by
+  **clientId** (live session events) or a **word-set name** match (covers the
+  demo title + the live `with` field; "Drew" no longer matches "Andrew Park").
+  So the "session/due item today" branch now works on LIVE accounts, not just
+  demo. Mobile build + `public/m` resynced; 104 tests green; layer-1 review clean.
+
+### 2026-06-15 — Code review (step 1) of coach-Today / client-profile changes + Vercel Agent Review note
+- Ran the **`/code-review` skill (layer 1)** on this session's shipped mobile
+  diff (commits `8d02b6f1`→`30dfe69c`: coach Today triage scoping + client
+  Terrain facet-avatar size 44→64 + matched tier pills) — finder angles + one
+  independent reviewer pass. Findings:
+  - **(follow-up) `BSProTriageFeed` `onSchedule` is a substring match**
+    (`subjects.some(s => s.includes(name))`): (a) false-positive on substring
+    name collisions (e.g. "Drew" ⊂ "Andrew Park"); (b) on LIVE accounts calendar
+    titles are session names (or the `'Consult'` fallback), not client names, so
+    the "session/due item today" branch rarely fires and live "Needs you today"
+    collapses to RED-only. Demo works (titles are client names). Graceful (red
+    always shows; matches the existing best-effort live-wiring pattern) — not a
+    crash. Fix later: match on the event's client id/field (or word-boundary
+    name). Logged under "Known stubs / next".
+  - Cosmetic / pre-existing (no action): the hero "%" badge vs `curLevel` pill
+    can overlap at very low progress — PRE-EXISTING (the avatar bottom stayed at
+    `here.y - 10`; only the top moved up with the size bump, and the top at max
+    progress lands at `0` with no clipping); the `moreOnRoster` "+N more on your
+    roster" phrasing is intentionally loose; the `SEVCOL.red` literal is pre-existing.
+- **Vercel Agent Review:** confirmed it RUNS on every PR (it is NOT skipped) —
+  it posts a **`neutral`** conclusion, i.e. advisory (like CodeRabbit), not a
+  blocking status check. Making it *required* in branch protection would block
+  merges (a `neutral` result doesn't count as `success`), so keep it advisory.
+  It's a Vercel-side setting — not configurable from the repo.
+
 ### 2026-06-15 — Review stack: /code-review + CodeRabbit + required checks
 - Three review layers now gate non-trivial changes (documented under "How we
   work"): **(1)** the `/code-review` skill run on the diff before merge;
@@ -140,6 +186,10 @@ changelog whenever something ships.
   add repo), and enable **branch protection** (Settings → Branches → rule on
   `main`) requiring "Require a PR before merging" + the two CI status checks.
   Until both are done, CodeRabbit won't comment and red checks won't block.
+- **Now live:** CodeRabbit App installed + reviewing PRs (profile **assertive**
+  in `.coderabbit.yaml` — repo config overrides the dashboard; it reviewed
+  PR #1290). The full per-PR check set is documented under "How we work →
+  CI checks on every PR". Branch protection (required Web + Mobile) still pending.
 
 ### 2026-06-15 — Input hardening: reject oversized/malformed payloads + size guard
 - **Centralized request-size guard in the proxy** (`src/lib/supabase/
