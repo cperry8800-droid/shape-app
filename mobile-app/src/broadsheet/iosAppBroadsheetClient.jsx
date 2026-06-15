@@ -9677,8 +9677,10 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
-      {/* header */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(12px + env(safe-area-inset-top,0px)) 14px 11px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.16)}` }}>
+      {/* header — top hairline rule (the masthead top border the other pages
+          have) at the safe-area top, plus the bottom separator. */}
+      <div style={{ flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(12px + env(safe-area-inset-top,0px)) 14px 11px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.16)}` }}>
+        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 'env(safe-area-inset-top, 0px)', height: 1, background: bsTHexA(t.INK, 0.5) }} />
         <button onClick={onClose} aria-label="Back" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 17, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? 'Comments' : 'Session details'}</div>
         <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 7px', borderRadius: 4 }}>{d.typeLabel}</span>
@@ -10818,11 +10820,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     <BSPage>
       {/* Tab-aware masthead — "CHAT" eyebrow + serif title that follows the
           active tab (Community / Channels / Friends / Your team). */}
-      <div style={{ padding: `44px ${t.padX}px 0`, position: 'relative' }}>
-        {/* Top hairline rule — same masthead top border as the other pages
-            (BSMasthead draws this; the feed had it suppressed). */}
-        <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 44, height: 1, background: bsTHexA(t.INK, 0.5) }} />
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, paddingTop: 9 }}>
+      <div style={{ padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
