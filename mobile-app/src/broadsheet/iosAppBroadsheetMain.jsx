@@ -982,7 +982,7 @@ function BSPreviewBanner({ t, onJoin }) {
     <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Preview · demo data</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>These numbers are an example of a live account — not real tracking.</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>These numbers are an example of a live account — not real tracking. Switch profile type in Settings.</div>
       </div>
       <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>$5/mo →</button>
       <button onClick={() => setDismissed(true)} aria-label="Dismiss" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
