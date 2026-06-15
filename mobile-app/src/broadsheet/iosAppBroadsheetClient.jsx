@@ -10503,7 +10503,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (
-      <div style={{ borderRadius: 15, border: `1px solid ${hair}`, background: card, overflow: 'hidden' }}>
+      <div style={{ background: card, overflow: 'hidden', borderTop: `1px solid ${hair}`, borderBottom: `1px solid ${hair}` }}>
         <div style={{ height: 2, background: tc }} />
         <div style={{ padding: '10px 13px 11px' }}>
           {/* author + activity type */}
@@ -11036,7 +11036,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           </div>
 
           {filter === 'COMMUNITY' ? (
-            <div style={{ padding: `14px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '14px 0 84px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Community feed is a Strava-style activity stream of real logged
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
