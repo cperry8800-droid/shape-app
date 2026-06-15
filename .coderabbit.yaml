@@ -4,7 +4,7 @@
 # GitHub App is installed on this repo (https://coderabbit.ai → add this repo).
 language: en-US
 reviews:
-  profile: chill                 # fewer nitpicks; "assertive" for stricter reviews
+  profile: assertive             # stricter reviews (more findings); "chill" for fewer
   request_changes_workflow: false
   high_level_summary: true
   review_status: true

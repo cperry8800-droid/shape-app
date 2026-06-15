@@ -131,7 +131,7 @@ changelog whenever something ships.
 - Three review layers now gate non-trivial changes (documented under "How we
   work"): **(1)** the `/code-review` skill run on the diff before merge;
   **(2)** **CodeRabbit** auto-review on every PR into `main`/`staging` — config
-  added in **`.coderabbit.yaml`** (chill profile; skips the generated `public/m`
+  added in **`.coderabbit.yaml`** (assertive profile; skips the generated `public/m`
   bundle + lockfiles; path-instructions for `mobile-app/src/broadsheet`,
   `public/newdesign`, and `src/app/api`); **(3)** **required status checks** on
   `main` (Web + Mobile must be green to merge).
