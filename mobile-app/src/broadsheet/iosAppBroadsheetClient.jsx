@@ -11397,7 +11397,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked placeholder="Message the Shape team…" />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice placeholder="Message the Shape team…" />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -11505,11 +11505,74 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
   const TEALB = t.isLight ? '#0a8f87' : '#34d6c5';
+
+  // ── Voice input (push-to-talk) — only when `voice` (Nora's support composer). ──
+  // Produces text into THIS composer's onChange → the SAME onSend, so speaking a
+  // question yields the same answer as typing. Web Speech API is the fast path
+  // (the /m/ web build); MediaRecorder → /api/ai/transcribe (keys server-side) is
+  // the fallback for the native WebView. Graceful fallback to typing on any error.
+  const SpeechRec = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const voiceOk = voice && (!!SpeechRec || (typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== 'undefined' && !!window.MediaRecorder));
+  const [voiceState, setVoiceState] = useStateBSC('idle'); // idle | listening | transcribing
+  const [voiceErr, setVoiceErr] = useStateBSC(null);
+  const recogRef = React.useRef(null);
+  const recRef = React.useRef(null);
+  const stopVoice = () => {
+    try { if (recogRef.current) recogRef.current.stop(); } catch (e) {}
+    try { if (recRef.current && recRef.current.state === 'recording') recRef.current.stop(); } catch (e) {}
+  };
+  const startWebSpeech = () => {
+    try {
+      const rec = new SpeechRec();
+      rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+      let finalText = '';
+      rec.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) finalText += r[0].transcript; else interim += r[0].transcript; }
+        onChange((finalText + ' ' + interim).replace(/\s+/g, ' ').trim());
+      };
+      rec.onerror = (e) => { setVoiceState('idle'); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setVoiceErr('Mic blocked — allow access or type.'); else if (e.error === 'no-speech') setVoiceErr("Didn't catch that — try again, or type."); else setVoiceErr('Voice hiccuped — type instead.'); };
+      rec.onend = () => setVoiceState((s) => (s === 'listening' ? 'idle' : s));
+      recogRef.current = rec; setVoiceErr(null); setVoiceState('listening'); rec.start();
+    } catch (e) { setVoiceState('idle'); setVoiceErr('Voice unavailable — type instead.'); }
+  };
+  const startServerVoice = async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window === 'undefined' || !window.MediaRecorder) { setVoiceErr("Voice isn't supported here — type instead."); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { setVoiceErr('Mic blocked — allow access or type.'); return; }
+    try {
+      const mr = new window.MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = async () => {
+        try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        setVoiceState('transcribing');
+        try {
+          const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+          const fd = new FormData(); fd.append('audio', blob, 'nora.webm');
+          const res = await fetch('/api/ai/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data && data.transcript) { onChange(data.transcript); setVoiceErr(null); }
+          else if (res.status === 401 || res.status === 402) setVoiceErr('Sign in to use voice — or type your question.');
+          else setVoiceErr("Couldn't transcribe — type instead.");
+        } catch (e) { setVoiceErr("Couldn't transcribe — type instead."); }
+        setVoiceState('idle');
+      };
+      recRef.current = mr; setVoiceErr(null); setVoiceState('listening'); mr.start();
+    } catch (e) { setVoiceState('idle'); setVoiceErr('Voice unavailable — type instead.'); }
+  };
+  const toggleVoice = () => {
+    if (voiceState === 'transcribing') return;
+    if (voiceState === 'listening') { stopVoice(); return; }
+    setVoiceErr(null);
+    if (SpeechRec) startWebSpeech(); else startServerVoice();
+  };
+  React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
   // lives inside the phone-frame container (next to the tab bar). The slot is
@@ -11631,7 +11694,28 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
     }}>@</button>
   ) : null;
-  const leftBtns = (photoBtn || tagBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}</div> : null;
+  // Mic (push-to-talk) — only on Nora's support composer; reuses the left-button style.
+  const micBtn = voiceOk ? (
+    <button onClick={toggleVoice} aria-label={voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora'} title={voiceState === 'listening' ? 'Stop' : 'Speak to Nora'} style={{
+      flexShrink: 0, width: 33, height: 34, borderRadius: 17,
+      border: `1px solid ${voiceState === 'listening' ? t.RUST : t.SURFACE_BORDER}`,
+      background: voiceState === 'listening' ? `${t.RUST}1f` : (pinned ? t.SURFACE : t.PAPER),
+      color: voiceState === 'listening' ? t.RUST : (voiceState === 'transcribing' ? t.INK50 : t.INK),
+      cursor: voiceState === 'transcribing' ? 'default' : 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end',
+    }}>
+      {voiceState === 'transcribing'
+        ? <span style={{ width: 14, height: 14, border: `2px solid ${t.INK50}`, borderTopColor: 'transparent', borderRadius: 999, display: 'inline-block', animation: 'bsspin 0.7s linear infinite' }} />
+        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="9" y1="22" x2="15" y2="22" /></svg>}
+    </button>
+  ) : null;
+  const leftBtns = (photoBtn || tagBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{micBtn}</div> : null;
+  // Listening / transcribing / error status line above the field.
+  const voiceStatus = (voice && (voiceState !== 'idle' || voiceErr)) ? (
+    <div style={{ padding: '0 2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: voiceErr ? t.AMBER : (voiceState === 'listening' ? t.RUST : t.INK50) }}>
+      {voiceState === 'listening' ? '● Listening… tap the mic to stop' : voiceState === 'transcribing' ? 'Transcribing…' : (voiceErr || '')}
+    </div>
+  ) : null;
   const tagChips = (onTag && tags && tags.length) ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
       {tags.map((x) => <button key={x.id || x.name} onClick={() => onRemoveTag && onRemoveTag(x.id || x.name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, border: `1px solid ${TEALB}`, background: `${TEALB}1f`, color: t.INK, padding: '4px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, cursor: 'pointer' }}>@{x.name} ✕</button>)}
@@ -11656,6 +11740,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         padding: `10px ${t.padX}px`,
         boxShadow: `0 -10px 26px ${t.isLight ? 'rgba(15,14,12,0.10)' : 'rgba(0,0,0,0.34)'}`,
       }}>
+        {voiceStatus}
         {body}
       </div>
     );
@@ -11668,6 +11753,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       margin: `0 ${t.padX}px 16px`,
       filter: `drop-shadow(0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'})`,
     }}>
+      {voiceStatus}
       {body}
     </div>
   );
