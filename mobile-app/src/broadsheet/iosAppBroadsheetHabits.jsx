@@ -254,6 +254,7 @@ function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd
 function BSHabitScoreCard({ habits, onOpenScore }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const week = _bsHabitInsightStats(habits); // this week's Shape Score from habits + adherence
   const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
   const possible = habits.reduce((s, h) => s + _bsHabitPts(h), 0);
   const pct = possible ? Math.round((earned / possible) * 100) : 0;
@@ -300,31 +301,22 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
           </div>
         ))}
       </div>
+      {/* This week — Shape Score earned from habits + adherence */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
+        <div>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>This week · from habits</div>
+          <div style={{ marginTop: 4, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: teal, letterSpacing: '-0.03em', lineHeight: 1 }}>+{week.score}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>to Shape Score</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{week.adherence}%</span>
+          <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Adherence</div>
+        </div>
+      </div>
       <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Tap to see your Shape Score →</div>
     </BSPlate>
-  );
-}
-
-// Weekly habits → Shape Score + adherence (this week). Outlined teal card so it
-// reads distinct from the solid "Earned today" plate above it.
-function BSHabitWeeklyStat({ habits }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const model = _bsHabitGridModel(habits);
-  if (!model.rows.length) return null; // nothing to summarize yet (signed-in, no habits)
-  const s = _bsHabitInsightStats(habits);
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '15px 18px', borderRadius: 12, border: `1px solid ${teal}55`, background: t.isLight ? `${teal}0c` : `${teal}12` }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Shape Score · From habits</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.04em', color: teal, lineHeight: 0.9 }}>+{s.score}</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK, opacity: 0.72, letterSpacing: '-0.01em' }}>Earned from habits this week.</div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.adherence}%</div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Adherence</div>
-      </div>
-    </div>
   );
 }
 
@@ -583,9 +575,6 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
-      </div>
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <BSHabitWeeklyStat habits={habits} />
       </div>
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitGrid habits={habits} />
