@@ -11,8 +11,8 @@ const PRODUCTS = [
   // Shape Merch
   { id: 1, cat: "Shape Merch", name: "Shape Training Tee", brand: "Shape Merch", cost: 450, retail: 48, img: "tee · midnight", tag: "New", stock: "In stock" },
   { id: 2, cat: "Shape Merch", name: "Shape Crewneck", brand: "Shape Merch", cost: 720, retail: 72, img: "crewneck · bone", tag: "Members", stock: "In stock" },
-  { id: 17, cat: "Shape Merch", name: "Shape Cap", brand: "Shape Merch", cost: 720, retail: 36, img: "cap · midnight", tag: "New", stock: "In stock" },
-  { id: 18, cat: "Shape Merch", name: "Shape Beanie", brand: "Shape Merch", cost: 680, retail: 34, img: "beanie · charcoal", stock: "In stock" },
+  { id: 17, cat: "Shape Merch", name: "Shape Cap", brand: "Shape Merch", cost: 720, retail: 36, img: "cap · midnight", tag: "Limited drop", stock: "Limited · 30" },
+  { id: 18, cat: "Shape Merch", name: "Shape Beanie", brand: "Shape Merch", cost: 680, retail: 34, img: "beanie · charcoal", tag: "Limited drop", stock: "Limited · 30" },
   { id: 3, cat: "Shape Merch", name: "Shape Training Bottle", brand: "Shape Merch", cost: 280, retail: 28, img: "bottle · steel", stock: "In stock" },
   { id: 4, cat: "Shape Merch", name: "Shape Gym Towel", brand: "Shape Merch", cost: 220, retail: 22, img: "towel · cream", stock: "In stock" },
   { id: 5, cat: "Shape Merch", name: "Shape Training Duffel", brand: "Shape Merch", cost: 1640, retail: 165, img: "duffel · canvas", tag: "Peak tier", stock: "In stock", locked: true },
