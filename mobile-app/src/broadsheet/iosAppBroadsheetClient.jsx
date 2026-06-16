@@ -4482,6 +4482,21 @@ function bsGroceryAisleFor(name) {
   return 'Other';
 }
 
+// Builder-specific aisle guesser — covers the custom builder's full pill set
+// (adds Frozen / Bakery / Household over the plan classifier) so a typed item is
+// auto-sorted into one of the seven aisles without the user having to pick.
+const BS_BUILDER_AISLE_RE = [
+  ['Frozen', /frozen|ice cream|popsicle|sorbet|edamame|frozen (?:berr|veg|pea|fruit|fries)/i],
+  ['Bakery', /bagel|baguette|croissant|muffin|pita|\bbun\b|\broll(s)?\b|loaf|brioche|sourdough|ciabatta|cake|pastry|donut|doughnut|cookie|scone/i],
+  ['Household', /paper towel|toilet|tissue|napkin|dish ?soap|deterg|cleaner|trash bag|tin ?foil|aluminum foil|sponge|laundry|bleach|battery|batteries|toothpaste|shampoo|soap|ziploc|cling film/i],
+];
+function bsBuilderAisleFor(name) {
+  const n = String(name || '').toLowerCase();
+  for (const [al, re] of BS_BUILDER_AISLE_RE) if (re.test(n)) return al;
+  const a = bsGroceryAisleFor(name);
+  return a === 'Other' ? 'Pantry' : a;
+}
+
 // Roll the whole week's meal ingredients into one aisle-grouped grocery list,
 // deduped by ingredient name. This makes the shop list literally the meals'
 // ingredients, so the two always match up (no separate hardcoded list to drift).
@@ -15888,7 +15903,9 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
   const [iName, setIName] = useStateBSC('');
   const [iQty, setIQty] = useStateBSC('');
   const [iAisle, setIAisle] = useStateBSC('Produce');
-  const addItem = () => { const n = iName.trim(); if (!n) return; setItems(a => [...a, { n, q: iQty.trim() || '1', aisle: iAisle }]); setIName(''); setIQty(''); };
+  const [aisleTouched, setAisleTouched] = useStateBSC(false); // user override of the auto-sort
+  const onNameChange = (v) => { setIName(v); if (!aisleTouched) setIAisle(v.trim() ? bsBuilderAisleFor(v) : 'Produce'); };
+  const addItem = () => { const n = iName.trim(); if (!n) return; setItems(a => [...a, { n, q: iQty.trim() || '1', aisle: iAisle }]); setIName(''); setIQty(''); setIAisle('Produce'); setAisleTouched(false); };
   const removeItem = (idx) => setItems(a => a.filter((_, j) => j !== idx));
   const create = () => {
     const nm = name.trim() || 'New list';
@@ -15916,12 +15933,15 @@ function BSGroceryBuilder({ onCancel, onCreate }) {
         <div style={{ marginTop: 22, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>ADD AN ITEM</div>
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 72px', gap: 12, alignItems: 'end' }}>
-            <input value={iName} onChange={(e) => setIName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={line} />
+            <input value={iName} onChange={(e) => onNameChange(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Item" style={line} />
             <input value={iQty} onChange={(e) => setIQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder="Qty" style={{ ...line, fontFamily: t.MONO, fontSize: 13, textAlign: 'right' }} />
           </div>
-          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>AISLE</div>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 9 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50 }}>AISLE</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: aisleTouched ? t.INK50 : rust }}>{iName.trim() ? (aisleTouched ? '· custom' : '· auto-sorted — tap to change') : ''}</span>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {AISLES.map(al => { const on = iAisle === al; return <button key={al} onClick={() => setIAisle(al)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{al}</button>; })}
+            {AISLES.map(al => { const on = iAisle === al; return <button key={al} onClick={() => { setIAisle(al); setAisleTouched(true); }} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{al}</button>; })}
           </div>
           <button onClick={addItem} disabled={!iName.trim()} style={{ width: '100%', marginTop: 16, borderRadius: 12, border: `1px solid ${rust}`, background: iName.trim() ? `${rust}1c` : 'transparent', color: rust, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: iName.trim() ? 'pointer' : 'default', opacity: iName.trim() ? 1 : 0.55 }}>+ Add to list</button>
         </div>
@@ -16198,7 +16218,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         return (
           <div style={{ padding: `12px ${t.padX}px 0` }}>
             <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${bsTHexA(src.c, 0.35)}`, borderLeft: `3px solid ${src.c}`, background: `${src.c}0d`, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: src.c, background: `${src.c}1a`, border: `1px solid ${src.c}66`, borderRadius: 4, padding: '4px 9px' }}>{src.label}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: src.c }}>{src.label}</span>
               <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name === "This week's plan" ? '' : list.name}</span>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: src.c, letterSpacing: '0.1em' }}>SWITCH ▾</span>
             </button>
