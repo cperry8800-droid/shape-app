@@ -405,6 +405,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
     <BSPage>
       <BSMasthead
         title={isNutri ? 'Client Review' : 'Workout Review'}
+        thinRule
+        showDoubleRule={false}
         leftKicker={isNutri ? 'Nutritionist queue' : 'Trainer queue'}
         rightKicker={status}
         trailing={<button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Back</button>}
