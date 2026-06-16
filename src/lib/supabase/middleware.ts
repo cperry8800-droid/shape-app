@@ -53,6 +53,7 @@ const LARGE_BODY_PREFIXES = [
   '/api/client/progress-photos',
   '/api/nutrition/meal-note',
   '/api/nutrition/voice',
+  '/api/ai/transcribe',
   '/api/integrations/garmin/webhook',
 ];
 

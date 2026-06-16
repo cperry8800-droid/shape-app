@@ -437,6 +437,92 @@ function ChatWidget(props) {
     }, 1200 + Math.random() * 900);
   };
 
+  // ── Voice input for Nora (push-to-talk) ───────────────────────────────────
+  // Voice is just an input METHOD: it produces text that lands in the SAME
+  // composer (`draft`) and goes through the SAME send() — so speaking a question
+  // yields the same answer as typing it. Web Speech API is the fast path; a
+  // server STT route (/api/ai/transcribe, keys server-side) is the fallback when
+  // it's unavailable; if neither works the user just types. The transcript is
+  // shown in the composer BEFORE she acts (the user reviews, then taps Send).
+  const SpeechRec = (typeof window !== "undefined") && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const voiceSupported = !!SpeechRec || (typeof navigator !== "undefined" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== "undefined" && !!window.MediaRecorder);
+  const [voiceState, setVoiceState] = React.useState("idle"); // idle | listening | transcribing
+  const [voiceErr, setVoiceErr] = React.useState(null);
+  const recogRef = React.useRef(null);
+  const recRef = React.useRef(null);
+
+  const stopVoice = () => {
+    try { if (recogRef.current) recogRef.current.stop(); } catch (e) {}
+    try { if (recRef.current && recRef.current.state === "recording") recRef.current.stop(); } catch (e) {}
+  };
+
+  const startWebSpeech = () => {
+    try {
+      const rec = new SpeechRec();
+      rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+      let finalText = "";
+      rec.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalText += r[0].transcript; else interim += r[0].transcript;
+        }
+        setDraft((finalText + " " + interim).replace(/\s+/g, " ").trim()); // show transcript live
+      };
+      rec.onerror = (e) => {
+        setVoiceState("idle");
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") setVoiceErr("Mic blocked — allow access or type instead.");
+        else if (e.error === "no-speech") setVoiceErr("Didn't catch that — try again, or type.");
+        else setVoiceErr("Voice hiccuped — type instead.");
+      };
+      rec.onend = () => setVoiceState((s) => (s === "listening" ? "idle" : s));
+      recogRef.current = rec;
+      setVoiceErr(null); setVoiceState("listening");
+      rec.start();
+    } catch (e) { setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead."); }
+  };
+
+  const startServerVoice = async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window === "undefined" || !window.MediaRecorder) {
+      setVoiceErr("Voice isn't supported in this browser — type instead."); return;
+    }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { setVoiceErr("Mic blocked — allow access or type instead."); return; }
+    try {
+      const mr = new window.MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = async () => {
+        try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        setVoiceState("transcribing");
+        try {
+          const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+          const fd = new FormData(); fd.append("audio", blob, "nora.webm");
+          const res = await fetch("/api/ai/transcribe", { method: "POST", credentials: "same-origin", body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data && data.transcript) { setDraft(data.transcript); setVoiceErr(null); }
+          else if (res.status === 401 || res.status === 402) setVoiceErr("Sign in to use voice — or type your question.");
+          else setVoiceErr("Couldn't transcribe that — type instead.");
+        } catch (e) { setVoiceErr("Couldn't transcribe that — type instead."); }
+        setVoiceState("idle");
+      };
+      recRef.current = mr;
+      setVoiceErr(null); setVoiceState("listening");
+      mr.start();
+    } catch (e) { setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead."); }
+  };
+
+  const toggleVoice = () => {
+    if (voiceState === "transcribing") return;
+    if (voiceState === "listening") { stopVoice(); return; }
+    setVoiceErr(null);
+    if (SpeechRec) startWebSpeech(); else startServerVoice();
+  };
+
+  // Stop any in-flight recognition when the widget unmounts.
+  React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Poll new messages for the active DB-backed thread while the widget is
   // open. Cheap (≤500 row GET keyed by `since=`); only the active thread
   // polls so background threads stay quiet.
@@ -1164,6 +1250,12 @@ function ChatWidget(props) {
                 <a href="/pricing" style={{ fontFamily: sans, fontSize: 12, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "8px 14px", textDecoration: "none", whiteSpace: "nowrap" }}>Join · $5/mo</a>
               </div>
             ) : (
+            <React.Fragment>
+            {isSupport && (voiceState !== "idle" || voiceErr) && (
+              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: voiceErr ? "#e0a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
+                {voiceState === "listening" ? "● Listening… tap the mic to stop" : voiceState === "transcribing" ? "Transcribing…" : voiceErr}
+              </div>
+            )}
             <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", gap: 8, alignItems: "flex-end" }}>
               <textarea
                 value={draft}
@@ -1178,6 +1270,19 @@ function ChatWidget(props) {
                   outline: "none", minHeight: 38, maxHeight: 100,
                 }}
               />
+              {isSupport && voiceSupported && (
+                <button onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
+                  style={{
+                    flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
+                    cursor: voiceState === "transcribing" ? "default" : "pointer",
+                    border: voiceState === "listening" ? "1px solid #e0463c" : "1px solid rgba(242,237,228,0.1)",
+                    background: voiceState === "listening" ? "rgba(224,70,60,0.16)" : "rgba(242,237,228,0.04)",
+                    color: voiceState === "listening" ? "#e0463c" : TEAL_BRIGHT,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                  {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
+                </button>
+              )}
               <button onClick={send} disabled={!draft.trim()}
                 style={{
                   background: draft.trim() ? TEAL : "rgba(242,237,228,0.08)",
@@ -1187,6 +1292,7 @@ function ChatWidget(props) {
                   cursor: draft.trim() ? "pointer" : "not-allowed",
                 }}>Send</button>
             </div>
+            </React.Fragment>
             )}
           </div>
           </div>
@@ -1207,6 +1313,17 @@ function ChatWidget(props) {
         </div>
       )}
     </React.Fragment>
+  );
+}
+
+function MicGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="9" y1="22" x2="15" y2="22" />
+    </svg>
   );
 }
 
