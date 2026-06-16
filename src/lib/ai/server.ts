@@ -10,6 +10,7 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { currentUser, clientForRequest } from '@/lib/request-auth';
 import { createRegistry, demoEchoAction } from '@/lib/ai/proposals.mjs';
+import { NORA_ACTIONS } from '@/lib/ai/actions.mjs';
 
 export type Actor = { user: User; role: string; supabase: SupabaseClient };
 
@@ -37,6 +38,8 @@ export function proposalSecret(): string {
 // reversible demo action exists so the scaffold is exercisable end to end.
 export const serverRegistry = createRegistry();
 serverRegistry.define(demoEchoAction.name, demoEchoAction);
+// Real action tools, registered in rollout order (TIER 1 → TIER 2).
+for (const a of NORA_ACTIONS) serverRegistry.define(a.name, a);
 
 /** Per-user key/value store backed by the caller's own user_goals rows. */
 export function userGoalsStore(supabase: SupabaseClient, userId: string) {
@@ -120,11 +123,27 @@ export function auditSink(supabase: SupabaseClient) {
   };
 }
 
-/** The execution context passed to actions (actor identity + the RLS store). */
-export function makeCtx(actor: Actor) {
+/** The execution context passed to actions (actor identity + the RLS store + an
+ * endpoint caller that forwards the actor's session). */
+export function makeCtx(actor: Actor, request?: Request) {
   return {
     actor: { id: actor.user.id, role: actor.role },
     store: userGoalsStore(actor.supabase, actor.user.id),
     supabase: actor.supabase,
+    // Call an existing same-origin /api/* endpoint CARRYING THE ACTOR'S SESSION,
+    // so the endpoint's own auth + RLS stay the authoritative gate (never
+    // service-role, never a bypass).
+    async call(method: string, path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+      if (!request) throw new Error('endpoint call has no request context');
+      const url = new URL(path, request.url);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const cookie = request.headers.get('cookie');
+      if (cookie) headers.cookie = cookie;
+      const auth = request.headers.get('authorization');
+      if (auth) headers.authorization = auth;
+      const res = await fetch(url, { method, headers, body: body != null ? JSON.stringify(body) : undefined });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      return { ok: res.ok, status: res.status, data };
+    },
   };
 }

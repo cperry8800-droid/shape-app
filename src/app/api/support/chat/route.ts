@@ -17,6 +17,8 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
+import { proposeChange } from '@/lib/ai/proposals.mjs';
+import { resolveActor, makeCtx, serverRegistry, proposalSecret } from '@/lib/ai/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,7 +32,11 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string };
 type SupportAction =
   | { type: 'coach'; label: string; role: CoachRole; slug: string; url: string; meta?: string }
   | { type: 'marketplace'; label: string; role?: CoachRole; url: string }
-  | { type: 'screen'; label: string; screen: string; url?: string };
+  | { type: 'screen'; label: string; screen: string; url?: string }
+  // A previewed, NOT-yet-applied change: the client renders the diff + a Confirm
+  // button that POSTs the token to /api/ai/proposals/confirm. Nothing happens
+  // until the human confirms.
+  | { type: 'proposal'; label: string; summary: string; diff: Array<{ label?: string; before?: unknown; after?: unknown }>; token: string; action: string };
 
 type OpenAIContentPart = { type?: string; text?: string };
 type OpenAIOutputItem = {
@@ -49,6 +55,8 @@ const SYSTEM_PROMPT = [
   'Be warm, concise (1-4 sentences), specific, and action-oriented — actually help, do not just describe where to look.',
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns.',
+  '',
+  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH to set/update one of their own clients' goals, call set_client_goal. These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value the user didn't give. If a tool returns an error message, relay it plainly.",
   '',
   'OTHER FIRST-LINE HELP: account & login, billing/subscription ($5/mo platform membership; coaches set their own coaching prices), connecting integrations (Spotify, Strava, Whoop, Oura, Garmin, Apple Health, Instacart), and using the Train/Eat/Habits/Score/Radio tabs, channels & chat.',
   'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you have flagged it for the Shape team and they will follow up here. Do not promise specific timelines.',
@@ -79,6 +87,52 @@ const TOOLS = [
     },
     strict: true,
   },
+  {
+    type: 'function',
+    name: 'log_meal',
+    description:
+      "Log a meal for the SIGNED-IN member onto today's nutrition. Use when they say they ate something (with calories/protein/carbs/fat) or want to log water. Pass only the values they gave — never invent numbers. This DRAFTS the change for the member to confirm; it is not applied until they approve.",
+    parameters: {
+      type: 'object',
+      properties: {
+        mealName: { type: 'string', description: "Short label, e.g. 'lunch', 'chicken bowl'." },
+        kcal: { type: 'number', description: 'Calories.' },
+        protein: { type: 'number', description: 'Protein in grams.' },
+        carbs: { type: 'number', description: 'Carbs in grams.' },
+        fat: { type: 'number', description: 'Fat in grams.' },
+        hydrationL: { type: 'number', description: 'Water in litres.' },
+      },
+      required: ['mealName'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'set_client_goal',
+    description:
+      "Set or update a goal for one of the COACH's own clients (coaches only). Use when a coach says e.g. 'set Priya's goal weight to 145 lb'. Always pass clientName; pass clientId only if you already have the client's id. DRAFTS the change for the coach to confirm. If you cannot identify the client, ask — do not guess.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the coach referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        goal: {
+          type: 'object',
+          properties: {
+            label: { type: 'string', description: "e.g. 'Goal weight', 'Bench 1RM'." },
+            target: { type: 'number', description: 'The target value.' },
+            unit: { type: 'string', description: "e.g. 'lb', 'kg', '%'." },
+            metric: { type: 'string' },
+            start: { type: 'number' },
+          },
+        },
+      },
+      required: ['clientName', 'goal'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
 
 function coachLine(c: Coach): string {
@@ -96,8 +150,16 @@ function actionForCoach(c: Coach): SupportAction {
   };
 }
 
+type ToolOut = { result: unknown; actions: SupportAction[] };
+type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOut>;
+
 // Runs a tool call; returns { result (for the model), actions (for the UI) }.
-function runTool(name: string, args: Record<string, unknown>): { result: unknown; actions: SupportAction[] } {
+// Read tools (recommend_coaches) run here; WRITE tools route through `propose`,
+// which drafts a confirm-required change via the AI1 scaffold (never executes).
+async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn): Promise<ToolOut> {
+  if (name === 'log_meal' || name === 'set_client_goal') {
+    return propose(name, args);
+  }
   if (name === 'recommend_coaches') {
     const role = (['trainer', 'nutritionist', 'any'].includes(String(args.role)) ? String(args.role) : 'any') as CoachRole | 'any';
     const focus = typeof args.focus === 'string' ? args.focus : '';
@@ -145,8 +207,44 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
   return '';
 }
 
+// Build the WRITE-tool executor for this request: drafts a confirm-required
+// change via the AI1 scaffold, carrying the ACTOR'S session (so the endpoint's
+// auth + RLS stay the gate). Nothing is applied — the client confirms the
+// returned token at /api/ai/proposals/confirm.
+async function makePropose(request: Request): Promise<ProposeFn> {
+  const actor = await resolveActor(request);
+  return async (name, args) => {
+    if (!actor) {
+      return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
+    }
+    const secret = proposalSecret();
+    if (!secret) return { result: { error: 'unavailable', message: 'Actions are not configured right now.' }, actions: [] };
+    const res = await proposeChange({
+      registry: serverRegistry,
+      action: name,
+      input: args,
+      actor: { id: actor.user.id, role: actor.role },
+      ctx: makeCtx(actor, request),
+      secret,
+    });
+    if (!res.ok) {
+      return { result: { error: res.error, message: (res as { message?: string }).message || null }, actions: [] };
+    }
+    const action: SupportAction = {
+      type: 'proposal',
+      label: 'Review & confirm',
+      summary: res.preview.summary,
+      diff: res.preview.diff,
+      token: res.token,
+      action: name,
+    };
+    return { result: { proposed: true, summary: res.preview.summary, requiresConfirm: true }, actions: [action] };
+  };
+}
+
 async function askOpenAI(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  propose: ProposeFn,
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
@@ -177,7 +275,7 @@ async function askOpenAI(
       } catch {
         parsed = {};
       }
-      const { result, actions: a } = runTool(String(call.name), parsed);
+      const { result, actions: a } = await runTool(String(call.name), parsed, propose);
       for (const act of a) actions.push(act);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
     }
@@ -223,7 +321,8 @@ export async function POST(request: Request) {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
 
-  const ai = await askOpenAI(messages).catch(() => null);
+  const propose = await makePropose(request);
+  const ai = await askOpenAI(messages, propose).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
   const fb = fallbackReply(String(lastUser.content || ''));

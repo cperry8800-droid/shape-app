@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests/dash-signals.test.mjs tests/dash-builder.test.mjs tests/dash-meals.test.mjs tests/dash-goals.test.mjs tests/access-guards.test.mjs tests/mobile-signals.test.mjs tests/reaction-verbs.test.mjs tests/ai-proposals.test.mjs tests/dash-directive.test.mjs tests/dash-checkin.test.mjs tests/dash-triage-routing.test.mjs"
+    "test": "node --test tests/dash-signals.test.mjs tests/dash-builder.test.mjs tests/dash-meals.test.mjs tests/dash-goals.test.mjs tests/access-guards.test.mjs tests/mobile-signals.test.mjs tests/reaction-verbs.test.mjs tests/ai-proposals.test.mjs tests/dash-directive.test.mjs tests/dash-checkin.test.mjs tests/dash-triage-routing.test.mjs tests/ai-actions.test.mjs"
   },
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^2.0.2",

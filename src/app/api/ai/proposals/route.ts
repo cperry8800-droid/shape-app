@@ -32,13 +32,13 @@ export async function POST(request: Request) {
     action,
     input,
     actor: { id: actor.user.id, role: actor.role },
-    ctx: makeCtx(actor),
+    ctx: makeCtx(actor, request),
     secret,
   });
 
   if (!res.ok) {
     const status = res.error === 'role_not_allowed' ? 403 : res.error === 'unknown_action' ? 404 : 400;
-    return NextResponse.json({ error: res.error }, { status });
+    return NextResponse.json({ error: res.error, message: (res as { message?: string }).message }, { status });
   }
   return NextResponse.json(res);
 }

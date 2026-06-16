@@ -31,14 +31,14 @@ export async function POST(request: Request) {
     registry: serverRegistry,
     token,
     actor: { id: actor.user.id, role: actor.role },
-    ctx: makeCtx(actor),
+    ctx: makeCtx(actor, request),
     secret,
     audit: auditSink(actor.supabase),
   });
 
   if (!res.ok) {
     const status = res.error === 'actor_mismatch' || res.error === 'role_not_allowed' ? 403 : 400;
-    return NextResponse.json({ error: res.error }, { status });
+    return NextResponse.json({ error: res.error, message: (res as { message?: string }).message }, { status });
   }
   return NextResponse.json({ ok: true, auditId: res.auditId, result: res.result });
 }

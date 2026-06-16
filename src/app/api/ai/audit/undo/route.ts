@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     registry: serverRegistry,
     auditId,
     actor: { id: actor.user.id, role: actor.role },
-    ctx: makeCtx(actor),
+    ctx: makeCtx(actor, request),
     audit: auditSink(actor.supabase),
   });
 

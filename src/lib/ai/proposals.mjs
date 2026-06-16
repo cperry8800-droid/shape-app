@@ -113,7 +113,14 @@ export async function proposeChange({
   if (!action) return { ok: false, error: 'unknown_action' };
   if (!roleAllowed(action, actor.role)) return { ok: false, error: 'role_not_allowed' };
 
-  const preview = await action.buildPreview(ctx, input || {});
+  // buildPreview is where permission / "unmatched reference" / validation errors
+  // surface — return them as a clean message (so Nora can ask), never a 500.
+  let preview;
+  try {
+    preview = await action.buildPreview(ctx, input || {});
+  } catch (e) {
+    return { ok: false, error: 'preview_failed', message: (e && e.message) || 'I could not prepare that change.' };
+  }
   const target = preview.target || { userId: actor.id, kind: 'self', id: null };
   const nonce = randomBytes(9).toString('base64url');
 
@@ -161,7 +168,14 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
   if (!action) return { ok: false, error: 'unknown_action' };
   if (!roleAllowed(action, actor.role)) return { ok: false, error: 'role_not_allowed' };
 
-  const result = await action.execute(ctx, plan);
+  // Execute via the endpoint; a failure (endpoint 4xx/RLS) is reported, not 500.
+  // Nothing is audited unless the change actually applied.
+  let result;
+  try {
+    result = await action.execute(ctx, plan);
+  } catch (e) {
+    return { ok: false, error: 'execute_failed', message: (e && e.message) || 'I could not apply that change.' };
+  }
 
   const auditId = await audit.log({
     actorUserId: actor.id,
