@@ -1828,7 +1828,7 @@ function communityPostFromRow(row) {
     // Coach co-sign: stamped by post_coach_cosign when one of the author's own
     // coaches reacts ({name, role}); null until that happens. Drives the card badge.
     cosign: (metrics.cosign && typeof metrics.cosign === 'object' && metrics.cosign.name)
-      ? { name: String(metrics.cosign.name), role: String(metrics.cosign.role || 'trainer') }
+      ? { name: String(metrics.cosign.name), role: String(metrics.cosign.role || 'trainer'), byId: metrics.cosign.byId || null }
       : null,
     repostOf: (metrics.repostOf && typeof metrics.repostOf === 'object') ? metrics.repostOf : null,
     role: row.author_role === 'trainer' ? 'Trainer' : row.author_role === 'nutritionist' ? 'Nutritionist' : 'Client',
