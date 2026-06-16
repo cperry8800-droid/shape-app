@@ -16199,7 +16199,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
           <div style={{ padding: `12px ${t.padX}px 0` }}>
             <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${bsTHexA(src.c, 0.35)}`, borderLeft: `3px solid ${src.c}`, background: `${src.c}0d`, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: src.c, background: `${src.c}1a`, border: `1px solid ${src.c}66`, borderRadius: 4, padding: '4px 9px' }}>{src.label}</span>
-              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name === "This week's plan" ? '' : list.name}</span>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: src.c, letterSpacing: '0.1em' }}>SWITCH ▾</span>
             </button>
           </div>
@@ -16253,24 +16253,24 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
       <div style={{ padding: `8px ${t.padX}px 24px` }}>
         {/* Progress card — instrument plate */}
-        <BSPlate c={rust} tick bracket pad="13px 13px 13px 19px" style={{ marginTop: 14 }}>
+        <BSPlate c={rust} tick bracket pad="10px 11px 10px 16px" style={{ marginTop: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>PROGRESS</div>
-              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{done}<span style={{ fontSize: 15, color: t.INK50, fontFamily: t.MONO }}>/{total}</span></div>
-              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: rust, letterSpacing: '0.03em' }}>~${estLeft} to go · {list.aisles.length} aisles · est. 22 min</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>PROGRESS</div>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{done}<span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>/{total}</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: rust, letterSpacing: '0.03em' }}>~${estLeft} to go · {list.aisles.length} aisles · est. 22 min</div>
             </div>
-            <svg width="46" height="46" viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
+            <svg width="38" height="38" viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
               <circle cx="28" cy="28" r={RR} fill="none" stroke={t.HAIR} strokeWidth="5" />
               <circle cx="28" cy="28" r={RR} fill="none" stroke={rust} strokeWidth="5" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={RC * (1 - (total ? done / total : 0))} transform="rotate(-90 28 28)" />
-              <text x="28" y="29" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.MONO, fontSize: '12px', fontWeight: 800, fill: rust }}>{total ? pct : 0}%</text>
+              <text x="28" y="29" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.MONO, fontSize: '13px', fontWeight: 800, fill: rust }}>{total ? pct : 0}%</text>
             </svg>
           </div>
-          <div style={{ marginTop: 10, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 2 }} /></div>
-          <button onClick={sendInstacart} style={{ width: '100%', marginTop: 12, borderRadius: 9, border: 0, background: rust, color: '#fff', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
-          <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 9, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '8px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
-            <button onClick={shareList} style={{ borderRadius: 9, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '8px 16px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
+          <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 2 }} /></div>
+          <button onClick={sendInstacart} style={{ width: '100%', marginTop: 9, borderRadius: 8, border: 0, background: rust, color: '#fff', padding: '8px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
+          <div style={{ marginTop: 7, display: 'flex', gap: 7 }}>
+            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '7px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
+            <button onClick={shareList} style={{ borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '7px 15px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
           </div>
         </BSPlate>
 
