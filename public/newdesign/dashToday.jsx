@@ -206,11 +206,22 @@ function dashMessageClient(name, role, draft) {
   if (b) { window.__openChatRequest = opts; b.click(); }
 }
 
-// One-tap drafts — a reason pill becomes a short, human opener the coach
-// edits before sending. Reasons come from the signal engine verbatim.
+// One-tap drafts — the coach's opener, grounded in the engine's ONE cross-domain
+// directive reason (which already reasons across training/nutrition/sleep), with
+// a fallback to stitching the raw flag reasons.
 function dashMessageDraft(row) {
-  if (!row || !Array.isArray(row.flags) || !row.flags.length) return null;
+  if (!row || !row.client) return null;
+  const dir = row.directive;
+  const hasFlags = Array.isArray(row.flags) && row.flags.length > 0;
+  const leverActionable = dir && dir.lever && dir.lever !== "none";
+  // A clean row (no flags, no actionable lever) drafts nothing.
+  if (!hasFlags && !leverActionable) return null;
   const first = String(row.client.profile.name).split(" ")[0];
+  if (dir && dir.reason && dir.reason !== "—") {
+    const r = dir.reason.charAt(0).toLowerCase() + dir.reason.slice(1);
+    return "Hey " + first + " — checking in. I'm seeing " + r + ". What's getting in the way this week?";
+  }
+  if (!hasFlags) return null;
   const reasons = row.flags.slice(0, 2).map((f) => f.reason.charAt(0).toLowerCase() + f.reason.slice(1));
   return "Hey " + first + " — checking in. I'm seeing " + reasons.join(", and ") + ". What's getting in the way this week?";
 }
