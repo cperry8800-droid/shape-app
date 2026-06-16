@@ -9706,22 +9706,21 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // ── Instrument-plate helpers (stats view) ──────────────────────────────────
   // Clipped top-right notch (matches the shared BSPlate language).
   const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
-  // Section head — mono eyebrow + the 2px ink→accent "ledger" rule (house style),
-  // replacing the bare tick label so each section reads as a framed block.
+  // Section head — a hairline rule ABOVE the label (matching the comments page's
+  // sectioning) + the mono eyebrow with an accent tick, so each block reads as
+  // its own clearly-divided section.
   const secHead = (label, trailing) => (
-    <div style={{ margin: '26px 0 13px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: tc, marginBottom: 8 }}>
-        <span>{label}</span>{trailing}
-      </div>
-      <div aria-hidden style={{ height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${tc} 55%, transparent)` }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc, marginTop: 24, paddingTop: 17, marginBottom: 13, borderTop: `1px solid ${hair}` }}>
+      <span aria-hidden style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />
+      <span>{label}</span>{trailing}
     </div>
   );
   // Squared instrument stat tile — accent spine + mono label + serif tabular
   // number, on a clipped two-layer plate (crisp notch with a hairline edge).
   const statTile = (k, v, i) => (
     <div key={i} style={{ position: 'relative', minWidth: 0 }}>
-      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.13) }} />
-      <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: card }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.08) }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: bsTHexA(t.INK, 0.015) }} />
       <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: tc, opacity: 0.85 }} />
       <div style={{ position: 'relative', padding: '11px 12px 12px 14px' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
@@ -9794,11 +9793,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <span key={i} style={{ position: 'absolute', left: -34, width: 30, textAlign: 'right', top: `calc(${tk.y}% - 5px)`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: muted, fontVariantNumeric: 'tabular-nums' }}>{fmtv(tk.v)}</span>
           ))}
           <svg viewBox={`0 0 ${W} 100`} preserveAspectRatio="none" style={{ width: '100%', height, display: 'block' }} aria-hidden>
-            <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.38" /><stop offset="100%" stopColor={color} stopOpacity="0.04" /></linearGradient></defs>
+            <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.2" /><stop offset="100%" stopColor={color} stopOpacity="0.015" /></linearGradient></defs>
             {yTicks.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke={bsTHexA(t.INK, 0.08)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
             {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke={bsTHexA(t.INK, 0.06)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
             <path d={`${line} L${W} 100 L0 100 Z`} fill={`url(#${gid})`} />
-            <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+            <path d={line} fill="none" stroke={color} strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
         </div>
         {xTicks.length > 0 && (
@@ -9861,11 +9860,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
         {d.coSign && (
           <div style={{ marginTop: 12 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', borderRadius: 999, padding: '5px 12px' }}>
+            <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>✓</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800 }}>{d.coSign.name}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
-            </span>
+            </button>
           </div>
         )}
         {d.routeObj ? <div style={{ marginTop: 14 }}><BSActivityRoutePreview route={d.routeObj} /></div> : d.showRoute && (
@@ -9942,7 +9941,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                   return (
                     <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
                       <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: best ? tc : t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap' }}>{r[1]}</span>
-                      <div style={{ width: '100%', maxWidth: 52, height: barH, borderRadius: '3px 3px 0 0', background: best ? tc : `${tc}3d`, boxShadow: best ? `0 0 0 1px ${tc}` : 'none' }} />
+                      <div style={{ width: '100%', maxWidth: 38, height: barH, borderRadius: '3px 3px 0 0', background: best ? tc : `${tc}2e`, boxShadow: best ? `0 0 0 1px ${tc}` : 'none' }} />
                     </div>
                   );
                 })}
@@ -10816,11 +10815,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               link (my own, or one stamped on the post); honest-absent otherwise */}
           {coSign && (
             <div style={{ marginTop: 11 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box' }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box', cursor: 'pointer' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
-              </span>
+              </button>
             </div>
           )}
           {/* phase 2 — expressive palette (opens on a press-and-hold of the
