@@ -1990,13 +1990,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     (async () => {
       try {
         const S = (typeof window !== 'undefined') && window.ShapeSignals;
-        const E = (typeof window !== 'undefined') && window.DashSignals;
-        if (!S || !E || !E.evaluateClient || !S.selfRecord) return;
+        if (!S || !S.selfRecord || !S.directive) return;
         const rec = await S.selfRecord();
         if (!on || !rec) return;
-        const r = E.evaluateClient(rec, new Date(), 'client') || {};
-        const top = (Array.isArray(r.flags) && r.flags.length) ? r.flags[0] : null;
-        setEngineFlag(top ? { key: top.key, reason: top.reason } : null);
+        // The ONE directive (cross-domain — incl. a coach-flagged sleep lever),
+        // grounded in real signals. Lead with it only when there's a real lever.
+        const dir = S.directive(rec);
+        setEngineFlag(dir && dir.action && dir.lever && dir.lever !== 'none' && dir.verdict !== '—' ? dir : null);
       } catch (e) { /* honest: no engine move */ }
     })();
     return () => { on = false; };
@@ -2298,13 +2298,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const todayDirective = (() => {
     if (selIdx !== todayIdx) return null;
     const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
+    // engineFlag is the engine's directive (lever + grounded reason). The lever
+    // → move map preserves the existing heads/CTAs; the sub is the cross-domain
+    // reason; the new `sleep` lever is the cross-discipline one.
     const engineMove = engineFlag ? ({
-      checkin_overdue: { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT },
-      streak_broken:   { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN },
-      food_gap:        { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
-      goal_slip:       { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
-      score_drop:      { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
-    }[engineFlag.key]) : null;
+      checkin:   { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT },
+      training:  { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN },
+      nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
+      goal:      { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
+      score:     { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
+      sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setCheckinPage(true)], c: t.AMBER },
+    }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: engineFlag.reason, cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
@@ -7994,6 +7998,25 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
+  // The ONE directive for the Me headline — same engine source as Home "Your
+  // move" (cross-domain; a coach override wins). Honest: only shows when there's
+  // a real, named lever.
+  const [meDir, setMeDir] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!meMode || !isSelf) return undefined;
+    let on = true;
+    (async () => {
+      try {
+        const S = typeof window !== 'undefined' && window.ShapeSignals;
+        if (!S || !S.selfRecord || !S.directive) return;
+        const rec = await S.selfRecord();
+        if (!on || !rec) return;
+        const d = S.directive(rec);
+        if (d && d.action && d.verdict && d.verdict !== '—') setMeDir(d);
+      } catch (e) { /* honest: no directive */ }
+    })();
+    return () => { on = false; };
+  }, [meMode, isSelf]);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
@@ -8521,6 +8544,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {meMode && isSelf && (
         <div style={{ padding: '14px 18px 0' }}>
           <BSMeGoalCard c={c} onOpen={onOpenGoals} />
+        </div>
+      )}
+
+      {meMode && isSelf && meDir && meDir.action && (
+        <div style={{ padding: '12px 18px 0' }}>
+          <div style={{ borderRadius: 12, border: `1px solid ${bsTHexA(TEAL, 0.4)}`, background: bsTHexA(TEAL, 0.07), padding: '10px 13px' }}>
+            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>Today · your move</div>
+            <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, fontWeight: 600, color: INK }}>{meDir.action.label}</div>
+            {meDir.reason && meDir.reason !== '—' && (
+              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.55), lineHeight: 1.45 }}>{meDir.reason}</div>
+            )}
+          </div>
         </div>
       )}
 

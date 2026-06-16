@@ -1614,7 +1614,11 @@ function bsRowFromTriage(row, role, t) {
   let h = 0; for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0;
   const sev = row.severity || 'green';
   const rank = sev === 'red' ? 0 : sev === 'amber' ? 1 : 3;
-  const reason = ((row.reasons || (row.flags || []).map((f) => f.reason)).filter(Boolean))[0];
+  // Prefer the engine's ONE cross-domain directive reason (the read), falling
+  // back to the first raw flag reason — same row, just a sharper "why".
+  const dir = row.directive || null;
+  const reason = (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
+    || ((row.reasons || (row.flags || []).map((f) => f.reason)).filter(Boolean))[0];
   const nut = role === 'nutritionist';
   const directive = reason || (sev === 'green' ? (nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.') : 'Needs your attention this week.');
   const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct

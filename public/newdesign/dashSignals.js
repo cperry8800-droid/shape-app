@@ -33,6 +33,10 @@
 //                // ≤ MAX_GOALS visible — pros set them, clients view them.
 //                // history drives the sparkline + the pace projection; a
 //                // weight goal's history is the live weigh-in series.
+//     recovery:  { sleepHours: { avg7?, lastNight?, target? }, recoveryScore?,
+//                  restingHr? } | null,   // sleep/recovery — the cross-domain lever
+//     coachDirective: { lever?, verdict?, reason?, severity?, action?:{label,kind},
+//                  setBy?, at? } | null,  // a coach override of the directive (WINS)
 //   }
 
 (function (root, factory) {
@@ -439,6 +443,9 @@
           severity: r.severity,
           flags: r.flags,
           reasons: r.flags.map(function (x) { return x.reason; }),
+          // The cross-domain directive (verdict + reason + the one action) + the
+          // coach read, so every triage surface reuses ONE source for the reason.
+          directive: buildDirective(c, now, role),
         };
       })
       .sort(function (a, b) {
@@ -763,10 +770,150 @@
     return out;
   }
 
+  // ── The directive ("one lead per page") ─────────────────────────────────────
+  // buildDirective(record, now, role) -> the ONE thing: a verdict + a
+  // cross-domain reason + a single action, plus a coach "read" (a 30-day summary
+  // + the one thing now). It REASONS ACROSS DISCIPLINES — the lever may be sleep,
+  // nutrition, or training — and is grounded ONLY in real signals from the
+  // record (honest "—" when there's nothing). A coach override on the record
+  // (record.coachDirective) WINS. Pure + deterministic — no model call, so it's
+  // cacheable and never fabricates.
+  //
+  //   { source:'coach'|'engine', lever, severity, verdict, reason,
+  //     action:{label,kind}|null, read:{ summary30d, oneThingNow }, cited:[…] }
+
+  var DIRECTIVE_MOVES = {
+    sleep: { kind: "log_sleep", label: "Log last night's sleep" },
+    nutrition: { kind: "log_meal", label: "Log a meal today" },
+    training: { kind: "open_session", label: "Open today's session" },
+    checkin: { kind: "check_in", label: "Send your weekly check-in" },
+    goal: { kind: "log_weighin", label: "Log a weigh-in" },
+    score: { kind: "open_habits", label: "Grab a win today" },
+    contact: { kind: "message", label: "Reach out today" },
+  };
+  var DIRECTIVE_VERDICTS = {
+    sleep: "Sleep is the lever", nutrition: "Tighten nutrition", training: "Train today",
+    checkin: "Check-in due", goal: "Goal pace slipped", score: "Grab a win",
+    contact: "Reconnect", none: "On pace",
+  };
+  function directiveKeyToLever(key) {
+    return ({
+      checkin_overdue: "checkin", streak_broken: "training", food_gap: "nutrition",
+      ledger_blown: "nutrition", protein_under: "nutrition", goal_slip: "goal",
+      score_drop: "score", contact_gap: "contact",
+    })[key] || null;
+  }
+  function recoveryRead(rec) {
+    var r = rec && rec.recovery;
+    if (!r || !r.sleepHours) return null;
+    var s = r.sleepHours;
+    var avg = s.avg7 != null && isFinite(Number(s.avg7)) ? Number(s.avg7) : null;
+    var target = s.target != null && isFinite(Number(s.target)) ? Number(s.target) : 7.5;
+    var lastNight = s.lastNight != null && isFinite(Number(s.lastNight)) ? Number(s.lastNight) : null;
+    // "low" if logged-but-short, OR last night not logged yet (nothing to act on).
+    var low = (avg != null && avg < target - 0.5) || s.lastNight == null;
+    return { avg: avg, target: target, lastNight: lastNight, low: low, hasData: avg != null || s.lastNight != null };
+  }
+  // "Deficit's fine" — nutrition is present and holding (≤ target+5%, no flag).
+  function nutritionHolding(rec) {
+    var n = rec && rec.nutrition;
+    if (!n || n.avgCalories == null || n.targetCalories == null) return false;
+    return Number(n.avgCalories) <= Number(n.targetCalories) * 1.05;
+  }
+  // The coach "read": a 30-day summary from real stats + the one thing now.
+  function buildDirectiveRead(rec, reason) {
+    var sum = [];
+    var ta = rec.trainingAdherence;
+    if (ta && ta.done != null && ta.planned != null) sum.push(ta.done + "/" + ta.planned + " sessions");
+    var n = rec.nutrition;
+    if (n && n.avgCalories != null) sum.push("avg " + Math.round(Number(n.avgCalories)) + " kcal");
+    var w = rec.weighIns;
+    if (Array.isArray(w) && w.length >= 2) {
+      var d = Number(w[w.length - 1].weight) - Number(w[0].weight);
+      if (isFinite(d)) sum.push((d <= 0 ? "" : "+") + (Math.round(d * 10) / 10) + " " + (w[0].unit || "lb"));
+    }
+    return {
+      summary30d: sum.length ? "30 days: " + sum.join(" · ") : "—",
+      oneThingNow: reason && reason !== "—" ? reason : "Nothing urgent — keep the routine.",
+    };
+  }
+  function onTrackReason(rec) {
+    var bits = [];
+    if (rec.streaks && rec.streaks.current >= 3) bits.push(rec.streaks.current + "-day streak");
+    if (nutritionHolding(rec)) bits.push("deficit holding");
+    var ta = rec.trainingAdherence;
+    if (ta && ta.pct != null && Number(ta.pct) >= 80) bits.push("sessions on plan");
+    return bits.length ? bits.join(", ") + " — keep it boring." : "—";
+  }
+  function buildDirective(rec, now, role) {
+    now = now || new Date();
+    rec = rec || {};
+
+    // 1) Coach override wins.
+    var ov = rec.coachDirective;
+    if (ov && (ov.lever || ov.verdict || ov.reason || (ov.action && ov.action.label))) {
+      var lever = ov.lever || "training";
+      var action = ov.action && ov.action.label ? ov.action : (DIRECTIVE_MOVES[lever] || null);
+      var rReason = ov.reason || onTrackReason(rec);
+      return {
+        source: "coach", lever: lever, severity: ov.severity || "amber",
+        verdict: ov.verdict || DIRECTIVE_VERDICTS[lever] || "Your move",
+        reason: rReason, action: action,
+        read: buildDirectiveRead(rec, rReason), cited: ["coach override"],
+      };
+    }
+
+    // 2) The top triage flag (already grounded + cross-discipline aware).
+    var ev = evaluateClient(rec, now, role || "client");
+    var top = ev.flags && ev.flags.length ? ev.flags[0] : null;
+    if (top) {
+      var lever2 = directiveKeyToLever(top.key) || "training";
+      return {
+        source: "engine", lever: lever2, severity: ev.severity,
+        verdict: DIRECTIVE_VERDICTS[lever2] || "Your move",
+        reason: top.reason, action: DIRECTIVE_MOVES[lever2] || null,
+        read: buildDirectiveRead(rec, top.reason), cited: [top.key],
+      };
+    }
+
+    // 3) Cross-domain secondary — sleep is the lever when recovery is low while
+    //    nutrition is holding. This is the differentiator: a single-vertical app
+    //    can't say "the deficit's fine, the problem is sleep."
+    var rr = recoveryRead(rec);
+    if (rr && rr.low && rr.hasData) {
+      var holding = nutritionHolding(rec);
+      var tail = rr.lastNight == null ? "; log last night to confirm." : "; tonight, lights out by 11.";
+      var sleepReason = (holding ? "Deficit's fine — " : "") + "sleep is stalling recovery" + tail;
+      sleepReason = sleepReason.charAt(0).toUpperCase() + sleepReason.slice(1);
+      return {
+        source: "engine", lever: "sleep", severity: "amber",
+        verdict: "Sleep is the lever", reason: sleepReason, action: DIRECTIVE_MOVES.sleep,
+        read: buildDirectiveRead(rec, sleepReason),
+        cited: holding ? ["recovery.sleepHours", "nutrition"] : ["recovery.sleepHours"],
+      };
+    }
+
+    // 4) On track — honest. "—" when there's no real signal at all.
+    var anySignal = !!(rec.trainingAdherence || rec.nutrition || (rec.weighIns && rec.weighIns.length) || rec.streaks);
+    if (!anySignal) {
+      return {
+        source: "engine", lever: null, severity: "green", verdict: "—", reason: "—",
+        action: null, read: { summary30d: "—", oneThingNow: "Not enough signal yet." }, cited: [],
+      };
+    }
+    var okReason = onTrackReason(rec);
+    return {
+      source: "engine", lever: "none", severity: "green", verdict: "On pace",
+      reason: okReason, action: DIRECTIVE_MOVES.nutrition,
+      read: buildDirectiveRead(rec, okReason), cited: ["on-track"],
+    };
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     MAX_GOALS: MAX_GOALS,
     evaluateClient: evaluateClient,
+    buildDirective: buildDirective,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,

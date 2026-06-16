@@ -207,3 +207,15 @@ export function parseModelJson<T = unknown>(text: string): T | null {
     return null;
   }
 }
+
+// The directive engine ("one lead per page") lives in ./ai/directive — reachable
+// via @/lib/ai per the AI-server convention.
+export {
+  computeDirective,
+  engineDirective,
+  readOverride,
+  writeOverride,
+  sanitizeOverride,
+  invalidateDirectiveCache,
+  type Directive,
+} from './ai/directive';
