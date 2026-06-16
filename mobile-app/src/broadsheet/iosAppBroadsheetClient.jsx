@@ -9691,6 +9691,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const t = useBS();
   const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1), card = bsTHexA(t.INK, 0.03);
   const tc = d.tc, a = d.a;
+  // Neutral ink tone — the stats sections (heads, tiles, charts, splits) read
+  // neutral (same for everyone); only the hero PR plate carries the tier color.
+  const neu = bsTHexA(t.INK, 0.55);
   // Two distinct pages: 'stats' (Session details — JUST the workout/activity
   // numbers) and 'comments' (the conversation + composer). Likes are their own
   // sheet (the facepile → "Who reacted"). Never mixed.
@@ -9710,8 +9713,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // sectioning) + the mono eyebrow with an accent tick, so each block reads as
   // its own clearly-divided section.
   const secHead = (label, trailing) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: tc, marginTop: 24, paddingTop: 17, marginBottom: 13, borderTop: `1px solid ${hair}` }}>
-      <span aria-hidden style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62), marginTop: 24, paddingTop: 17, marginBottom: 13, borderTop: `1px solid ${hair}` }}>
+      <span aria-hidden style={{ width: 14, height: 1.5, background: neu, borderRadius: 2 }} />
       <span>{label}</span>{trailing}
     </div>
   );
@@ -9721,7 +9724,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     <div key={i} style={{ position: 'relative', minWidth: 0 }}>
       <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.08) }} />
       <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: bsTHexA(t.INK, 0.015) }} />
-      <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: tc, opacity: 0.85 }} />
+      <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: bsTHexA(t.INK, 0.4) }} />
       <div style={{ position: 'relative', padding: '11px 12px 12px 14px' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 5, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
@@ -9729,7 +9732,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     </div>
   );
   // Reusable section chip (right-aligned stat on a chart head).
-  const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: accent ? '0.06em' : '0.04em', color: accent ? tc : muted, background: accent ? `${tc}1a` : bsTHexA(t.INK, 0.06), border: accent ? `1px solid ${tc}55` : 0, borderRadius: 999, padding: '2px 8px' }}>{label}</span>;
+  const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em', color: muted, background: bsTHexA(t.INK, 0.06), border: accent ? `1px solid ${bsTHexA(t.INK, 0.18)}` : 0, borderRadius: 999, padding: '2px 8px' }}>{label}</span>;
   // Categorize the device stats so the page reads as a few clear SECTIONS, not
   // one packed grid. Hero stat (the headline number) is excluded from the rest.
   const heroKey = d.heroStat ? String(d.heroStat[0]).toLowerCase() : null;
@@ -9887,7 +9890,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
           <>
             {secHead(paceCfg.label, paceChipStat ? headChip(`${paceCfg.chip} ${paceChipStat[1]}`, true) : null)}
-            {AreaChart({ vals: d.paceTrace, color: tc, invert: paceCfg.invert, fmt: paceCfg.fmt, idKey: 'pace', height: 116 })}
+            {AreaChart({ vals: d.paceTrace, color: neu, invert: paceCfg.invert, fmt: paceCfg.fmt, idKey: 'pace', height: 116 })}
           </>
         )}
         {/* POWER — watts over distance (rides, when a power meter is present). */}
@@ -9902,7 +9905,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
             {secHead('Heart rate')}
-            {Array.isArray(d.trace) && d.trace.length > 1 && AreaChart({ vals: d.trace, color: tc, fmt: (v) => `${Math.round(v)}`, idKey: 'hr', height: 116 })}
+            {Array.isArray(d.trace) && d.trace.length > 1 && AreaChart({ vals: d.trace, color: neu, fmt: (v) => `${Math.round(v)}`, idKey: 'hr', height: 116 })}
             {Array.isArray(d.zones) && d.zones.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
                 {d.zones.map(([zl, pct], i) => (
@@ -9940,8 +9943,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                   const best = i === bestIdx && rows.length > 1;
                   return (
                     <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: best ? tc : t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap' }}>{r[1]}</span>
-                      <div style={{ width: '100%', maxWidth: 38, height: barH, borderRadius: '3px 3px 0 0', background: best ? tc : `${tc}2e`, boxShadow: best ? `0 0 0 1px ${tc}` : 'none' }} />
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap' }}>{r[1]}</span>
+                      <div style={{ width: '100%', maxWidth: 38, height: barH, borderRadius: '3px 3px 0 0', background: best ? bsTHexA(t.INK, 0.72) : bsTHexA(t.INK, 0.18), boxShadow: best ? `0 0 0 1px ${bsTHexA(t.INK, 0.5)}` : 'none' }} />
                     </div>
                   );
                 })}
@@ -9950,7 +9953,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                 {rows.map((r, i) => (
                   <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
-                    {r[2] && <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? tc : bsTHexA(t.INK, 0.4), marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[2]}</div>}
+                    {r[2] && <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? bsTHexA(t.INK, 0.7) : bsTHexA(t.INK, 0.4), marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[2]}</div>}
                   </div>
                 ))}
               </div>
@@ -9961,7 +9964,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && hasCadGraph && (
           <>
             {secHead('Cadence', cadStat ? headChip(`avg ${cadStat[1]}`) : null)}
-            {AreaChart({ vals: d.cadenceTrace, color: tc, fmt: (v) => `${Math.round(v)}`, idKey: 'cad', height: 92 })}
+            {AreaChart({ vals: d.cadenceTrace, color: neu, fmt: (v) => `${Math.round(v)}`, idKey: 'cad', height: 92 })}
           </>
         )}
         {/* ELEVATION — altitude profile over distance (y-axis ft + x-axis miles),
