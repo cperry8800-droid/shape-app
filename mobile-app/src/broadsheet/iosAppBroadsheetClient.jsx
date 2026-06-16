@@ -10834,9 +10834,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           {/* actions — the reaction verb primary/heaviest; Comment + Share
               secondary; Send + Repost de-emphasized (same pill/icon styles) */}
           {(() => {
-            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 27, boxSizing: 'border-box', padding: grow ? '0 11px' : 0, width: grow ? 'auto' : 27, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
+            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
             return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
             <button
               onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
               onPointerUp={() => clearTimeout(lpTimerRef.current)}
@@ -10844,12 +10844,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               onContextMenu={(e) => e.preventDefault()}
               onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
               title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 30, fontSize: 9, fontWeight: 900, padding: '0 14px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>{bsFeedIcon('react', 12)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
-            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 12)}<span>{commentCount}</span></button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 13)}</button>
+              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
+            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
             <span style={{ marginLeft: 'auto' }} />
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 13)}</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 13)}</button>
+            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
+            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
           </div>
             );
           })()}
