@@ -409,8 +409,8 @@ function Footer({ logoHeight = 64 } = {}) {
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
-            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"]]],
-            ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Data & compliance", "/data-compliance.html"]]],
+            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Data & compliance", "/data-compliance.html"]]],
+            ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{h}</div>
