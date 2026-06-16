@@ -15,6 +15,7 @@
 
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
+import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
 
 export const runtime = 'nodejs';
@@ -144,28 +145,10 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
   return '';
 }
 
-async function callOpenAI(key: string, input: unknown[]): Promise<OpenAIResponsePayload | null> {
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
-      input,
-      tools: TOOLS,
-    }),
-  });
-  if (!response.ok) {
-    console.warn('[shape-app] support chat OpenAI failed:', await response.text().catch(() => ''));
-    return null;
-  }
-  return (await response.json()) as OpenAIResponsePayload;
-}
-
 async function askOpenAI(
   messages: ChatMessage[]
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
+  if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: String(m.content || '').slice(0, 2000),
@@ -176,8 +159,9 @@ async function askOpenAI(
 
   // Allow up to 2 tool rounds, then take the text.
   for (let round = 0; round < 3; round++) {
-    const payload = await callOpenAI(key, input);
-    if (!payload) return null;
+    const result = await callAI({ input, tools: TOOLS }, { promptId: 'support.chat' });
+    if (!result.ok) return null;
+    const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
     const calls = output.filter((o) => o.type === 'function_call');
     if (calls.length === 0 || round === 2) {
