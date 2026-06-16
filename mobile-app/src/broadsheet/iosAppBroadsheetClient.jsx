@@ -9963,7 +9963,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             thread. No workout stats here; those live on Session details. */}
         {isComments && (
           <>
-            <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Reactions · {count}</div>
+            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Reactions · {count}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? tc : `${tc}14`, color: liked ? '#fff' : tc, border: `1px solid ${tc}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · {count}</span></button>
               {facepile.length > 0 && (
@@ -9973,7 +9973,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                 </button>
               )}
             </div>
-            <div style={eyebrow}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Comments · {comments.length}</div>
+            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Comments · {comments.length}</div>
             {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6 }}>No comments yet — be the first.</div>}
             {comments.map((c, i) => <BSFeedComment key={i} c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />)}
           </>
