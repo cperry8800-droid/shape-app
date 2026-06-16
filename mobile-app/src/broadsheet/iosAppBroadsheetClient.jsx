@@ -9703,6 +9703,34 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const facepile = (d.followedLikers && d.followedLikers.length ? d.followedLikers : d.allLikers).slice(0, 5);
   const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, margin: '22px 0 11px', display: 'flex', alignItems: 'center', gap: 8 };
   const tick = <span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />;
+  // ── Instrument-plate helpers (stats view) ──────────────────────────────────
+  // Clipped top-right notch (matches the shared BSPlate language).
+  const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+  // Section head — mono eyebrow + the 2px ink→accent "ledger" rule (house style),
+  // replacing the bare tick label so each section reads as a framed block.
+  const secHead = (label, trailing) => (
+    <div style={{ margin: '26px 0 13px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: tc, marginBottom: 8 }}>
+        <span>{label}</span>{trailing}
+      </div>
+      <div aria-hidden style={{ height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${tc} 55%, transparent)` }} />
+    </div>
+  );
+  // Squared instrument stat tile — accent spine + mono label + serif tabular
+  // number, on a clipped two-layer plate (crisp notch with a hairline edge).
+  const statTile = (k, v, i) => (
+    <div key={i} style={{ position: 'relative', minWidth: 0 }}>
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.13) }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: card }} />
+      <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: tc, opacity: 0.85 }} />
+      <div style={{ position: 'relative', padding: '11px 12px 12px 14px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 5, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+      </div>
+    </div>
+  );
+  // Reusable section chip (right-aligned stat on a chart head).
+  const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: accent ? '0.06em' : '0.04em', color: accent ? tc : muted, background: accent ? `${tc}1a` : bsTHexA(t.INK, 0.06), border: accent ? `1px solid ${tc}55` : 0, borderRadius: 999, padding: '2px 8px' }}>{label}</span>;
   // Categorize the device stats so the page reads as a few clear SECTIONS, not
   // one packed grid. Hero stat (the headline number) is excluded from the rest.
   const heroKey = d.heroStat ? String(d.heroStat[0]).toLowerCase() : null;
@@ -9814,12 +9842,20 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           </div>
         </div>
         {/* hero */}
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 800, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.08, marginTop: 15 }}>{d.title}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 15 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: tc }}>.</span>}</div>
         {d.heroStat && (
-          <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 11px', marginTop: 9 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{d.heroStat[1]}</span>
-            {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '4px 8px', borderRadius: 999 }}>↑ {d.prDelta}</span>}
-            <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 4 }}>{d.heroStat[0]}</span>
+          <div style={{ position: 'relative', marginTop: 13 }}>
+            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(14), background: `${tc}77` }} />
+            <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(13), background: `linear-gradient(165deg, ${tc}24, ${tc}07 46%, ${t.PAPER2} 92%), ${t.PAPER}` }} />
+            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: tc }} />
+            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${tc}`, borderBottom: `1.5px solid ${tc}`, opacity: 0.6 }} />
+            <div style={{ position: 'relative', padding: '14px 16px 15px' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 7 }}>{d.heroStat[0]}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 12px' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{d.heroStat[1]}</span>
+                {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}22`, border: `1px solid ${tc}`, padding: '4px 9px', borderRadius: 999 }}>↑ {d.prDelta}</span>}
+              </div>
+            </div>
           </div>
         )}
         {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
@@ -9841,14 +9877,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             the 2–3 headline figures). Everything else lives in its own section. */}
         {!isComments && summaryStats.length > 0 && (
           <>
-            <div style={eyebrow}>{tick}Summary</div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sumCols}, 1fr)`, columnGap: 16, rowGap: 16 }}>
-              {summaryStats.map(([k, v], i) => (
-                <div key={i}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>{k}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
-                </div>
-              ))}
+            {secHead('Summary')}
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sumCols}, 1fr)`, gap: 9 }}>
+              {summaryStats.map(([k, v], i) => statTile(k, v, i))}
             </div>
           </>
         )}
@@ -9856,14 +9887,14 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}
         {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
           <>
-            <div style={eyebrow}>{tick}{paceCfg.label}{paceChipStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: tc, background: `${tc}1a`, border: `1px solid ${tc}55`, borderRadius: 999, padding: '2px 8px' }}>{paceCfg.chip} {paceChipStat[1]}</span>}</div>
+            {secHead(paceCfg.label, paceChipStat ? headChip(`${paceCfg.chip} ${paceChipStat[1]}`, true) : null)}
             {AreaChart({ vals: d.paceTrace, color: tc, invert: paceCfg.invert, fmt: paceCfg.fmt, idKey: 'pace', height: 116 })}
           </>
         )}
         {/* POWER — watts over distance (rides, when a power meter is present). */}
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
-            <div style={eyebrow}>{tick}Power</div>
+            {secHead('Power')}
             {AreaChart({ vals: d.powerTrace, color: '#d8b25a', fmt: (v) => `${Math.round(v)}`, idKey: 'pwr', height: 96 })}
           </>
         )}
@@ -9871,7 +9902,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             then time-in-zone as LABELED horizontal bars. Avg HR leads in Summary. */}
         {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
-            <div style={eyebrow}>{tick}Heart rate</div>
+            {secHead('Heart rate')}
             {Array.isArray(d.trace) && d.trace.length > 1 && AreaChart({ vals: d.trace, color: tc, fmt: (v) => `${Math.round(v)}`, idKey: 'hr', height: 116 })}
             {Array.isArray(d.zones) && d.zones.length > 0 && (
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
@@ -9903,9 +9934,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           const bestIdx = isPace ? paceVals.indexOf(Math.min(...paceVals)) : perf.indexOf(Math.max(...perf));
           return (
             <>
-              <div style={eyebrow}>{tick}{d.breakdown.label || 'Splits'}
-                {bestPaceStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: tc, background: `${tc}1a`, border: `1px solid ${tc}55`, borderRadius: 999, padding: '2px 8px' }}>Best {bestPaceStat[1]}</span>}
-              </div>
+              {secHead(d.breakdown.label || 'Splits', bestPaceStat ? headChip(`Best ${bestPaceStat[1]}`, true) : null)}
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 132 }}>
                 {rows.map((r, i) => {
                   const barH = 24 + (perf[i] / pmax) * 88;
@@ -9913,7 +9942,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                   return (
                     <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
                       <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: best ? tc : t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap' }}>{r[1]}</span>
-                      <div style={{ width: '100%', maxWidth: 52, height: barH, borderRadius: '7px 7px 2px 2px', background: best ? tc : `${tc}3d`, boxShadow: best ? `0 0 0 1px ${tc}` : 'none' }} />
+                      <div style={{ width: '100%', maxWidth: 52, height: barH, borderRadius: '3px 3px 0 0', background: best ? tc : `${tc}3d`, boxShadow: best ? `0 0 0 1px ${tc}` : 'none' }} />
                     </div>
                   );
                 })}
@@ -9932,7 +9961,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {/* CADENCE — steps/min over distance (y-axis spm + x-axis miles). */}
         {!isComments && hasCadGraph && (
           <>
-            <div style={eyebrow}>{tick}Cadence{cadStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>avg {cadStat[1]}</span>}</div>
+            {secHead('Cadence', cadStat ? headChip(`avg ${cadStat[1]}`) : null)}
             {AreaChart({ vals: d.cadenceTrace, color: tc, fmt: (v) => `${Math.round(v)}`, idKey: 'cad', height: 92 })}
           </>
         )}
@@ -9940,7 +9969,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             in a slate tone so it reads as terrain. */}
         {!isComments && hasElevGraph && (
           <>
-            <div style={eyebrow}>{tick}Elevation{elevStat && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: muted, background: bsTHexA(t.INK, 0.06), borderRadius: 999, padding: '2px 8px' }}>+{elevStat[1]} gain</span>}</div>
+            {secHead('Elevation', elevStat ? headChip(`+${elevStat[1]} gain`) : null)}
             {AreaChart({ vals: d.elevTrace, color: '#8a93a0', fmt: (v) => `${Math.round(v)}`, idKey: 'elev', height: 96 })}
           </>
         )}
@@ -9948,14 +9977,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             their own clearly-labeled section, NOT packed up top. */}
         {!isComments && outputStats.length > 0 && (
           <>
-            <div style={eyebrow}>{tick}Output</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', columnGap: 16 }}>
-              {outputStats.map(([k, v], i) => (
-                <div key={i} style={{ padding: '12px 0', borderTop: i >= 3 ? `1px solid ${bsTHexA(t.INK, 0.08)}` : 0 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.42) }}>{k}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, marginTop: 4, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
-                </div>
-              ))}
+            {secHead('Output')}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+              {outputStats.map(([k, v], i) => statTile(k, v, i))}
             </div>
           </>
         )}
