@@ -138,6 +138,21 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-16 — Coach home polish: instrument-plate live banner · Coaches Edition band · thinner mastheads (#1303)
+- **Live-now banner → instrument plate.** The trainer Today "LIVE · TRAINING"
+  box was a rounded gradient card; restyled to a `BSPlate` matching the
+  schedule/triage tiles — clipped top-right corner, rust accent spine, corner
+  bracket, and a pulsing live dot in the eyebrow (new `bsLivePulse` keyframe,
+  local to the block). Same content + tap-to-watch.
+- **"Coaches Edition" band restored to the TOP** of both coach homes (trainer +
+  nutritionist Today), under the day hero, mirroring the client home's "Clients
+  Edition" placement. Removed the demoted bottom copy (no duplication); the
+  `BSFooter` "The Coach/Nutri Edition" line stays.
+- **Thinner mastheads.** Switched the coach-home mastheads (both Today) and the
+  Workout/Client Review page masthead from the heavy `3px solid INK` rule (+ the
+  double-rule strip) to the existing `thinRule` 1px hairline, matching the rest
+  of the app's rules. Theme-token only; 104/104 tests, `public/m` in sync.
+
 ### 2026-06-15 — Fix: coach Today "Needs you today" matches by client id / name (review follow-up)
 - Addressed the code-review finding (below) immediately: `BSProTriageFeed` no
   longer decides "has a session today" by a raw title substring. The live
