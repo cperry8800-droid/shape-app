@@ -409,8 +409,8 @@ function Footer({ logoHeight = 64 } = {}) {
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
-            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"]]],
-            ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
+            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Data & compliance", "/data-compliance.html"]]],
+            ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{h}</div>
@@ -525,6 +525,21 @@ function ShapeMobileStyles() {
 }
 
 Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch });
+
+// Auto-mount the shared site footer on any page that opts in with a
+// <div id="site-footer"></div> (the marketing pages). It renders in its own
+// root — separate from the page's #root — and carries its own styles, so it
+// looks right wherever it's dropped. Dashboard/app pages omit the div and are
+// unaffected.
+(function mountSiteFooter() {
+  try {
+    var el = document.getElementById('site-footer');
+    if (el && !el.getAttribute('data-mounted') && window.ReactDOM && window.ReactDOM.createRoot) {
+      el.setAttribute('data-mounted', '1');
+      window.ReactDOM.createRoot(el).render(<React.Fragment><ShapeMobileStyles /><Footer /></React.Fragment>);
+    }
+  } catch (e) {}
+})();
 
 // -----------------------------------------------------------------------------
 // Calendar overlay — shared across Client / Trainer / Nutritionist pages.
