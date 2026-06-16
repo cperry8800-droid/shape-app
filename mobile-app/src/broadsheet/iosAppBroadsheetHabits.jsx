@@ -320,48 +320,61 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
   );
 }
 
-// 7-day completion grid — DO / DON'T rows × the last 7 days, teal pill = done.
+// 7-day completion grid — DO / DON'T rows × the last 7 days, on an instrument
+// plate (matching the score card above). Squared completion tiles; today is the
+// rightmost column (pattern value 2) and is accent-marked.
 function BSHabitGrid({ habits }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const model = _bsHabitGridModel(habits);
   if (!model.rows.length) return null;
   const days = model.demo ? _BS_HABIT_GRID_DAYS : _bsLast7().map(_bsDow3);
-  const Dot = ({ v }) => (
-    <div style={{ height: 16, borderRadius: 8, background: v ? (v === 2 ? teal : `${teal}b3`) : t.RULE }} />
-  );
-  const NAME_FLEX = '1 1 45%';
-  const DOTS_FLEX = '1 1 55%';
+  const lastIdx = days.length - 1; // today is the rightmost column
+  // One cell: done-today (solid teal + glow) · done-past (teal tint) ·
+  // today-pending (teal outline) · past-empty (hairline outline).
+  const Cell = ({ v, today }) => {
+    let background = 'transparent';
+    let border = `1px solid ${t.RULE}`;
+    let boxShadow = 'none';
+    if (v === 2) { background = teal; border = `1px solid ${teal}`; boxShadow = `0 0 7px ${teal}66`; }
+    else if (v === 1) { background = `${teal}b3`; border = `1px solid ${teal}b3`; }
+    else if (today) { background = `${teal}14`; border = `1px solid ${teal}80`; }
+    return <div style={{ height: 17, borderRadius: 3, background, border, boxShadow }} />;
+  };
+  const NAME_FLEX = '1 1 44%';
+  const DOTS_FLEX = '1 1 56%';
+  const BSPlate = window.BSPlate;
   return (
-    <div style={{ borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 13 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>Grid</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Last 7 days</div>
-      </div>
-      {/* day-label header — aligned over the dot columns */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+    <BSPlate c={teal} bracket pad="13px 15px 14px 18px">
+      {/* header — mono eyebrow + serif display title + ink→accent ledger */}
+      <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Last 7 days</div>
+      <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>The grid<span style={{ color: teal }}>.</span></div>
+      <div aria-hidden style={{ height: 2, width: 44, borderRadius: 1, marginTop: 9, background: `linear-gradient(90deg, ${t.INK}, ${teal} 70%, transparent)` }} />
+      {/* day-label header — aligned over the tile columns; today in accent */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 13, marginBottom: 9 }}>
         <div style={{ flex: NAME_FLEX, minWidth: 0 }} />
         <div style={{ flex: DOTS_FLEX, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
-          {days.map((d, i) => (
-            <div key={i} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50 }}>{d}</div>
-          ))}
+          {days.map((d, i) => {
+            const today = i === lastIdx;
+            return <div key={i} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: today ? 800 : 700, letterSpacing: '0.02em', color: today ? teal : t.INK50 }}>{d}</div>;
+          })}
         </div>
       </div>
       {model.rows.map((r, idx) => {
         const isAvoid = r.type === 'avoid';
         return (
-          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
-            <div style={{ flex: NAME_FLEX, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ flex: NAME_FLEX, minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: isAvoid ? t.RUST : teal }}>{isAvoid ? "DON'T" : 'DO'}</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
             </div>
             <div style={{ flex: DOTS_FLEX, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
-              {r.pattern.map((v, i) => <Dot key={i} v={v} />)}
+              {r.pattern.map((v, i) => <Cell key={i} v={v} today={i === lastIdx} />)}
             </div>
           </div>
         );
       })}
-    </div>
+    </BSPlate>
   );
 }
 
