@@ -9704,8 +9704,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     if (isComments) { setTimeout(() => { try { composerRef.current && composerRef.current.focus(); } catch (e) {} }, 320); }
   }, []);
   const facepile = (d.followedLikers && d.followedLikers.length ? d.followedLikers : d.allLikers).slice(0, 5);
-  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tc, margin: '22px 0 11px', display: 'flex', alignItems: 'center', gap: 8 };
-  const tick = <span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />;
+  const eyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62), margin: '22px 0 11px', display: 'flex', alignItems: 'center', gap: 8 };
+  const tick = <span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />;
+  // Off-tier accent for the activity views (hero readout + reaction pill): the
+  // app's teal, the same for everyone (tier color stays on avatars/badge only).
+  const accent = t.ACCENT;
   // ── Instrument-plate helpers (stats view) ──────────────────────────────────
   // Clipped top-right notch (matches the shared BSPlate language).
   const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
@@ -9844,18 +9847,18 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           </div>
         </div>
         {/* hero */}
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 15 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: tc }}>.</span>}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 15 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: accent }}>.</span>}</div>
         {d.heroStat && (
           <div style={{ position: 'relative', marginTop: 13 }}>
-            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(14), background: `${tc}77` }} />
-            <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(13), background: `linear-gradient(165deg, ${tc}24, ${tc}07 46%, ${t.PAPER2} 92%), ${t.PAPER}` }} />
-            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: tc }} />
-            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${tc}`, borderBottom: `1.5px solid ${tc}`, opacity: 0.6 }} />
+            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(14), background: `${accent}77` }} />
+            <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(13), background: `linear-gradient(165deg, ${accent}24, ${accent}07 46%, ${t.PAPER2} 92%), ${t.PAPER}` }} />
+            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: accent }} />
+            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${accent}`, borderBottom: `1.5px solid ${accent}`, opacity: 0.6 }} />
             <div style={{ position: 'relative', padding: '14px 16px 15px' }}>
               <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 7 }}>{d.heroStat[0]}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 12px' }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{d.heroStat[1]}</span>
-                {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}22`, border: `1px solid ${tc}`, padding: '4px 9px', borderRadius: 999 }}>↑ {d.prDelta}</span>}
+                {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, background: `${accent}22`, border: `1px solid ${accent}`, padding: '4px 9px', borderRadius: 999 }}>↑ {d.prDelta}</span>}
               </div>
             </div>
           </div>
@@ -9989,9 +9992,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             thread. No workout stats here; those live on Session details. */}
         {isComments && (
           <>
-            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Reactions · {count}</div>
+            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />Reactions · {count}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? tc : `${tc}14`, color: liked ? '#fff' : tc, border: `1px solid ${tc}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · {count}</span></button>
+              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : `${accent}14`, color: liked ? '#fff' : accent, border: `1px solid ${accent}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · {count}</span></button>
               {facepile.length > 0 && (
                 <button onClick={onOpenLikers} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
                   <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => <BSFacetAvatar key={i} size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />)}</span>
@@ -9999,7 +10002,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                 </button>
               )}
             </div>
-            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: tc, borderRadius: 2 }} />Comments · {comments.length}</div>
+            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />Comments · {comments.length}</div>
             {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6 }}>No comments yet — be the first.</div>}
             {comments.map((c, i) => <BSFeedComment key={i} c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />)}
           </>
@@ -10870,7 +10873,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               onContextMenu={(e) => e.preventDefault()}
               onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
               title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? {} : { background: `${tc}14`, color: tc, border: `1px solid ${tc}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
+              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
             <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
             <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
             <span style={{ marginLeft: 'auto' }} />
@@ -11771,9 +11774,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
-          {thread.group
-            ? (() => { const cc = bsChannelColor(thread.who); return <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 12, background: `${cc}1f`, border: `1px solid ${cc}66`, color: cc, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BSChannelIcon name={thread.who} size={19} /></span>; })()
-            : <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
+          {!thread.group && <BSFacetAvatar size={38} c={threadColor} initial={bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0]} photo={((thread.userId || thread.counterpartId) && threadAvatars[thread.userId || thread.counterpartId]) || (!thread.conversationId && !thread.channelId ? bsDemoFace(thread.who) : undefined)} showRank={false} />}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>{thread.who}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{thread.role}</div>
