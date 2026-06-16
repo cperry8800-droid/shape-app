@@ -41,6 +41,13 @@ function _bsDowLetter(yyyymmdd) {
   const idx = (js + 6) % 7;
   return _BS_DOW_LETTERS[idx];
 }
+// 3-letter day label (Mon-first) for the grid header.
+const _BS_DOW3 = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+function _bsDow3(yyyymmdd) {
+  const [y, m, d] = yyyymmdd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return _BS_DOW3[(dt.getUTCDay() + 6) % 7];
+}
 // Compute current streak: longest run of consecutive days ending at today
 // or yesterday (so an unchecked-today habit doesn't lose its streak yet).
 function _bsStreakFromHistory(history) {
@@ -298,6 +305,74 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
   );
 }
 
+// Weekly habits → Shape Score + adherence (this week). Outlined teal card so it
+// reads distinct from the solid "Earned today" plate above it.
+function BSHabitWeeklyStat({ habits }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const model = _bsHabitGridModel(habits);
+  if (!model.rows.length) return null; // nothing to summarize yet (signed-in, no habits)
+  const s = _bsHabitInsightStats(habits);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '15px 18px', borderRadius: 12, border: `1px solid ${teal}55`, background: t.isLight ? `${teal}0c` : `${teal}12` }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Shape Score · From habits</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.04em', color: teal, lineHeight: 0.9 }}>+{s.score}</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK, opacity: 0.72, letterSpacing: '-0.01em' }}>Earned from habits this week.</div>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.adherence}%</div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Adherence</div>
+      </div>
+    </div>
+  );
+}
+
+// 7-day completion grid — DO / DON'T rows × the last 7 days, teal pill = done.
+function BSHabitGrid({ habits }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const model = _bsHabitGridModel(habits);
+  if (!model.rows.length) return null;
+  const days = model.demo ? _BS_HABIT_GRID_DAYS : _bsLast7().map(_bsDow3);
+  const Dot = ({ v }) => (
+    <div style={{ height: 16, borderRadius: 8, background: v ? (v === 2 ? teal : `${teal}b3`) : t.RULE }} />
+  );
+  const NAME_FLEX = '1 1 45%';
+  const DOTS_FLEX = '1 1 55%';
+  return (
+    <div style={{ borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 13 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>Grid</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Last 7 days</div>
+      </div>
+      {/* day-label header — aligned over the dot columns */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{ flex: NAME_FLEX, minWidth: 0 }} />
+        <div style={{ flex: DOTS_FLEX, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+          {days.map((d, i) => (
+            <div key={i} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50 }}>{d}</div>
+          ))}
+        </div>
+      </div>
+      {model.rows.map((r, idx) => {
+        const isAvoid = r.type === 'avoid';
+        return (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: idx ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ flex: NAME_FLEX, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: isAvoid ? t.RUST : teal }}>{isAvoid ? "DON'T" : 'DO'}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+            </div>
+            <div style={{ flex: DOTS_FLEX, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+              {r.pattern.map((v, i) => <Dot key={i} v={v} />)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const _BS_HABIT_SUGGEST = {
   do: ['Cold shower', 'Read 10 pages', 'Stretch', 'Meditate 5 min', 'Water 3L', 'Take vitamins', '10k steps', 'Morning sunlight', 'Sleep by 10:30', '5 min journal'],
   avoid: ['No soda', 'No snooze', 'No skipping breakfast', 'No takeout', 'No screens 1h pre-bed', 'No smoking', 'No added sugar', 'No alcohol weekdays', 'No phone in bed'],
@@ -508,6 +583,12 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <BSHabitWeeklyStat habits={habits} />
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <BSHabitGrid habits={habits} />
       </div>
       <BSHabitSection title="To do" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} />
       <BSHabitSection title="To don't" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
