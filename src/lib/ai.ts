@@ -219,3 +219,6 @@ export {
   invalidateDirectiveCache,
   type Directive,
 } from './ai/directive';
+
+// AI message drafting (grounded, cross-discipline) lives in ./ai/draft.
+export { draftCheckin, type CheckinDraft } from './ai/draft';

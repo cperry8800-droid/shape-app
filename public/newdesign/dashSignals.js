@@ -909,11 +909,103 @@
     };
   }
 
+  // ── AI check-in drafting (grounded, cross-discipline) ───────────────────────
+  // buildEvidencePack(record, role) -> the real, current signals a coach message
+  // should cite, across BOTH disciplines, with anything missing OMITTED (never
+  // invented). buildCheckinDraft turns the pack into a deterministic grounded
+  // draft (the honest fallback + the demo); the server route hands the SAME pack
+  // to the model for warmer phrasing, instructed to cite only these signals — so
+  // a draft is specific to this client and never a templated mass-send.
+
+  function _capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  function buildEvidencePack(rec, role, now) {
+    rec = rec || {};
+    now = now || new Date();
+    var sig = [];
+    function push(domain, key, label, value, detail) {
+      if (value == null || value === '') return;
+      sig.push({ domain: domain, key: key, label: label, value: String(value), detail: detail || null });
+    }
+    var ta = rec.trainingAdherence;
+    if (ta && ta.done != null && ta.planned != null) push('training', 'sessions', 'Sessions', ta.done + '/' + ta.planned, ta.pct != null ? ta.pct + '% of plan' : null);
+    if (rec.streaks && rec.streaks.current != null && rec.streaks.current >= 1) push('training', 'streak', 'Streak', rec.streaks.current + '-day');
+    var n = rec.nutrition;
+    if (n) {
+      if (n.avgCalories != null) push('nutrition', 'calories', 'Avg calories', Math.round(Number(n.avgCalories)) + ' kcal', n.targetCalories != null ? Math.round(Number(n.targetCalories)) + ' kcal target' : null);
+      if (n.avgProtein != null) push('nutrition', 'protein', 'Avg protein', Math.round(Number(n.avgProtein)) + 'g', n.targetProtein != null ? Math.round(Number(n.targetProtein)) + 'g target' : null);
+    }
+    if (rec.foodLogs && rec.foodLogs.daysLogged7d != null) push('nutrition', 'logging', 'Days logged', rec.foodLogs.daysLogged7d + '/7');
+    var w = rec.weighIns;
+    if (Array.isArray(w) && w.length >= 2) {
+      var d = Math.round((Number(w[w.length - 1].weight) - Number(w[0].weight)) * 10) / 10;
+      if (isFinite(d)) push('body', 'weight', 'Weight', (d <= 0 ? '' : '+') + d + ' ' + (w[0].unit || 'lb'), 'over ' + w.length + ' weigh-ins');
+    }
+    var gs = visibleGoals(rec.goals);
+    if (gs.length) {
+      var pj = projectGoal(gs[0], now);
+      if (pj && pj.projectedLabel) push('goal', 'pace', (gs[0].label || 'Goal') + ' pace', 'on track for ' + pj.projectedLabel);
+      else if (pj && pj.state === 'stalled') push('goal', 'pace', (gs[0].label || 'Goal') + ' pace', 'stalled');
+    }
+    if (rec.recovery && rec.recovery.sleepHours && rec.recovery.sleepHours.avg7 != null) push('recovery', 'sleep', 'Avg sleep', rec.recovery.sleepHours.avg7 + 'h');
+    return {
+      signals: sig,
+      hasTraining: sig.some(function (s) { return s.domain === 'training'; }),
+      hasNutrition: sig.some(function (s) { return s.domain === 'nutrition'; }),
+    };
+  }
+
+  function _draftClause(s) {
+    switch (s.key) {
+      case 'sessions': return 'you logged ' + s.value + ' sessions' + (s.detail ? ' (' + s.detail + ')' : '');
+      case 'streak': return "you're on a " + s.value + ' streak';
+      case 'calories': return 'your intake averaged ' + s.value + (s.detail ? ' against a ' + s.detail : '');
+      case 'protein': return 'protein came in at ' + s.value + (s.detail ? ' vs a ' + s.detail : '');
+      case 'logging': return 'you logged food ' + s.value + ' days';
+      case 'weight': return s.value.charAt(0) === '+' ? "you're up " + s.value.slice(1) : "you're down " + s.value.replace('-', '');
+      case 'pace': return s.label.toLowerCase() + ' is ' + s.value;
+      case 'sleep': return 'sleep averaged ' + s.value;
+      default: return s.label.toLowerCase() + ' ' + s.value;
+    }
+  }
+
+  // buildCheckinDraft(record, role, now) -> { text, cited:[{label,value}], evidence }
+  // A grounded, editable check-in draft: leads with the coach's own discipline and
+  // ALSO cites the OTHER discipline when present (the cross-discipline hook). Omits
+  // any absent signal — never invents one. This is the fallback + the demo source.
+  function buildCheckinDraft(rec, role, now) {
+    rec = rec || {};
+    var name = (rec.profile && rec.profile.name) ? String(rec.profile.name).split(' ')[0] : 'there';
+    var pack = buildEvidencePack(rec, role, now);
+    var sig = pack.signals;
+    if (!sig.length) {
+      return { text: 'Hi ' + name + ' — checking in on your week. How did training and nutrition go, and is anything getting in the way?', cited: [], evidence: pack };
+    }
+    var primaryDomain = role === 'nutritionist' ? 'nutrition' : 'training';
+    var otherDomain = role === 'nutritionist' ? 'training' : 'nutrition';
+    var pick = function (dom) { return sig.filter(function (s) { return s.domain === dom; })[0] || null; };
+    var cited = [];
+    var clauses = [];
+    var add = function (s) { if (s) { clauses.push(_draftClause(s)); cited.push({ label: s.label, value: s.value }); } };
+    add(pick(primaryDomain));   // the coach's own discipline
+    add(pick(otherDomain));     // the OTHER discipline — what makes it non-generic
+    if (clauses.length < 2) { add(pick('body')); add(pick('goal')); add(pick('recovery')); }
+    var joined = clauses.join(', and ');
+    var bodyText = joined ? _capFirst(joined) + '. ' : '';
+    return {
+      text: 'Hi ' + name + ' — quick check-in on your week. ' + bodyText + 'How did it feel, and where do you want to focus next week?',
+      cited: cited,
+      evidence: pack,
+    };
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     MAX_GOALS: MAX_GOALS,
     evaluateClient: evaluateClient,
     buildDirective: buildDirective,
+    buildEvidencePack: buildEvidencePack,
+    buildCheckinDraft: buildCheckinDraft,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,

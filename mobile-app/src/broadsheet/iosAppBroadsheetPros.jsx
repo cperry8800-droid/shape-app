@@ -2570,6 +2570,105 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   );
 }
 
+// Build a unified record for the AI draft from the coach-read stats rollup
+// (live), or a demo record whose week shows BOTH a training and a nutrition
+// signal (signed-out preview). Real values only — no field is invented.
+function bsBuildDraftRecord(clientUid, stats, name) {
+  if (clientUid && stats) {
+    const rec = { profile: { name } };
+    if (stats.sessionsPlanned != null) rec.trainingAdherence = { done: stats.sessionsCompleted || 0, planned: stats.sessionsPlanned, pct: stats.sessionsPlanned ? Math.round(((stats.sessionsCompleted || 0) / stats.sessionsPlanned) * 100) : null };
+    if (stats.avgCalories != null || stats.avgProtein != null) rec.nutrition = { avgCalories: stats.avgCalories ?? null, avgProtein: stats.avgProtein ?? null, targetCalories: stats.targetCalories ?? null, targetProtein: stats.targetProtein ?? null };
+    if (stats.daysLogged7d != null) rec.foodLogs = { daysLogged7d: stats.daysLogged7d };
+    if (stats.weightNow != null && stats.weightStart != null) rec.weighIns = [{ on: '', weight: stats.weightStart, unit: 'lb' }, { on: '', weight: stats.weightNow, unit: 'lb' }];
+    return rec;
+  }
+  return {
+    profile: { name: name || 'Marcus Tan' },
+    trainingAdherence: { done: 4, planned: 5, pct: 80 },
+    streaks: { current: 6, best: 9 },
+    nutrition: { avgCalories: 2150, targetCalories: 2000, avgProtein: 150, targetProtein: 175 },
+    foodLogs: { daysLogged7d: 3 },
+    weighIns: [{ on: '2026-04-21', weight: 184, unit: 'lb' }, { on: '2026-06-15', weight: 181, unit: 'lb' }],
+  };
+}
+
+// AI-drafted check-in sheet: a grounded, cross-discipline draft the coach EDITS
+// and approves. Sends via the existing ShapeMessages path; logs the draft + the
+// sent version to ai_audit_log. Never auto-sends.
+function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose }) {
+  const t = useBS();
+  const first = String(clientName || 'your client').split(' ')[0];
+  const [draft, setDraft] = useStateBSP('');
+  const [cited, setCited] = useStateBSP([]);
+  const [loading, setLoading] = useStateBSP(true);
+  const [sending, setSending] = useStateBSP(false);
+  const [auditId, setAuditId] = useStateBSP(null);
+  const record = bsBuildDraftRecord(clientUid, stats, clientName);
+
+  useEffectBSP(() => {
+    let on = true;
+    (async () => {
+      try {
+        if (clientUid && bsProSignedIn()) {
+          const res = await fetch('/api/ai/draft-message', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, record, role }) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+          if (on && res && res.draft) { setDraft(res.draft); setCited(res.cited || []); setAuditId(res.draftAuditId || null); setLoading(false); return; }
+        }
+        // Demo / fallback — the SAME grounded engine, client-side.
+        const E = typeof window !== 'undefined' && window.DashSignals;
+        const d = E && E.buildCheckinDraft ? E.buildCheckinDraft(record, role) : { text: '', cited: [] };
+        if (on) { setDraft(d.text || ''); setCited(d.cited || []); setLoading(false); }
+      } catch (e) { if (on) setLoading(false); }
+    })();
+    return () => { on = false; };
+  }, [clientUid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body || sending || loading) return;
+    if (!clientUid) { window.__bsToast?.('Sends once this client is linked', 'info'); onClose(); return; }
+    setSending(true);
+    try {
+      let cid = null;
+      if (window.ShapeMessages?.getOrCreateMemberConversation) {
+        const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: clientUid });
+        cid = (conv && conv.data) || null;
+      }
+      if (cid && window.ShapeMessages?.sendMessage) {
+        await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'checkin', notify: true } });
+        try { await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) }); } catch (e) { /* audit is best-effort */ }
+        window.__bsToast?.(`Sent to ${first}`, 'ok');
+      } else { window.__bsToast?.('Could not send', 'err'); }
+    } catch (e) { window.__bsToast?.('Could not send', 'err'); }
+    setSending(false);
+    onClose();
+  };
+
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>✦ AI draft · check-in</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>A note to <span style={{ fontStyle: 'italic', color: accent }}>{first}.</span></div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>Grounded in {first}'s real week — across training and nutrition. Edit anything; nothing sends until you tap Send.</div>
+        {cited.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+            {cited.map((c, i) => (
+              <span key={i} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK, border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, padding: '4px 8px' }}>{c.label}: <span style={{ color: accent }}>{c.value}</span></span>
+            ))}
+          </div>
+        )}
+        <textarea value={loading ? 'Drafting…' : draft} onChange={(e) => setDraft(e.target.value)} rows={6} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '12px 13px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, outline: 'none', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.5, resize: 'vertical' }} />
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '13px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={send} disabled={loading || sending || !draft.trim()} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: loading || sending || !draft.trim() ? 'default' : 'pointer', opacity: loading || sending || !draft.trim() ? 0.55 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{sending ? 'Sending…' : `Send to ${first} →`}</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2590,6 +2689,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
+  const [showDraft, setShowDraft] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'manage'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   const [cLifts, setCLifts] = useStateBSP(null); // strength rollup (coach read)
@@ -2766,6 +2866,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>ADJUST</button>
         <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>SCHEDULE</button>
       </div>
+      <button onClick={() => setShowDraft(true)} style={{ marginTop: 8, width: '100%', borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}14`, color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>✦ DRAFT CHECK-IN</button>
+      {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
       <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {[['profile', isNutri ? 'Plan' : 'Profile'], ['manage', 'Manage']].map(([k, label]) => {
           const on = view === k;
