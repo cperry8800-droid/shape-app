@@ -454,8 +454,12 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
         const delta = Array.isArray(hist) && hist.length >= 2 ? hist[hist.length - 1].points - hist[hist.length - 2].points : null;
         const streak = c.streaks && c.streaks.current != null ? c.streaks.current + "d streak" : null;
         const contact = c.lastContact ? dashRelDay(role === "nutritionist" ? c.lastContact.nutritionist : c.lastContact.trainer) : null;
-        const pills = r.flags.slice(0, 2).map((f) => f.label);
-        const extra = r.flags.length - 2;
+        // Owned = this pro acts on it; routed = the other discipline's signal,
+        // shown read-only (or owned when this pro is the only one on the client).
+        const ownedFlags = r.flags.filter((f) => f.owned);
+        const routedFlags = r.flags.filter((f) => !f.owned).concat(r.readOnly || []);
+        const pills = ownedFlags.slice(0, 2).map((f) => f.label);
+        const extra = ownedFlags.length - 2;
         return (
           <div key={c.profile.id || i}
             onClick={() => openDrawer(r)}
@@ -470,6 +474,9 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
                 <span style={{ fontSize: 13.5, fontWeight: 500 }}>{c.profile.name}</span>
                 {pills.map((p, j) => <DashPill key={j} c={sevColor}>{p}</DashPill>)}
                 {extra > 0 && <DashPill c={sevColor}>+{extra}</DashPill>}
+                {routedFlags.slice(0, 2).map((f, j) => f.owned
+                  ? <DashPill key={"ro" + j} c={sevColor}>{f.label}</DashPill>
+                  : <DashPill key={"ro" + j} c={ink50}>{f.label} {f.routeTo === "nutritionist" ? "→ dietitian" : "→ trainer"}</DashPill>)}
                 {isNew && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
                 {r.severity === "green" && !isNew && <DashPill c={DASH_SEV_COLORS.green}>On track</DashPill>}
               </div>

@@ -430,8 +430,65 @@
     return { flags: flags, severity: severity };
   }
 
+  // ── Discipline classification + routing (coach triage) ──────────────────────
+  // Each signal belongs to a DISCIPLINE; the owning pro acts on it, the OTHER pro
+  // sees it READ-ONLY. General signals (check-in / score / contact / goal / basic
+  // food-logging) are owned by whoever is viewing. A client with a single pro →
+  // that pro owns everything (nothing read-only). This is purely a routing layer:
+  // severity is still exactly what evaluateClient computes — read-only context
+  // flags never escalate the viewer.
+  var FLAG_DISCIPLINE = {
+    streak_broken: "training",
+    ledger_blown: "nutrition",
+    protein_under: "nutrition",
+    food_gap: "general",       // basic logging adherence — either pro nudges it
+    score_drop: "general",
+    checkin_overdue: "general",
+    contact_gap: "general",
+    goal_slip: "general",
+  };
+  function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
+  function disciplineOwner(discipline) {
+    if (discipline === "training" || discipline === "recovery") return "trainer";
+    if (discipline === "nutrition") return "nutritionist";
+    return null; // general — both pros own it
+  }
+  // Is the pro of `proRole` on this client? Defaults to present (so the routing
+  // shows) unless the record says otherwise via c.pros = {trainer, nutritionist}.
+  function hasPro(c, proRole) {
+    if (c && c.pros && typeof c.pros === "object" && proRole in c.pros) return !!c.pros[proRole];
+    return true; // server populates c.pros; absent → assume present
+  }
+  function tagFlag(f, role, c) {
+    var d = flagDiscipline(f.key);
+    var owner = disciplineOwner(d);
+    // Owned if general, the viewer's own discipline, or the owning pro isn't on
+    // this client (single pro → everything routes to them).
+    var owned = owner === null || owner === role || !hasPro(c, owner);
+    return {
+      key: f.key, label: f.label, reason: f.reason, missedWeeks: f.missedWeeks,
+      discipline: d, owned: owned, routeTo: owner,
+    };
+  }
+  // The OTHER discipline's flags this role doesn't already evaluate — surfaced as
+  // routed context (a trainer/coach seeing the dietitian's macro flags). Each is
+  // tagged owned/read-only: READ-ONLY when a nutritionist is on the client, OWNED
+  // when the trainer is the only pro (everything routes to them). NOT counted
+  // toward severity either way — severity stays exactly as evaluateClient says.
+  function readOnlyFlags(c, now, role) {
+    var out = [];
+    if (role !== "nutritionist") {
+      var f;
+      if ((f = ruleLedgerBlown(c))) out.push(tagFlag(f, role, c));
+      if ((f = ruleProteinUnder(c))) out.push(tagFlag(f, role, c));
+    }
+    return out;
+  }
+
   // getTriageFeed(role, clients, now) -> rows sorted red → amber → green,
-  // most-flagged first within a band, name as the stable tiebreak.
+  // most-flagged first within a band, name as the stable tiebreak. Each flag is
+  // tagged with its discipline + owned/read-only routing; `readOnly` carries the
+  // other discipline's context flags (not counted in severity).
   function getTriageFeed(role, clients, now) {
     now = now || new Date();
     var rank = { red: 2, amber: 1, green: 0 };
@@ -441,7 +498,8 @@
         return {
           client: c,
           severity: r.severity,
-          flags: r.flags,
+          flags: r.flags.map(function (f) { return tagFlag(f, role, c); }),
+          readOnly: readOnlyFlags(c, now, role),
           reasons: r.flags.map(function (x) { return x.reason; }),
           // The cross-domain directive (verdict + reason + the one action) + the
           // coach read, so every triage surface reuses ONE source for the reason.
@@ -1006,6 +1064,8 @@
     buildDirective: buildDirective,
     buildEvidencePack: buildEvidencePack,
     buildCheckinDraft: buildCheckinDraft,
+    flagDiscipline: flagDiscipline,
+    disciplineOwner: disciplineOwner,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,

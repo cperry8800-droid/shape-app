@@ -65,6 +65,7 @@ function BSProTriageFeed({ role = 'trainer', schedule = [], isToday = true, onSe
                     <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '3px 7px' }}>{sig.label}</span>
                   </div>
                   <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.03em', color: t.INK50, lineHeight: 1.35 }}>{sig.directive}</div>
+                  {sig.routed && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.05em', color: t.INK50, opacity: 0.75, lineHeight: 1.3 }}>→ {sig.routed.to} · read-only: {sig.routed.reason}</div>}
                 </div>
                 <button type="button" onClick={() => message(c)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message</button>
               </div>
@@ -1624,6 +1625,13 @@ function bsRowFromTriage(row, role, t) {
   const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
     : (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
+  // The OTHER discipline's signal, routed read-only to this pro (e.g. a trainer
+  // seeing the dietitian's protein flag). owned===false = read-only context.
+  const roFlags = ((row.flags || []).filter((f) => f && f.owned === false))
+    .concat((row.readOnly || []).filter((f) => f && f.owned === false));
+  const routed = roFlags.length
+    ? { to: roFlags[0].routeTo === 'nutritionist' ? 'Dietitian' : 'Trainer', reason: roFlags[0].reason }
+    : null;
   return {
     userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
     avatar: p.avatar || p.photo || undefined,
@@ -1631,7 +1639,7 @@ function bsRowFromTriage(row, role, t) {
     streak, d: adh != null ? `${adh}%` : '',
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : 'on track',
     active: true,
-    _sig: { sev, rank, label: sev === 'green' ? 'ON TRACK' : 'NEEDS YOU', directive },
+    _sig: { sev, rank, label: sev === 'green' ? 'ON TRACK' : 'NEEDS YOU', directive, routed },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
