@@ -405,6 +405,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
     <BSPage>
       <BSMasthead
         title={isNutri ? 'Client Review' : 'Workout Review'}
+        thinRule
+        showDoubleRule={false}
         leftKicker={isNutri ? 'Nutritionist queue' : 'Trainer queue'}
         rightKicker={status}
         trailing={<button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Back</button>}
@@ -1319,6 +1321,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
     <BSPage>
       <BSMasthead
         compact
+        thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
@@ -1335,6 +1338,21 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
           {lead.copy}
         </div>
+      </div>
+
+      {/* Edition strip — coaches edition, at the top (mirrors the client home) */}
+      <div style={{
+        padding: `7px ${t.padX}px 10px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        background: t.PAPER2,
+      }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
+          Coaches Edition · No. {dates[todayIdx].getDate()}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
+          Vol. I
+        </span>
       </div>
 
       {/* THIS WEEK — trainer view, dots = booking density (selects the day) */}
@@ -1361,16 +1379,27 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         const title = liveClient ? (more ? `${lc.n} · +${more} more` : lc.n) : 'Alex Rivera · Upper Pull';
         return (
         <div style={{ padding: `4px ${t.padX}px 0` }}>
-          <button onClick={() => onWatchLive(liveClient ? { client: lc.n, clientId: lc.userId, workout: 'Live session' } : { client: 'Alex Rivera', workout: 'Upper Pull — Peak' })} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1px solid ${t.RUST}55`, background: `linear-gradient(150deg, ${t.RUST}24, ${t.RUST}08 50%, ${t.PAPER2} 90%), ${t.PAPER2}`, padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BSFacetAvatar size={30} c={lc.c || t.RUST} initial={lc.i || (lc.n || '?').charAt(0).toUpperCase()} name={lc.n} photo={lc.avatarUrl || lc.avatar || undefined} showRank={false} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
-                <span style={{ width: 5, height: 5, borderRadius: 999, background: t.RUST, display: 'inline-block' }} /> Live · training
+          <BSPlate
+            c={t.RUST}
+            spine={3}
+            bracket
+            pad="10px 13px"
+            role="button"
+            ariaLabel={`Watch ${lc.n} live`}
+            onClick={() => onWatchLive(liveClient ? { client: lc.n, clientId: lc.userId, workout: 'Live session' } : { client: 'Alex Rivera', workout: 'Upper Pull — Peak' })}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <BSFacetAvatar size={30} c={lc.c || t.RUST} initial={lc.i || (lc.n || '?').charAt(0).toUpperCase()} name={lc.n} photo={lc.avatarUrl || lc.avatar || undefined} showRank={false} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, fontWeight: 800 }}>
+                  <span style={{ width: 5, height: 5, borderRadius: 999, background: t.RUST, display: 'inline-block', boxShadow: `0 0 8px ${t.RUST}`, animation: 'bsLivePulse 2.2s ease-in-out infinite' }} /> Live · training
+                </div>
+                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
               </div>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
             </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST }}>Watch →</span>
-          </button>
+            <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+          </BSPlate>
         </div>
         );
       })()}
@@ -1408,21 +1437,6 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
       <div style={{ marginTop: 8 }}>
         <BSNowPlaying onOpen={goRadio} />
-      </div>
-
-      {/* Edition strip — demoted above the footer */}
-      <div style={{
-        padding: `8px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.AMBER }}>
-          Coaches Edition · No. {dates[todayIdx].getDate()}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
-        </span>
       </div>
 
       <BSFooter left="The Coach Edition" right="Pg 1 of 4" />
@@ -4086,6 +4100,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
     <BSPage>
       <BSMasthead
         compact
+        thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
@@ -4102,6 +4117,21 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: t.body + 1, color: t.INK70, lineHeight: 1.3, fontWeight: 500 }}>
           {lead.copy}
         </div>
+      </div>
+
+      {/* Edition strip — coaches edition, at the top (mirrors the client home) */}
+      <div style={{
+        padding: `7px ${t.padX}px 10px`,
+        borderBottom: `1px solid ${t.RULE}`,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+        background: t.PAPER2,
+      }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
+          Coaches Edition · No. {dates[todayIdx].getDate()}
+        </span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
+          Vol. I
+        </span>
       </div>
 
       {/* THIS WEEK — nutritionist view, dots = consult density (selects the day) */}
@@ -4154,21 +4184,6 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       {/* NOW PLAYING — Shape Radio (demoted to the bottom) */}
       <div style={{ marginTop: 8 }}>
         <BSNowPlaying onOpen={goRadio} />
-      </div>
-
-      {/* Edition strip — demoted above the footer */}
-      <div style={{
-        padding: `8px ${t.padX}px 12px`,
-        borderBottom: `1px solid ${t.RULE}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-        background: t.PAPER2,
-      }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.RUST }}>
-          Coaches Edition · No. {dates[todayIdx].getDate()}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, color: t.INK50 }}>
-          Vol. I
-        </span>
       </div>
 
       <BSFooter left="The Nutri Edition" right="Pg 1 of 4" />
