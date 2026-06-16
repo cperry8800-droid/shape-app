@@ -138,6 +138,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-16 — Habits Grid card → instrument plate · sentence-cased habit names (#1324)
+- **Grid card redesign (mobile, `iosAppBroadsheetHabits.jsx` `BSHabitGrid`):** the
+  "Grid · Last 7 days" card was the odd one out — a soft `radius:12` card with gray
+  pill dots and a plain "Grid" label, while its sibling `BSHabitScoreCard` is a teal
+  `BSPlate`. Rebuilt it onto a **teal `window.BSPlate`** (left spine · clipped
+  top-right notch · corner bracket; **no** pulsing live tick — it's a 7-day
+  retrospective, not a live surface). Mono `LAST 7 DAYS` eyebrow + serif **"The
+  grid."** (accent period) + the ink→accent ledger. The soft pills became **squared
+  completion tiles** (new `Cell`: solid teal + glow = done-today `v===2`; `${teal}b3`
+  = done-past `v===1`; teal outline = pending today; hairline outline = empty past).
+  **Today's column** (always the rightmost) is accent-marked (teal day label + cell
+  treatment). Theme-token only; visual-only (same `_bsHabitGridModel(habits)` path).
+- **Sentence-cased habit names:** new **`_bsCapHabitName()`** capitalizes the first
+  letter **only** when it's a lowercase `a–z` (leaves `10k steps`, symbols, and
+  already-capitalized/brand names untouched), applied at the two data-load
+  boundaries (**`_bsDecodeHabits`** + **`_bsMapServerHabits`**) — one place fixes
+  every surface (Grid, To-do/To-don't rows, home tracker) for demo, local, and live
+  signed-in habits. So "drink 3 glasses of water" / "smoking" now read "Drink 3
+  glasses of water" / "Smoking".
+- Verified headless (rebuilt the `/tmp` puppeteer pipeline per HANDOFF §3d); CI green
+  (Web + Mobile required); 104/104 tests; `public/m` in sync. On **main** (dev synced).
+
 ### 2026-06-16 — Grocery polish · GetApp COMMUNITY slide · habits weekly stat + grid · web screenshots fit the phone (#1319–#1322)
 - **Grocery (mobile, `BSGrocery` / `BSGroceryBuilder`):** compacted the Progress
   card; dropped the redundant "This week's plan" name from the list source-chip and
