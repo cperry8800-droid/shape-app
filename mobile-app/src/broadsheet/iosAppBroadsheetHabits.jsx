@@ -65,6 +65,17 @@ function _bsStreakFromHistory(history) {
   return n;
 }
 
+// Sentence-case a habit name so it reads formally — "drink 3 glasses of water"
+// → "Drink 3 glasses of water". Only acts when the first character is a lowercase
+// a–z, so numbers ("10k steps"), symbols, and already-capitalized names are left
+// untouched. Applied at the data-load boundary (decode + server map) so every
+// surface — grid, To-do/To-don't rows, home tracker — reads consistently.
+function _bsCapHabitName(name) {
+  const s = String(name || '');
+  const ch = s[0];
+  return (ch >= 'a' && ch <= 'z') ? ch.toUpperCase() + s.slice(1) : s;
+}
+
 function _bsDecodeHabits(v) {
   if (!v || typeof v !== 'string') return [];
   try {
@@ -85,7 +96,7 @@ function _bsDecodeHabits(v) {
         : (h.public ? 'public' : 'private');
       return {
         id: h.id || `h${i}_${Date.now()}`,
-        name: String(h.name || '').slice(0, 60),
+        name: _bsCapHabitName(String(h.name || '').slice(0, 60)),
         type: h.type === 'avoid' ? 'avoid' : 'do',
         remindAt: typeof h.remindAt === 'string' ? h.remindAt : '',
         visibility,
@@ -437,7 +448,7 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
 function _bsMapServerHabits(rows) {
   return (rows || []).map(h => ({
     id: h.id,
-    name: h.name,
+    name: _bsCapHabitName(h.name),
     type: h.type === 'avoid' ? 'avoid' : 'do',
     cadence: h.cadence || 'daily',
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private',
