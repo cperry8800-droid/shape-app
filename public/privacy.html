@@ -211,6 +211,7 @@
       <h2>Information sharing &amp; processors</h2>
       <p>We do not sell your personal information. We share it only in these specific situations:</p>
       <p><strong>With the coach(es) you subscribe to or book.</strong> A trainer you've subscribed to sees the workout data, goals, and messages relevant to coaching you. A nutritionist you hire sees your meal log and targets. You control the relationship: cancel any time and that coach's ongoing access ends.</p>
+      <p><strong>Publicly visible information.</strong> Some profile information is visible to other Shape members by design: your name or handle, profile photo, role, Shape Score and tier, and anything you post publicly or set to "Profile" visibility. This information may appear on your public profile, in community feeds, in search, and on leaderboards. You control it in Settings — set your profile to <strong>Public</strong>, <strong>Friends</strong>, or <strong>Private</strong>. Your health, training, and nutrition data is never made public; it is limited to you and the coach(es) you link with.</p>
       <p><strong>With subprocessors who help us run Shape.</strong> Each is bound by contract to protect your data and use it only to deliver their service to us.</p>
       <ul>
         <li><strong>Supabase</strong> — database, authentication, file storage (hosted in United States / EU regions).</li>
@@ -262,8 +263,10 @@
       <ul>
         <li><strong>Strictly necessary:</strong> session cookies that keep you logged in and protect against CSRF. Cannot be disabled without breaking the site.</li>
         <li><strong>Functional:</strong> remember your preferences (e.g., dashboard view, active role) across sessions.</li>
-        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, anonymized usage data (page views, referrers) to help us improve the product. No cross-site tracking or advertising pixels.</li>
+        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, anonymized usage data (page views, referrers) to help us improve the product. It is <strong>cookieless</strong> — no persistent identifier, no cross-site tracking, and no advertising pixels.</li>
+        <li><strong>Fraud prevention:</strong> on pages with payments, our processor Stripe sets its own cookies (e.g., <code>__stripe_mid</code>, <code>__stripe_sid</code>) to detect and prevent fraud.</li>
       </ul>
+      <p>We do not use advertising or cross-site tracking cookies. Because the only cookies we set are strictly necessary or functional and our analytics is cookieless, we do not show a cookie-consent banner.</p>
       <p>You can block or delete cookies in your browser settings. Doing so may sign you out or disable certain features.</p>
     </section>
 
