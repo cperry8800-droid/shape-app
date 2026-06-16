@@ -2390,6 +2390,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </span>
       </div>
 
+      {/* NOW PLAYING — Shape Radio (above the week calendar) */}
+      <BSNowPlaying onOpen={goRadio} />
+
       {/* THIS WEEK — calendar preview (directly below the Clients Edition band) */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
@@ -2473,9 +2476,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           )}
         </BSPlate>
       )}
-
-      {/* NOW PLAYING — Shape Radio */}
-      <BSNowPlaying onOpen={goRadio} />
 
       {/* The day's plan beneath the move. The section header shows only on
           non-today views — the "Your move" hero owns the single "Today" narrative. */}
