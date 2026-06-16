@@ -18750,15 +18750,16 @@ function BSTermsPage({ onBack, onContact }) {
     ['01', 'Acceptance & eligibility', 'Shape is for users who are at least 18 and legally able to use the platform. Business users must be authorized to accept terms for that business.'],
     ['02', 'Accounts', 'Each person should keep one accurate account, protect login credentials, and notify Shape if account access appears compromised.'],
     ['03', 'Memberships & payments', 'Client membership is billed monthly. Coach subscriptions, sessions, programs, and meal plans are priced by each provider. Payments are processed through Stripe.'],
-    ['04', 'Coaches', 'Trainers and nutritionists operate as independent providers. They are responsible for credentials, scope of practice, taxes, service quality, and client delivery.'],
+    ['04', 'Coaches', 'Trainers and nutritionists operate as independent providers, responsible for credentials, scope of practice, taxes, service quality, and client delivery. Unless a coach shows a Verified badge, the credentials on their profile are self-reported and not independently verified by Shape.'],
     ['05', 'Content & conduct', 'Users keep ownership of uploaded content, but must avoid false claims, harassment, infringement, scraping, malware, impersonation, and unlawful activity.'],
     ['06', 'Shape Score & rewards', 'Points can be earned through qualifying activity and redeemed in Shape Store. Points are not cash, are not transferable, and may be adjusted for abuse.'],
     ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to christopher.perry@theshapecommunity.com.'],
-    ['08', 'Health disclaimer', 'Shape is not medical care; training, nutrition, and coach guidance are informational and don\'t replace licensed medical advice. Health/screening info you enter (PAR-Q, injuries, medications) helps your coach work with you safely and is shared only with your linked coach(es); see the Privacy Policy and Data & Compliance page for how it\'s stored and protected.'],
-    ['09', 'Liability', 'Shape limits liability to the extent allowed by law. Some jurisdictions may provide rights that cannot be waived.'],
-    ['10', 'Disputes', 'The terms include informal dispute resolution, arbitration, class-action waiver language, and Delaware governing law.'],
-    ['11', 'Termination', 'Accounts may be closed by the user or removed by Shape for serious violations, fraud, safety issues, or breach of platform rules.'],
-    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions go to christopher.perry@theshapecommunity.com or the contact page.'],
+    ['08', 'Music & audio', 'Coach playlists, soundtracks, and Shape Radio play through your own connected music account (e.g., Spotify) under that provider\'s license to you. Shape does not host, stream, or license the music itself; your use of a connected music service follows that service\'s own terms.'],
+    ['09', 'Health disclaimer', 'Shape is not medical care; training, nutrition, and coach guidance are informational and don\'t replace licensed medical advice. Health/screening info you enter (PAR-Q, injuries, medications) helps your coach work with you safely and is shared only with your linked coach(es); see the Privacy Policy and Data & Compliance page for how it\'s stored and protected.'],
+    ['10', 'Liability', 'Shape limits liability to the extent allowed by law. Some jurisdictions may provide rights that cannot be waived.'],
+    ['11', 'Disputes', 'The terms include informal dispute resolution, arbitration, class-action waiver language, and Delaware governing law.'],
+    ['12', 'Termination', 'Accounts may be closed by the user or removed by Shape for serious violations, fraud, safety issues, or breach of platform rules.'],
+    ['13', 'Changes & contact', 'Material changes are announced in advance. Questions go to christopher.perry@theshapecommunity.com or the contact page.'],
   ];
 
   return (
@@ -18842,11 +18843,13 @@ function BSPrivacyPage({ onBack, onContact }) {
     ['03', 'How we use it', 'To run your account, deliver coaching, personalize your plans and Shape Score, process payments, keep the platform safe, and improve the product.'],
     ['04', 'Wearables & integrations', 'If you connect Strava, Whoop, Oura, Garmin, Apple Health, or Spotify, we access only what those scopes allow — to show your activity, recovery, and music. Disconnect any time in Settings.'],
     ['05', 'Sharing', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. We do not sell your personal data.'],
-    ['06', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
-    ['07', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
-    ['08', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
-    ['09', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
-    ['10', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
+    ['06', 'Public profile & leaderboard', 'Some profile info is visible to other members by design: your name/handle, photo, role, Shape Score and tier, and anything you post publicly. It can appear on your profile, in community feeds, search, and leaderboards. Set Public / Friends / Private in Settings. Your health, training, and nutrition data is never public — only you and your linked coach(es) see it.'],
+    ['07', 'Cookies & tracking', 'On the web, Shape uses strictly-necessary cookies (login session, CSRF) and functional cookies (your preferences). Analytics is cookieless (Vercel) — no advertising pixels or cross-site tracking; Stripe sets fraud-prevention cookies on payment pages. The native app uses secure device storage, not cookies.'],
+    ['08', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
+    ['09', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
+    ['10', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
+    ['11', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
+    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
   ];
 
   return (
