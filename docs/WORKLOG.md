@@ -138,6 +138,34 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-16 — Grocery polish · GetApp COMMUNITY slide · habits weekly stat + grid · web screenshots fit the phone (#1319–#1322)
+- **Grocery (mobile, `BSGrocery` / `BSGroceryBuilder`):** compacted the Progress
+  card; dropped the redundant "This week's plan" name from the list source-chip and
+  un-boxed + enlarged its "Nutri plan · this week" label (8→12px). **The custom-list
+  builder now auto-sorts a typed item into its aisle** — new `bsBuilderAisleFor()`
+  (extends `bsGroceryAisleFor` to cover Frozen/Bakery/Household, Pantry fallback);
+  the matching AISLE pill auto-selects live as you type ("· auto-sorted — tap to
+  change"), a manual tap locks it ("· custom"), and it resets on add.
+- **Get-the-App walkthrough (`public/newdesign/GetApp.html`):** last slide
+  **CHAT → COMMUNITY** ("The social side of strong." — feed, channels, coach
+  co-signs; its image is the community-feed capture `getapp-chat-v2.png`). Slide 4
+  grocery now uses a clean **screen-only crop** of the dropped white capture
+  (`getapp-grocery-v1.png` — device frame, white margins, and notch removed so it
+  matches the other captures). **Screenshots now fill the phone:** `object-fit:
+  contain → cover` + frame aspect `393/852 → 320/716` (matches the 600×1387
+  captures). Removed two raw `Screenshot …png` uploads.
+- **Habits page (mobile, `iosAppBroadsheetHabits.jsx`):** the top **"Earned today"
+  card now also shows a "This week · from habits" line** — the week's Shape Score
+  from habits (`+N`) + adherence %, from the existing `_bsHabitInsightStats()`.
+  Added a **"Grid · Last 7 days"** card below it (DO/DON'T × 7 days, teal completion
+  pills, today highlighted) from `_bsHabitGridModel()` + new `_bsDow3()`. Both
+  reflect real habits; hidden on a fresh empty account (demo set shows signed-out).
+- **Website `index.html`:** same screenshot fit fix (`.vis` → `object-fit: cover` +
+  aspect `320/716`) so the landing-page phone shots sit edge-to-edge.
+- All on **main** (dev synced); CI green per PR; 104/104 tests. Verified the habits
+  layout with a headless render (see HANDOFF-2026-06-16 for the reusable
+  screenshot pipeline).
+
 ### 2026-06-16 — Coach home polish: instrument-plate live banner · Coaches Edition band · thinner mastheads (#1303)
 - **Live-now banner → instrument plate.** The trainer Today "LIVE · TRAINING"
   box was a rounded gradient card; restyled to a `BSPlate` matching the
