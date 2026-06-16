@@ -83,7 +83,7 @@
   .dot.on { background: var(--teal); width: 26px; }
 
   .phone {
-    width: 320px; max-width: 84vw; aspect-ratio: 393 / 852; margin: 0 auto;
+    width: 320px; max-width: 84vw; aspect-ratio: 320 / 716; margin: 0 auto;
     position: relative; box-sizing: border-box; border-radius: 56px; padding: 9px;
     background: var(--screen);
     border: 1px solid rgba(10,13,12,0.14);
@@ -108,7 +108,7 @@
   }
   .screen-crop img {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: contain; object-position: center center;
+    object-fit: cover; object-position: center top;
     opacity: 0; transition: opacity .45s ease;
   }
   .screen-crop img.on { opacity: 1; }
@@ -288,12 +288,12 @@
     { kind: "HOME",     title: "Today, at a glance.",         body: "The Shape Daily — calendar, calorie ledger, what's left to log, who's on the air. Skim it in five seconds, dive in if you want.", img: "/newdesign/getapp-home-v3.png?v=20260617", dark: true },
     { kind: "TRAIN",    title: "Know what's coming.",          body: "Every move, set, and cue from your trainer — before you walk into the gym. Tap a move for video, note warmups, mark a substitute.", img: "/newdesign/getapp-train-v2.png?v=20260617", dark: false },
     { kind: "EAT",      title: "Macros, tallied live.",        body: "Daily meal plans from your nutritionist. The day's deficit (or surplus) ticks as you log. Swaps for travel days built in.", img: "/newdesign/getapp-nutri-v2.png?v=20260617", dark: false },
-    { kind: "GROCERY",  title: "List that builds itself.",     body: "Organized by aisle with a live running cost. Coach swaps land inline. One tap to send the whole list to Instacart.", img: "/newdesign/grocery%20list%20(white).png?v=20260617", dark: false },
+    { kind: "GROCERY",  title: "List that builds itself.",     body: "Organized by aisle with a live running cost. Coach swaps land inline. One tap to send the whole list to Instacart.", img: "/newdesign/getapp-grocery-v1.png?v=20260618", dark: false },
     { kind: "HABITS",   title: "Small things, tracked.",       body: "Tap to log. Earn Shape Score for every check. Pick friends to be notified when you miss — accountability without the guilt trip.", img: "/newdesign/habits.png?v=20260617", dark: true },
     { kind: "SCORE",    title: "One number that matters.",     body: "A five-tier ladder rewarding consistency across training, nutrition, and recovery. It only moves when you show up.", img: "/newdesign/getapp-score-v2.png?v=20260617", dark: true },
     { kind: "PROFILE",  title: "A profile that's alive.",      body: "Your climb, your Shape Score, PRs and playlists — a living page that grows as you do. Make it public or keep it private; it's yours.", img: "/newdesign/getapp-profile-v1.png?v=20260617", dark: true },
     { kind: "RADIO",    title: "Music built for movement.",    body: "Live mixes curated by your coach. Each track's BPM syncs with your wearable — when the two lock in, your pace becomes the song.", img: "/newdesign/getapp-radio-v2.png?v=20260617", dark: true },
-    { kind: "CHAT",     title: "A real human, in the loop.",   body: "Not a chatbot. Your vetted coach reads your logs, asks how you're feeling, and adjusts each week. The app keeps that loop tight — daily.", img: "/newdesign/getapp-chat-v2.png?v=20260617", dark: false }
+    { kind: "COMMUNITY", title: "The social side of strong.",   body: "See who's training now, cheer a friend's PR, and post your own. A live feed, member channels, and coach co-signs turn solo workouts into a community — the energy of a gym floor, wherever you train.", img: "/newdesign/getapp-chat-v2.png?v=20260618", dark: false }
   ];
 
   var i = 0;
