@@ -14902,8 +14902,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
 const BS_STORE_PRODUCTS = [
     { id: 'merch_training_tee', cat: 'Shape Merch', name: 'Shape Training Tee', brand: 'Shape Merch', cost: 450, retail: 48, tag: 'New', stock: 'In stock' },
     { id: 'merch_crewneck', cat: 'Shape Merch', name: 'Shape Crewneck', brand: 'Shape Merch', cost: 720, retail: 72, tag: 'Members', stock: 'In stock' },
-    { id: 'merch_cap', cat: 'Shape Merch', name: 'Shape Cap', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
-    { id: 'merch_beanie', cat: 'Shape Merch', name: 'Shape Beanie', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
+    { id: 'merch_cap_black', cat: 'Shape Merch', name: 'Shape Cap · Black', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
+    { id: 'merch_cap_white', cat: 'Shape Merch', name: 'Shape Cap · White', brand: 'Shape Merch', cost: 700, retail: 35, tag: 'Limited drop', stock: 'Limited · 30' },
     { id: 'merch_bottle', cat: 'Shape Merch', name: 'Shape Training Bottle', brand: 'Shape Merch', cost: 280, retail: 28, stock: 'In stock' },
     { id: 'merch_towel', cat: 'Shape Merch', name: 'Shape Gym Towel', brand: 'Shape Merch', cost: 220, retail: 22, stock: 'In stock' },
     { id: 'merch_duffel', cat: 'Shape Merch', name: 'Shape Training Duffel', brand: 'Shape Merch', cost: 1640, retail: 165, tag: 'Peak tier', stock: 'In stock', locked: true },

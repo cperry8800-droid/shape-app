@@ -25,8 +25,8 @@ const RAW: Array<Omit<StoreItem, 'kind'> & { kind?: StoreItem['kind'] }> = [
   // Shape Merch
   { id: 'merch_training_tee', name: 'Shape Training Tee', cat: 'Shape Merch', retail: 48, kind: 'merch' },
   { id: 'merch_crewneck', name: 'Shape Crewneck', cat: 'Shape Merch', retail: 72, kind: 'merch' },
-  { id: 'merch_cap', name: 'Shape Cap', cat: 'Shape Merch', retail: 35, kind: 'merch' },
-  { id: 'merch_beanie', name: 'Shape Beanie', cat: 'Shape Merch', retail: 35, kind: 'merch' },
+  { id: 'merch_cap_black', name: 'Shape Cap · Black', cat: 'Shape Merch', retail: 35, kind: 'merch' },
+  { id: 'merch_cap_white', name: 'Shape Cap · White', cat: 'Shape Merch', retail: 35, kind: 'merch' },
   { id: 'merch_bottle', name: 'Shape Training Bottle', cat: 'Shape Merch', retail: 28, kind: 'merch' },
   { id: 'merch_towel', name: 'Shape Gym Towel', cat: 'Shape Merch', retail: 22, kind: 'merch' },
   { id: 'merch_duffel', name: 'Shape Training Duffel', cat: 'Shape Merch', retail: 165, kind: 'merch', locked: true },
