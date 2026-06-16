@@ -44,3 +44,10 @@ next-env.d.ts
 # agent skills: SKILL.md sources are tracked (shared); local caches/locks aren't
 /.agents/
 /skills-lock.json
+
+# Locally-installed agent skills (not part of the app)
+.agents/
+.claude/skills/higgsfield-generate
+.claude/skills/higgsfield-marketplace-cards
+.claude/skills/higgsfield-product-photoshoot
+.claude/skills/higgsfield-soul-id
