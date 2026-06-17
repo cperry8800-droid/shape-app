@@ -241,13 +241,18 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
 
-    const ownedRoles: string[] =
+    const rawRoles: string[] =
       Array.isArray(profile?.roles) && profile.roles.length
         ? profile.roles
         : profile?.role
           ? [profile.role]
           : ['client'];
-    const activeRole = (profile?.role as PortalRole | undefined) ?? 'client';
+    // A dietitian (RD/RDN) is a nutrition provider — it OWNS the nutritionist
+    // portal (same surfaces/discipline), so it passes the nutritionist gate.
+    const ownedRoles = rawRoles.includes('dietitian') && !rawRoles.includes('nutritionist')
+      ? [...rawRoles, 'nutritionist'] : rawRoles;
+    const rawActive = (profile?.role as string | undefined) ?? 'client';
+    const activeRole = (rawActive === 'dietitian' ? 'nutritionist' : rawActive) as PortalRole;
 
     // Signed in but this page belongs to a role the user doesn't have —
     // send them to a dashboard they DO own. Multi-role users (the required

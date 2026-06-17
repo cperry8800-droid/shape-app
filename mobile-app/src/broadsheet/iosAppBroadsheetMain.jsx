@@ -622,8 +622,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const [authError, setAuthError] = useStateBSM('');
   const [busy, setBusy] = useStateBSM(false);
   const [verifyEmail, setVerifyEmail] = useStateBSM(''); // set → show the "check your email" screen
+  const [isDietitian, setIsDietitian] = useStateBSM(false); // within the nutritionist signup: RD/RDN
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
+  // A nutritionist applicant who is a Registered Dietitian signs up as 'dietitian'
+  // (same nutrition discipline + surfaces; credentialed label). Profile role wins after.
+  const signupRole = (role === 'nutritionist' && isDietitian) ? 'dietitian' : role;
   // Live username availability while creating an account (debounced).
   React.useEffect(() => {
     if (!isCreate || !username) { setUnameOk(null); return; }
@@ -652,7 +656,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setBusy(true);
     try {
       const result = isCreate
-        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role, username })
+        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role: signupRole, username })
         : await auth.signIn({ email: trimmedEmail, password, role });
       // New account needs email confirmation → show the verify screen, don't enter the app.
       if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
@@ -688,7 +692,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setPhone(e164);
     setBusy(true);
     try {
-      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role });
+      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole });
       setOtpSent(true);
     } catch (error) {
       setAuthError(error?.message || 'Could not send the code.');
@@ -706,7 +710,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     }
     setBusy(true);
     try {
-      const result = await auth.verifyPhoneOtp({ phone: _bsNormalizePhone(phone), token: otpCode.trim(), fullName: fullName.trim(), role });
+      const result = await auth.verifyPhoneOtp({ phone: _bsNormalizePhone(phone), token: otpCode.trim(), fullName: fullName.trim(), role: signupRole });
       const nextRole = result?.profile?.role;
       if (nextRole && nextRole !== role) setRole(nextRole);
       onLogin(result);
@@ -733,7 +737,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '7px 10px', fontFamily: t.DISPLAY, fontSize: 13, color: CREAM, outline: 'none' };
   const labelStyle = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 4 };
   const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
-  const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist', dietitian: 'Dietitian (RD/RDN)' }[role] || 'Client';
+  const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist', dietitian: 'Dietitian (RD/RDN)' }[signupRole] || 'Client';
   // Forgot password — best effort via the auth layer; degrades to a neutral notice.
   const forgotPassword = async () => {
     setAuthError('');
@@ -812,6 +816,18 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
               }}>{l}</button>;
             })}
           </div>
+          {/* Within the nutritionist application: declare RD/RDN (same discipline, credentialed). */}
+          {isCreate && role === 'nutritionist' && (
+            <button onClick={() => setIsDietitian(v => !v)} style={{ marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'transparent', border: `1px solid ${LINE2}`, borderRadius: 12, padding: '9px 12px', cursor: 'pointer' }}>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: CREAM }}>I'm a Registered Dietitian (RD/RDN)</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: C50, marginTop: 2 }}>Same nutrition tools · credentialed badge</div>
+              </div>
+              <span style={{ width: 40, height: 23, borderRadius: 999, border: `1px solid ${isDietitian ? '#0ac5a8' : LINE2}`, background: isDietitian ? '#0ac5a8' : 'transparent', position: 'relative', flexShrink: 0 }}>
+                <span style={{ position: 'absolute', top: 2, left: isDietitian ? 19 : 2, width: 17, height: 17, borderRadius: 999, background: isDietitian ? '#031f1c' : C50 }} />
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Fields */}
@@ -881,7 +897,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         {!isCreate && (
           <button onClick={() => {
             setAuthError('');
-            if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') { if (onApply) onApply(role); else setMode('create'); }
+            if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') { if (onApply) onApply(signupRole); else setMode('create'); }
             else { setMode('create'); }
           }} style={{ width: '100%', borderRadius: 12, padding: '9px 14px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
             {role === 'client' ? 'Create account →' : `Apply as a ${roleLabel} →`}

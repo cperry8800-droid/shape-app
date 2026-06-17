@@ -229,10 +229,23 @@ function ProPersonal({ v, set, roleNoun }) {
 
 function ProCredentials({ v, set, kind }) {
   const isTrainer = kind === "trainer";
+  const isDietitian = !isTrainer && /dietitian/i.test(v.nutritionType || "");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {!isTrainer && (
+        <div>
+          <Field label="Professional type" span={2}>
+            <Select value={v.nutritionType || "Nutritionist"} onChange={e => set({ nutritionType: e.target.value })} options={["Nutritionist", "Dietitian (RD / RDN)"]} />
+          </Field>
+          <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            {isDietitian
+              ? "Registered Dietitians get a verified RD/RDN badge once we confirm your license — same nutrition tools, credentialed."
+              : "Are you a Registered Dietitian (RD/RDN)? Select it above for the credentialed profile."}
+          </p>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-        <Field label={isTrainer ? "Primary certification" : "License type"}><TextInput value={v.cert || ""} onChange={e => set({ cert: e.target.value })} placeholder={isTrainer ? "NASM, ACE, NSCA, CSCS..." : "RD, RDN, LDN, CNS..."} /></Field>
+        <Field label={isTrainer ? "Primary certification" : isDietitian ? "RD/RDN registration number" : "License type"}><TextInput value={v.cert || ""} onChange={e => set({ cert: e.target.value })} placeholder={isTrainer ? "NASM, ACE, NSCA, CSCS..." : isDietitian ? "RD #, RDN #..." : "RD, RDN, LDN, CNS..."} /></Field>
         <Field label={isTrainer ? "Expiration / renewal" : "License state + number"}><TextInput value={v.certExp || ""} onChange={e => set({ certExp: e.target.value })} /></Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
@@ -412,6 +425,11 @@ function SignupForm({ role }) {
       return;
     }
 
+    // Within the nutritionist application you can declare you're a Registered
+    // Dietitian (RD/RDN). The provider rails stay 'nutritionist' (same discipline +
+    // write path); nutrition_role + credential ride in details so the reviewer sets
+    // profiles.role='dietitian' + the RD credential at setup.
+    const isDietitian = role === "nutritionist" && /dietitian/i.test(values.nutritionType || "");
     const form = new FormData();
     form.append("providerType", role);
     form.append("firstName", values.firstName || "");
@@ -427,6 +445,8 @@ function SignupForm({ role }) {
       timezone: values.tz || "",
       social: values.social || "",
       bio: values.bio || "",
+      nutrition_role: role === "nutritionist" ? (isDietitian ? "dietitian" : "nutritionist") : undefined,
+      credential: isDietitian ? (/rdn/i.test(values.cert || "") ? "rdn" : "rd") : undefined,
       certification: values.cert || "",
       certification_expiration: values.certExp || "",
       education: values.edu || "",

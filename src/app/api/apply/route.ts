@@ -240,7 +240,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const role = providerTypeRaw === 'trainer' ? 'Trainer' : 'Nutritionist';
+  // A nutritionist applicant can declare RD/RDN inside the application — the
+  // provider rails stay 'nutritionist'; the label + details carry the dietitian
+  // distinction for the reviewer (who sets profiles.role='dietitian' + credential).
+  const isDietitian = providerTypeRaw === 'nutritionist' && String(details.nutrition_role || '').toLowerCase() === 'dietitian';
+  const role = providerTypeRaw === 'trainer' ? 'Trainer' : isDietitian ? 'Dietitian (RD/RDN)' : 'Nutritionist';
   const fullName = `${firstName} ${lastName}`.trim();
   void sendApplicationEmails({
     role,

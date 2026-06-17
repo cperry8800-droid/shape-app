@@ -48,7 +48,8 @@ const state = {
 };
 
 function normalizeRole(role) {
-  return ['client', 'trainer', 'nutritionist'].includes(role) ? role : 'client';
+  // dietitian (RD/RDN) is a first-class nutrition-discipline provider role.
+  return ['client', 'trainer', 'nutritionist', 'dietitian'].includes(role) ? role : 'client';
 }
 
 function normalizeRoles(roles, fallbackRole = 'client') {
