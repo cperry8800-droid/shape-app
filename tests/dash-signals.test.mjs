@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { THRESHOLDS, evaluateClient, getTriageFeed, buildProgrammingQueue, buildMilestones, findJointAttention, buildMockClients } =
+const { THRESHOLDS, evaluateClient, getTriageFeed, buildProgrammingQueue, buildMilestones, findJointAttention, buildMockClients,
+  projectGoal, goalSlipDays, goalsFromDoc, buildDirective, buildEvidencePack } =
   require("../public/newdesign/dashSignals.js");
 
 // Fixed reference clock: Friday 2026-06-12 (day-into-week 4 ≥ grace 3, so the
@@ -307,4 +308,95 @@ test("joint attention requires a training-domain AND a nutrition-domain flag", (
 test("personas: Marcus is the joint-attention case; Sam (no training flag) is not", () => {
   const res = findJointAttention(buildMockClients(NOW), NOW);
   assert.deepEqual(res.map((r) => r.client.profile.name), ["Marcus T."]);
+});
+
+// ── Projection + directive core (S3-14) ──────────────────────────────────────
+// Direct coverage for projectGoal / goalsFromDoc / buildDirective /
+// buildEvidencePack — the projection + directive paths that were previously
+// only exercised indirectly. These would have caught the S3-2/3/5 bugs.
+
+// S3-2 — unit reconciliation: a kg-logged series must not "achieve" an lb goal.
+test("goalsFromDoc reconciles a kg weigh-in series against an lb goal (S3-2)", () => {
+  const goals = goalsFromDoc({
+    overall: { title: "Goal weight", target: 165, unit: "lb", start: 185 },
+    weighIns: [
+      { on: ago(40), weight: 84, unit: "kg" }, // ≈ 185.2 lb
+      { on: ago(5), weight: 78, unit: "kg" },  // ≈ 172.0 lb
+    ],
+  });
+  const wg = goals.find((g) => g.metric === "weight");
+  assert.ok(wg, "weight goal built from overall + weigh-ins");
+  assert.equal(wg.history.length, 2);
+  // History is converted INTO the goal's unit (lb), not left as raw kg.
+  assert.ok(wg.history[1].value > 170 && wg.history[1].value < 174, "78 kg ≈ 172 lb");
+  const p = projectGoal(wg, NOW);
+  // 172 lb is NOT ≤ 165 lb — the old unit-blind path returned "achieved".
+  assert.notEqual(p.state, "achieved");
+  assert.equal(p.direction, "down");
+});
+
+// S3-3 — unsorted (newest-first) series must read as a loss, not a gain.
+test("buildEvidencePack reads a weight LOSS from a newest-first series (S3-3)", () => {
+  const rec = clean({
+    weighIns: [
+      { on: ago(2), weight: 170, unit: "lb" },  // newest first (unsorted input)
+      { on: ago(30), weight: 178, unit: "lb" },
+    ],
+  });
+  const pack = buildEvidencePack(rec, "trainer", NOW);
+  const wsig = pack.signals.find((s) => s.key === "weight");
+  assert.ok(wsig, "weight signal present");
+  assert.equal(wsig.value, "-8 lb"); // lost 8 — not the inverted "+8"
+});
+test("buildDirective's 30-day read reports the loss too (S3-3)", () => {
+  const rec = clean({
+    weighIns: [
+      { on: ago(2), weight: 170, unit: "lb" },
+      { on: ago(30), weight: 178, unit: "lb" },
+    ],
+  });
+  const d = buildDirective(rec, NOW, "trainer");
+  assert.match(d.read.summary30d, /-8 lb/);
+});
+
+// S3-5 — the single lead is by urgency, not rule push-order.
+test("the directive leads with the most urgent flag, not push order (S3-5)", () => {
+  const rec = clean({
+    shapeScoreHistory: [
+      { weekOf: mondaysAgo(1), points: 80 },
+      { weekOf: mondaysAgo(0), points: 70 }, // drop 10 ≥ SCORE_DROP_PTS → fires first in push order
+    ],
+    checkIn: { lastWeekOf: mondaysAgo(10) }, // months-late check-in
+  });
+  const ev = evaluateClient(rec, NOW, "trainer");
+  assert.ok(ev.flags.some((f) => f.key === "score_drop"));
+  assert.ok(ev.flags.some((f) => f.key === "checkin_overdue"));
+  const d = buildDirective(rec, NOW, "trainer");
+  assert.equal(d.lever, "checkin"); // the months-late check-in wins
+  assert.deepEqual(d.cited, ["checkin_overdue"]);
+});
+
+// projectGoal / goalSlipDays sanity coverage.
+test("projectGoal returns an on-pace ETA for a steady descent (S3-14)", () => {
+  const g = {
+    label: "Cut", metric: "weight", unit: "lb", target: 170, start: 185,
+    history: [
+      { on: ago(35), value: 185 },
+      { on: ago(21), value: 181 },
+      { on: ago(7), value: 177 },
+      { on: ago(0), value: 175 },
+    ],
+  };
+  const p = projectGoal(g, NOW);
+  assert.equal(p.direction, "down");
+  assert.equal(p.state, "on-pace");
+  assert.ok(p.toGo > 0 && p.projectedDate);
+});
+test("projectGoal marks an already-hit goal achieved (S3-14)", () => {
+  const g = { metric: "weight", unit: "lb", target: 175, start: 185, history: [{ on: ago(20), value: 182 }, { on: ago(2), value: 174 }] };
+  assert.equal(projectGoal(g, NOW).state, "achieved");
+});
+test("goalSlipDays is null without a prior baseline (S3-14)", () => {
+  const g = { metric: "weight", unit: "lb", target: 170, start: 180, history: [{ on: ago(2), value: 178 }] };
+  assert.equal(goalSlipDays(g, NOW), null);
 });
