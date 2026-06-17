@@ -12236,6 +12236,93 @@ function _bsNotifStyle(type, t) {
   return map[type] || map.general;
 }
 
+const _NP_HOURS = Array.from({ length: 24 }, (_, h) => ({ v: h, l: (h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM') }));
+function _npNorm(p) {
+  p = p && typeof p === 'object' ? p : {};
+  return {
+    enabled: p.enabled !== false,
+    quietStart: Number.isFinite(p.quietStart) ? p.quietStart : 22,
+    quietEnd: Number.isFinite(p.quietEnd) ? p.quietEnd : 7,
+    tz: p.tz || 'UTC',
+    channels: { push: !(p.channels && p.channels.push === false) },
+    types: (p.types && typeof p.types === 'object') ? { ...p.types } : {},
+  };
+}
+// Proactive-notification preferences: master switch · quiet hours (tz-aware) ·
+// push channel · per-type opt-out. Persists to user_goals('notify_prefs') — the
+// SAME doc /api/ai/notify reads — so the screen and the server agree.
+function BSNotifyPrefs({ onBack, role }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const isCoach = role === 'trainer' || role === 'nutritionist';
+  const [prefs, setPrefs] = useStateBSC(null);
+  React.useEffect(() => {
+    let alive = true;
+    Promise.resolve(window.ShapeNotifyPrefs?.get?.() || {}).then(p => { if (alive) setPrefs(_npNorm(p)); });
+    return () => { alive = false; };
+  }, []);
+  const commit = (next) => {
+    try { next.tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) {}
+    setPrefs(next);
+    window.ShapeNotifyPrefs?.save?.(next);
+  };
+  const setField = (k, v) => commit({ ...prefs, [k]: v });
+  const setType = (type, on) => commit({ ...prefs, types: { ...(prefs.types || {}), [type]: on } });
+  const setChannel = (k, v) => commit({ ...prefs, channels: { ...(prefs.channels || {}), [k]: v } });
+
+  const TYPES = isCoach
+    ? [['client_red', 'Clients in the red', 'A client crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up before it’s urgent']]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never streak-shaming']];
+
+  const Toggle = ({ on, onClick }) => (
+    <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? '#fff' : t.INK50 }} />
+    </button>
+  );
+  const Row = ({ l, sub, right, border = true }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: border ? `1px solid ${t.HAIR}` : 0 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{l}</div>
+        {sub && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
+      </div>
+      {right}
+    </div>
+  );
+  const Head = (txt) => <div style={{ marginTop: 18, marginBottom: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
+  const HourSelect = ({ value, onChange }) => (
+    <select value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ background: 'transparent', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+      {_NP_HOURS.map(h => <option key={h.v} value={h.v} style={{ color: '#000' }}>{h.l}</option>)}
+    </select>
+  );
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Notifications" kicker="Proactive nudges" title={<>When Shape<br/>reaches you.</>} />
+      {prefs === null ? (
+        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      ) : (
+        <div style={{ padding: `4px ${t.padX}px 30px` }}>
+          <Row l="Proactive nudges" sub={prefs.enabled === false ? 'Off — only the in-app bell' : 'Real events only — never spam'} border={false} right={<Toggle on={prefs.enabled !== false} onClick={() => setField('enabled', prefs.enabled === false)} />} />
+          {prefs.enabled !== false && (
+            <React.Fragment>
+              {Head('Quiet hours')}
+              <Row l="From" sub="No nudges — held for a daily digest" right={<HourSelect value={prefs.quietStart} onChange={(v) => setField('quietStart', v)} />} />
+              <Row l="To" sub="Uses your device time zone" border={false} right={<HourSelect value={prefs.quietEnd} onChange={(v) => setField('quietEnd', v)} />} />
+              {Head('Channels')}
+              <Row l="Push notifications" sub="The in-app bell is always on" border={false} right={<Toggle on={prefs.channels.push !== false} onClick={() => setChannel('push', !(prefs.channels.push !== false))} />} />
+              {Head('What you’ll hear about')}
+              {TYPES.map(([type, label, sub], i) => {
+                const on = !(prefs.types && prefs.types[type] === false);
+                return <Row key={type} l={label} sub={sub} border={i < TYPES.length - 1} right={<Toggle on={on} onClick={() => setType(type, !on)} />} />;
+              })}
+              <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Shape only notifies on a real event — never a guilt-trip, never a fake streak. Each one deep-links you to the right place; nothing changes your data.</div>
+            </React.Fragment>
+          )}
+        </div>
+      )}
+    </BSPage>
+  );
+}
 function BSNotifications({ onBack, onRoute = () => {} }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -16721,6 +16808,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
+  const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
   const [appearTab, setAppearTab] = useStateBSC('paper');
@@ -17292,6 +17380,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showNotifications) {
     return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => { if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); } }} />;
   }
+  if (showNotifyPrefs) {
+    return <BSNotifyPrefs onBack={() => setShowNotifyPrefs(false)} role={tweaks.role} />;
+  }
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
   }
@@ -17413,6 +17504,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Notifications',
       meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
+        { l: 'Proactive nudges', r: 'Types · quiet hours', action: () => setShowNotifyPrefs(true) },
         { l: 'Workout reminders', key: 'workoutReminders' },
         { l: 'Coach replies',     key: 'coachReplies' },
         { l: 'Weekly digest',     key: 'weeklyDigest' },

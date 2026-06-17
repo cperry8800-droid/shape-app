@@ -368,6 +368,7 @@ async function getCurrentSession() {
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
+  if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses'); } catch (e) {} } // grant any one-time tier bonuses (idempotent)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
@@ -4438,6 +4439,53 @@ window.ShapeVoice = {
   speak: speakVoice,
   stop: stopVoice,
 };
+
+// ─── Proactive notifications: prefs + the server evaluator ───────────────────
+// Prefs (per-type opt-out, quiet hours, channels) live in user_goals
+// 'notify_prefs' — the SAME doc /api/ai/notify reads, so the screen and the
+// server agree. evaluate() runs the engine server-side over the REAL record and
+// writes any due notifications (deduped/capped/quiet-hours-aware over there).
+async function getNotifyPrefs() {
+  try { return (window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('notify_prefs') : null) || {}; } catch (e) { return {}; }
+}
+async function saveNotifyPrefs(p) {
+  try { await window.shapeDb?.saveUserGoals?.('notify_prefs', p || {}); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs', { detail: p })); } catch (e) {}
+  return p;
+}
+window.ShapeNotifyPrefs = { get: getNotifyPrefs, save: saveNotifyPrefs };
+
+async function evaluateNotifications(force) {
+  if (!apiBaseUrl || !state.session?.access_token) return null;
+  // Throttle: the layer dedups anyway, but don't hammer the endpoint.
+  try {
+    if (!force) {
+      const last = Number(window.localStorage.getItem('shape.notify.last') || 0);
+      if (Date.now() - last < 30 * 60_000) return null;
+    }
+    window.localStorage.setItem('shape.notify.last', String(Date.now()));
+  } catch (e) {}
+  try {
+    const role = state.profile?.role || 'client';
+    let body;
+    if (role === 'trainer' || role === 'nutritionist') {
+      const clients = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords() : null;
+      if (!Array.isArray(clients) || !clients.length) return null; // honest: nothing to evaluate
+      body = { clients };
+    } else {
+      const record = window.ShapeSignals?.selfRecord ? await window.ShapeSignals.selfRecord() : null;
+      if (!record) return null;
+      body = { record };
+    }
+    const res = await fetch(`${apiBaseUrl}/api/ai/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify(body),
+    });
+    return await res.json().catch(() => null);
+  } catch (e) { return null; }
+}
+window.ShapeNotify = { evaluate: evaluateNotifications };
 
 // ─── Coach Console feed (banner + pushed items the coach sent to this client) ───
 // Backed by the coach_focus_banners + coach_pushed_items tables (2026-05-22
