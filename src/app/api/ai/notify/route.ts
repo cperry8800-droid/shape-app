@@ -47,7 +47,10 @@ export async function POST(request: Request) {
     for (const c of clients) {
       const id = (c as { userId?: string; id?: string })?.userId || (c as { id?: string })?.id;
       if (!id || typeof id !== 'string') continue; // demo/no-id → skip (honest)
-      const { data: ok } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: id });
+      const { data: ok, error: scopeErr } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: id });
+      // Fail CLOSED on a scope-check error (never include an unverified client),
+      // but log it so a backend outage isn't silently dropping the whole roster.
+      if (scopeErr) { console.warn('[shape-ai] notify scope-check failed for client', id, scopeErr.message); continue; }
       if (ok === true) verified.push(c);
     }
     snapshot.clients = verified;

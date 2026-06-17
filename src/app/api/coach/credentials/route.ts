@@ -64,7 +64,10 @@ export async function POST(request: Request) {
     updated_at: new Date().toISOString(),
   };
   const { error: credErr } = await supabase.from('provider_credentials').upsert(row, { onConflict: 'owner_id' });
-  if (credErr) return NextResponse.json({ error: credErr.message }, { status: 500 });
+  if (credErr) {
+    console.error('[shape] provider_credentials upsert failed:', credErr.message);
+    return NextResponse.json({ error: 'Could not save your credentials.' }, { status: 500 });
+  }
 
   // Replace the license set (states the provider is licensed in).
   if (Array.isArray(body.licenses)) {
@@ -79,7 +82,13 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       }));
     await supabase.from('provider_licenses').delete().eq('owner_id', user.id);
-    if (valid.length) await supabase.from('provider_licenses').insert(valid);
+    if (valid.length) {
+      const { error: licErr } = await supabase.from('provider_licenses').insert(valid);
+      if (licErr) {
+        console.error('[shape] provider_licenses insert failed:', licErr.message);
+        return NextResponse.json({ error: 'Could not save your licenses.' }, { status: 500 });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

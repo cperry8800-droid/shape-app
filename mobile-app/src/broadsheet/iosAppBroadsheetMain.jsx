@@ -628,6 +628,9 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   // A nutritionist applicant who is a Registered Dietitian signs up as 'dietitian'
   // (same nutrition discipline + surfaces; credentialed label). Profile role wins after.
   const signupRole = (role === 'nutritionist' && isDietitian) ? 'dietitian' : role;
+  // Clear the RD/RDN toggle if the role changes away from nutritionist, so a
+  // stale checkbox can't carry a dietitian signup into another role.
+  React.useEffect(() => { if (role !== 'nutritionist') setIsDietitian(false); }, [role]);
   // Live username availability while creating an account (debounced).
   React.useEffect(() => {
     if (!isCreate || !username) { setUnameOk(null); return; }

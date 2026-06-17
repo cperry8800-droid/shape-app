@@ -76,6 +76,7 @@ export function authoritativeReading(metric, readings, override) {
 //   overrides:    { [metric]: source }
 export function buildReconciliation(observations = [], overrides = {}, opts = {}) {
   const conflictsOnly = opts.conflictsOnly !== false;
+  const pinnedDate = opts.snapshotDate || null;
   const byMetric = new Map();
   for (const o of observations) {
     if (!o || !o.metric || !METRICS[o.metric]) continue;
@@ -83,7 +84,16 @@ export function buildReconciliation(observations = [], overrides = {}, opts = {}
     byMetric.get(o.metric).push(o);
   }
   const out = [];
-  for (const [metric, obs] of byMetric) {
+  for (const [metric, obsAll] of byMetric) {
+    // SAME-DAY reconciliation: only compare readings from ONE snapshot date — the
+    // caller's pinned date, else the most recent date present for this metric.
+    // (Comparing today's Whoop against a 3-day-old Oura would surface a false
+    // conflict and pick a stale "authoritative" source.)
+    const day = pinnedDate || obsAll.reduce((m, o) => {
+      const d = String((o && o.snapshot_date) || '');
+      return d > m ? d : m;
+    }, '');
+    const obs = day ? obsAll.filter((o) => String((o && o.snapshot_date) || '') === day) : obsAll;
     const readings = latestPerSource(obs);
     if (readings.length < 2) {
       if (!conflictsOnly && readings.length) out.push(row(metric, readings, overrides[metric], false));

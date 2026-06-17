@@ -300,7 +300,10 @@ function NutritionCompliance({ v, set, isDietitian }) {
         </p>
       </div>
       {isDietitian && (
-        <Field label="CDR registration number (RD/RDN)"><TextInput value={v.cdrId || ""} onChange={e => set({ cdrId: e.target.value })} placeholder="e.g. 1234567" /></Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="CDR registration number (RD/RDN)"><TextInput value={v.cdrId || ""} onChange={e => set({ cdrId: e.target.value })} placeholder="e.g. 1234567" /></Field>
+          <Field label="Credential type"><Select value={v.rdCredential || "rd"} onChange={e => set({ rdCredential: e.target.value })} options={["rd", "rdn"]} /></Field>
+        </div>
       )}
       <div>
         <div style={subLabel}>State license(s) — you may only serve clients in states you are licensed in</div>
@@ -481,6 +484,14 @@ function SignupForm({ role }) {
       setError("Terms, code of conduct, and background check consent are required.");
       return;
     }
+    if (role === "nutritionist") {
+      const att = values.attest || {};
+      const required = ["independent_contractor", "maintains_licensure", "maintains_insurance", "scope_understood"];
+      if (required.some((k) => att[k] !== true)) {
+        setError("All nutrition compliance attestations are required.");
+        return;
+      }
+    }
 
     // Within the nutritionist application you can declare you're a Registered
     // Dietitian (RD/RDN). The provider rails stay 'nutritionist' (same discipline +
@@ -503,7 +514,7 @@ function SignupForm({ role }) {
       social: values.social || "",
       bio: values.bio || "",
       nutrition_role: role === "nutritionist" ? (isDietitian ? "dietitian" : "nutritionist") : undefined,
-      credential: isDietitian ? (/rdn/i.test(values.cert || "") ? "rdn" : "rd") : undefined,
+      credential: isDietitian ? (values.rdCredential === "rdn" ? "rdn" : "rd") : undefined,
       certification: values.cert || "",
       certification_expiration: values.certExp || "",
       education: values.edu || "",

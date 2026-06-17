@@ -1618,8 +1618,12 @@ function bsRowFromTriage(row, role, t) {
   // Prefer the engine's ONE cross-domain directive reason (the read), falling
   // back to the first raw flag reason — same row, just a sharper "why".
   const dir = row.directive || null;
+  // An empty `row.reasons: []` is still truthy, so don't let it short-circuit the
+  // flag-reason fallback — merge both and take the first real reason.
+  const rawReasons = Array.isArray(row.reasons) ? row.reasons : [];
+  const flagReasons = (row.flags || []).map((f) => f && f.reason);
   const reason = (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
-    || ((row.reasons || (row.flags || []).map((f) => f.reason)).filter(Boolean))[0];
+    || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
   const directive = reason || (sev === 'green' ? (nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.') : 'Needs your attention this week.');
   const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
@@ -1630,7 +1634,7 @@ function bsRowFromTriage(row, role, t) {
   const roFlags = ((row.flags || []).filter((f) => f && f.owned === false))
     .concat((row.readOnly || []).filter((f) => f && f.owned === false));
   const routed = roFlags.length
-    ? { to: roFlags[0].routeTo === 'nutritionist' ? 'Dietitian' : 'Trainer', reason: roFlags[0].reason }
+    ? { to: ['nutritionist', 'dietitian', 'nutrition'].includes(String(roFlags[0].routeTo || '').toLowerCase()) ? 'Dietitian' : 'Trainer', reason: roFlags[0].reason }
     : null;
   return {
     userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
@@ -2439,6 +2443,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const apply = async () => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
     setStatus('working');
+    let gotDisclaimer = false;
     try {
       const start = dayCells[dayIdx];
       const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
@@ -2449,7 +2454,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
         const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
         // NC1 — show the individualized-care / scope disclaimer the server returns.
-        if (res && res.disclaimer) setDisclaimer(String(res.disclaimer));
+        if (res && res.disclaimer) { setDisclaimer(String(res.disclaimer)); gotDisclaimer = true; }
       } else if (isSplit) {
         const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
@@ -2477,7 +2482,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         }
       } catch (e) {}
       setStatus('done');
-      setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
+      // Keep the screen open when a compliance disclaimer was returned so the
+      // coach can read it; they dismiss via the explicit Done button. Otherwise
+      // auto-advance as before.
+      if (!gotDisclaimer) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
     } catch (e) { setStatus(String(e?.message || 'error')); }
   };
 
@@ -2579,6 +2587,9 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 {disclaimer}
               </div>
             )}
+            {status === 'done' && disclaimer && (
+              <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Read &amp; acknowledged · done</button>
+            )}
           </div>
         </div>
       </div>
@@ -2591,8 +2602,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
 // (live), or a demo record whose week shows BOTH a training and a nutrition
 // signal (signed-out preview). Real values only — no field is invented.
 function bsBuildDraftRecord(clientUid, stats, name) {
-  if (clientUid && stats) {
-    const rec = { profile: { name } };
+  // A LIVE client (real userId) NEVER falls back to demo data — a check-in must
+  // be grounded only in their real signals. With no stats yet, return a bare
+  // record (the engine drafts an honest "just checking in" note).
+  if (clientUid) {
+    const rec = { profile: { name: name || 'Client' } };
+    if (!stats) return rec;
     if (stats.sessionsPlanned != null) rec.trainingAdherence = { done: stats.sessionsCompleted || 0, planned: stats.sessionsPlanned, pct: stats.sessionsPlanned ? Math.round(((stats.sessionsCompleted || 0) / stats.sessionsPlanned) * 100) : null };
     if (stats.avgCalories != null || stats.avgProtein != null) rec.nutrition = { avgCalories: stats.avgCalories ?? null, avgProtein: stats.avgProtein ?? null, targetCalories: stats.targetCalories ?? null, targetProtein: stats.targetProtein ?? null };
     if (stats.daysLogged7d != null) rec.foodLogs = { daysLogged7d: stats.daysLogged7d };
@@ -2654,10 +2669,16 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
         await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'checkin', notify: true } });
         try { await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) }); } catch (e) { /* audit is best-effort */ }
         window.__bsToast?.(`Sent to ${first}`, 'ok');
-      } else { window.__bsToast?.('Could not send', 'err'); }
-    } catch (e) { window.__bsToast?.('Could not send', 'err'); }
-    setSending(false);
-    onClose();
+        setSending(false);
+        onClose();
+        return;
+      }
+      throw new Error('Could not send');
+    } catch (e) {
+      // Keep the sheet open on failure so the coach's edited message isn't lost.
+      window.__bsToast?.('Could not send — try again', 'err');
+      setSending(false);
+    }
   };
 
   const sheet = (

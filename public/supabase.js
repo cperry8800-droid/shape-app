@@ -93,6 +93,12 @@
     // True if the current profile has this role (array-aware, legacy-safe).
     profileHasRole(profile, role) {
       if (!profile) return false;
+      // Dietitian (RD/RDN) rides the nutritionist rails — a dietitian satisfies
+      // a nutritionist role gate.
+      if (role === 'nutritionist') {
+        if (Array.isArray(profile.roles) && profile.roles.indexOf('dietitian') !== -1) return true;
+        if (profile.role === 'dietitian') return true;
+      }
       if (Array.isArray(profile.roles) && profile.roles.indexOf(role) !== -1) return true;
       return profile.role === role;
     },
@@ -669,7 +675,7 @@
 
     dashboardFor(role) {
       if (role === 'trainer') return 'trainer-dashboard.html';
-      if (role === 'nutritionist') return 'nutrition-schedule.html';
+      if (role === 'nutritionist' || role === 'dietitian') return 'nutrition-schedule.html';
       return 'clients.html';
     },
 

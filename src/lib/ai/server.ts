@@ -7,6 +7,7 @@
 // SERVER-ONLY. The Supabase client here is request-scoped (Bearer or cookie), so
 // every read/write runs as the calling user and RLS stays authoritative.
 
+import { createHash } from 'node:crypto';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { currentUser, clientForRequest } from '@/lib/request-auth';
 import { createRegistry, demoEchoAction } from '@/lib/ai/proposals.mjs';
@@ -28,9 +29,19 @@ export async function resolveActor(request: Request): Promise<Actor | null> {
   return { user, role, supabase };
 }
 
-/** HMAC secret for proposal tokens — server-only env, stable across instances. */
+/**
+ * HMAC secret for proposal tokens — server-only, stable across instances.
+ * Prefer a dedicated AI_PROPOSAL_SECRET. If it's unset we DON'T sign with the
+ * raw service-role key (a leaked token could expose it); instead we derive a
+ * one-way key from it via SHA-256, so the service key can never be recovered
+ * from a token. Returns '' only when neither env is configured.
+ */
 export function proposalSecret(): string {
-  return process.env.AI_PROPOSAL_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const dedicated = process.env.AI_PROPOSAL_SECRET;
+  if (dedicated) return dedicated;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return '';
+  return createHash('sha256').update(`shape-ai-proposal:${serviceKey}`).digest('hex');
 }
 
 // The server's action registry. Real product actions (set goals, log meal,

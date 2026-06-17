@@ -41,6 +41,7 @@ All logic lives in the pure module `src/lib/compliance/nutrition.mjs` (node-test
 and is wired server-side via `src/lib/compliance/server.ts`.
 
 ### 2a. Credential capture & verification
+
 - `provider_credentials` — credential type (`rd` | `rdn` | `cns` | `nutritionist`),
   CDR registration id, `verified_rd` + `verified_at` (CDR verification), liability
   insurance (carrier / policy / expiration), and onboarding attestations.
@@ -50,6 +51,7 @@ and is wired server-side via `src/lib/compliance/server.ts`.
   them ongoing at `POST /api/coach/credentials`.
 
 ### 2b. Licensure-to-client-state matching (the critical gate)
+
 - `client_compliance.us_state` records the client's state.
 - `canServeClient(provider, clientState)` returns **allowed only if** the provider
   holds a **non-expired license in the client's state** AND has **non-expired
@@ -59,6 +61,7 @@ and is wired server-side via `src/lib/compliance/server.ts`.
   `not_licensed_in_client_state`, `insurance_expired`.
 
 ### 2c. Scope gating (general vs. individualized / MNT)
+
 - `actionScope(actionType)`: `meal_plan`, `set_program_detail`,
   `condition_guidance`, `macro_prescription` are **individualized**; everything
   else is **general**.
@@ -69,6 +72,7 @@ and is wired server-side via `src/lib/compliance/server.ts`.
   treatment language is presented for non-licensed providers.
 
 ### 2d. Shared-record consent & data governance
+
 - `client_compliance.cross_discipline_consent` — the client's explicit consent to
   share their record across disciplines (trainer ⇄ nutrition provider).
 - Role-based access stays enforced by existing RLS (`is_coach_on_client`,
@@ -83,6 +87,7 @@ and is wired server-side via `src/lib/compliance/server.ts`.
   billing without counsel + signed BAAs.
 
 ### 2e. Marketplace terms hooks
+
 - Onboarding attestations (`REQUIRED_ATTESTATIONS`): **independent contractor**
   (Shape is a marketplace, not the employer; does not direct clinical judgment),
   **maintains licensure**, **maintains malpractice insurance**, **scope understood**.

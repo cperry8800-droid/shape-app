@@ -47,12 +47,13 @@ export async function POST(request: Request) {
   // active/trialing subs for THIS nutritionist row and reject if the target
   // client isn't among them. (The 2026-06-17 INSERT RLS policy enforces the same
   // at the DB.)
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await supabase
     .from('subscriptions')
     .select('client_id')
     .eq('provider_id', nutriRow.id)
     .eq('provider_role', 'nutritionist')
     .in('status', ['active', 'trialing']);
+  if (subsError) return NextResponse.json({ error: 'Could not verify your active clients. Please retry.' }, { status: 500 });
   const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
   if (unauthorizedAssignTargets([clientId], activeClientIds).length) {
     return NextResponse.json(

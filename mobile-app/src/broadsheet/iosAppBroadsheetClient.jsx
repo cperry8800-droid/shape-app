@@ -14631,7 +14631,8 @@ function BSReconcile({ onBack, clientId }) {
   React.useEffect(() => { load(); }, [load]);
   const pick = async (metric, source) => {
     setBusy(`${metric}:${source}`);
-    try { await window.ShapeReconcile?.set?.({ clientId, metric, source }); } catch (e) {}
+    try { await window.ShapeReconcile?.set?.({ clientId, metric, source }); }
+    catch (e) { window.__bsToast?.("Couldn't save — try again", 'err'); setBusy(''); return; }
     // optimistic: mark chosen authoritative, then refresh from the server
     setItems(list => (list || []).map(it => it.metric !== metric ? it : {
       ...it, override: source, authoritativeSource: source,

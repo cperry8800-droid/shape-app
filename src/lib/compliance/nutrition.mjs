@@ -89,7 +89,7 @@ export function credentialStatus(provider, now = new Date(), soonDays = 60) {
   const licenses = ((provider && provider.licenses) || []).map((l) => ({ state: l.state, expires: l.expires, status: expiryState(l.expires, now, soon) }));
   const insurance = { expires: provider && provider.insuranceExpires, status: expiryState(provider && provider.insuranceExpires, now, soon) };
   const verifiedRd = !!(provider && provider.verifiedRd);
-  const blocked = insurance.status === 'expired' || licenses.every((l) => l.status === 'expired') && licenses.length > 0;
+  const blocked = insurance.status === 'expired' || (licenses.every((l) => l.status === 'expired') && licenses.length > 0);
   return { licenses, insurance, verifiedRd, blocked: !!blocked };
 }
 

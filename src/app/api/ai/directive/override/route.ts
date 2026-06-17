@@ -26,7 +26,8 @@ export async function POST(request: Request) {
   }
 
   // Only a coach actively on this client may override their directive.
-  const { data: ok } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  const { data: ok, error: scopeErr } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  if (scopeErr) return NextResponse.json({ error: 'Unable to verify coach access right now.' }, { status: 500 });
   if (ok !== true) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
 
   const override = parsed.data.override == null ? null : sanitizeOverride(parsed.data.override, actor.user.id);

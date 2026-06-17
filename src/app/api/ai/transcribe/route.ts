@@ -25,6 +25,8 @@ export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   const file = form?.get('audio');
   if (!(file instanceof File)) return NextResponse.json({ error: 'No audio provided.' }, { status: 400 });
+  const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // OpenAI transcription hard limit
+  if (file.size > MAX_AUDIO_BYTES) return NextResponse.json({ error: 'Audio file too large.' }, { status: 413 });
 
   const result = await transcribeAudio(file, { promptId: 'ai.transcribe' });
   if (!result.ok) return NextResponse.json({ error: 'Could not transcribe the audio. Try again.' }, { status: 502 });

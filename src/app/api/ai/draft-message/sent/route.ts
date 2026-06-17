@@ -28,7 +28,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'sentText is required.' }, { status: 400 });
   }
 
-  const { data: ok } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  const { data: ok, error: scopeErr } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  if (scopeErr) return NextResponse.json({ error: 'Unable to verify coach scope right now.' }, { status: 500 });
   if (ok !== true) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
 
   let auditId: string | null = null;

@@ -47,12 +47,13 @@ export async function POST(request: Request) {
   // subscriptions for THIS trainer row (RLS lets a provider read their own) and
   // reject if any requested client isn't among them. (The 2026-06-17 INSERT RLS
   // policy enforces the same rule at the DB for the direct-Supabase path.)
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await supabase
     .from('subscriptions')
     .select('client_id')
     .eq('provider_id', trainerRow.id)
     .eq('provider_role', 'trainer')
     .in('status', ['active', 'trialing']);
+  if (subsError) return NextResponse.json({ error: 'Could not verify client assignment scope. Please retry.' }, { status: 500 });
   const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
   const rejected = unauthorizedAssignTargets(clientIds, activeClientIds);
   if (rejected.length) {

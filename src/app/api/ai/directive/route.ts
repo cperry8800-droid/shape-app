@@ -29,7 +29,8 @@ export async function POST(request: Request) {
   const clientId = typeof parsed.data.clientId === 'string' && parsed.data.clientId ? parsed.data.clientId : null;
   let targetId = self;
   if (clientId && clientId !== self) {
-    const { data: ok } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+    const { data: ok, error: scopeErr } = await actor.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+    if (scopeErr) return NextResponse.json({ error: 'Unable to verify coach access right now.' }, { status: 500 });
     if (ok !== true) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
     targetId = clientId;
   }

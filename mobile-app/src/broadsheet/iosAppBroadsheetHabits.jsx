@@ -225,7 +225,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
     try {
       if (!on || !days.length) await window.ShapeHabitReminders?.remove?.(habit.id);
       else await window.ShapeHabitReminders?.set?.({ habitId: habit.id, label: habit.name, time, days, enabled: true });
-    } catch (e) {}
+    } catch (e) { window.__bsToast?.('Could not save reminder', 'err'); }
     onSaved && onSaved();
     onClose();
   };

@@ -22,7 +22,10 @@ export async function GET(request: Request) {
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[shape-ai] failed to read ai_audit_log:', error.message);
+    return NextResponse.json({ error: 'Failed to load audit entries.' }, { status: 500 });
+  }
 
   const entries = (data ?? []).map((row) => {
     const r = row as Record<string, unknown>;
