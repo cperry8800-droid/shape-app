@@ -12112,7 +12112,8 @@ function bsTierForPoints(pts) {
 const BS_COACH_TIER_NAMES = { raw: 'Certified', base: 'Certified', tempo: 'Pro', form: 'Elite', peak: 'Master', legend: 'Icon' };
 function bsIsCoachRole(role) {
   const r = String(role || '').toLowerCase().trim();
-  return r === 'trainer' || r === 'nutritionist' || r === 'coach';
+  // dietitian (RD/RDN) is a nutrition-discipline coach.
+  return r === 'trainer' || r === 'nutritionist' || r === 'dietitian' || r === 'coach';
 }
 function bsCoachTier(clientTier) {
   return BS_COACH_TIER_NAMES[String(clientTier || '').toLowerCase().trim()] || clientTier;

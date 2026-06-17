@@ -67,7 +67,8 @@ function loadProsBundle() {
 }
 
 async function ensureRoleBundle(role) {
-  if (role === 'trainer' || role === 'nutritionist') {
+  // dietitian (RD/RDN) rides the nutritionist coach surfaces (nutrition discipline).
+  if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') {
     await loadProsBundle();
     return;
   }
@@ -732,7 +733,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: t.RADIUS_SM, background: FIELD, border: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE2}`, padding: '7px 10px', fontFamily: t.DISPLAY, fontSize: 13, color: CREAM, outline: 'none' };
   const labelStyle = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: C50, marginBottom: 4 };
   const linkBtn = { background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' };
-  const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist' }[role] || 'Client';
+  const roleLabel = { client: 'Client', trainer: 'Trainer', nutritionist: 'Nutritionist', dietitian: 'Dietitian (RD/RDN)' }[role] || 'Client';
   // Forgot password — best effort via the auth layer; degrades to a neutral notice.
   const forgotPassword = async () => {
     setAuthError('');
@@ -880,7 +881,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
         {!isCreate && (
           <button onClick={() => {
             setAuthError('');
-            if (role === 'trainer' || role === 'nutritionist') { if (onApply) onApply(role); else setMode('create'); }
+            if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') { if (onApply) onApply(role); else setMode('create'); }
             else { setMode('create'); }
           }} style={{ width: '100%', borderRadius: 12, padding: '9px 14px', background: 'transparent', color: CREAM, border: `1px solid ${CREAM}`, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
             {role === 'client' ? 'Create account →' : `Apply as a ${roleLabel} →`}
@@ -1145,11 +1146,12 @@ function BSAppShell({ tweaks, setTweak }) {
     client: window.BSClientApp,
     trainer: window.BSTrainerApp,
     nutritionist: window.BSNutritionistApp,
+    dietitian: window.BSNutritionistApp, // RD/RDN → the nutrition coach surfaces
     shape_radio: window.BSClientApp,
   };
   // Don't silently fall back to the client app for coach roles — if their app
   // module isn't loaded yet, render nothing (the loader below shows) until it is.
-  const isCoachRole = role === 'trainer' || role === 'nutritionist';
+  const isCoachRole = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
   const App = appByRole[role] || (isCoachRole ? null : window.BSClientApp);
   const appProps = role === 'shape_radio' ? { initialTab: 'radio' } : {};
 

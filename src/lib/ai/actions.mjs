@@ -94,7 +94,7 @@ function existingTarget(goals, label) {
 }
 export const setClientGoalAction = {
   name: 'set_client_goal',
-  roles: ['trainer', 'nutritionist', 'admin'],
+  roles: ['trainer', 'nutritionist', 'dietitian', 'admin'],
   source: 'nora',
   async buildPreview(ctx, input) {
     input = input || {};
@@ -209,7 +209,7 @@ export const assignWorkoutAction = {
 // archives the new one and republishes the prior (captured at preview).
 export const assignMealPlanAction = {
   name: 'assign_meal_plan',
-  roles: ['nutritionist'],
+  roles: ['nutritionist', 'dietitian'],
   source: 'nora',
   async buildPreview(ctx, input) {
     input = input || {};
@@ -260,7 +260,7 @@ export const assignMealPlanAction = {
 // still gates it to the coach's discipline).
 export const setProgramDetailAction = {
   name: 'set_program_detail',
-  roles: ['trainer', 'nutritionist'],
+  roles: ['trainer', 'nutritionist', 'dietitian'],
   source: 'nora',
   async buildPreview(ctx, input) {
     input = input || {};
@@ -326,7 +326,7 @@ export const setProgramDetailAction = {
 // with the new note id so undo can target it.
 export const addReviewNoteAction = {
   name: 'add_review_note',
-  roles: ['trainer', 'nutritionist'],
+  roles: ['trainer', 'nutritionist', 'dietitian'],
   source: 'nora',
   async buildPreview(ctx, input) {
     input = input || {};
@@ -367,7 +367,7 @@ export const addReviewNoteAction = {
 // it back to the original slot (captured at preview).
 export const rescheduleSessionAction = {
   name: 'reschedule_session',
-  roles: ['trainer', 'nutritionist'],
+  roles: ['trainer', 'nutritionist', 'dietitian'],
   source: 'nora',
   async buildPreview(ctx, input) {
     input = input || {};

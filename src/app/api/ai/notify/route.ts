@@ -19,6 +19,7 @@ import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { isCoachRole } from '@/lib/roles.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   const last = await readUserGoal(actor.supabase, actor.user.id, 'notify_state');
   const now = new Date();
   const tone = prefs.tone;
-  const isCoach = actor.role === 'trainer' || actor.role === 'nutritionist';
+  const isCoach = isCoachRole(actor.role);
 
   // Build the snapshot of REAL data, role-scoped.
   const snapshot: Snapshot = { role: actor.role, tz: prefs.tz, at: +now };

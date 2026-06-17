@@ -345,8 +345,9 @@
     var lc = c.lastContact;
     if (!lc) return null;
     var ts;
-    if (role === "trainer") ts = lc.trainer;
-    else if (role === "nutritionist") ts = lc.nutritionist;
+    var disc = disciplineForRole(role);
+    if (disc === "training") ts = lc.trainer;
+    else if (disc === "nutrition") ts = lc.nutritionist;
     else {
       // Client view: most recent contact from ANY of their pros.
       var a = toDate(lc.trainer), b = toDate(lc.nutritionist);
@@ -418,7 +419,7 @@
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
     if ((f = ruleGoalSlip(c, now))) flags.push(f);
-    if (role === "nutritionist") {
+    if (disciplineForRole(role) === "nutrition") {
       if ((f = ruleLedgerBlown(c))) flags.push(f);
       if ((f = ruleProteinUnder(c))) flags.push(f);
     }
@@ -453,6 +454,14 @@
     if (discipline === "nutrition") return "nutritionist";
     return null; // general — both pros own it
   }
+  // A provider role → the discipline it OWNS. Dietitian (RD/RDN) and nutritionist
+  // are both the NUTRITION owner — they share the nutritionist surfaces, write
+  // path and routing; only the credential/label differs.
+  function disciplineForRole(role) {
+    if (role === "trainer") return "training";
+    if (role === "nutritionist" || role === "dietitian") return "nutrition";
+    return "general"; // client / unknown
+  }
   // Is the pro of `proRole` on this client? Defaults to present (so the routing
   // shows) unless the record says otherwise via c.pros = {trainer, nutritionist}.
   function hasPro(c, proRole) {
@@ -463,8 +472,9 @@
     var d = flagDiscipline(f.key);
     var owner = disciplineOwner(d);
     // Owned if general, the viewer's own discipline, or the owning pro isn't on
-    // this client (single pro → everything routes to them).
-    var owned = owner === null || owner === role || !hasPro(c, owner);
+    // this client (single pro → everything routes to them). Compared by
+    // DISCIPLINE so a dietitian owns nutrition flags exactly like a nutritionist.
+    var owned = owner === null || disciplineForRole(owner) === disciplineForRole(role) || !hasPro(c, owner);
     return {
       key: f.key, label: f.label, reason: f.reason, missedWeeks: f.missedWeeks,
       discipline: d, owned: owned, routeTo: owner,
@@ -477,7 +487,7 @@
   // toward severity either way — severity stays exactly as evaluateClient says.
   function readOnlyFlags(c, now, role) {
     var out = [];
-    if (role !== "nutritionist") {
+    if (disciplineForRole(role) !== "nutrition") {
       var f;
       if ((f = ruleLedgerBlown(c))) out.push(tagFlag(f, role, c));
       if ((f = ruleProteinUnder(c))) out.push(tagFlag(f, role, c));
@@ -1039,8 +1049,8 @@
     if (!sig.length) {
       return { text: 'Hi ' + name + ' — checking in on your week. How did training and nutrition go, and is anything getting in the way?', cited: [], evidence: pack };
     }
-    var primaryDomain = role === 'nutritionist' ? 'nutrition' : 'training';
-    var otherDomain = role === 'nutritionist' ? 'training' : 'nutrition';
+    var primaryDomain = disciplineForRole(role) === 'nutrition' ? 'nutrition' : 'training';
+    var otherDomain = disciplineForRole(role) === 'nutrition' ? 'training' : 'nutrition';
     var pick = function (dom) { return sig.filter(function (s) { return s.domain === dom; })[0] || null; };
     var cited = [];
     var clauses = [];
@@ -1066,6 +1076,7 @@
     buildCheckinDraft: buildCheckinDraft,
     flagDiscipline: flagDiscipline,
     disciplineOwner: disciplineOwner,
+    disciplineForRole: disciplineForRole,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,

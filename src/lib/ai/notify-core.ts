@@ -8,6 +8,7 @@
 
 import { speakableDirective } from '@/lib/ai/tone.mjs';
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
+import { isCoachRole } from '@/lib/roles.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -87,8 +88,8 @@ export function candidatesFor(
   snapshot: Snapshot,
   opts: { tone: string; lastSeverity: Record<string, string>; now: Date; habitContext?: HabitContext },
 ): { audience: 'client' | 'coach'; candidates: Candidate[] } {
-  const role = snapshot.role;
-  if (role === 'trainer' || role === 'nutritionist') {
+  const role = snapshot.role || '';
+  if (isCoachRole(role)) {
     const clients = Array.isArray(snapshot.clients) ? snapshot.clients : [];
     const rows = engine.getTriageFeed(role, clients, opts.now).map((r) => ({
       clientId: (r.client.userId || r.client.id) as string,
