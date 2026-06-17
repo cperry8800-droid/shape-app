@@ -126,9 +126,35 @@ export async function POST(request: Request) {
     providerRole === 'trainer'
       ? provider.session_price ?? provider.price
       : provider.meal_plan_price ?? provider.price;
+  // SECURITY: the one-time price is ALWAYS server-authoritative — never
+  // body.item.price (a client could otherwise name their own amount and pay $1
+  // for a $180 session/plan; the platform fee is derived from it too). A plan
+  // purchase prices from the coach_plans row by planId; a session / meal-plan
+  // prices from the provider row.
+  let oneTimeCents = Math.round(Number(fallbackOneTimePrice || 0) * 100);
+  const planId =
+    body.item && (body.item as { planId?: unknown }).planId != null
+      ? String((body.item as { planId?: unknown }).planId).trim()
+      : '';
+  if (!isSubscription && planId) {
+    if (!/^[0-9a-f-]{36}$/i.test(planId)) {
+      return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 });
+    }
+    const { data: plan, error: planErr } = await admin
+      .from('coach_plans')
+      .select('price, published')
+      .eq('id', planId)
+      .maybeSingle<{ price: string | null; published: boolean }>();
+    if (planErr) return dbError(planErr, 'checkout plan lookup', 500);
+    if (!plan || plan.published !== true) {
+      return NextResponse.json({ error: 'This plan is not available for purchase.' }, { status: 404 });
+    }
+    oneTimeCents = priceCentsFrom(plan.price);
+    if (!oneTimeCents) return NextResponse.json({ error: 'This plan has no price set.' }, { status: 400 });
+  }
   const priceCents = isSubscription
     ? Math.round(Number(provider.price || 0) * 100)
-    : priceCentsFrom(body.item?.price) || Math.round(Number(fallbackOneTimePrice || 0) * 100);
+    : oneTimeCents;
   if (!priceCents) return NextResponse.json({ error: 'Price is not configured.' }, { status: 400 });
 
   // Store-credit wallet auto-applies to one-time coach purchases: a redeemed
