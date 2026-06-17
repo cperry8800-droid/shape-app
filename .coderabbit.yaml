@@ -10,8 +10,10 @@ reviews:
   review_status: true
   poem: false
   collapse_walkthrough: false
-  # Pre-merge checks — all advisory (warning) so they never block the owner's
-  # bypass merges; turned off where they'd only be noise for this repo.
+  # Pre-merge checks. Quality checks stay advisory (warning) so they never block
+  # the owner's bypass merges; the SECURITY check is raised to "error" so a
+  # security finding fails CodeRabbit's check (require it in branch protection to
+  # make it a hard gate — see note below).
   pre_merge_checks:
     docstrings:
       mode: "off"            # JSX/TS codebase uses inline comments, not docstrings — 80% would warn on every PR
@@ -22,12 +24,45 @@ reviews:
       requirements: "Concise, descriptive title; conventional-commit style preferred — e.g. feat/fix/docs/chore(scope): summary."
     description:
       mode: "warning"
+    # Security pre-merge check (custom). Raised to "error" — this is the
+    # increased security gate. It fails CodeRabbit's check on a finding; to make
+    # the merge itself blocking, add the CodeRabbit status to branch protection
+    # on main (Settings → Branches), which can't be set from the repo.
+    custom_checks:
+      - name: "Security review"
+        mode: "error"
+        instructions: >-
+          Block on security regressions in the diff. API routes
+          (src/app/api/**): missing auth or RLS scoping; IDOR on dynamic-id
+          routes; a service-role / admin Supabase client used for a
+          USER-initiated action (RLS bypass); unbounded request bodies (the
+          shared readJson size guard must be used). Secrets: any API key,
+          token, or service-role key committed, or AI/model keys shipped into a
+          client bundle (mobile-app/src, public/newdesign) or the Edge proxy.
+          Injection: SQL/RPC built from unsanitized input; unescaped HTML
+          (dangerouslySetInnerHTML). AI write paths: any change that bypasses
+          the preview/confirm + ai_audit_log scaffold, or a confirm token that
+          isn't single-use/actor-bound. Nutrition/health: individualized
+          (clinical) actions not gated by provider licensure + scope (the
+          NUTRITION_COMPLIANCE controls). Auth/membership: gated /api prefixes
+          removed from the proxy gate, or RLS policies weakened/dropped in a
+          migration.
   auto_review:
     enabled: true
     drafts: false
     base_branches:
       - main
       - staging
+  # Security scanners. On by default, but pinned here so the posture is durable
+  # in the repo (the file overrides dashboard toggles). Gitleaks = secret
+  # scanning; Semgrep = SAST; Checkov = IaC/config.
+  tools:
+    gitleaks:
+      enabled: true
+    semgrep:
+      enabled: true
+    checkov:
+      enabled: true
   # Skip generated/built output — review the source, not the bundle.
   path_filters:
     - "!public/m/**"
