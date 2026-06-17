@@ -140,6 +140,37 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-17 — Auth CAPTCHA review fixes (single-use token resets + load-failure degrade) + mobile /m/ rebuild
+- **Mobile `/m/` blank-page fix (urgent, was live):** the prior Auth-CAPTCHA commit
+  rebuilt `public/m` with root-absolute `/assets/...` paths instead of `/m/assets/...`,
+  so the hosted mobile web app 404'd its entry script. Root cause: building in **Git
+  Bash on Windows path-mangles `VITE_BASE=/m/` to `/`** — rebuild from **PowerShell**
+  (`$env:VITE_BASE='/m/'; npm run build`), which doesn't do MSYS path conversion. Always
+  republish `public/m` from PowerShell on this machine.
+- **CodeRabbit + Codex review of the CAPTCHA work (PR #1352)** — fixed the real findings,
+  all about single-use Turnstile tokens not being refreshed:
+  - **Critical (`src/components/Turnstile.tsx`):** a script-load failure used to leave the
+    form stuck on a disabled "Confirming you're human…" button forever. Now it surfaces a
+    "Couldn't load the human-check · Reload" notice and calls a new **`onUnavailable`** prop
+    so the parent **degrades open** (`SignupForm` / `ForgotPasswordForm` drop the gate). Also
+    **destroys the widget on unmount** (was a leak).
+  - **Stale-token resets (all surfaces):** after a failed signup / returning from the phone
+    OTP step / switching auth method, the consumed token was re-submitted and no fresh widget
+    rendered. Web `login.jsx` + mobile `BSLogin` now track which container the widget is
+    mounted in (a `captchaVisible` / `captchaSlot` value) and **tear down + re-render a fresh
+    challenge** when it returns; the Next.js forms remount `<Turnstile key=…>` and clear the
+    token on `state.error`.
+  - **Mobile `useEffect` dep array:** the render effect had none (ran every render) — now keyed
+    on `captchaSlot`.
+  - **Resend-confirmation wired:** the mobile verify-email screen now renders its own widget and
+    **passes a fresh `captchaToken`** to `resendConfirmation` (the backend already forwarded it),
+    so Resend works once Auth CAPTCHA is enabled.
+  - Helpers gained a **`remove(id)`** (proper widget teardown): `public/supabase.js` +
+    `mobile-app/src/services/turnstile.js`. `login.jsx?v=20260617e`.
+- *(The web forgot-password flow already had a Turnstile widget; that part of the prior
+  "known minor gaps" note was stale and is removed.)* Verified: `tsc --noEmit` · `next build`
+  · mobile build + `public/m` synced (PowerShell) · JSX parse-check.
+
 ### 2026-06-17 — Auth CAPTCHA: Turnstile wired into login/signup across ALL surfaces (S1-2 follow-up)
 - Closes the deferred **"Auth login/signup CAPTCHA — client wiring"** follow-up
   (the dashboard half — Auth → Attack Protection — is still a manual owner step,

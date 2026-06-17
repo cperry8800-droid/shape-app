@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { requestPasswordReset } from '../login/actions';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
@@ -17,7 +17,18 @@ async function resetAction(_prev: State, formData: FormData): Promise<State> {
 export default function ForgotPasswordForm() {
   const [state, formAction, pending] = useActionState<State, FormData>(resetAction, null);
   const [captchaToken, setCaptchaToken] = useState('');
-  const captchaPending = turnstileEnabled() && !captchaToken;
+  const [captchaUnavailable, setCaptchaUnavailable] = useState(false);
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const captchaPending = turnstileEnabled() && !captchaToken && !captchaUnavailable;
+
+  // Turnstile tokens are single-use; a failed request already spent it. Reset +
+  // remount a fresh widget so a retry isn't blocked by a stale token.
+  useEffect(() => {
+    if (state && 'error' in state) {
+      setCaptchaToken('');
+      setCaptchaKey((k) => k + 1);
+    }
+  }, [state]);
 
   if (state && 'ok' in state) {
     return (
@@ -45,7 +56,7 @@ export default function ForgotPasswordForm() {
         </div>
       )}
 
-      <Turnstile onToken={setCaptchaToken} />
+      <Turnstile key={captchaKey} onToken={setCaptchaToken} onUnavailable={() => setCaptchaUnavailable(true)} />
 
       <button
         type="submit"

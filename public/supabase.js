@@ -918,6 +918,9 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     },
     // Clear a widget's token so the next submit re-solves (tokens are single-use).
     reset: function (id) { try { if (window.turnstile && id != null) window.turnstile.reset(id); } catch (e) {} },
+    // Destroy a widget (e.g. when its container unmounts) so it can be re-rendered
+    // fresh and doesn't leak — its issued token is single-use.
+    remove: function (id) { try { if (window.turnstile && id != null) window.turnstile.remove(id); } catch (e) {} },
   };
 
   // Global sign-out helper (used by navbar buttons site-wide).

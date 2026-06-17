@@ -61,5 +61,8 @@ if (typeof window !== 'undefined') {
         .catch((e) => { console.warn('[shape] turnstile render failed', e); return null; });
     },
     reset(id) { try { if (window.turnstile && id != null) window.turnstile.reset(id); } catch (e) {} },
+    // Destroy a widget when its container unmounts so a fresh one renders next
+    // time (the issued token is single-use) and the old one doesn't leak.
+    remove(id) { try { if (window.turnstile && id != null) window.turnstile.remove(id); } catch (e) {} },
   };
 }

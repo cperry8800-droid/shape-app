@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useActionState } from 'react';
+import { useState, useEffect, useActionState } from 'react';
 import Link from 'next/link';
 import { signup } from '../login/actions';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
@@ -20,7 +20,20 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
     defaultRole && roles.includes(defaultRole as (typeof roles)[number]) ? defaultRole : 'client',
   );
   const [captchaToken, setCaptchaToken] = useState('');
-  const captchaPending = turnstileEnabled() && !captchaToken;
+  const [captchaUnavailable, setCaptchaUnavailable] = useState(false);
+  const [captchaKey, setCaptchaKey] = useState(0);
+  const captchaPending = turnstileEnabled() && !captchaToken && !captchaUnavailable;
+
+  // A Turnstile token is single-use; a signup that reached Supabase (e.g. weak
+  // password, email already in use) has already spent it. Clear it and remount a
+  // fresh widget so the corrected retry solves a new challenge instead of
+  // re-submitting the consumed token.
+  useEffect(() => {
+    if (state && 'error' in state) {
+      setCaptchaToken('');
+      setCaptchaKey((k) => k + 1);
+    }
+  }, [state]);
 
   if (state && 'ok' in state && state.needsConfirm) {
     return (
@@ -81,7 +94,7 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
         </div>
       )}
 
-      <Turnstile onToken={setCaptchaToken} />
+      <Turnstile key={captchaKey} onToken={setCaptchaToken} onUnavailable={() => setCaptchaUnavailable(true)} />
 
       <button
         type="submit"

@@ -631,16 +631,27 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const captchaRef = React.useRef(null);
   const captchaIdRef = React.useRef(null);
   const captchaOn = typeof window !== 'undefined' && !!(window.ShapeTurnstile && window.ShapeTurnstile.enabled());
-  // Render the widget once whenever its container is mounted in the auth form.
+  // Which container the Turnstile widget currently lives in: the auth form, the
+  // verify-email screen (so Resend can solve a fresh challenge), or nowhere (the
+  // phone code-entry step needs no token). When the slot changes, tear the spent
+  // single-use widget down and render a fresh one in the newly-mounted container —
+  // this also covers returning from the OTP step, which previously kept the stale
+  // widget id and re-submitted a consumed token.
+  const captchaSlot = !captchaOn ? null
+    : verifyEmail ? 'verify'
+    : (authMethod === 'phone' && otpSent) ? null
+    : 'form';
   React.useEffect(() => {
-    if (!captchaOn) return;
+    if (captchaIdRef.current != null) {
+      window.ShapeTurnstile.remove?.(captchaIdRef.current);
+      captchaIdRef.current = null;
+    }
+    setCaptchaToken('');
+    if (!captchaSlot) return;
     const el = captchaRef.current;
-    if (!el || captchaIdRef.current != null) return;
+    if (!el) return;
     window.ShapeTurnstile.render(el, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
-  });
-  // Leaving the form (verify-email screen) drops the widget DOM — forget the id
-  // so re-entering the login view renders a fresh challenge.
-  React.useEffect(() => { if (verifyEmail) { captchaIdRef.current = null; setCaptchaToken(''); } }, [verifyEmail]);
+  }, [captchaSlot]);
   const resetCaptcha = () => { setCaptchaToken(''); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
@@ -701,8 +712,18 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     }
   };
   const resendVerify = async () => {
-    try { await window.ShapeAuth?.resendConfirmation?.(verifyEmail); window.__bsToast?.('Verification email re-sent', 'ok'); }
-    catch (e) { window.__bsToast?.(e?.message || 'Could not resend the email.', 'err'); }
+    // Resend hits Supabase Auth, so it needs its own captcha token once Auth
+    // CAPTCHA is on (the signup token is already spent). The verify screen renders
+    // its own widget; require + forward that token, then reset it for a re-resend.
+    if (captchaOn && !captchaToken) { window.__bsToast?.("One moment — confirming you're human…", 'err'); return; }
+    try {
+      await window.ShapeAuth?.resendConfirmation?.(verifyEmail, captchaOn ? captchaToken : undefined);
+      window.__bsToast?.('Verification email re-sent', 'ok');
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not resend the email.', 'err');
+    } finally {
+      if (captchaOn) resetCaptcha();
+    }
   };
   // Phone — step 1: text the code.
   const sendPhoneCode = async () => {
@@ -798,6 +819,9 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
             We sent a verification link to <span style={{ color: CREAM, fontWeight: 700 }}>{verifyEmail}</span>. Tap it to finish creating your account, then come back and sign in.
           </div>
+          {captchaOn && (
+            <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
+          )}
           <button onClick={resendVerify} style={{ width: '100%', borderRadius: 12, padding: '12px 16px', background: 'transparent', color: CREAM, border: `1px solid ${LINE2}`, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Resend email</button>
           <button onClick={() => { setVerifyEmail(''); setMode('signin'); setPassword(''); }} style={{ alignSelf: 'center', background: 'transparent', border: 0, color: C50, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: '4px 0' }}>← Back to sign in</button>
         </div>

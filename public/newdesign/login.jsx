@@ -99,10 +99,20 @@ function LoginCard() {
   const [captchaToken, setCaptchaToken] = React.useState("");
   const captchaRef = React.useRef(null);
   const captchaIdRef = React.useRef(null);
+  // The widget is hidden at the phone code-entry step. Track whether its container
+  // is currently mounted so that, when we leave and return (e.g. "Change number"),
+  // we tear down the spent single-use widget and render a FRESH challenge — instead
+  // of skipping the render and re-submitting an already-consumed token.
+  const captchaVisible = captchaOn && !(method === "phone" && otpSent);
   React.useEffect(() => {
-    if (!captchaOn || !captchaRef.current || captchaIdRef.current != null) return;
+    if (!captchaVisible) {
+      if (captchaIdRef.current != null) { window.ShapeTurnstile.remove(captchaIdRef.current); captchaIdRef.current = null; }
+      setCaptchaToken("");
+      return;
+    }
+    if (!captchaRef.current || captchaIdRef.current != null) return;
     window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
-  }, [captchaOn]);
+  }, [captchaVisible]);
   // Tokens are single-use — clear after a failed attempt so a retry re-solves.
   const resetCaptcha = () => { setCaptchaToken(""); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
 

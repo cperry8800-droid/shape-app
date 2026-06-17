@@ -11,7 +11,7 @@
 // The SITE key is PUBLIC. Defaults to the same key the website uses
 // (public/supabase.js); override with NEXT_PUBLIC_TURNSTILE_SITE_KEY.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const SITE_KEY =
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAADmrGKVw7Ghzs1gQ';
@@ -23,6 +23,7 @@ declare global {
     turnstile?: {
       render: (el: HTMLElement, opts: Record<string, unknown>) => string;
       reset: (id?: string) => void;
+      remove: (id?: string) => void;
     };
   }
 }
@@ -53,13 +54,24 @@ export function turnstileEnabled(): boolean {
   return !!SITE_KEY;
 }
 
-export default function Turnstile({ onToken }: { onToken: (token: string) => void }) {
+export default function Turnstile({
+  onToken,
+  onUnavailable,
+}: {
+  onToken: (token: string) => void;
+  /** Called when the widget can't load at all, so the parent can stop gating
+   *  the submit button (degrade open) instead of stranding the user. */
+  onUnavailable?: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const idRef = useRef<string | null>(null);
   const tokenInputRef = useRef<HTMLInputElement>(null);
-  // Keep the latest callback without re-rendering the widget.
+  const [failed, setFailed] = useState(false);
+  // Keep the latest callbacks without re-rendering the widget.
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
+  const onUnavailableRef = useRef(onUnavailable);
+  onUnavailableRef.current = onUnavailable;
 
   useEffect(() => {
     if (!SITE_KEY || !ref.current || idRef.current != null) return;
@@ -78,13 +90,39 @@ export default function Turnstile({ onToken }: { onToken: (token: string) => voi
           'error-callback': () => set(''),
         });
       })
-      .catch(() => {});
+      .catch(() => {
+        // Script couldn't load (CSP block, offline, Cloudflare outage). Don't
+        // leave the form stuck on a disabled "Confirming you're human…" button —
+        // surface it and let the parent degrade open.
+        if (cancelled) return;
+        setFailed(true);
+        onUnavailableRef.current?.();
+      });
     return () => {
       cancelled = true;
+      // Destroy the widget so a remount / route change doesn't leak it.
+      if (idRef.current != null) {
+        window.turnstile?.remove(idRef.current);
+        idRef.current = null;
+      }
     };
   }, []);
 
   if (!SITE_KEY) return null;
+  if (failed) {
+    return (
+      <div className="text-xs text-neutral-400 bg-neutral-900 border border-neutral-800 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+        <span>Couldn’t load the human-check.</span>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="text-teal-400 hover:text-teal-300 underline underline-offset-2"
+        >
+          Reload
+        </button>
+      </div>
+    );
+  }
   return (
     <>
       <input type="hidden" name="captchaToken" defaultValue="" ref={tokenInputRef} />
