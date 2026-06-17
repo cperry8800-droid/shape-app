@@ -268,7 +268,64 @@ function ProCredentials({ v, set, kind }) {
         </Field>
         <Field label="Insurance document"><FileInput label="Upload PDF or image" onChange={file => set({ insuranceFile: file || null })} /></Field>
       </div>
+      {!isTrainer && <NutritionCompliance v={v} set={set} isDietitian={isDietitian} />}
       <Check on={v.verify} onClick={() => set({ verify: !v.verify })}>I understand my credentials may be verified by Shape's trust team.</Check>
+    </div>
+  );
+}
+
+// NC1 — nutrition-provider compliance capture (state licensure + insurance +
+// attestations). A dietitian must be licensed in EACH client's state to provide
+// individualized (medical) nutrition therapy; we re-check the match on every
+// pairing. A nutritionist without a state license is limited to general wellness.
+// Engineering controls only — NOT legal advice; production enablement requires
+// healthcare-regulatory counsel sign-off.
+function NutritionCompliance({ v, set, isDietitian }) {
+  const mono = "'JetBrains Mono', monospace";
+  const licenses = (Array.isArray(v.licenses) && v.licenses.length) ? v.licenses : [{ state: "", number: "", expires: "" }];
+  const setLicense = (i, patch) => set({ licenses: licenses.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
+  const addLicense = () => set({ licenses: [...licenses, { state: "", number: "", expires: "" }] });
+  const removeLicense = (i) => set({ licenses: licenses.filter((_, idx) => idx !== i) });
+  const att = v.attest || {};
+  const toggleAtt = (k) => set({ attest: { ...att, [k]: !att[k] } });
+  const subLabel = { ...labelStyle, marginBottom: 6 };
+  return (
+    <div style={{ paddingTop: 16, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <div style={{ fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 6 }}>Nutrition practice · compliance</div>
+        <p style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.62)", margin: 0, lineHeight: 1.5 }}>
+          {isDietitian
+            ? "To provide individualized (medical) nutrition therapy, you must be licensed in each client's state. Add your CDR registration, state license(s), and liability insurance — Shape re-checks the state match on every client pairing."
+            : "Without a state dietitian license you can offer general wellness guidance only — not individualized or clinical nutrition plans. Add a state license below to unlock individualized care for clients in that state."}
+        </p>
+      </div>
+      {isDietitian && (
+        <Field label="CDR registration number (RD/RDN)"><TextInput value={v.cdrId || ""} onChange={e => set({ cdrId: e.target.value })} placeholder="e.g. 1234567" /></Field>
+      )}
+      <div>
+        <div style={subLabel}>State license(s) — you may only serve clients in states you are licensed in</div>
+        {licenses.map((l, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr 150px 30px", gap: 8, marginBottom: 8, alignItems: "center" }}>
+            <input type="text" value={l.state || ""} onChange={e => setLicense(i, { state: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) })} placeholder="NY" style={{ ...inputStyle, textAlign: "center", letterSpacing: "0.1em" }} aria-label="State" />
+            <input type="text" value={l.number || ""} onChange={e => setLicense(i, { number: e.target.value })} placeholder="License number" style={inputStyle} aria-label="License number" />
+            <input type="date" value={l.expires || ""} onChange={e => setLicense(i, { expires: e.target.value })} style={inputStyle} aria-label="Expiration" />
+            <button type="button" onClick={() => licenses.length > 1 ? removeLicense(i) : setLicense(i, { state: "", number: "", expires: "" })} aria-label="Remove license" style={{ background: "transparent", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 8, color: "rgba(242,237,228,0.6)", cursor: "pointer", height: 38, fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
+        ))}
+        <button type="button" onClick={addLicense} style={{ background: "transparent", border: "1px dashed rgba(242,237,228,0.18)", borderRadius: 8, color: TEAL, fontFamily: mono, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", padding: "8px 12px", cursor: "pointer" }}>+ Add another state</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <Field label="Insurance carrier"><TextInput value={v.insCarrier || ""} onChange={e => set({ insCarrier: e.target.value })} placeholder="e.g. HPSO" /></Field>
+        <Field label="Policy number"><TextInput value={v.insPolicy || ""} onChange={e => set({ insPolicy: e.target.value })} /></Field>
+        <Field label="Insurance expiration"><input type="date" value={v.insExpires || ""} onChange={e => set({ insExpires: e.target.value })} style={inputStyle} aria-label="Insurance expiration" /></Field>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={subLabel}>Attestations (required)</div>
+        <Check on={att.independent_contractor} onClick={() => toggleAtt("independent_contractor")}>I am an independent contractor. Shape is a marketplace, not my employer, and does not direct my clinical judgment.</Check>
+        <Check on={att.maintains_licensure} onClick={() => toggleAtt("maintains_licensure")}>I will maintain valid licensure in every state where I provide individualized nutrition care, and only accept clients I am licensed to serve.</Check>
+        <Check on={att.maintains_insurance} onClick={() => toggleAtt("maintains_insurance")}>I maintain current professional liability (malpractice) insurance.</Check>
+        <Check on={att.scope_understood} onClick={() => toggleAtt("scope_understood")}>I understand the difference between general wellness guidance and individualized medical nutrition therapy, and will practice within my scope and license.</Check>
+      </div>
     </div>
   );
 }
@@ -450,6 +507,18 @@ function SignupForm({ role }) {
       certification: values.cert || "",
       certification_expiration: values.certExp || "",
       education: values.edu || "",
+      // NC1 — structured nutrition-compliance capture (the reviewer seeds
+      // provider_credentials + provider_licenses from this).
+      ...(role === "nutritionist" ? {
+        cdr_id: values.cdrId || "",
+        state_licenses: (values.licenses || [])
+          .filter(l => l && /^[A-Za-z]{2}$/.test((l.state || "").trim()))
+          .map(l => ({ state: (l.state || "").toUpperCase(), number: l.number || "", expires: l.expires || "" })),
+        insurance_carrier: values.insCarrier || "",
+        insurance_policy: values.insPolicy || "",
+        insurance_expires: values.insExpires || "",
+        compliance_attestations: values.attest || {},
+      } : {}),
       insurance_status: values.insurance || "",
       previous_platforms: values.prev || "",
       response_time: values.response || "",

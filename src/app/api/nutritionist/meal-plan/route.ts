@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
+import { gateProviderAction, blockMessage } from '@/lib/compliance/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,6 +61,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // NC1 — nutrition compliance: a meal plan is INDIVIDUALIZED (Medical Nutrition
+  // Therapy), so it requires the provider be LICENSED in the client's state (and
+  // carry active insurance). Always computed + audited; HARD-blocks only when
+  // NUTRITION_COMPLIANCE_ENFORCE is on (counsel sign-off). The disclaimer rides
+  // on the response either way.
+  const gate = await gateProviderAction({ client: supabase, ownerId: user.id, clientId, actionType: 'meal_plan' });
+  if (gate.enforced && !gate.allowed) {
+    return NextResponse.json(
+      { error: blockMessage(gate.reason), code: 'compliance_blocked', reason: gate.reason, disclaimer: gate.disclaimer },
+      { status: 403 },
+    );
+  }
+
   // Retire the client's current published plan from this nutritionist.
   await supabase
     .from('client_meal_plans')
@@ -82,5 +96,12 @@ export async function POST(request: Request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, id: inserted?.id ?? null });
+  // The "not medical advice" / individualized-care disclaimer rides on every
+  // assignment, plus a warning if compliance is in observe-only (not enforced) mode.
+  return NextResponse.json({
+    ok: true,
+    id: inserted?.id ?? null,
+    disclaimer: gate.disclaimer,
+    compliance: { scope: gate.scope, allowed: gate.allowed, enforced: gate.enforced, reason: gate.reason },
+  });
 }

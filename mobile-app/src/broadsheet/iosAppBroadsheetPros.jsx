@@ -2405,6 +2405,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [weeks, setWeeks] = useStateBSP(4);
   const [timeSel, setTimeSel] = useStateBSP(''); // '' = no set time, else 'HH:MM' (24h)
   const [status, setStatus] = useStateBSP('');
+  const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
   const targetName = fixedClient ? (clientProp?.n || 'this client') : (picked ? picked.name : 'a client');
@@ -2446,7 +2447,9 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
         const targets = calM ? { cal: Number(calM[1]) } : {};
         const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
-        await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
+        const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
+        // NC1 — show the individualized-care / scope disclaimer the server returns.
+        if (res && res.disclaimer) setDisclaimer(String(res.disclaimer));
       } else if (isSplit) {
         const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
@@ -2570,6 +2573,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 ? `On assign · lands on ${first}'s ${isNutri ? 'Eat' : 'Train'} tab + sends a note`
                 : fixedClient ? 'Demo client · assigns once linked to a live member' : 'Pick a linked client above'}
             </div>
+            {disclaimer && (
+              <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid ${accent}33`, background: `${accent}10`, padding: '10px 12px', fontFamily: t.BODY, fontSize: 10.5, lineHeight: 1.5, color: t.INK }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, display: 'block', marginBottom: 4 }}>Scope &amp; compliance</span>
+                {disclaimer}
+              </div>
+            )}
           </div>
         </div>
       </div>

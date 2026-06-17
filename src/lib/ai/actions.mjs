@@ -11,6 +11,30 @@
 // check; coach actions additionally front-check is_coach_on_client here, with the
 // endpoint's own 403 as the backstop.
 
+import { gateAction, disclaimerFor } from '../compliance/nutrition.mjs';
+
+// NC1 — compute the scope disclaimer for an individualized nutrition action so
+// Nora's confirm card states it up front (the endpoint is the authoritative gate).
+async function nutritionScopeDisclaimer(ctx, clientId, actionType) {
+  try {
+    const [cred, lic, comp] = await Promise.all([
+      ctx.supabase.from('provider_credentials').select('credential_type, insurance_expires').eq('owner_id', ctx.actor.id).maybeSingle(),
+      ctx.supabase.from('provider_licenses').select('state, expires_on').eq('owner_id', ctx.actor.id),
+      ctx.supabase.from('client_compliance').select('us_state').eq('user_id', clientId).maybeSingle(),
+    ]);
+    const provider = {
+      credentialType: (cred && cred.data && cred.data.credential_type) || 'nutritionist',
+      insuranceExpires: (cred && cred.data && cred.data.insurance_expires) || null,
+      licenses: ((lic && lic.data) || []).map((l) => ({ state: l.state, expires: l.expires_on })),
+    };
+    const clientState = (comp && comp.data && comp.data.us_state) || null;
+    const g = gateAction(provider, clientState, actionType);
+    return disclaimerFor(g.scope, g.allowed);
+  } catch {
+    return '';
+  }
+}
+
 function num(v) { var n = Number(v); return Number.isFinite(n) && n >= 0 ? n : null; }
 function addCol(cur, inc) { return inc == null ? (cur == null ? null : Number(cur)) : Number(cur || 0) + inc; }
 function macroLine(m) {
@@ -227,9 +251,14 @@ export const assignMealPlanAction = {
     var weekStart = input.weekStart ? String(input.weekStart).slice(0, 10) : null;
     var body = { clientId: input.clientId, title: title, weekStart: weekStart, days: days };
     var who = input.clientName ? String(input.clientName) : 'this client';
+    // NC1 — a meal plan is INDIVIDUALIZED nutrition care; surface the scope
+    // disclaimer (and licensure framing) on the confirm card.
+    var disclaimer = await nutritionScopeDisclaimer(ctx, input.clientId, 'meal_plan');
+    var diff = [{ label: 'Meal plan', field: 'published', before: prevPlan ? prevPlan.title : '—', after: title }];
+    if (disclaimer) diff.push({ label: 'Scope', field: 'compliance', before: '—', after: disclaimer });
     return {
       summary: "Assign meal plan '" + title + "' (" + days.length + ' days) to ' + who,
-      diff: [{ label: 'Meal plan', field: 'published', before: prevPlan ? prevPlan.title : '—', after: title }],
+      diff: diff,
       target: { userId: input.clientId, kind: 'meal_plan', id: title },
       beforeState: { nutritionistId: nutriId, clientId: input.clientId, title: title, prevPlanId: prevPlan ? prevPlan.id : null },
       afterState: { title: title }, confirmedPayload: body,
