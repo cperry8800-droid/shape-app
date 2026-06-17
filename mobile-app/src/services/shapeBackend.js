@@ -4332,8 +4332,35 @@ window.ShapeIntegrations = {
   disconnect: disconnectIntegration,
 };
 
+// Confirm a Nora-drafted change (the human-in-the-loop step): POST the signed
+// proposal token to /api/ai/proposals/confirm. Nothing was applied until here.
+// Returns { ok, auditId, result }. Undo reverses a confirmed change by auditId.
+async function confirmNoraProposal(token) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/ai/proposals/confirm`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ token }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.message || payload.error || 'Could not apply that change.');
+  return payload;
+}
+async function undoNoraProposal(auditId) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/ai/audit/undo`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ auditId }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Could not undo that change.');
+  return payload;
+}
 window.ShapeSupport = {
   ask: askSupportBot,
+  confirm: confirmNoraProposal,
+  undo: undoNoraProposal,
 };
 
 // ─── Nora's voice (server-side TTS) + tone toggle ────────────────────────────

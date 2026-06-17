@@ -68,6 +68,70 @@ function cwTierForPoints(pts, coach) {
   return ladder[i];
 }
 
+// Nora's drafted change → the human-in-the-loop confirm card. Renders the
+// server-provided summary + diff (before → after), then a Confirm that POSTs the
+// signed token to /api/ai/proposals/confirm (cookie session) — nothing is applied
+// until this click. Once it lands, Undo reverses it by auditId. Token-only: the
+// UI never fabricates the change. Reuses the chat-widget tokens (no restyle).
+function CwProposalCard({ a }) {
+  const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
+  const [err, setErr] = React.useState("");
+  const [auditId, setAuditId] = React.useState(null);
+  const mono = "'JetBrains Mono', monospace";
+  const ink = "#f2ede4", muted = "rgba(242,237,228,0.55)", hair = "rgba(242,237,228,0.14)";
+  const diff = Array.isArray(a.diff) ? a.diff : [];
+  const fmtV = (v) => (v == null || v === "") ? "—" : String(v);
+  const post = async (url, payload) => {
+    const res = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.error || "Something went wrong.");
+    return data;
+  };
+  const confirm = async () => {
+    if (status === "busy" || status === "done") return;
+    setStatus("busy"); setErr("");
+    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); }
+    catch (e) { setErr(String(e && e.message || "Could not apply that change.")); setStatus("error"); }
+  };
+  const undo = async () => {
+    if (!auditId || status === "undoing" || status === "undone") return;
+    setStatus("undoing"); setErr("");
+    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); }
+    catch (e) { setErr(String(e && e.message || "Could not undo.")); setStatus("done"); }
+  };
+  return (
+    <div style={{ width: "100%", maxWidth: "92%", border: `1px solid ${cwHexA(TEAL, 0.45)}`, background: "rgba(10,197,168,0.07)", borderRadius: 14, padding: 12, marginTop: 8 }}>
+      <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL_BRIGHT }}>
+        {status === "done" ? "Applied ✓" : status === "undone" ? "Undone" : "Draft · review & confirm"}
+      </div>
+      <div style={{ marginTop: 5, fontFamily: sans, fontSize: 13.5, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
+      {diff.length > 0 && status !== "undone" && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+          {diff.map((d, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap" }}>
+              <span style={{ color: muted }}>{d.label || d.field}</span>
+              <span style={{ color: muted, textDecoration: "line-through", opacity: 0.7 }}>{fmtV(d.before)}</span>
+              <span style={{ color: muted }}>→</span>
+              <span style={{ color: ink, fontWeight: 600 }}>{fmtV(d.after)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 10, color: "#e0463c", lineHeight: 1.4 }}>{err}</div>}
+      <div style={{ marginTop: 10, display: "flex", gap: 7, alignItems: "center" }}>
+        {(status === "idle" || status === "error") && (
+          <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
+        )}
+        {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
+        {status === "done" && auditId && (
+          <button onClick={undo} style={{ border: `1px solid ${hair}`, background: "transparent", color: muted, borderRadius: 999, padding: "7px 13px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Undo</button>
+        )}
+        {status === "undoing" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Undoing…</span>}
+      </div>
+    </div>
+  );
+}
+
 function ChatWidget(props) {
   // normalize to tabs[]
   const tabs = React.useMemo(() => {
@@ -1263,12 +1327,14 @@ function ChatWidget(props) {
                   {!m.me && Array.isArray(m.actions) && m.actions.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8, maxWidth: "92%" }}>
                       {m.actions.map((a, ai) => (
-                        <a key={ai} href={a.url || "#"}
-                          onClick={(e) => { if (!a.url) e.preventDefault(); }}
-                          style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(10,197,168,0.10)", color: TEAL_BRIGHT, borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
-                          <span>{a.label}</span>
-                          {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
-                        </a>
+                        a.type === "proposal"
+                          ? <CwProposalCard key={ai} a={a} />
+                          : <a key={ai} href={a.url || "#"}
+                              onClick={(e) => { if (!a.url) e.preventDefault(); }}
+                              style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(10,197,168,0.10)", color: TEAL_BRIGHT, borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
+                              <span>{a.label}</span>
+                              {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
+                            </a>
                       ))}
                     </div>
                   )}
