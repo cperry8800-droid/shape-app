@@ -65,6 +65,7 @@ function BSProTriageFeed({ role = 'trainer', schedule = [], isToday = true, onSe
                     <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '3px 7px' }}>{sig.label}</span>
                   </div>
                   <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.03em', color: t.INK50, lineHeight: 1.35 }}>{sig.directive}</div>
+                  {sig.routed && <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.05em', color: t.INK50, opacity: 0.75, lineHeight: 1.3 }}>→ {sig.routed.to} · read-only: {sig.routed.reason}</div>}
                 </div>
                 <button type="button" onClick={() => message(c)} style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message</button>
               </div>
@@ -1614,12 +1615,27 @@ function bsRowFromTriage(row, role, t) {
   let h = 0; for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0;
   const sev = row.severity || 'green';
   const rank = sev === 'red' ? 0 : sev === 'amber' ? 1 : 3;
-  const reason = ((row.reasons || (row.flags || []).map((f) => f.reason)).filter(Boolean))[0];
+  // Prefer the engine's ONE cross-domain directive reason (the read), falling
+  // back to the first raw flag reason — same row, just a sharper "why".
+  const dir = row.directive || null;
+  // An empty `row.reasons: []` is still truthy, so don't let it short-circuit the
+  // flag-reason fallback — merge both and take the first real reason.
+  const rawReasons = Array.isArray(row.reasons) ? row.reasons : [];
+  const flagReasons = (row.flags || []).map((f) => f && f.reason);
+  const reason = (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
+    || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
   const directive = reason || (sev === 'green' ? (nut ? 'Logging on plan — nothing needed.' : 'On plan — nothing needed.') : 'Needs your attention this week.');
   const adh = (rec.trainingAdherence && rec.trainingAdherence.pct != null) ? rec.trainingAdherence.pct
     : (rec.foodLogs && rec.foodLogs.daysLogged7d != null) ? Math.round((rec.foodLogs.daysLogged7d / 7) * 100) : null;
   const streak = (rec.streaks && rec.streaks.current != null) ? rec.streaks.current : null;
+  // The OTHER discipline's signal, routed read-only to this pro (e.g. a trainer
+  // seeing the dietitian's protein flag). owned===false = read-only context.
+  const roFlags = ((row.flags || []).filter((f) => f && f.owned === false))
+    .concat((row.readOnly || []).filter((f) => f && f.owned === false));
+  const routed = roFlags.length
+    ? { to: ['nutritionist', 'dietitian', 'nutrition'].includes(String(roFlags[0].routeTo || '').toLowerCase()) ? 'Dietitian' : 'Trainer', reason: roFlags[0].reason }
+    : null;
   return {
     userId: p.id || null, n: name, i: initials, c: palette[h % palette.length],
     avatar: p.avatar || p.photo || undefined,
@@ -1627,7 +1643,7 @@ function bsRowFromTriage(row, role, t) {
     streak, d: adh != null ? `${adh}%` : '',
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : 'on track',
     active: true,
-    _sig: { sev, rank, label: sev === 'green' ? 'ON TRACK' : 'NEEDS YOU', directive },
+    _sig: { sev, rank, label: sev === 'green' ? 'ON TRACK' : 'NEEDS YOU', directive, routed },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
@@ -2393,6 +2409,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const [weeks, setWeeks] = useStateBSP(4);
   const [timeSel, setTimeSel] = useStateBSP(''); // '' = no set time, else 'HH:MM' (24h)
   const [status, setStatus] = useStateBSP('');
+  const [disclaimer, setDisclaimer] = useStateBSP(''); // NC1 nutrition-scope disclaimer from the server
   const fixedClient = !!clientProp;
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
   const targetName = fixedClient ? (clientProp?.n || 'this client') : (picked ? picked.name : 'a client');
@@ -2426,6 +2443,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const apply = async () => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
     setStatus('working');
+    let gotDisclaimer = false;
     try {
       const start = dayCells[dayIdx];
       const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
@@ -2434,7 +2452,9 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
         const targets = calM ? { cal: Number(calM[1]) } : {};
         const days = Array.from({ length: 7 }, (_, i) => ({ dow: i, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals }));
-        await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
+        const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
+        // NC1 — show the individualized-care / scope disclaimer the server returns.
+        if (res && res.disclaimer) { setDisclaimer(String(res.disclaimer)); gotDisclaimer = true; }
       } else if (isSplit) {
         const basePayload = timeSel ? { time: timeSel } : {};
         for (let w = 0; w < weeks; w++) {
@@ -2462,7 +2482,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         }
       } catch (e) {}
       setStatus('done');
-      setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
+      // Keep the screen open when a compliance disclaimer was returned so the
+      // coach can read it; they dismiss via the explicit Done button. Otherwise
+      // auto-advance as before.
+      if (!gotDisclaimer) setTimeout(() => { if (onDone) onDone(plan); else onBack(); }, 1050);
     } catch (e) { setStatus(String(e?.message || 'error')); }
   };
 
@@ -2558,12 +2581,147 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 ? `On assign · lands on ${first}'s ${isNutri ? 'Eat' : 'Train'} tab + sends a note`
                 : fixedClient ? 'Demo client · assigns once linked to a live member' : 'Pick a linked client above'}
             </div>
+            {disclaimer && (
+              <div style={{ marginTop: 12, borderRadius: 12, border: `1px solid ${accent}33`, background: `${accent}10`, padding: '10px 12px', fontFamily: t.BODY, fontSize: 10.5, lineHeight: 1.5, color: t.INK }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, display: 'block', marginBottom: 4 }}>Scope &amp; compliance</span>
+                {disclaimer}
+              </div>
+            )}
+            {status === 'done' && disclaimer && (
+              <button onClick={() => { if (onDone) onDone(plan); else onBack(); }} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '13px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Read &amp; acknowledged · done</button>
+            )}
           </div>
         </div>
       </div>
       <BSFooter left="Assign" right={plan ? plan.name : 'Catalogue'} />
     </BSPage>
   );
+}
+
+// Build a unified record for the AI draft from the coach-read stats rollup
+// (live), or a demo record whose week shows BOTH a training and a nutrition
+// signal (signed-out preview). Real values only — no field is invented.
+function bsBuildDraftRecord(clientUid, stats, name) {
+  // A LIVE client (real userId) NEVER falls back to demo data — a check-in must
+  // be grounded only in their real signals. With no stats yet, return a bare
+  // record (the engine drafts an honest "just checking in" note).
+  if (clientUid) {
+    const rec = { profile: { name: name || 'Client' } };
+    if (!stats) return rec;
+    if (stats.sessionsPlanned != null) rec.trainingAdherence = { done: stats.sessionsCompleted || 0, planned: stats.sessionsPlanned, pct: stats.sessionsPlanned ? Math.round(((stats.sessionsCompleted || 0) / stats.sessionsPlanned) * 100) : null };
+    if (stats.avgCalories != null || stats.avgProtein != null) rec.nutrition = { avgCalories: stats.avgCalories ?? null, avgProtein: stats.avgProtein ?? null, targetCalories: stats.targetCalories ?? null, targetProtein: stats.targetProtein ?? null };
+    if (stats.daysLogged7d != null) rec.foodLogs = { daysLogged7d: stats.daysLogged7d };
+    if (stats.weightNow != null && stats.weightStart != null) rec.weighIns = [{ on: '', weight: stats.weightStart, unit: 'lb' }, { on: '', weight: stats.weightNow, unit: 'lb' }];
+    return rec;
+  }
+  return {
+    profile: { name: name || 'Marcus Tan' },
+    trainingAdherence: { done: 4, planned: 5, pct: 80 },
+    streaks: { current: 6, best: 9 },
+    nutrition: { avgCalories: 2150, targetCalories: 2000, avgProtein: 150, targetProtein: 175 },
+    foodLogs: { daysLogged7d: 3 },
+    weighIns: [{ on: '2026-04-21', weight: 184, unit: 'lb' }, { on: '2026-06-15', weight: 181, unit: 'lb' }],
+  };
+}
+
+// AI-drafted check-in sheet: a grounded, cross-discipline draft the coach EDITS
+// and approves. Sends via the existing ShapeMessages path; logs the draft + the
+// sent version to ai_audit_log. Never auto-sends.
+function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose }) {
+  const t = useBS();
+  const first = String(clientName || 'your client').split(' ')[0];
+  const [draft, setDraft] = useStateBSP('');
+  const [cited, setCited] = useStateBSP([]);
+  const [loading, setLoading] = useStateBSP(true);
+  const [sending, setSending] = useStateBSP(false);
+  const [auditId, setAuditId] = useStateBSP(null);
+  const record = bsBuildDraftRecord(clientUid, stats, clientName);
+
+  useEffectBSP(() => {
+    let on = true;
+    (async () => {
+      try {
+        // LIVE client (signed-in coach): the server route is authoritative — it
+        // re-checks coach scope and writes the draft to ai_audit_log. On failure
+        // we surface an error rather than silently falling back to an UNAUDITED
+        // client-side draft (which would bypass the scope/audit contract). The
+        // DashSignals fallback is for demo / signed-out preview only.
+        if (clientUid && bsProSignedIn()) {
+          const r = await fetch('/api/ai/draft-message', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, record, role }) }).catch(() => null);
+          const res = r && r.ok ? await r.json().catch(() => null) : null;
+          if (!on) return;
+          if (res && res.draft) { setDraft(res.draft); setCited(res.cited || []); setAuditId(res.draftAuditId || null); setLoading(false); return; }
+          setDraft(''); setCited([]); setAuditId(null); setLoading(false);
+          window.__bsToast?.((res && res.error) || 'Could not draft check-in', 'err');
+          return;
+        }
+        // Demo / signed-out fallback — the SAME grounded engine, client-side.
+        const E = typeof window !== 'undefined' && window.DashSignals;
+        const d = E && E.buildCheckinDraft ? E.buildCheckinDraft(record, role) : { text: '', cited: [] };
+        if (on) { setDraft(d.text || ''); setCited(d.cited || []); setLoading(false); }
+      } catch (e) { if (on) setLoading(false); }
+    })();
+    return () => { on = false; };
+  }, [clientUid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body || sending || loading) return;
+    if (!clientUid) { window.__bsToast?.('Sends once this client is linked', 'info'); onClose(); return; }
+    setSending(true);
+    try {
+      let cid = null;
+      if (window.ShapeMessages?.getOrCreateMemberConversation) {
+        const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: clientUid });
+        cid = (conv && conv.data) || null;
+      }
+      if (cid && window.ShapeMessages?.sendMessage) {
+        await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'checkin', notify: true } });
+        // The message is now sent. Record the SENT version for the audit trail.
+        // If THIS fails the send still stands (re-sending would double-post), so
+        // surface a soft warning rather than silently dropping the audit.
+        let audited = false;
+        try {
+          const ar = await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) });
+          audited = !!(ar && ar.ok);
+        } catch (e) { audited = false; }
+        window.__bsToast?.(audited ? `Sent to ${first}` : `Sent to ${first} — couldn't log it`, audited ? 'ok' : 'info');
+        setSending(false);
+        onClose();
+        return;
+      }
+      throw new Error('Could not send');
+    } catch (e) {
+      // Keep the sheet open on failure so the coach's edited message isn't lost.
+      window.__bsToast?.('Could not send — try again', 'err');
+      setSending(false);
+    }
+  };
+
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `12px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ width: 40, height: 4, borderRadius: 999, background: t.RULE, margin: '0 auto 14px' }} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent }}>✦ AI draft · check-in</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>A note to <span style={{ fontStyle: 'italic', color: accent }}>{first}.</span></div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50, lineHeight: 1.5 }}>Grounded in {first}'s real week — across training and nutrition. Edit anything; nothing sends until you tap Send.</div>
+        {cited.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+            {cited.map((c, i) => (
+              <span key={i} style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK, border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, padding: '4px 8px' }}>{c.label}: <span style={{ color: accent }}>{c.value}</span></span>
+            ))}
+          </div>
+        )}
+        <textarea value={loading ? 'Drafting…' : draft} onChange={(e) => setDraft(e.target.value)} rows={6} disabled={loading} style={{ width: '100%', boxSizing: 'border-box', marginTop: 12, padding: '12px 13px', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 12, outline: 'none', fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.5, resize: 'vertical' }} />
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '13px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={send} disabled={loading || sending || !draft.trim()} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: accent, color: '#06110e', cursor: loading || sending || !draft.trim() ? 'default' : 'pointer', opacity: loading || sending || !draft.trim() ? 0.55 : 1, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{sending ? 'Sending…' : `Send to ${first} →`}</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
 }
 
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
@@ -2586,6 +2744,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
+  const [showDraft, setShowDraft] = useStateBSP(false);
+  const [showReconcile, setShowReconcile] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'manage'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   const [cLifts, setCLifts] = useStateBSP(null); // strength rollup (coach read)
@@ -2638,6 +2798,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
   if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
   if (showAssignPage) return <BSProAssignPage role={role} client={client} clientUid={clientUid} onBack={() => setShowAssignPage(false)} onDone={() => setShowAssignPage(false)} />;
+  // Source reconciliation for THIS client (data-quality check) — the shared
+  // client-bundle view, scoped to the client's id (RLS re-checks is_coach_on_client).
+  if (showReconcile && window.BSReconcile) { const Reconcile = window.BSReconcile; return <Reconcile clientId={clientUid} onBack={() => setShowReconcile(false)} />; }
 
   // ---- theme + derived facts ----
   const accent = isNutri ? '#d8b25a' : teal;   // gold for nutrition, teal for training
@@ -2762,6 +2925,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <button onClick={() => setShowAdjustPage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>ADJUST</button>
         <button onClick={() => setShowSchedulePage(true)} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>SCHEDULE</button>
       </div>
+      <button onClick={() => setShowDraft(true)} style={{ marginTop: 8, width: '100%', borderRadius: 999, border: `1px solid ${accent}`, background: `${accent}14`, color: t.INK, padding: '10px 4px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textAlign: 'center' }}>✦ DRAFT CHECK-IN</button>
+      {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
       <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {[['profile', isNutri ? 'Plan' : 'Profile'], ['manage', 'Manage']].map(([k, label]) => {
           const on = view === k;
@@ -3014,6 +3179,22 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <Section eyebrow="CLIENT GOALS" title="Shared goals" />
         {goalsContent}
       </div>
+      <div>
+        <Section eyebrow="DATA QUALITY" title="Reconcile sources" />
+        {clientUid ? (
+          <BSPlate c={accent} notch={10} pad="15px 16px 15px 20px" role="button" ariaLabel="Reconcile sources" onClick={() => setShowReconcile(true)}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Which source to trust</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>When {first}'s devices disagree on a metric</div>
+              </div>
+              <span style={{ color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
+            </div>
+          </BSPlate>
+        ) : (
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · appears once linked to a live member</div>
+        )}
+      </div>
       {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
         <div>
           <Section eyebrow="CARE TEAM" title="Co-coaches" />
@@ -3090,7 +3271,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // ---- directive lead — the page opens with ONE move for THIS client (the
   // same severity + directive the roster row showed, so tapping a flagged client
   // lands on "here's the read + here's your move"). Engine-consistent vocabulary.
-  const _sig = bsRosterSeverity(client, role);
+  const _sig = bsRowSeverity(client, role);
   const _SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
   const _sevCol = _SEVCOL[_sig.sev] || accent;
   const _leadCta = (_sig.rank <= 2) ? `Message ${first} →` : (_sig.label === 'PR' ? 'Send props →' : null);

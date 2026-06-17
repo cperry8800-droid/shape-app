@@ -61,6 +61,9 @@
 
     // Add an additional role to the logged-in user's profile.
     // Used by the "Become a trainer / nutritionist" flow on existing accounts.
+    // NOTE: 'dietitian' (RD/RDN) is a CREDENTIALED role — it is assigned only by a
+    // reviewer after licensure verification, never self-asserted client-side. It is
+    // deliberately excluded from the self-service allow-list here.
     async addRole(newRole) {
       try {
         if (['client','trainer','nutritionist'].indexOf(newRole) === -1) {
@@ -93,6 +96,12 @@
     // True if the current profile has this role (array-aware, legacy-safe).
     profileHasRole(profile, role) {
       if (!profile) return false;
+      // Dietitian (RD/RDN) rides the nutritionist rails — a dietitian satisfies
+      // a nutritionist role gate.
+      if (role === 'nutritionist') {
+        if (Array.isArray(profile.roles) && profile.roles.indexOf('dietitian') !== -1) return true;
+        if (profile.role === 'dietitian') return true;
+      }
       if (Array.isArray(profile.roles) && profile.roles.indexOf(role) !== -1) return true;
       return profile.role === role;
     },
@@ -286,9 +295,9 @@
       }
       document.body.classList.add('shape-has-demo-banner');
       var signupHref = role === 'trainer' ? 'signup-trainer.html'
-        : role === 'nutritionist' ? 'signup-nutritionist.html'
+        : (role === 'nutritionist' || role === 'dietitian') ? 'signup-nutritionist.html'
         : 'signup-client.html';
-      var label = role === 'trainer' ? 'trainer' : role === 'nutritionist' ? 'nutritionist' : 'client';
+      var label = role === 'trainer' ? 'trainer' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionist' : 'client';
       var bar = document.createElement('div');
       bar.id = 'shapeDemoBanner';
       bar.innerHTML =
@@ -361,7 +370,7 @@
     async getMyProvider(role) {
       var session = await shapeDb.getSession();
       if (!session) return null;
-      var table = role === 'trainer' ? 'trainers' : role === 'nutritionist' ? 'nutritionists' : null;
+      var table = role === 'trainer' ? 'trainers' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionists' : null;
       if (!table) return null;
       var res = await client
         .from(table)
@@ -398,7 +407,7 @@
     // resumeAt: ISO string or null. Ignored when isAtCapacity is false
     // (auto-resume only makes sense while paused).
     async setAtCapacity(role, providerId, isAtCapacity, resumeAt) {
-      var table = role === 'trainer' ? 'trainers' : role === 'nutritionist' ? 'nutritionists' : null;
+      var table = role === 'trainer' ? 'trainers' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionists' : null;
       if (!table) return { error: { message: 'invalid role' } };
       var patch = { at_capacity: !!isAtCapacity };
       patch.capacity_resume_at = isAtCapacity ? (resumeAt || null) : null;
@@ -669,7 +678,7 @@
 
     dashboardFor(role) {
       if (role === 'trainer') return 'trainer-dashboard.html';
-      if (role === 'nutritionist') return 'nutrition-schedule.html';
+      if (role === 'nutritionist' || role === 'dietitian') return 'nutrition-schedule.html';
       return 'clients.html';
     },
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson } from '@/lib/request-utils';
+import { callAI, hasOpenAIKey } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 
@@ -191,17 +192,10 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 }
 
 async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | null> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
+  if (!hasOpenAIKey()) return null;
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+  const result = await callAI(
+    {
       input: [
         {
           role: 'system',
@@ -224,16 +218,13 @@ async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | 
           schema: draftSchema,
         },
       },
-    }),
-  });
+    },
+    { promptId: 'ai.generate-plan' },
+  );
 
-  if (!response.ok) {
-    console.warn('[shape-app] OpenAI generation failed:', await response.text());
-    return null;
-  }
+  if (!result.ok) return null;
 
-  const payload = await response.json();
-  const text = extractOutputText(payload);
+  const text = extractOutputText(result.data as OpenAIResponsePayload);
   if (!text) return null;
   return JSON.parse(text) as GeneratedDraft;
 }

@@ -15,7 +15,11 @@
 
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
+import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
+import { proposeChange } from '@/lib/ai/proposals.mjs';
+import { resolveActor, makeCtx, serverRegistry, proposalSecret } from '@/lib/ai/server';
+import { toneInstruction } from '@/lib/ai/tone.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,7 +33,11 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string };
 type SupportAction =
   | { type: 'coach'; label: string; role: CoachRole; slug: string; url: string; meta?: string }
   | { type: 'marketplace'; label: string; role?: CoachRole; url: string }
-  | { type: 'screen'; label: string; screen: string; url?: string };
+  | { type: 'screen'; label: string; screen: string; url?: string }
+  // A previewed, NOT-yet-applied change: the client renders the diff + a Confirm
+  // button that POSTs the token to /api/ai/proposals/confirm. Nothing happens
+  // until the human confirms.
+  | { type: 'proposal'; label: string; summary: string; diff: Array<{ label?: string; before?: unknown; after?: unknown }>; token: string; action: string };
 
 type OpenAIContentPart = { type?: string; text?: string };
 type OpenAIOutputItem = {
@@ -48,6 +56,8 @@ const SYSTEM_PROMPT = [
   'Be warm, concise (1-4 sentences), specific, and action-oriented — actually help, do not just describe where to look.',
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns.',
+  '',
+  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers), assign_meal_plan (nutritionists), set_program_detail (program phase/note — a trainer's training block or a nutritionist's nutrition phase), add_review_note (feedback on a logged session), reschedule_session (move one of their coaching sessions). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
   '',
   'OTHER FIRST-LINE HELP: account & login, billing/subscription ($5/mo platform membership; coaches set their own coaching prices), connecting integrations (Spotify, Strava, Whoop, Oura, Garmin, Apple Health, Instacart), and using the Train/Eat/Habits/Score/Radio tabs, channels & chat.',
   'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you have flagged it for the Shape team and they will follow up here. Do not promise specific timelines.',
@@ -78,7 +88,147 @@ const TOOLS = [
     },
     strict: true,
   },
+  {
+    type: 'function',
+    name: 'log_meal',
+    description:
+      "Log a meal for the SIGNED-IN member onto today's nutrition. Use when they say they ate something (with calories/protein/carbs/fat) or want to log water. Pass only the values they gave — never invent numbers. This DRAFTS the change for the member to confirm; it is not applied until they approve.",
+    parameters: {
+      type: 'object',
+      properties: {
+        mealName: { type: 'string', description: "Short label, e.g. 'lunch', 'chicken bowl'." },
+        kcal: { type: 'number', description: 'Calories.' },
+        protein: { type: 'number', description: 'Protein in grams.' },
+        carbs: { type: 'number', description: 'Carbs in grams.' },
+        fat: { type: 'number', description: 'Fat in grams.' },
+        hydrationL: { type: 'number', description: 'Water in litres.' },
+      },
+      required: ['mealName'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'set_client_goal',
+    description:
+      "Set or update a goal for one of the COACH's own clients (coaches only). Use when a coach says e.g. 'set Priya's goal weight to 145 lb'. Always pass clientName; pass clientId only if you already have the client's id. DRAFTS the change for the coach to confirm. If you cannot identify the client, ask — do not guess.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the coach referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        goal: {
+          type: 'object',
+          properties: {
+            label: { type: 'string', description: "e.g. 'Goal weight', 'Bench 1RM'." },
+            target: { type: 'number', description: 'The target value.' },
+            unit: { type: 'string', description: "e.g. 'lb', 'kg', '%'." },
+            metric: { type: 'string' },
+            start: { type: 'number' },
+          },
+        },
+      },
+      required: ['clientName', 'goal'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'assign_workout',
+    description:
+      "Assign a workout to one of the TRAINER's own clients (trainers only). Use when a trainer says e.g. 'give Priya the upper-body session on Monday'. Always pass clientName; pass clientId only if known. Pass a title; scheduledDate (YYYY-MM-DD) if they named a day. DRAFTS the change for the trainer to confirm. If you cannot identify the client, ask — do not guess. The server rejects any client who isn't actively coached by this trainer.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the trainer referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        title: { type: 'string', description: "The workout title, e.g. 'Upper body — push'." },
+        scheduledDate: { type: 'string', description: 'The day to schedule it, YYYY-MM-DD, if given.' },
+        description: { type: 'string', description: 'Optional note to the client.' },
+      },
+      required: ['clientName', 'title'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'assign_meal_plan',
+    description:
+      "Assign a weekly meal plan to one of the NUTRITIONIST's own clients (nutritionists only). Use when a nutritionist hands a client a plan. Always pass clientName; pass clientId only if known; pass a title and the days array. NEVER invent the meals — only assign days the nutritionist actually provided. DRAFTS the change for the nutritionist to confirm. If you cannot identify the client, ask. The server rejects any client who isn't actively coached by this nutritionist.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the nutritionist referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        title: { type: 'string', description: "The plan title, e.g. 'Cut · week 1'." },
+        weekStart: { type: 'string', description: 'Week start date, YYYY-MM-DD, if given.' },
+        days: { type: 'array', description: 'The plan days the nutritionist provided (their shape passes through).', items: { type: 'object' } },
+      },
+      required: ['clientName', 'title', 'days'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'set_program_detail',
+    description:
+      "Set a client's program phase and/or a coach note for the CALLER's own discipline (a trainer sets the training block; a nutritionist sets the nutrition phase). Use when a coach says e.g. 'move Priya to a peak block' or 'put Sam on a deload'. Always pass clientName; pass clientId only if known; pass phase (e.g. 'Peak', 'Deload', 'Cut') and/or a note. The server only lets a coach change their OWN discipline for a client they actively coach. DRAFTS the change for the coach to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the coach referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        phase: { type: 'string', description: "The program phase, e.g. 'Peak', 'Deload', 'Cut', 'Build'." },
+        note: { type: 'string', description: 'An optional note to the client about the change.' },
+      },
+      required: ['clientName'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'add_review_note',
+    description:
+      "Add a coaching review note to a client's logged workout session (the CALLER must be the coach on that session). Use when a coach dictates feedback on a specific session. Pass the sessionId (the workout session's id, from context) and the note body verbatim. NEVER write the note for them — only use the coach's own words. visibility is 'client' (default), 'coach_private', or 'team'. DRAFTS the note for the coach to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: "The workout session's id." },
+        body: { type: 'string', description: "The note text, in the coach's own words." },
+        visibility: { type: 'string', enum: ['client', 'coach_private', 'team'], description: 'Who can see it. Default client.' },
+      },
+      required: ['sessionId', 'body'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'reschedule_session',
+    description:
+      "Move one of the COACH's coaching sessions to a new time (the caller must be the coach on it; only an upcoming/confirmed session can move). Use when a coach says e.g. 'push my 3pm with Priya to Thursday'. Pass the sessionId, a date (YYYY-MM-DD) and optional time (HH:MM). If you don't have the session id, ask — do not guess. DRAFTS the move for the coach to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'The coaching session id.' },
+        date: { type: 'string', description: 'New date, YYYY-MM-DD.' },
+        time: { type: 'string', description: 'New time, HH:MM (24h), if given.' },
+      },
+      required: ['sessionId', 'date'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
+
+// The write tools that DRAFT a confirm-required change (vs. read tools that
+// answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session']);
 
 function coachLine(c: Coach): string {
   return `${c.name} — ${c.role}, ${c.city}. ${c.specialties.join(', ')}. ${c.cert}, ${c.years}y, ${c.format}. $${c.rate}/session, ★${c.rating}.`;
@@ -95,8 +245,16 @@ function actionForCoach(c: Coach): SupportAction {
   };
 }
 
+type ToolOut = { result: unknown; actions: SupportAction[] };
+type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOut>;
+
 // Runs a tool call; returns { result (for the model), actions (for the UI) }.
-function runTool(name: string, args: Record<string, unknown>): { result: unknown; actions: SupportAction[] } {
+// Read tools (recommend_coaches) run here; WRITE tools route through `propose`,
+// which drafts a confirm-required change via the AI1 scaffold (never executes).
+async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn): Promise<ToolOut> {
+  if (WRITE_TOOLS.has(name)) {
+    return propose(name, args);
+  }
   if (name === 'recommend_coaches') {
     const role = (['trainer', 'nutritionist', 'any'].includes(String(args.role)) ? String(args.role) : 'any') as CoachRole | 'any';
     const focus = typeof args.focus === 'string' ? args.focus : '';
@@ -144,40 +302,62 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
   return '';
 }
 
-async function callOpenAI(key: string, input: unknown[]): Promise<OpenAIResponsePayload | null> {
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
-      input,
-      tools: TOOLS,
-    }),
-  });
-  if (!response.ok) {
-    console.warn('[shape-app] support chat OpenAI failed:', await response.text().catch(() => ''));
-    return null;
-  }
-  return (await response.json()) as OpenAIResponsePayload;
+// Build the WRITE-tool executor for this request: drafts a confirm-required
+// change via the AI1 scaffold, carrying the ACTOR'S session (so the endpoint's
+// auth + RLS stay the gate). Nothing is applied — the client confirms the
+// returned token at /api/ai/proposals/confirm.
+async function makePropose(request: Request): Promise<ProposeFn> {
+  const actor = await resolveActor(request);
+  return async (name, args) => {
+    if (!actor) {
+      return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
+    }
+    const secret = proposalSecret();
+    if (!secret) return { result: { error: 'unavailable', message: 'Actions are not configured right now.' }, actions: [] };
+    const res = await proposeChange({
+      registry: serverRegistry,
+      action: name,
+      input: args,
+      actor: { id: actor.user.id, role: actor.role },
+      ctx: makeCtx(actor, request),
+      secret,
+    });
+    if (!res.ok) {
+      return { result: { error: res.error, message: (res as { message?: string }).message || null }, actions: [] };
+    }
+    const action: SupportAction = {
+      type: 'proposal',
+      label: 'Review & confirm',
+      summary: res.preview.summary,
+      diff: res.preview.diff,
+      token: res.token,
+      action: name,
+    };
+    return { result: { proposed: true, summary: res.preview.summary, requiresConfirm: true }, actions: [action] };
+  };
 }
 
 async function askOpenAI(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  propose: ProposeFn,
+  tone?: string,
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
+  if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: String(m.content || '').slice(0, 2000),
   }));
 
-  let input: unknown[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...recent];
+  // The tone shapes the framing (supportive vs direct) but never the facts.
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n${toneInstruction(tone)}`;
+  let input: unknown[] = [{ role: 'system', content: systemPrompt }, ...recent];
   const actions: SupportAction[] = [];
 
   // Allow up to 2 tool rounds, then take the text.
   for (let round = 0; round < 3; round++) {
-    const payload = await callOpenAI(key, input);
-    if (!payload) return null;
+    const result = await callAI({ input, tools: TOOLS }, { promptId: 'support.chat' });
+    if (!result.ok) return null;
+    const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
     const calls = output.filter((o) => o.type === 'function_call');
     if (calls.length === 0 || round === 2) {
@@ -193,7 +373,7 @@ async function askOpenAI(
       } catch {
         parsed = {};
       }
-      const { result, actions: a } = runTool(String(call.name), parsed);
+      const { result, actions: a } = await runTool(String(call.name), parsed, propose);
       for (const act of a) actions.push(act);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
     }
@@ -232,14 +412,15 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[] }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
   const lastUser = [...messages].reverse().find((m) => m.role === 'user');
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
 
-  const ai = await askOpenAI(messages).catch(() => null);
+  const propose = await makePropose(request);
+  const ai = await askOpenAI(messages, propose, body.tone).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
   const fb = fallbackReply(String(lastUser.content || ''));

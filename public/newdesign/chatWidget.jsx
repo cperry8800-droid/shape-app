@@ -68,6 +68,70 @@ function cwTierForPoints(pts, coach) {
   return ladder[i];
 }
 
+// Nora's drafted change → the human-in-the-loop confirm card. Renders the
+// server-provided summary + diff (before → after), then a Confirm that POSTs the
+// signed token to /api/ai/proposals/confirm (cookie session) — nothing is applied
+// until this click. Once it lands, Undo reverses it by auditId. Token-only: the
+// UI never fabricates the change. Reuses the chat-widget tokens (no restyle).
+function CwProposalCard({ a }) {
+  const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
+  const [err, setErr] = React.useState("");
+  const [auditId, setAuditId] = React.useState(null);
+  const mono = "'JetBrains Mono', monospace";
+  const ink = "#f2ede4", muted = "rgba(242,237,228,0.55)", hair = "rgba(242,237,228,0.14)";
+  const diff = Array.isArray(a.diff) ? a.diff : [];
+  const fmtV = (v) => (v == null || v === "") ? "—" : String(v);
+  const post = async (url, payload) => {
+    const res = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.error || "Something went wrong.");
+    return data;
+  };
+  const confirm = async () => {
+    if (status === "busy" || status === "done") return;
+    setStatus("busy"); setErr("");
+    try { const r = await post("/api/ai/proposals/confirm", { token: a.token }); setAuditId(r && r.auditId); setStatus("done"); }
+    catch (e) { setErr(String(e && e.message || "Could not apply that change.")); setStatus("error"); }
+  };
+  const undo = async () => {
+    if (!auditId || status === "undoing" || status === "undone") return;
+    setStatus("undoing"); setErr("");
+    try { await post("/api/ai/audit/undo", { auditId }); setStatus("undone"); }
+    catch (e) { setErr(String(e && e.message || "Could not undo.")); setStatus("done"); }
+  };
+  return (
+    <div style={{ width: "100%", maxWidth: "92%", border: `1px solid ${cwHexA(TEAL, 0.45)}`, background: "rgba(10,197,168,0.07)", borderRadius: 14, padding: 12, marginTop: 8 }}>
+      <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL_BRIGHT }}>
+        {status === "done" ? "Applied ✓" : status === "undone" ? "Undone" : "Draft · review & confirm"}
+      </div>
+      <div style={{ marginTop: 5, fontFamily: sans, fontSize: 13.5, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
+      {diff.length > 0 && status !== "undone" && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+          {diff.map((d, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap" }}>
+              <span style={{ color: muted }}>{d.label || d.field}</span>
+              <span style={{ color: muted, textDecoration: "line-through", opacity: 0.7 }}>{fmtV(d.before)}</span>
+              <span style={{ color: muted }}>→</span>
+              <span style={{ color: ink, fontWeight: 600 }}>{fmtV(d.after)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 10, color: "#e0463c", lineHeight: 1.4 }}>{err}</div>}
+      <div style={{ marginTop: 10, display: "flex", gap: 7, alignItems: "center" }}>
+        {(status === "idle" || status === "error") && (
+          <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
+        )}
+        {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
+        {status === "done" && auditId && (
+          <button onClick={undo} style={{ border: `1px solid ${hair}`, background: "transparent", color: muted, borderRadius: 999, padding: "7px 13px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Undo</button>
+        )}
+        {status === "undoing" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Undoing…</span>}
+      </div>
+    </div>
+  );
+}
+
 function ChatWidget(props) {
   // normalize to tabs[]
   const tabs = React.useMemo(() => {
@@ -120,6 +184,51 @@ function ChatWidget(props) {
   const storeKeyRef = React.useRef(null);
   const hydratedRef = React.useRef(false);
   const dirtyRef = React.useRef(false);
+
+  // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
+  // without it. tone + voice sync from the account (user_goals 'nora_voice') so
+  // they match the mobile app; the on/off flag is per-device (localStorage).
+  const NORA_VOICES = [
+    { id: "shimmer", label: "Warm" }, { id: "alloy", label: "Neutral" }, { id: "sage", label: "Calm" },
+    { id: "nova", label: "Bright" }, { id: "onyx", label: "Deep" }, { id: "verse", label: "Expressive" },
+  ];
+  const normNoraVoice = (v) => NORA_VOICES.some(x => x.id === v) ? v : "auto";
+  const readNoraEnabled = () => { try { return localStorage.getItem("shape.nora.voice") === "on"; } catch (e) { return false; } };
+  const [noraVoice, setNoraVoiceState] = React.useState({ enabled: readNoraEnabled(), tone: "supportive", voice: "auto" });
+  const noraAudioRef = React.useRef(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("nora_voice") : null;
+        if (!cancelled && doc && typeof doc === "object") setNoraVoiceState(s => ({ ...s, tone: doc.tone === "direct" ? "direct" : "supportive", voice: normNoraVoice(doc.voice) }));
+      } catch (e) { /* default supportive/auto */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const saveNoraAccount = (tone, voice) => { try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("nora_voice", { tone, voice: normNoraVoice(voice) }); } catch (e) {} };
+  const stopNora = () => { try { if (noraAudioRef.current) { noraAudioRef.current.pause(); noraAudioRef.current = null; } } catch (e) {} try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} };
+  const setNoraEnabled = (on) => { try { localStorage.setItem("shape.nora.voice", on ? "on" : "off"); } catch (e) {} if (!on) stopNora(); setNoraVoiceState(s => ({ ...s, enabled: on })); };
+  const setNoraTone = (tone) => setNoraVoiceState(s => { const n = { ...s, tone }; saveNoraAccount(n.tone, n.voice); return n; });
+  const setNoraVoiceId = (voice) => setNoraVoiceState(s => { const n = { ...s, voice: normNoraVoice(voice) }; saveNoraAccount(n.tone, n.voice); return n; });
+  const speakNora = async (text) => {
+    const clean = String(text || "").trim();
+    if (!clean) return;
+    stopNora();
+    try {
+      const res = await fetch("/api/ai/speak", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean.slice(0, 2000), tone: noraVoice.tone, voice: noraVoice.voice !== "auto" ? noraVoice.voice : undefined }),
+      });
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url); noraAudioRef.current = audio;
+        audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+        await audio.play(); return;
+      }
+    } catch (e) { /* fall back to the browser voice (e.g. non-members, no key) */ }
+    try { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(clean); u.rate = noraVoice.tone === "direct" ? 1.05 : 0.98; window.speechSynthesis.speak(u); } } catch (e) {}
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -418,13 +527,15 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history }),
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone }),
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data && data.reply) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         setTyping(false);
-        appendReply("Nora", reply || supportReply(text), actions);
+        const finalReply = reply || supportReply(text);
+        appendReply("Nora", finalReply, actions);
+        if (noraVoice.enabled) speakNora(finalReply); // off by default
       })();
       return;
     }
@@ -436,6 +547,97 @@ function ChatWidget(props) {
       appendReply(who, reply);
     }, 1200 + Math.random() * 900);
   };
+
+  // ── Voice input for Nora (push-to-talk) ───────────────────────────────────
+  // Voice is just an input METHOD: it produces text that lands in the SAME
+  // composer (`draft`) and goes through the SAME send() — so speaking a question
+  // yields the same answer as typing it. Web Speech API is the fast path; a
+  // server STT route (/api/ai/transcribe, keys server-side) is the fallback when
+  // it's unavailable; if neither works the user just types. The transcript is
+  // shown in the composer BEFORE she acts (the user reviews, then taps Send).
+  const SpeechRec = (typeof window !== "undefined") && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const voiceSupported = !!SpeechRec || (typeof navigator !== "undefined" && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== "undefined" && !!window.MediaRecorder);
+  const [voiceState, setVoiceState] = React.useState("idle"); // idle | listening | transcribing
+  const [voiceErr, setVoiceErr] = React.useState(null);
+  const recogRef = React.useRef(null);
+  const recRef = React.useRef(null);
+
+  const stopVoice = () => {
+    try { if (recogRef.current) recogRef.current.stop(); } catch (e) {}
+    try { if (recRef.current && recRef.current.state === "recording") recRef.current.stop(); } catch (e) {}
+  };
+
+  const startWebSpeech = () => {
+    try {
+      const rec = new SpeechRec();
+      rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+      let finalText = "";
+      rec.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalText += r[0].transcript; else interim += r[0].transcript;
+        }
+        setDraft((finalText + " " + interim).replace(/\s+/g, " ").trim()); // show transcript live
+      };
+      rec.onerror = (e) => {
+        setVoiceState("idle");
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") setVoiceErr("Mic blocked — allow access or type instead.");
+        else if (e.error === "no-speech") setVoiceErr("Didn't catch that — try again, or type.");
+        else setVoiceErr("Voice hiccuped — type instead.");
+      };
+      rec.onend = () => setVoiceState((s) => (s === "listening" ? "idle" : s));
+      recogRef.current = rec;
+      setVoiceErr(null); setVoiceState("listening");
+      rec.start();
+    } catch (e) { setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead."); }
+  };
+
+  const startServerVoice = async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window === "undefined" || !window.MediaRecorder) {
+      setVoiceErr("Voice isn't supported in this browser — type instead."); return;
+    }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { setVoiceErr("Mic blocked — allow access or type instead."); return; }
+    try {
+      const mr = new window.MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = async () => {
+        try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        setVoiceState("transcribing");
+        try {
+          const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+          const fd = new FormData(); fd.append("audio", blob, "nora.webm");
+          const res = await fetch("/api/ai/transcribe", { method: "POST", credentials: "same-origin", body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data && data.transcript) { setDraft(data.transcript); setVoiceErr(null); }
+          else if (res.status === 401 || res.status === 402) setVoiceErr("Sign in to use voice — or type your question.");
+          else setVoiceErr("Couldn't transcribe that — type instead.");
+        } catch (e) { setVoiceErr("Couldn't transcribe that — type instead."); }
+        setVoiceState("idle");
+      };
+      recRef.current = mr;
+      setVoiceErr(null); setVoiceState("listening");
+      mr.start();
+    } catch (e) {
+      // MediaRecorder construction/start failed AFTER getUserMedia granted —
+      // release the mic so capture doesn't stay live in the background.
+      try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e2) {}
+      setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead.");
+    }
+  };
+
+  const toggleVoice = () => {
+    if (voiceState === "transcribing") return;
+    if (voiceState === "listening") { stopVoice(); return; }
+    setVoiceErr(null);
+    if (SpeechRec) startWebSpeech(); else startServerVoice();
+  };
+
+  // Stop any in-flight recognition when the widget unmounts.
+  React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll new messages for the active DB-backed thread while the widget is
   // open. Cheap (≤500 row GET keyed by `since=`); only the active thread
@@ -1123,15 +1325,21 @@ function ChatWidget(props) {
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
+                  {!m.me && isSupport && (
+                    <button onClick={() => speakNora(m.t)} title="Read this aloud" aria-label="Read this aloud"
+                      style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", background: "transparent", color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>🔊 Listen</button>
+                  )}
                   {!m.me && Array.isArray(m.actions) && m.actions.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8, maxWidth: "92%" }}>
                       {m.actions.map((a, ai) => (
-                        <a key={ai} href={a.url || "#"}
-                          onClick={(e) => { if (!a.url) e.preventDefault(); }}
-                          style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(10,197,168,0.10)", color: TEAL_BRIGHT, borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
-                          <span>{a.label}</span>
-                          {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
-                        </a>
+                        a.type === "proposal"
+                          ? <CwProposalCard key={ai} a={a} />
+                          : <a key={ai} href={a.url || "#"}
+                              onClick={(e) => { if (!a.url) e.preventDefault(); }}
+                              style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(10,197,168,0.10)", color: TEAL_BRIGHT, borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
+                              <span>{a.label}</span>
+                              {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
+                            </a>
                       ))}
                     </div>
                   )}
@@ -1164,6 +1372,31 @@ function ChatWidget(props) {
                 <a href="/pricing" style={{ fontFamily: sans, fontSize: 12, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "8px 14px", textDecoration: "none", whiteSpace: "nowrap" }}>Join · $5/mo</a>
               </div>
             ) : (
+            <React.Fragment>
+            {isSupport && (
+              <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(242,237,228,0.14)"}`, background: noraVoice.enabled ? "rgba(10,197,168,0.12)" : "transparent", color: noraVoice.enabled ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                  {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
+                </button>
+                <div style={{ display: "inline-flex", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", overflow: "hidden" }}>
+                  {["supportive", "direct"].map(tn => (
+                    <button key={tn} onClick={() => setNoraTone(tn)} title={tn === "supportive" ? "Warm and encouraging" : "Concise and factual"}
+                      style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
+                  ))}
+                </div>
+                <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
+                  style={{ background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.14)", borderRadius: 999, padding: "5px 8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, cursor: "pointer" }}>
+                  <option value="auto">Auto voice</option>
+                  {NORA_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+                </select>
+              </div>
+            )}
+            {isSupport && (voiceState !== "idle" || voiceErr) && (
+              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: voiceErr ? "#e0a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
+                {voiceState === "listening" ? "● Listening… tap the mic to stop" : voiceState === "transcribing" ? "Transcribing…" : voiceErr}
+              </div>
+            )}
             <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", gap: 8, alignItems: "flex-end" }}>
               <textarea
                 value={draft}
@@ -1178,6 +1411,19 @@ function ChatWidget(props) {
                   outline: "none", minHeight: 38, maxHeight: 100,
                 }}
               />
+              {isSupport && voiceSupported && (
+                <button onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
+                  style={{
+                    flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
+                    cursor: voiceState === "transcribing" ? "default" : "pointer",
+                    border: voiceState === "listening" ? "1px solid #e0463c" : "1px solid rgba(242,237,228,0.1)",
+                    background: voiceState === "listening" ? "rgba(224,70,60,0.16)" : "rgba(242,237,228,0.04)",
+                    color: voiceState === "listening" ? "#e0463c" : TEAL_BRIGHT,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                  {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
+                </button>
+              )}
               <button onClick={send} disabled={!draft.trim()}
                 style={{
                   background: draft.trim() ? TEAL : "rgba(242,237,228,0.08)",
@@ -1187,6 +1433,7 @@ function ChatWidget(props) {
                   cursor: draft.trim() ? "pointer" : "not-allowed",
                 }}>Send</button>
             </div>
+            </React.Fragment>
             )}
           </div>
           </div>
@@ -1207,6 +1454,17 @@ function ChatWidget(props) {
         </div>
       )}
     </React.Fragment>
+  );
+}
+
+function MicGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="9" y1="22" x2="15" y2="22" />
+    </svg>
   );
 }
 

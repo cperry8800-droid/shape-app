@@ -1,0 +1,257 @@
+// Proactive notification layer — the guardrails (honest data, dedup, opt-out,
+// quiet hours, caps, digest, never-shaming) + the routing. Pure; node --test.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
+  inQuietHours, localHour, DEFAULT_PREFS, channelsForType, habitReminderCandidates,
+} from '../src/lib/ai/notifications.mjs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { evaluateClient, buildDirective } = require('../public/newdesign/dashSignals.js');
+
+const TZ = 'UTC';
+const DAYTIME = new Date('2026-06-17T10:00:00Z'); // 10:00 — outside default quiet
+const NIGHT = new Date('2026-06-17T23:30:00Z');   // 23:30 — inside default quiet (22–7)
+
+// A coach-flagged sleep directive (engine output); `line` is the verbatim shown text.
+const SLEEP_DIRECTIVE = {
+  verdict: 'Recovery is the lever',
+  reason: 'Your coach flagged sleep — last night logged 5.9h',
+  action: { label: "log last night's sleep", kind: 'recovery' },
+  read: { summary30d: '', oneThingNow: "log last night's sleep" },
+  cited: ['coach override'],
+  line: "Recovery is the lever. Your coach flagged sleep — last night logged 5.9h. When you're ready, log last night's sleep.",
+};
+
+// ── HONEST DATA ──────────────────────────────────────────────────────────────
+test('no signal → no notification (empty record, green directive, no flags)', () => {
+  assert.deepEqual(clientCandidates({ directive: null, flags: [] }), []);
+  // a green/on-track directive has no action → not a "move", emits nothing
+  const green = { verdict: 'On track', reason: 'Everything holding', action: null, read: { oneThingNow: '' }, line: 'On track.' };
+  assert.deepEqual(clientCandidates({ directive: green, flags: [] }), []);
+});
+
+test('a flag with no reason produces nothing (no fabricated copy)', () => {
+  const rows = [{ clientId: 'c1', clientName: 'A', severity: 'red', reason: '', flags: [{ owned: true, reason: '' }] }];
+  assert.deepEqual(coachCandidates({ triageRows: rows, lastSeverity: {} }), []);
+});
+
+// ── (a) PREVIEW: client, coach-flagged sleep directive → deep-link Home ──────
+test('(a) client gets the coach-flagged sleep directive, deep-linking Home', () => {
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  assert.equal(cands.length, 1);
+  const d = cands[0];
+  assert.equal(d.type, 'directive');
+  assert.equal(d.route, 'home');                 // deep-link to Home "Your move"
+  assert.match(d.body, /sleep/);                 // the real reason, verbatim
+  assert.equal(d.body, SLEEP_DIRECTIVE.line);    // notification text === in-app text
+
+  const { send } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 1);
+  assert.equal(send[0].route, 'home');
+  assert.deepEqual(send[0].channels, { inapp: true, push: true, email: false });
+});
+
+// ── (b) PREVIEW: coach, a client goes red (nutrition → dietitian) → client ───
+test('(b) a nutrition-driven red routes to the dietitian, deep-linking the client', () => {
+  const rows = [{
+    clientId: 'client-9', clientName: 'Priya', severity: 'red',
+    reason: 'Protein 80g vs a 140g target',
+    flags: [{ key: 'protein_under', discipline: 'nutrition', owned: true, reason: 'Protein 80g vs a 140g target' }],
+  }];
+  const cands = coachCandidates({ triageRows: rows, lastSeverity: {} });
+  assert.equal(cands.length, 1);
+  assert.equal(cands[0].type, 'client_red');
+  assert.equal(cands[0].route, 'client');
+  assert.equal(cands[0].data.clientId, 'client-9');
+  assert.equal(cands[0].data.discipline, 'nutrition');
+  assert.match(cands[0].title, /Priya needs you/);
+  assert.match(cands[0].body, /80g/);
+
+  const { send } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ }, now: DAYTIME, audience: 'coach' });
+  assert.equal(send.length, 1);
+  assert.equal(send[0].route, 'client');
+});
+
+test('a flag routed to the OTHER pro is not notified to this one', () => {
+  const rows = [{ clientId: 'c9', clientName: 'Priya', severity: 'red', reason: 'x', flags: [{ key: 'protein_under', discipline: 'nutrition', owned: false, reason: 'x' }] }];
+  assert.deepEqual(coachCandidates({ triageRows: rows, lastSeverity: {} }), []); // owned:false → not mine
+});
+
+// ── NOT NAGGING: dedup ───────────────────────────────────────────────────────
+test('dedup — the same event does not fire twice', () => {
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const first = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ }, now: DAYTIME, audience: 'client' });
+  assert.equal(first.send.length, 1);
+  const second = decideNotifications({ candidates: cands, last: first.nextState, prefs: { tz: TZ }, now: DAYTIME, audience: 'client' });
+  assert.equal(second.send.length, 0);
+  assert.ok(second.suppressed.some(s => s.reason === 'duplicate'));
+});
+
+test('coach: an unchanged severity does not re-nag', () => {
+  const rows = [{ clientId: 'c9', clientName: 'Priya', severity: 'red', reason: 'r', flags: [{ owned: true, reason: 'r', discipline: 'nutrition' }] }];
+  assert.deepEqual(coachCandidates({ triageRows: rows, lastSeverity: { c9: 'red' } }), []); // already red
+});
+
+// ── CONTROL: per-type × per-channel matrix ───────────────────────────────────
+test('all channels off for a type → that type is fully opted out', () => {
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const { send, suppressed } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ, matrix: { directive: { inapp: false, push: false, email: false } } }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 0);
+  assert.ok(suppressed.some(s => s.type === 'directive' && s.reason === 'opted_out'));
+});
+
+test('push off but in-app on → still sends, channels reflect the choice', () => {
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const { send } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ, matrix: { directive: { inapp: true, push: false, email: false } } }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 1);
+  assert.deepEqual(send[0].channels, { inapp: true, push: false, email: false });
+});
+
+test('email is opt-in: off by default, on when chosen', () => {
+  assert.deepEqual(channelsForType({}, 'directive'), { inapp: true, push: true, email: false });
+  assert.deepEqual(channelsForType({ matrix: { directive: { email: true } } }, 'directive'), { inapp: true, push: true, email: true });
+});
+
+test('master mute → nothing sends', () => {
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [], tone: 'supportive' });
+  const { send, suppressed } = decideNotifications({ candidates: cands, last: {}, prefs: { muted: true, tz: TZ }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 0);
+  assert.ok(suppressed.every(s => s.reason === 'muted'));
+});
+
+// ── NOT NAGGING: quiet hours (tz-aware) → digest ─────────────────────────────
+test('quiet hours hold everything, then a digest lands when they wake', () => {
+  assert.equal(inQuietHours(NIGHT, { ...DEFAULT_PREFS, tz: TZ }), true);
+  assert.equal(inQuietHours(DAYTIME, { ...DEFAULT_PREFS, tz: TZ }), false);
+
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [{ key: 'score_drop', reason: 'Down 12 this week' }], tone: 'supportive' });
+  // at night: nothing sends, items are held
+  const night = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ }, now: NIGHT, audience: 'client' });
+  assert.equal(night.send.length, 0);
+  assert.equal(night.digest, null);
+  assert.ok(night.nextState.pendingDigest.length >= 2);
+  assert.ok(night.suppressed.every(s => s.reason === 'quiet_hours'));
+
+  // next morning: the held items collapse into ONE digest
+  const morning = decideNotifications({ candidates: [], last: night.nextState, prefs: { tz: TZ }, now: DAYTIME, audience: 'client' });
+  assert.ok(morning.digest);
+  assert.match(morning.digest.title, /updates? for you/);
+  assert.equal(morning.nextState.pendingDigest.length, 0);
+});
+
+test('timezone shifts the quiet window (LA vs UTC at the same instant)', () => {
+  // 2026-06-17T06:00Z = 23:00 the night before in LA → quiet in LA, not in UTC.
+  const instant = new Date('2026-06-17T06:00:00Z');
+  assert.equal(localHour(instant, 'UTC'), 6);
+  assert.equal(localHour(instant, 'America/Los_Angeles'), 23);
+  assert.equal(inQuietHours(instant, { ...DEFAULT_PREFS, tz: 'America/Los_Angeles' }), true);
+  assert.equal(inQuietHours(instant, { ...DEFAULT_PREFS, tz: 'UTC' }), true); // 6 < 7 → also quiet
+});
+
+// ── NOT NAGGING: daily cap → digest ──────────────────────────────────────────
+test('over the per-day cap, the extra rolls into the digest', () => {
+  const cands = clientCandidates({ directive: SLEEP_DIRECTIVE, flags: [{ key: 'score_drop', reason: 'Down 12' }], goals: [{ label: 'Goal weight' }], tone: 'supportive' });
+  // cap of 1: first high-priority sends, the rest is held
+  const { send, nextState, suppressed } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: TZ, maxPerDay: 1 }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 1);
+  assert.ok(nextState.pendingDigest.length >= 1);
+  assert.ok(suppressed.some(s => s.reason === 'capped'));
+});
+
+// ── never-shaming copy ───────────────────────────────────────────────────────
+test('streak copy is a restart, never shame', () => {
+  const cands = clientCandidates({ directive: null, flags: [{ key: 'streak_broken', habit: 'water', reason: 'streak ended' }], tone: 'supportive' });
+  assert.equal(cands.length, 1);
+  assert.match(cands[0].title, /restart/i);
+  assert.doesNotMatch((cands[0].title + ' ' + cands[0].body).toLowerCase(), /you (failed|broke|only|never)/);
+});
+
+// ── the cron's promise: re-evaluating a stored snapshot surfaces NEW time-based
+// events (the engine recomputes against `now`), fires once, then dedups ────────
+test('cron: a snapshot whose check-in has since gone overdue fires once, then dedups', () => {
+  const now = new Date('2026-06-17T10:00:00Z');
+  const monday = (d) => { const x = new Date(d); const day = (x.getUTCDay() + 6) % 7; x.setUTCDate(x.getUTCDate() - day); return x.toISOString().slice(0, 10); };
+  // a real check-in logged 3 weeks ago → overdue *now* (a time-based event)
+  const record = { profile: { id: 'u1', name: 'You' }, checkIn: { lastWeekOf: monday(new Date(now.getTime() - 21 * 86400000)) } };
+  const { flags } = evaluateClient(record, now, 'client');
+  assert.ok(flags.some(f => f.key === 'checkin_overdue'), 'engine flags the overdue check-in against now');
+
+  const directive = buildDirective(record, now, 'client');
+  const cands = clientCandidates({ directive: { ...directive, line: 'x' }, flags, tone: 'supportive' });
+  assert.ok(cands.some(c => c.type === 'checkin_due'));
+
+  const r1 = decideNotifications({ candidates: cands, last: {}, prefs: { tz: 'UTC' }, now, audience: 'client' });
+  assert.ok(r1.send.some(s => s.type === 'checkin_due'));            // fires once
+  const r2 = decideNotifications({ candidates: cands, last: r1.nextState, prefs: { tz: 'UTC' }, now, audience: 'client' });
+  assert.ok(!r2.send.some(s => s.type === 'checkin_due'));           // cron re-run → no re-nag
+});
+
+// ── PART B: habit reminders (user-scheduled, opt-in, suppress-when-done) ──────
+const VITAMINS = { habitId: 'h1', label: 'Take vitamins', at: '09:00', days: [1, 2, 3, 4, 5], tz: 'UTC', enabled: true };
+
+test('(b) a 9am weekday reminder is due on a weekday morning → Habits, gentle, no guilt', () => {
+  // DAYTIME = Wed 10:00 UTC → past 09:00, a weekday
+  const cands = habitReminderCandidates({ reminders: [VITAMINS], doneToday: [], now: DAYTIME, tone: 'supportive' });
+  assert.equal(cands.length, 1);
+  assert.equal(cands[0].type, 'habit_reminder');
+  assert.match(cands[0].title, /^Time for: Take vitamins$/);            // the cue, not a scold
+  assert.doesNotMatch(`${cands[0].title} ${cands[0].body}`, /still|haven'?t|forgot|again/i);
+  assert.equal(cands[0].route, 'habits');
+  assert.equal(cands[0].data.habitId, 'h1');
+  const { send } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: 'UTC' }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 1);                                          // fires at its time
+});
+
+test('(c) a reminder is SUPPRESSED once the habit is checked off today', () => {
+  const cands = habitReminderCandidates({ reminders: [VITAMINS], doneToday: ['h1'], now: DAYTIME, tone: 'supportive' });
+  assert.deepEqual(cands, []);                                           // done → no nudge
+});
+
+test('never early: before the set time, nothing is due', () => {
+  const early = new Date('2026-06-17T08:00:00Z'); // 08:00 < 09:00
+  assert.deepEqual(habitReminderCandidates({ reminders: [VITAMINS], doneToday: [], now: early }), []);
+});
+
+test('off a scheduled day, nothing is due', () => {
+  const weekendOnly = { ...VITAMINS, days: [0, 6] };
+  assert.deepEqual(habitReminderCandidates({ reminders: [weekendOnly], doneToday: [], now: DAYTIME }), []); // Wed not in {Sun,Sat}
+});
+
+test('snoozed and disabled reminders do not fire', () => {
+  const snoozed = { ...VITAMINS, snoozeUntil: new Date(DAYTIME.getTime() + 3600000).toISOString() };
+  assert.deepEqual(habitReminderCandidates({ reminders: [snoozed], doneToday: [], now: DAYTIME }), []);
+  assert.deepEqual(habitReminderCandidates({ reminders: [{ ...VITAMINS, enabled: false }], doneToday: [], now: DAYTIME }), []);
+});
+
+test('reminders dedup per day (an hourly cron fires each once)', () => {
+  const cands = habitReminderCandidates({ reminders: [VITAMINS], doneToday: [], now: DAYTIME });
+  const r1 = decideNotifications({ candidates: cands, last: {}, prefs: { tz: 'UTC' }, now: DAYTIME, audience: 'client' });
+  assert.equal(r1.send.length, 1);
+  const r2 = decideNotifications({ candidates: cands, last: r1.nextState, prefs: { tz: 'UTC' }, now: DAYTIME, audience: 'client' });
+  assert.equal(r2.send.length, 0); // same day → deduped
+});
+
+test('many habits due at once BATCH (cap), they do not spam', () => {
+  const reminders = Array.from({ length: 6 }, (_, i) => ({ ...VITAMINS, habitId: `h${i}`, label: `Habit ${i}` }));
+  const cands = habitReminderCandidates({ reminders, doneToday: [], now: DAYTIME });
+  assert.equal(cands.length, 6);
+  const { send, nextState } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: 'UTC', maxPerDay: 4 }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 4);              // capped
+  assert.equal(nextState.pendingDigest.length, 2); // the rest batch into the digest
+});
+
+test('a habit reminder respects the per-channel gate (turn its push off)', () => {
+  const cands = habitReminderCandidates({ reminders: [VITAMINS], doneToday: [], now: DAYTIME });
+  const { send } = decideNotifications({ candidates: cands, last: {}, prefs: { tz: 'UTC', matrix: { habit_reminder: { inapp: true, push: false, email: false } } }, now: DAYTIME, audience: 'client' });
+  assert.equal(send.length, 1);
+  assert.equal(send[0].channels.push, false);
+});
+
+test('every notify type is informational (carries a deep-link route)', () => {
+  for (const [type, meta] of Object.entries(NOTIFY_TYPES)) {
+    assert.ok(typeof meta.route === 'string' && meta.route, `${type} has a route`);
+    assert.ok(['client', 'coach'].includes(meta.audience));
+  }
+});

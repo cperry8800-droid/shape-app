@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson } from '@/lib/request-utils';
+import { callAI, hasOpenAIKey } from '@/lib/ai';
 import {
   computeCorrelations,
   type CorrelationResult,
@@ -146,8 +147,7 @@ async function generateReadout(
   windowDays: number,
   sampleSize: number
 ): Promise<Readout | null> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
+  if (!hasOpenAIKey()) return null;
 
   const significantCorrelations = correlations.filter((c) => c.n >= 7).slice(0, 6);
   if (significantCorrelations.length === 0) return null;
@@ -163,14 +163,8 @@ async function generateReadout(
     strength: c.strength,
   }));
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+  const result = await callAI(
+    {
       input: [
         {
           role: 'system',
@@ -198,15 +192,13 @@ async function generateReadout(
           schema: readoutSchema,
         },
       },
-    }),
-  });
+    },
+    { promptId: 'ai.weekly-readout' },
+  );
 
-  if (!response.ok) {
-    console.warn('[shape-app] weekly readout OpenAI failed:', await response.text());
-    return null;
-  }
+  if (!result.ok) return null;
 
-  const payload = (await response.json()) as OpenAIResponsePayload;
+  const payload = result.data as OpenAIResponsePayload;
   const text = extractOutputText(payload);
   if (!text) return null;
 

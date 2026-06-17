@@ -14,6 +14,18 @@ const engine = () => (typeof window !== 'undefined' && window.DashSignals) || nu
 const deps = () => { const e = engine(); return { goalsFromDoc: e && e.goalsFromDoc }; };
 const call = (fn, ...args) => { try { return typeof fn === 'function' ? fn(...args) : null; } catch (e) { return null; } };
 
+// Signed-out PREVIEW only: a demo coach-flagged sleep lever so the home "Your
+// move" illustrates the cross-domain directive (the deficit's fine, sleep is the
+// lever). Real signed-in accounts use only their own real signals + any real
+// coach override — never this.
+const DEMO_SLEEP_DIRECTIVE = {
+  lever: 'sleep',
+  verdict: 'Sleep is the lever',
+  reason: "Deficit's fine — sleep is stalling recovery; tonight: lights out by 11.",
+  action: { label: "Log last night's sleep", kind: 'log_sleep' },
+  setBy: 'coach-demo',
+};
+
 // Run up to `cap` async tasks at a time (mirrors the website's shared-overview
 // pool so a large roster doesn't fire N requests at once).
 async function pooled(items, cap, worker) {
@@ -34,18 +46,24 @@ async function selfRecord() {
   const SP = (typeof window !== 'undefined' && window.ShapeProgress) || null;
   const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
   const name = (typeof window !== 'undefined' && typeof window.bsMyName === 'function') ? window.bsMyName() : 'You';
-  const [nutrition, train, weighIns, goalsDoc, checkins] = await Promise.all([
+  const [nutrition, train, weighIns, goalsDoc, checkins, prog] = await Promise.all([
     SP && SP.nutrition ? SP.nutrition().catch(() => null) : null,
     SP && SP.train ? SP.train().catch(() => null) : null,
     window.ShapeWeighIns && window.ShapeWeighIns.list ? window.ShapeWeighIns.list().catch(() => null) : null,
     window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals('client_goals').catch(() => null) : null,
     window.ShapeCheckins && window.ShapeCheckins.list ? window.ShapeCheckins.list().catch(() => null) : null,
+    window.ShapeProgramApi && window.ShapeProgramApi.get ? window.ShapeProgramApi.get().catch(() => null) : null,
   ]);
   // Fold train's streak into the nutrition object the mapper reads.
   const nut = Object.assign({}, nutrition || {});
   if (train && train.stats && train.stats.currentStreak != null && nut.currentStreak == null) nut.currentStreak = train.stats.currentStreak;
   if (train && train.stats && train.stats.longestStreak != null && nut.longestStreak == null) nut.longestStreak = train.stats.longestStreak;
-  return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins }, deps());
+  // The coach's directive override (if any) rides on the client's program detail;
+  // it WINS in buildDirective. Signed-out preview seeds the demo sleep lever.
+  const signedIn = !!uid;
+  const coachDirective = signedIn ? ((prog && prog.detail && prog.detail.directive) || null) : DEMO_SLEEP_DIRECTIVE;
+  const recovery = signedIn ? null : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } };
+  return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, coachDirective }, deps());
 }
 
 // ── The coach's roster as unified records (coach triage surfaces). ────────────
@@ -120,6 +138,10 @@ window.ShapeSignals = {
     const records = await coachRecords(role);
     return call(e.findJointAttention, records.length ? records : (call(e.buildMockClients) || [])) || [];
   },
+
+  // The ONE directive (verdict + cross-domain reason + single action) + the
+  // coach read, from the shared engine — the coach override on the record wins.
+  directive: (record) => { const e = engine(); return e ? call(e.buildDirective, record, new Date(), 'client') : null; },
 
   // Client: "next milestone" + goal pace/ETA from the engine (pure, sync).
   milestones: (record) => { const e = engine(); return e ? (call(e.buildMilestones, record) || { earned: [], next: [] }) : { earned: [], next: [] }; },

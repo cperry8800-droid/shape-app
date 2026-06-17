@@ -206,11 +206,22 @@ function dashMessageClient(name, role, draft) {
   if (b) { window.__openChatRequest = opts; b.click(); }
 }
 
-// One-tap drafts — a reason pill becomes a short, human opener the coach
-// edits before sending. Reasons come from the signal engine verbatim.
+// One-tap drafts — the coach's opener, grounded in the engine's ONE cross-domain
+// directive reason (which already reasons across training/nutrition/sleep), with
+// a fallback to stitching the raw flag reasons.
 function dashMessageDraft(row) {
-  if (!row || !Array.isArray(row.flags) || !row.flags.length) return null;
+  if (!row || !row.client) return null;
+  const dir = row.directive;
+  const hasFlags = Array.isArray(row.flags) && row.flags.length > 0;
+  const leverActionable = dir && dir.lever && dir.lever !== "none";
+  // A clean row (no flags, no actionable lever) drafts nothing.
+  if (!hasFlags && !leverActionable) return null;
   const first = String(row.client.profile.name).split(" ")[0];
+  if (dir && dir.reason && dir.reason !== "—") {
+    const r = dir.reason.charAt(0).toLowerCase() + dir.reason.slice(1);
+    return "Hey " + first + " — checking in. I'm seeing " + r + ". What's getting in the way this week?";
+  }
+  if (!hasFlags) return null;
   const reasons = row.flags.slice(0, 2).map((f) => f.reason.charAt(0).toLowerCase() + f.reason.slice(1));
   return "Hey " + first + " — checking in. I'm seeing " + reasons.join(", and ") + ". What's getting in the way this week?";
 }
@@ -412,6 +423,9 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
   const ok = feed.filter((r) => r.severity === "green" && !r.client.profile.isNew);
   const rows = [...atRisk, ...fresh, ...ok];
   const ink50 = "rgba(242,237,228,0.55)";
+  // A HEX muted ink for DashPill: the pill composes its bg/border by appending hex
+  // suffixes (c + "1c" / "55"), so an rgba() value would produce invalid CSS.
+  const inkMutedPill = "#9b968d";
   // Rows open the shared client drilldown (step 11) when dashRoster.jsx is
   // loaded on the page; the Message button keeps working either way.
   const [openRow, setOpenRow] = React.useState(null);
@@ -443,8 +457,12 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
         const delta = Array.isArray(hist) && hist.length >= 2 ? hist[hist.length - 1].points - hist[hist.length - 2].points : null;
         const streak = c.streaks && c.streaks.current != null ? c.streaks.current + "d streak" : null;
         const contact = c.lastContact ? dashRelDay(role === "nutritionist" ? c.lastContact.nutritionist : c.lastContact.trainer) : null;
-        const pills = r.flags.slice(0, 2).map((f) => f.label);
-        const extra = r.flags.length - 2;
+        // Owned = this pro acts on it; routed = the other discipline's signal,
+        // shown read-only (or owned when this pro is the only one on the client).
+        const ownedFlags = r.flags.filter((f) => f.owned);
+        const routedFlags = r.flags.filter((f) => !f.owned).concat(r.readOnly || []);
+        const pills = ownedFlags.slice(0, 2).map((f) => f.label);
+        const extra = ownedFlags.length - 2;
         return (
           <div key={c.profile.id || i}
             onClick={() => openDrawer(r)}
@@ -459,6 +477,9 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
                 <span style={{ fontSize: 13.5, fontWeight: 500 }}>{c.profile.name}</span>
                 {pills.map((p, j) => <DashPill key={j} c={sevColor}>{p}</DashPill>)}
                 {extra > 0 && <DashPill c={sevColor}>+{extra}</DashPill>}
+                {routedFlags.slice(0, 2).map((f, j) => f.owned
+                  ? <DashPill key={"ro" + j} c={sevColor}>{f.label}</DashPill>
+                  : <DashPill key={"ro" + j} c={inkMutedPill}>{f.label} {f.routeTo === "nutritionist" ? "→ dietitian" : "→ trainer"}</DashPill>)}
                 {isNew && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
                 {r.severity === "green" && !isNew && <DashPill c={DASH_SEV_COLORS.green}>On track</DashPill>}
               </div>

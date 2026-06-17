@@ -40,7 +40,12 @@ export async function computeMembership(
   const roles = Array.isArray((profile as { roles?: unknown } | null)?.roles)
     ? ((profile as { roles?: string[] }).roles as string[])
     : [];
-  const isCoach = role === 'trainer' || role === 'nutritionist' || roles.includes('trainer') || roles.includes('nutritionist');
+  // Coach roles (members by role, not subscription). Dietitian (RD/RDN) is a
+  // first-class nutrition-discipline provider — mirror roles.mjs COACH_ROLES.
+  // (Literal here, not the helper import, to keep this edge-proxy module
+  // dependency-free.)
+  const COACH_ROLES = ['trainer', 'nutritionist', 'dietitian'];
+  const isCoach = COACH_ROLES.includes(role) || roles.some((r) => COACH_ROLES.includes(r));
   const isAdmin = !!email && adminEmails().includes(email.toLowerCase());
 
   let isMember = isCoach || isAdmin;

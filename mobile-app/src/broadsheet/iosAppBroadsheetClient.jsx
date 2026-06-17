@@ -1990,13 +1990,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     (async () => {
       try {
         const S = (typeof window !== 'undefined') && window.ShapeSignals;
-        const E = (typeof window !== 'undefined') && window.DashSignals;
-        if (!S || !E || !E.evaluateClient || !S.selfRecord) return;
+        if (!S || !S.selfRecord || !S.directive) return;
         const rec = await S.selfRecord();
         if (!on || !rec) return;
-        const r = E.evaluateClient(rec, new Date(), 'client') || {};
-        const top = (Array.isArray(r.flags) && r.flags.length) ? r.flags[0] : null;
-        setEngineFlag(top ? { key: top.key, reason: top.reason } : null);
+        // The ONE directive (cross-domain — incl. a coach-flagged sleep lever),
+        // grounded in real signals. Lead with it only when there's a real lever.
+        const dir = S.directive(rec);
+        setEngineFlag(dir && dir.action && dir.lever && dir.lever !== 'none' && dir.verdict !== '—' ? dir : null);
       } catch (e) { /* honest: no engine move */ }
     })();
     return () => { on = false; };
@@ -2298,13 +2298,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const todayDirective = (() => {
     if (selIdx !== todayIdx) return null;
     const _teal = t.isLight ? '#0a8f87' : '#34d6c5';
+    // engineFlag is the engine's directive (lever + grounded reason). The lever
+    // → move map preserves the existing heads/CTAs; the sub is the cross-domain
+    // reason; the new `sleep` lever is the cross-discipline one.
     const engineMove = engineFlag ? ({
-      checkin_overdue: { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT },
-      streak_broken:   { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN },
-      food_gap:        { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
-      goal_slip:       { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
-      score_drop:      { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
-    }[engineFlag.key]) : null;
+      checkin:   { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT },
+      training:  { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN },
+      nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
+      goal:      { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
+      score:     { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
+      sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setCheckinPage(true)], c: t.AMBER },
+    }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: engineFlag.reason, cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
@@ -7994,6 +7998,25 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
+  // The ONE directive for the Me headline — same engine source as Home "Your
+  // move" (cross-domain; a coach override wins). Honest: only shows when there's
+  // a real, named lever.
+  const [meDir, setMeDir] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!meMode || !isSelf) return undefined;
+    let on = true;
+    (async () => {
+      try {
+        const S = typeof window !== 'undefined' && window.ShapeSignals;
+        if (!S || !S.selfRecord || !S.directive) return;
+        const rec = await S.selfRecord();
+        if (!on || !rec) return;
+        const d = S.directive(rec);
+        if (d && d.action && d.verdict && d.verdict !== '—') setMeDir(d);
+      } catch (e) { /* honest: no directive */ }
+    })();
+    return () => { on = false; };
+  }, [meMode, isSelf]);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
@@ -8521,6 +8544,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {meMode && isSelf && (
         <div style={{ padding: '14px 18px 0' }}>
           <BSMeGoalCard c={c} onOpen={onOpenGoals} />
+        </div>
+      )}
+
+      {meMode && isSelf && meDir && meDir.action && (
+        <div style={{ padding: '12px 18px 0' }}>
+          <div style={{ borderRadius: 12, border: `1px solid ${bsTHexA(TEAL, 0.4)}`, background: bsTHexA(TEAL, 0.07), padding: '10px 13px' }}>
+            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>Today · your move</div>
+            <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, fontWeight: 600, color: INK }}>{meDir.action.label}</div>
+            {meDir.reason && meDir.reason !== '—' && (
+              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.55), lineHeight: 1.45 }}>{meDir.reason}</div>
+            )}
+          </div>
         </div>
       )}
 
@@ -10050,6 +10085,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
+  // Nora's voice (off by default) + tone toggle. Lives in localStorage via
+  // window.ShapeVoice; the thread mirrors it so toggles re-render immediately.
+  const [voicePrefs, setVoicePrefs] = useStateBSC(() => (window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive' }));
+  const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
+  const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
+  const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
+  // Reflect a tone that arrives async (account sync on login, or a change on another surface).
+  React.useEffect(() => {
+    const h = () => { try { if (window.ShapeVoice) setVoicePrefs(window.ShapeVoice.get()); } catch (e) {} };
+    window.addEventListener('shape:voice', h);
+    return () => window.removeEventListener('shape:voice', h);
+  }, []);
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
@@ -10065,6 +10112,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
+      if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply); // off by default
+
     } catch (e) {
       setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
     } finally { setSupportBusy(false); }
@@ -11223,7 +11272,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
+                    {/* Nora's voice — off by default, fully usable without it. */}
+                    <button onClick={() => setVoiceEnabled(!voicePrefs.enabled)} title="Speak Nora's replies" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 999, border: `1px solid ${voicePrefs.enabled ? '#2e6fa0' : hair}`, background: voicePrefs.enabled ? '#2e6fa01f' : 'transparent', color: voicePrefs.enabled ? '#2e6fa0' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                      {voicePrefs.enabled ? '🔊' : '🔇'} Voice {voicePrefs.enabled ? 'on' : 'off'}
+                    </button>
+                    <div style={{ display: 'inline-flex', borderRadius: 999, border: `1px solid ${hair}`, overflow: 'hidden' }}>
+                      {['supportive', 'direct'].map(tn => (
+                        <button key={tn} onClick={() => setVoiceTone(tn)} title={tn === 'supportive' ? 'Warm and encouraging' : 'Concise and factual'} style={{ padding: '5px 10px', border: 0, background: voicePrefs.tone === tn ? '#2e6fa0' : 'transparent', color: voicePrefs.tone === tn ? '#fff' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tn}</button>
+                      ))}
+                    </div>
+                  </div>
                   {supportMsgs.map((m, i) => (
                     m.me ? (
                       <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
@@ -11237,13 +11297,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                         <div style={{ minWidth: 0 }}>
                           <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Concierge" : ''}</div>
                           <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                          {m.bot && (
+                            <button onClick={() => speakReply(m.t, { force: true })} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 5, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>🔊 Listen</button>
+                          )}
                           {Array.isArray(m.actions) && m.actions.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
                               {m.actions.map((a, ai) => (
-                                <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
-                                  <span>{a.label}</span>
-                                  {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
-                                </button>
+                                a.type === 'proposal'
+                                  ? <BSNoraProposal key={ai} a={a} t={t} />
+                                  : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
+                                      <span>{a.label}</span>
+                                      {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
+                                    </button>
                               ))}
                             </div>
                           )}
@@ -11362,7 +11427,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked placeholder="Message the Shape team…" />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice placeholder="Message the Shape team…" />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -11455,6 +11520,69 @@ function BSClientChat({ onProfile, role = 'client', openRequest }) {
   return <BSClientFeed onProfile={onProfile} role={role} openRequest={openRequest} />;
 }
 
+// Nora's drafted change → the human-in-the-loop confirm card (Tier 1/2 actions).
+// Renders the server-provided summary + diff (before → after), then a Confirm
+// that POSTs the signed token to /api/ai/proposals/confirm — nothing is applied
+// until this tap. Once it lands, Undo reverses it by auditId. Token-only: the UI
+// never fabricates the change. Theme-token styling (matches the chat chips).
+function BSNoraProposal({ a, t }) {
+  const [status, setStatus] = React.useState('idle'); // idle | busy | done | undoing | undone | error
+  const [err, setErr] = React.useState('');
+  const [auditId, setAuditId] = React.useState(null);
+  const mono = t.MONO, ink = t.INK, muted = t.INK50, hair = t.RULE;
+  const ac = t.isLight ? '#0a8f87' : '#34d6c5';
+  const diff = Array.isArray(a.diff) ? a.diff : [];
+  const fmtV = (v) => (v == null || v === '') ? '—' : String(v);
+  const confirm = async () => {
+    if (status === 'busy' || status === 'done') return;
+    setStatus('busy'); setErr('');
+    try {
+      if (!window.ShapeSupport?.confirm) throw new Error('Actions are unavailable right now.');
+      const r = await window.ShapeSupport.confirm(a.token);
+      setAuditId(r && r.auditId); setStatus('done');
+    } catch (e) { setErr(String(e?.message || 'Could not apply that change.')); setStatus('error'); }
+  };
+  const undo = async () => {
+    if (!auditId || status === 'undoing' || status === 'undone') return;
+    setStatus('undoing'); setErr('');
+    try {
+      if (!window.ShapeSupport?.undo) throw new Error('Undo is unavailable right now.');
+      await window.ShapeSupport.undo(auditId); setStatus('undone');
+    } catch (e) { setErr(String(e?.message || 'Could not undo.')); setStatus('done'); }
+  };
+  return (
+    <div style={{ width: '100%', border: `1px solid ${ac}55`, background: `${ac}0f`, borderRadius: 14, padding: 12, marginTop: 8 }}>
+      <div style={{ fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ac }}>
+        {status === 'done' ? 'Applied ✓' : status === 'undone' ? 'Undone' : 'Draft · review & confirm'}
+      </div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
+      {diff.length > 0 && status !== 'undone' && (
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {diff.map((d, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap' }}>
+              <span style={{ color: muted }}>{d.label || d.field}</span>
+              <span style={{ color: muted, textDecoration: 'line-through', opacity: 0.7 }}>{fmtV(d.before)}</span>
+              <span style={{ color: muted }}>→</span>
+              <span style={{ color: ink, fontWeight: 700 }}>{fmtV(d.after)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 9, color: t.RUST, lineHeight: 1.4 }}>{err}</div>}
+      <div style={{ marginTop: 10, display: 'flex', gap: 7, alignItems: 'center' }}>
+        {(status === 'idle' || status === 'error') && (
+          <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? 'Try again' : 'Confirm'}</button>
+        )}
+        {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Applying…</span>}
+        {status === 'done' && auditId && (
+          <button onClick={undo} style={{ border: `1px solid ${hair}`, background: 'transparent', color: muted, borderRadius: 999, padding: '7px 12px', fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Undo</button>
+        )}
+        {status === 'undoing' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Undoing…</span>}
+      </div>
+    </div>
+  );
+}
+
 // Whether the signed-in account can actually send messages (member access incl.
 // coaches). Set by the app shell (window.ShapeCanChat); defaults to allow when
 // unknown so members are never wrongly blocked — only an explicit `false`
@@ -11470,11 +11598,74 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
   const TEALB = t.isLight ? '#0a8f87' : '#34d6c5';
+
+  // ── Voice input (push-to-talk) — only when `voice` (Nora's support composer). ──
+  // Produces text into THIS composer's onChange → the SAME onSend, so speaking a
+  // question yields the same answer as typing. Web Speech API is the fast path
+  // (the /m/ web build); MediaRecorder → /api/ai/transcribe (keys server-side) is
+  // the fallback for the native WebView. Graceful fallback to typing on any error.
+  const SpeechRec = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const voiceOk = voice && (!!SpeechRec || (typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== 'undefined' && !!window.MediaRecorder));
+  const [voiceState, setVoiceState] = useStateBSC('idle'); // idle | listening | transcribing
+  const [voiceErr, setVoiceErr] = useStateBSC(null);
+  const recogRef = React.useRef(null);
+  const recRef = React.useRef(null);
+  const stopVoice = () => {
+    try { if (recogRef.current) recogRef.current.stop(); } catch (e) {}
+    try { if (recRef.current && recRef.current.state === 'recording') recRef.current.stop(); } catch (e) {}
+  };
+  const startWebSpeech = () => {
+    try {
+      const rec = new SpeechRec();
+      rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+      let finalText = '';
+      rec.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) finalText += r[0].transcript; else interim += r[0].transcript; }
+        onChange((finalText + ' ' + interim).replace(/\s+/g, ' ').trim());
+      };
+      rec.onerror = (e) => { setVoiceState('idle'); if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setVoiceErr('Mic blocked — allow access or type.'); else if (e.error === 'no-speech') setVoiceErr("Didn't catch that — try again, or type."); else setVoiceErr('Voice hiccuped — type instead.'); };
+      rec.onend = () => setVoiceState((s) => (s === 'listening' ? 'idle' : s));
+      recogRef.current = rec; setVoiceErr(null); setVoiceState('listening'); rec.start();
+    } catch (e) { setVoiceState('idle'); setVoiceErr('Voice unavailable — type instead.'); }
+  };
+  const startServerVoice = async () => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window === 'undefined' || !window.MediaRecorder) { setVoiceErr("Voice isn't supported here — type instead."); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { setVoiceErr('Mic blocked — allow access or type.'); return; }
+    try {
+      const mr = new window.MediaRecorder(stream);
+      const chunks = [];
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = async () => {
+        try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e) {}
+        setVoiceState('transcribing');
+        try {
+          const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+          const fd = new FormData(); fd.append('audio', blob, 'nora.webm');
+          const res = await fetch('/api/ai/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data && data.transcript) { onChange(data.transcript); setVoiceErr(null); }
+          else if (res.status === 401 || res.status === 402) setVoiceErr('Sign in to use voice — or type your question.');
+          else setVoiceErr("Couldn't transcribe — type instead.");
+        } catch (e) { setVoiceErr("Couldn't transcribe — type instead."); }
+        setVoiceState('idle');
+      };
+      recRef.current = mr; setVoiceErr(null); setVoiceState('listening'); mr.start();
+    } catch (e) { setVoiceState('idle'); setVoiceErr('Voice unavailable — type instead.'); }
+  };
+  const toggleVoice = () => {
+    if (voiceState === 'transcribing') return;
+    if (voiceState === 'listening') { stopVoice(); return; }
+    setVoiceErr(null);
+    if (SpeechRec) startWebSpeech(); else startServerVoice();
+  };
+  React.useEffect(() => () => stopVoice(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When pinned, render through a portal into #bs-composer-slot — a node that
   // lives inside the phone-frame container (next to the tab bar). The slot is
@@ -11596,7 +11787,28 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
     }}>@</button>
   ) : null;
-  const leftBtns = (photoBtn || tagBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}</div> : null;
+  // Mic (push-to-talk) — only on Nora's support composer; reuses the left-button style.
+  const micBtn = voiceOk ? (
+    <button onClick={toggleVoice} aria-label={voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora'} title={voiceState === 'listening' ? 'Stop' : 'Speak to Nora'} style={{
+      flexShrink: 0, width: 33, height: 34, borderRadius: 17,
+      border: `1px solid ${voiceState === 'listening' ? t.RUST : t.SURFACE_BORDER}`,
+      background: voiceState === 'listening' ? `${t.RUST}1f` : (pinned ? t.SURFACE : t.PAPER),
+      color: voiceState === 'listening' ? t.RUST : (voiceState === 'transcribing' ? t.INK50 : t.INK),
+      cursor: voiceState === 'transcribing' ? 'default' : 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end',
+    }}>
+      {voiceState === 'transcribing'
+        ? <span style={{ width: 14, height: 14, border: `2px solid ${t.INK50}`, borderTopColor: 'transparent', borderRadius: 999, display: 'inline-block', animation: 'bsspin 0.7s linear infinite' }} />
+        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="9" y1="22" x2="15" y2="22" /></svg>}
+    </button>
+  ) : null;
+  const leftBtns = (photoBtn || tagBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{micBtn}</div> : null;
+  // Listening / transcribing / error status line above the field.
+  const voiceStatus = (voice && (voiceState !== 'idle' || voiceErr)) ? (
+    <div style={{ padding: '0 2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: voiceErr ? t.AMBER : (voiceState === 'listening' ? t.RUST : t.INK50) }}>
+      {voiceState === 'listening' ? '● Listening… tap the mic to stop' : voiceState === 'transcribing' ? 'Transcribing…' : (voiceErr || '')}
+    </div>
+  ) : null;
   const tagChips = (onTag && tags && tags.length) ? (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
       {tags.map((x) => <button key={x.id || x.name} onClick={() => onRemoveTag && onRemoveTag(x.id || x.name)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, borderRadius: 999, border: `1px solid ${TEALB}`, background: `${TEALB}1f`, color: t.INK, padding: '4px 9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, cursor: 'pointer' }}>@{x.name} ✕</button>)}
@@ -11621,6 +11833,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         padding: `10px ${t.padX}px`,
         boxShadow: `0 -10px 26px ${t.isLight ? 'rgba(15,14,12,0.10)' : 'rgba(0,0,0,0.34)'}`,
       }}>
+        {voiceStatus}
         {body}
       </div>
     );
@@ -11633,6 +11846,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       margin: `0 ${t.padX}px 16px`,
       filter: `drop-shadow(0 18px 38px ${t.isLight ? 'rgba(15,14,12,0.16)' : 'rgba(0,0,0,0.42)'})`,
     }}>
+      {voiceStatus}
       {body}
     </div>
   );
@@ -11963,7 +12177,8 @@ function bsTierForPoints(pts) {
 const BS_COACH_TIER_NAMES = { raw: 'Certified', base: 'Certified', tempo: 'Pro', form: 'Elite', peak: 'Master', legend: 'Icon' };
 function bsIsCoachRole(role) {
   const r = String(role || '').toLowerCase().trim();
-  return r === 'trainer' || r === 'nutritionist' || r === 'coach';
+  // dietitian (RD/RDN) is a nutrition-discipline coach.
+  return r === 'trainer' || r === 'nutritionist' || r === 'dietitian' || r === 'coach';
 }
 function bsCoachTier(clientTier) {
   return BS_COACH_TIER_NAMES[String(clientTier || '').toLowerCase().trim()] || clientTier;
@@ -12087,6 +12302,103 @@ function _bsNotifStyle(type, t) {
   return map[type] || map.general;
 }
 
+const _NP_HOURS = Array.from({ length: 24 }, (_, h) => ({ v: h, l: (h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM') }));
+const _NP_DEF_CH = { inapp: true, push: true, email: false };
+const _NP_CHANNELS = [['inapp', 'App'], ['push', 'Push'], ['email', 'Email']];
+const _NP_CAPS = [2, 3, 4, 6, 8];
+// The notification PREFERENCE CENTER — the authoritative gate over what each
+// person is notified about, per TYPE × per CHANNEL, plus master mute, quiet
+// hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
+// notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
+function BSNotifyPrefs({ onBack, role }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const isCoach = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
+  const [settings, setSettings] = useStateBSC(null);
+  const [matrix, setMatrix] = useStateBSC({});
+  React.useEffect(() => {
+    let alive = true;
+    Promise.resolve(window.ShapeNotifyPrefs?.center?.() || { settings: null, prefs: [] }).then(c => {
+      if (!alive) return;
+      const s = c.settings || {};
+      setSettings({ muted: s.muted === true, quiet_start: Number.isFinite(s.quiet_start) ? s.quiet_start : 22, quiet_end: Number.isFinite(s.quiet_end) ? s.quiet_end : 7, daily_cap: Number.isFinite(s.daily_cap) ? s.daily_cap : 4 });
+      const m = {};
+      (c.prefs || []).forEach(p => { (m[p.type] = m[p.type] || {})[p.channel] = p.enabled; });
+      setMatrix(m);
+    });
+    return () => { alive = false; };
+  }, []);
+  const saveSettings = (patch) => { setSettings(s => ({ ...s, ...patch })); window.ShapeNotifyPrefs?.saveSettings?.(patch); };
+  const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : _NP_DEF_CH[ch]; };
+  const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
+
+  const TYPES = isCoach
+    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week']]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page']];
+
+  const Toggle = ({ on, onClick }) => (
+    <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? '#fff' : t.INK50 }} />
+    </button>
+  );
+  const Row = ({ l, sub, right, border = true }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: border ? `1px solid ${t.HAIR}` : 0 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{l}</div>
+        {sub && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
+      </div>
+      {right}
+    </div>
+  );
+  const Head = (txt) => <div style={{ marginTop: 18, marginBottom: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
+  const Pill = ({ value, opts, fmt, onChange }) => (
+    <select value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ background: 'transparent', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+      {opts.map(o => <option key={o} value={o} style={{ color: '#000' }}>{fmt(o)}</option>)}
+    </select>
+  );
+  const ChannelChip = ({ on, label, onClick }) => (
+    <button onClick={onClick} aria-pressed={on} style={{ width: 44, padding: '5px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
+  );
+  const hourLabel = (h) => _NP_HOURS.find(x => x.v === h)?.l || `${h}:00`;
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Notifications" kicker="Notifications" title={<>What reaches<br/>you.</>} />
+      {settings === null ? (
+        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      ) : (
+        <div style={{ padding: `4px ${t.padX}px 30px` }}>
+          <Row l="Mute everything" sub={settings.muted ? 'All notifications paused' : 'Real events only — never spam'} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
+          {!settings.muted && (
+            <React.Fragment>
+              {Head('Quiet hours')}
+              <Row l="From" sub="Held for a daily digest" right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
+              <Row l="To" sub="Uses your device time zone" right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
+              <Row l="Daily limit" sub="Extra items batch into a digest" border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => `${n}/day`} onChange={(v) => saveSettings({ daily_cap: v })} />} />
+
+              {Head('What you hear about · per channel')}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, padding: '0 0 6px' }}>
+                {_NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 44, textAlign: 'center', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{l}</span>)}
+              </div>
+              {TYPES.map(([type, label, sub], i) => (
+                <div key={type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{label}</div>
+                    {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {_NP_CHANNELS.map(([k, l]) => <ChannelChip key={k} on={chOn(type, k)} label={l} onClick={() => toggleCh(type, k)} />)}
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.</div>
+            </React.Fragment>
+          )}
+        </div>
+      )}
+    </BSPage>
+  );
+}
 function BSNotifications({ onBack, onRoute = () => {} }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -14301,6 +14613,84 @@ function BSClientMe(props) {
   );
 }
 
+const _BS_SOURCE_NAMES = { whoop: 'WHOOP', oura: 'Oura', garmin: 'Garmin', apple_health: 'Apple Health', strava: 'Strava', manual: 'Manual' };
+const _bsSourceName = (s) => _BS_SOURCE_NAMES[s] || String(s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+// Source reconciliation (INT2): on-demand "these two disagree — which do you
+// trust?" Shows only metrics where connected providers actually differ; tapping
+// a source makes it authoritative (writes the override + re-points the snapshot).
+function BSReconcile({ onBack, clientId }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [items, setItems] = useStateBSC(null);
+  const [busy, setBusy] = useStateBSC('');
+  const load = React.useCallback(() => {
+    Promise.resolve(window.ShapeReconcile?.get?.(clientId) || { items: [] })
+      .then(r => setItems(Array.isArray(r.items) ? r.items : []))
+      .catch(() => setItems([]));
+  }, [clientId]);
+  React.useEffect(() => { load(); }, [load]);
+  const pick = async (metric, source) => {
+    setBusy(`${metric}:${source}`);
+    try { await window.ShapeReconcile?.set?.({ clientId, metric, source }); }
+    catch (e) { window.__bsToast?.("Couldn't save — try again", 'err'); setBusy(''); return; }
+    // optimistic: mark chosen authoritative, then refresh from the server
+    setItems(list => (list || []).map(it => it.metric !== metric ? it : {
+      ...it, override: source, authoritativeSource: source,
+      sources: it.sources.map(s => ({ ...s, isAuthoritative: s.source === source })),
+    }));
+    setBusy('');
+    load();
+  };
+  const fmt = (v, unit) => `${Number.isInteger(v) ? v : Number(v).toFixed(1)}${unit ? (unit === '%' || unit === '' ? unit : ' ' + unit) : ''}`;
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Data · Integrations" kicker="Reconcile" title={<>Which source<br/>do you trust?</>} />
+      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>When two connected devices report a metric differently, pick the one to trust. Your choice becomes the authoritative source going forward.</div>
+      </div>
+      {items === null && <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Checking sources…</div>}
+      {items !== null && items.length === 0 && (
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>Your sources agree.</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Nothing to reconcile right now. This only appears when two connected devices disagree on the same metric.</div>
+          </div>
+        </div>
+      )}
+      {items !== null && items.length > 0 && (
+        <div style={{ padding: `12px ${t.padX}px 30px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {items.map((it) => (
+            <div key={it.metric} style={{ border: `1px solid ${t.RULE}`, borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 13px', borderBottom: `1px solid ${t.HAIR}`, background: t.PAPER2 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{it.label}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>Disagree</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(it.sources.length, 2)}, 1fr)`, gap: 0 }}>
+                {it.sources.map((s, i) => (
+                  <div key={s.source} style={{ padding: '12px 13px', borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, background: s.isAuthoritative ? `${t.ACCENT}14` : 'transparent' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.isAuthoritative ? t.ACCENT : t.INK50 }}>{_bsSourceName(s.source)}</div>
+                      {s.isAuthoritative && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.ACCENT }}>✓ Trusted</span>}
+                    </div>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{fmt(s.value, it.unit)}</div>
+                    {s.isAuthoritative ? (
+                      <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>Your source</div>
+                    ) : (
+                      <button onClick={() => pick(it.metric, s.source)} disabled={busy === `${it.metric}:${s.source}`} style={{ marginTop: 8, width: '100%', padding: '7px', borderRadius: 8, border: `1px solid ${t.ACCENT}`, background: 'transparent', color: t.ACCENT, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                        {busy === `${it.metric}:${s.source}` ? 'Saving…' : 'Make this my source'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </BSPage>
+  );
+}
 function BSIntegrationsPage({ onBack }) {
   const t = useBS();
   const [providers, setProviders] = useStateBSC([]);
@@ -14308,6 +14698,7 @@ function BSIntegrationsPage({ onBack }) {
   const [busy, setBusy] = useStateBSC('');
   const [summary, setSummary] = useStateBSC(null);
   const [error, setError] = useStateBSC('');
+  const [showReconcile, setShowReconcile] = useStateBSC(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -14422,6 +14813,8 @@ function BSIntegrationsPage({ onBack }) {
     ['Workouts', `${summary.result.whoop.workouts?.records?.length ?? 0}`],
   ] : null;
 
+  if (showReconcile) return <BSReconcile onBack={() => setShowReconcile(false)} />;
+
   return (
     <BSPage>
       <BSDetailHeader
@@ -14442,6 +14835,15 @@ function BSIntegrationsPage({ onBack }) {
           Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.
         </div>
       </div>
+
+      {/* On-demand data-quality check — only surfaces when sources disagree. */}
+      <button onClick={() => setShowReconcile(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Reconcile sources</div>
+          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>When two devices disagree — pick which to trust</div>
+        </div>
+        <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT }}>→</span>
+      </button>
 
       {error && (
         <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, color: t.RUST, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>
@@ -15214,6 +15616,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  BSReconcile,
   BSFacetAvatar,
   bsAmLive,
   SHAPE_SCORE_PROFILES,
@@ -16572,6 +16975,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
   const [showNotifications, setShowNotifications] = useStateBSC(false);
+  const [showNotifyPrefs, setShowNotifyPrefs] = useStateBSC(false);
   const [showIntegrations, setShowIntegrations] = useStateBSC(initialPage === 'integrations');
   const [showAppearance, setShowAppearance] = useStateBSC(false);
   const [appearTab, setAppearTab] = useStateBSC('paper');
@@ -16652,9 +17056,25 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     mealDinner:        BS_MEAL_TIME_OPTS,
     trainingPhase:     ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'],
     nutritionPhase:    ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'],
+    noraVoice:         ['On', 'Off'],
+    noraTone:          ['Supportive', 'Direct'],
+    noraVoiceName:     ['Auto', ...((window.ShapeVoice && window.ShapeVoice.voices) || []).map(v => v.label)],
   };
   const PREF_DEFAULTS = { ...Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]])),
-    mealBreakfast: '8:00 AM', mealLunch: '12:30 PM', mealSnack: '4:00 PM', mealDinner: '7:00 PM' };
+    mealBreakfast: '8:00 AM', mealLunch: '12:30 PM', mealSnack: '4:00 PM', mealDinner: '7:00 PM',
+    noraVoice: 'Off', noraTone: 'Supportive', noraVoiceName: 'Auto' };
+  // Nora's voice prefs are owned by window.ShapeVoice (localStorage + account
+  // sync), NOT the client_settings doc — these map the Settings labels to it.
+  const NORA_KEYS = ['noraVoice', 'noraTone', 'noraVoiceName'];
+  const noraVoiceList = () => (window.ShapeVoice && window.ShapeVoice.voices) || [];
+  const noraVoiceIdFromLabel = (label) => label === 'Auto' ? 'auto' : ((noraVoiceList().find(v => v.label === label) || {}).id || 'auto');
+  const noraVoiceLabelFromId = (id) => id === 'auto' ? 'Auto' : ((noraVoiceList().find(v => v.id === id) || {}).label || 'Auto');
+  const applyNora = (key, val) => {
+    if (!window.ShapeVoice) return;
+    if (key === 'noraVoice') window.ShapeVoice.setEnabled(val === 'On');
+    else if (key === 'noraTone') window.ShapeVoice.setTone(val === 'Direct' ? 'direct' : 'supportive');
+    else if (key === 'noraVoiceName') window.ShapeVoice.setVoice(noraVoiceIdFromLabel(val));
+  };
   const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -16672,12 +17092,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }, []);
   // Seed the meal-time cache from defaults immediately (before the async load).
   React.useEffect(() => { window.ShapeMealTimes?.setFromPrefs(PREF_DEFAULTS); }, []);
+  // Mirror Nora's voice prefs (owned by window.ShapeVoice) into the Settings rows,
+  // and reflect a change that arrives async (account sync, or the chat toggle).
+  React.useEffect(() => {
+    const sync = () => {
+      const v = window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive', voice: 'auto' };
+      setPrefs(p => ({ ...p, noraVoice: v.enabled ? 'On' : 'Off', noraTone: v.tone === 'direct' ? 'Direct' : 'Supportive', noraVoiceName: noraVoiceLabelFromId(v.voice) }));
+    };
+    sync();
+    window.addEventListener('shape:voice', sync);
+    return () => window.removeEventListener('shape:voice', sync);
+  }, []);
   const cyclePref = (key, label) => {
     const opts = PREF_OPTIONS[key];
     if (!opts) return;
     setPrefs(p => {
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
+      if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -16690,6 +17122,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     setPrefs(p => {
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
+      if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -17114,6 +17547,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showNotifications) {
     return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => { if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); } }} />;
   }
+  if (showNotifyPrefs) {
+    return <BSNotifyPrefs onBack={() => setShowNotifyPrefs(false)} role={tweaks.role} />;
+  }
   if (showIntegrations) {
     return <BSIntegrationsPage onBack={() => setShowIntegrations(false)} />;
   }
@@ -17235,6 +17671,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Notifications',
       meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
+        { l: 'Notification center', r: 'All types · channels', action: () => setShowNotifyPrefs(true) },
         { l: 'Workout reminders', key: 'workoutReminders' },
         { l: 'Coach replies',     key: 'coachReplies' },
         { l: 'Weekly digest',     key: 'weeklyDigest' },
@@ -17264,6 +17701,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
         { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible },
         { l: 'Share workout data', key: 'shareWorkoutData' },
+      ],
+    },
+    {
+      title: 'Nora’s voice',
+      meta: prefs.noraVoice === 'On' ? 'On' : 'Off',
+      rows: [
+        { l: 'Speak replies', key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice },
+        { l: 'Tone', key: 'noraTone', segmented: PREF_OPTIONS.noraTone },
+        { l: 'Voice', key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
+        { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound."); } catch (e) {} } },
       ],
     },
     {

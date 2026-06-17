@@ -25,6 +25,9 @@ const GATED_API_PREFIXES = [
   '/api/conversations',
   '/api/messages',
 ];
+// Server-to-server routes UNDER a gated prefix that authenticate themselves (a
+// secret), so the per-user membership gate must NOT apply (no user session).
+const GATE_SKIP = ['/api/ai/notify/cron'];
 
 // ---- Rate limits ----------------------------------------------------------
 // AUTH writes (sign-in bridge / sign-out) are the strict brute-force tier;
@@ -41,6 +44,7 @@ const RATE_LIMIT_SKIP = [
   '/api/integrations/garmin/webhook',
   '/api/push/dispatch',
   '/api/health',
+  '/api/ai/notify/cron',
 ];
 
 // Max request body size (App Router has no default). Upload + server-to-server
@@ -53,6 +57,7 @@ const LARGE_BODY_PREFIXES = [
   '/api/client/progress-photos',
   '/api/nutrition/meal-note',
   '/api/nutrition/voice',
+  '/api/ai/transcribe',
   '/api/integrations/garmin/webhook',
 ];
 
@@ -190,7 +195,7 @@ export async function updateSession(request: NextRequest) {
   // Server-side enforcement for the paid client API prefixes. Honors a Bearer
   // token (native app) as well as the cookie session (web). Fails OPEN on any
   // unexpected error so a gate fault can never take down the paid routes.
-  if (GATED_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'))) {
+  if (!GATE_SKIP.includes(apiPath) && GATED_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'))) {
     try {
       const authHeader = request.headers.get('authorization') || '';
       const bearer = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -236,13 +241,18 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .maybeSingle();
 
-    const ownedRoles: string[] =
+    const rawRoles: string[] =
       Array.isArray(profile?.roles) && profile.roles.length
         ? profile.roles
         : profile?.role
           ? [profile.role]
           : ['client'];
-    const activeRole = (profile?.role as PortalRole | undefined) ?? 'client';
+    // A dietitian (RD/RDN) is a nutrition provider — it OWNS the nutritionist
+    // portal (same surfaces/discipline), so it passes the nutritionist gate.
+    const ownedRoles = rawRoles.includes('dietitian') && !rawRoles.includes('nutritionist')
+      ? [...rawRoles, 'nutritionist'] : rawRoles;
+    const rawActive = (profile?.role as string | undefined) ?? 'client';
+    const activeRole = (rawActive === 'dietitian' ? 'nutritionist' : rawActive) as PortalRole;
 
     // Signed in but this page belongs to a role the user doesn't have —
     // send them to a dashboard they DO own. Multi-role users (the required

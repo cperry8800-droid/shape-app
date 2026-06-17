@@ -48,7 +48,17 @@ const state = {
 };
 
 function normalizeRole(role) {
-  return ['client', 'trainer', 'nutritionist'].includes(role) ? role : 'client';
+  // dietitian (RD/RDN) is a first-class nutrition-discipline provider role.
+  return ['client', 'trainer', 'nutritionist', 'dietitian'].includes(role) ? role : 'client';
+}
+
+// A dietitian (RD/RDN) is a CREDENTIAL on the NUTRITIONIST provider rails — the
+// provider row, provider_role, roster/booking/availability endpoints, and console
+// are all keyed by the physical discipline ('trainer' | 'nutritionist'). Map a
+// dietitian onto 'nutritionist' anywhere we pick a discipline so they never fall
+// through to the trainer path (or get rejected).
+function providerDiscipline(role) {
+  return role === 'dietitian' ? 'nutritionist' : role;
 }
 
 function normalizeRoles(roles, fallbackRole = 'client') {
@@ -367,6 +377,8 @@ async function getCurrentSession() {
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
+  if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
+  if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses'); } catch (e) {} } // grant any one-time tier bonuses (idempotent)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
@@ -2747,14 +2759,14 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 
 // Ask the in-app support assistant. Works signed-out (server returns a
 // rule-based reply); signed-in users get the AI assistant.
-async function askSupportBot(messages) {
+async function askSupportBot(messages, tone) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [] }),
+    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' }),
   });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || 'Support is unavailable right now.');
@@ -3135,7 +3147,8 @@ window.ShapePlan = { get: getPlan };
 // client_meal_plans (POST /api/nutritionist/meal-plan). The roster is the
 // coach's real linked clients (subscriptions + sessions); uuid-backed only.
 async function listAssignableClients(role) {
-  const path = role === 'nutritionist' ? '/api/nutritionist/clients' : '/api/trainer/clients';
+  // dietitian → the nutritionist roster endpoint (not the trainer default).
+  const path = providerDiscipline(role) === 'nutritionist' ? '/api/nutritionist/clients' : '/api/trainer/clients';
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}${path}`, null);
   const list = Array.isArray(d?.clients) ? d.clients : [];
   return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0 }));
@@ -3247,18 +3260,50 @@ async function getClientProgram(userId) {
 async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail } = {}) {
   if (!supabase || !state.user?.id) return null;
   const uid = userId || state.user.id;
+
+  // Self-edit: the client may set their own row directly (self RLS). A COACH
+  // setting a client's program goes through set_program_detail, which enforces
+  // discipline server-side (a trainer can only touch training, a nutritionist
+  // only nutrition) and merges over what's stored. Per-discipline so neither
+  // coach can clobber the other's section.
+  if (uid !== state.user.id) {
+    let result = null;
+    const sections = [
+      { d: 'training', phase: trainingPhase, body: detail?.training },
+      { d: 'nutrition', phase: nutritionPhase, body: detail?.nutrition },
+    ];
+    for (const s of sections) {
+      if (s.phase == null && s.body == null) continue;
+      const { data, error } = await supabase.rpc('set_program_detail', {
+        p_client_id: uid,
+        p_discipline: s.d,
+        p_phase: s.phase ?? null,
+        p_detail: s.body ?? null,
+      });
+      if (error) throw error;
+      result = data || result;
+    }
+    if (!result) return getClientProgram(uid);
+    return { trainingPhase: result.trainingPhase, nutritionPhase: result.nutritionPhase, detail: result.detail || {} };
+  }
+
   const payload = { user_id: uid, updated_by: state.user.id, updated_at: new Date().toISOString() };
   if (trainingPhase != null) payload.training_phase = trainingPhase;
   if (nutritionPhase != null) payload.nutrition_phase = nutritionPhase;
-  // Merge the incoming detail sections (training / nutrition) over what's stored
-  // so a trainer's adjustment never clobbers a nutritionist's, and vice-versa.
+  // Merge the incoming detail sections (training / nutrition) over what's stored.
   if (detail && typeof detail === 'object') {
     let existing = {};
     try {
       const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
       if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
     } catch (e) { /* first write — no existing row */ }
-    payload.detail = { ...existing, ...detail };
+    // A SELF write must never set `detail.directive`: that field is the coach's
+    // override (written only by the server /api/ai/directive/override route) and
+    // the engine honors it as an authoritative coach directive. Strip it from
+    // client-supplied input so a client can't forge a coach directive for
+    // themselves; the stored coach value (existing.directive) is preserved here.
+    const { directive: _coachOnly, ...selfDetail } = detail;
+    payload.detail = { ...existing, ...selfDetail };
   }
   const { data, error } = await supabase
     .from('client_programs')
@@ -4303,9 +4348,296 @@ window.ShapeIntegrations = {
   disconnect: disconnectIntegration,
 };
 
+// Confirm a Nora-drafted change (the human-in-the-loop step): POST the signed
+// proposal token to /api/ai/proposals/confirm. Nothing was applied until here.
+// Returns { ok, auditId, result }. Undo reverses a confirmed change by auditId.
+async function confirmNoraProposal(token) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/ai/proposals/confirm`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ token }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.message || payload.error || 'Could not apply that change.');
+  return payload;
+}
+async function undoNoraProposal(auditId) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/ai/audit/undo`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ auditId }),
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Could not undo that change.');
+  return payload;
+}
 window.ShapeSupport = {
   ask: askSupportBot,
+  confirm: confirmNoraProposal,
+  undo: undoNoraProposal,
 };
+
+// ─── Nora's voice (server-side TTS) + tone toggle ────────────────────────────
+// Off by default; fully usable without audio. `tone` (supportive | direct) also
+// rides along with Nora's text replies so the framing matches what's spoken.
+// speak() prefers the server route (consistent voice + tone→voice mapping) and
+// falls back to on-device speech (Web Speech API) when the route is unavailable.
+const VOICE_KEY = 'shape.voice';
+// The voices a member can pick for Nora (curated OpenAI TTS set). 'auto' follows
+// the tone. Mirrors src/lib/ai/tone.mjs NORA_VOICES (kept in sync by hand — the
+// mobile bundle can't import the server module).
+const NORA_VOICE_LIST = [
+  { id: 'shimmer', label: 'Warm' }, { id: 'alloy', label: 'Neutral' }, { id: 'sage', label: 'Calm' },
+  { id: 'nova', label: 'Bright' }, { id: 'onyx', label: 'Deep' }, { id: 'verse', label: 'Expressive' },
+];
+const NORA_VOICE_IDS = NORA_VOICE_LIST.map(v => v.id);
+function normVoice(v) { return NORA_VOICE_IDS.indexOf(String(v)) >= 0 ? String(v) : 'auto'; }
+function readVoicePrefs() {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(VOICE_KEY) || '{}');
+    return { enabled: raw.enabled === true, tone: raw.tone === 'direct' ? 'direct' : 'supportive', voice: normVoice(raw.voice) };
+  } catch (e) { return { enabled: false, tone: 'supportive', voice: 'auto' }; }
+}
+function writeVoicePrefs(p) {
+  try { window.localStorage.setItem(VOICE_KEY, JSON.stringify(p)); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:voice', { detail: p })); } catch (e) {}
+}
+let _voiceAudio = null;
+function stopVoice() {
+  try { if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; } } catch (e) {}
+  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+}
+function speakOnDevice(text, tone) {
+  try {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text || ''));
+    u.rate = tone === 'direct' ? 1.05 : 0.98; // direct = a touch crisper
+    window.speechSynthesis.speak(u);
+    return true;
+  } catch (e) { return false; }
+}
+async function speakVoice(text, toneOverride, opts = {}) {
+  const clean = String(text || '').trim();
+  if (!clean) return { ok: false };
+  const prefs = readVoicePrefs();
+  // Honor the voice opt-out: when auto-speak is OFF, a stray speak() call must NOT
+  // read coaching content aloud. An explicit "Listen" tap passes { force:true } —
+  // that's a deliberate one-off the toggle shouldn't block.
+  if (!opts.force && !prefs.enabled) return { ok: false, disabled: true };
+  const tone = toneOverride || prefs.tone;
+  stopVoice();
+  // Prefer the server route (better voice + the tone→voice mapping).
+  if (apiBaseUrl && state.session?.access_token) {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+        body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        _voiceAudio = audio;
+        audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+        await audio.play();
+        return { ok: true, source: 'server' };
+      }
+      // 503/unavailable → fall through to on-device speech.
+    } catch (e) { /* network → fall back */ }
+  }
+  return { ok: speakOnDevice(clean, tone), source: 'device' };
+}
+// The TONE + VOICE sync to the account (user_goals 'nora_voice') so Nora's
+// framing + sound follow you across devices/surfaces; the on/off ENABLED flag
+// stays per-device (localStorage) — audio is device-appropriate, tone/voice are
+// person-level prefs.
+function persistPrefsToAccount(p) {
+  try { window.shapeDb?.saveUserGoals?.('nora_voice', { tone: p.tone === 'direct' ? 'direct' : 'supportive', voice: normVoice(p.voice) }); } catch (e) {}
+}
+async function loadVoiceTone() {
+  try {
+    if (!window.shapeDb?.getUserGoals) return null;
+    const doc = await window.shapeDb.getUserGoals('nora_voice');
+    if (!doc || typeof doc !== 'object') return null;
+    const tone = doc.tone === 'direct' ? 'direct' : doc.tone === 'supportive' ? 'supportive' : null;
+    const voice = NORA_VOICE_IDS.indexOf(String(doc.voice)) >= 0 ? String(doc.voice) : (doc.voice === 'auto' ? 'auto' : null);
+    if (tone == null && voice == null) return null;
+    const p = readVoicePrefs();
+    let changed = false;
+    if (tone != null && p.tone !== tone) { p.tone = tone; changed = true; }
+    if (voice != null && p.voice !== voice) { p.voice = voice; changed = true; }
+    if (changed) writeVoicePrefs(p); // updates localStorage + fires shape:voice
+    return p;
+  } catch (e) { return null; }
+}
+window.ShapeVoice = {
+  get: readVoicePrefs,
+  voices: NORA_VOICE_LIST,
+  enabled() { return readVoicePrefs().enabled; },
+  tone() { return readVoicePrefs().tone; },
+  voice() { return readVoicePrefs().voice; },
+  setEnabled(b) { const p = readVoicePrefs(); p.enabled = b === true; writeVoicePrefs(p); if (!p.enabled) stopVoice(); return p; },
+  setTone(t) { const p = readVoicePrefs(); p.tone = t === 'direct' ? 'direct' : 'supportive'; writeVoicePrefs(p); persistPrefsToAccount(p); return p; },
+  setVoice(v) { const p = readVoicePrefs(); p.voice = normVoice(v); writeVoicePrefs(p); persistPrefsToAccount(p); return p; },
+  load: loadVoiceTone,
+  speak: speakVoice,
+  stop: stopVoice,
+};
+
+// ─── Proactive notifications: prefs + the server evaluator ───────────────────
+// Prefs (per-type opt-out, quiet hours, channels) live in user_goals
+// 'notify_prefs' — the SAME doc /api/ai/notify reads, so the screen and the
+// server agree. evaluate() runs the engine server-side over the REAL record and
+// writes any due notifications (deduped/capped/quiet-hours-aware over there).
+function _deviceTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } }
+// The preference center: settings (mute/quiet hours/cap/tz) + the per-type ×
+// per-channel matrix (notification_preferences) + the user's habit reminders.
+// One RPC read; targeted upserts on change. The SAME tables /api/ai/notify reads.
+async function notifyCenter() {
+  if (!supabase || !state.user?.id) return { settings: null, prefs: [], reminders: [] };
+  try {
+    const { data, error } = await supabase.rpc('get_notification_center');
+    if (error || !data) return { settings: null, prefs: [], reminders: [] };
+    return { settings: data.settings || null, prefs: Array.isArray(data.prefs) ? data.prefs : [], reminders: Array.isArray(data.reminders) ? data.reminders : [] };
+  } catch (e) { return { settings: null, prefs: [], reminders: [] }; }
+}
+async function saveNotifySettings(patch) {
+  if (!supabase || !state.user?.id) return;
+  const row = { user_id: state.user.id, tz: _deviceTz(), updated_at: new Date().toISOString(), ...patch };
+  try { await supabase.from('notification_settings').upsert(row, { onConflict: 'user_id' }); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
+}
+async function setNotifyChannel(type, channel, enabled) {
+  if (!supabase || !state.user?.id) return;
+  try { await supabase.from('notification_preferences').upsert({ user_id: state.user.id, type, channel, enabled: enabled === true, updated_at: new Date().toISOString() }, { onConflict: 'user_id,type,channel' }); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
+}
+window.ShapeNotifyPrefs = { center: notifyCenter, saveSettings: saveNotifySettings, setChannel: setNotifyChannel };
+
+// ─── Habit reminders (Part B) — user-scheduled, opt-in ───────────────────────
+// Persisted to habit_reminders (the cron reads it for push/email); also scheduled
+// as device-LOCAL notifications (offline, no server cost) when the native plugin
+// is present. Suppression-when-done + batching live in the server decision layer.
+function _localNotifs() { try { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null; } catch (e) { return null; } }
+function _habitNotifBase(habitId) { let h = 0; const s = String(habitId); for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; } return (h % 200000) * 10; }
+async function cancelLocalHabit(habitId) {
+  const LN = _localNotifs(); if (!LN || !LN.cancel) return;
+  const base = _habitNotifBase(habitId);
+  try { await LN.cancel({ notifications: [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: base + d })) }); } catch (e) {}
+}
+async function scheduleLocalHabit(r) {
+  const LN = _localNotifs(); if (!LN || !LN.schedule) return;
+  await cancelLocalHabit(r.habit_id);
+  if (r.enabled === false) return;
+  const parts = String(r.at_time || '09:00').split(':');
+  const hour = parseInt(parts[0], 10) || 9, minute = parseInt(parts[1], 10) || 0;
+  const notifications = (r.days || []).map((dow) => ({
+    id: _habitNotifBase(r.habit_id) + dow,
+    title: `Time for: ${r.label || 'your habit'}`,
+    body: 'A quick nudge — tap to check it off.',
+    schedule: { on: { weekday: dow + 1, hour, minute }, allowWhileIdle: true }, // Capacitor weekday 1=Sun…7=Sat
+    extra: { route: 'habits', habitId: r.habit_id },
+  }));
+  try { if (notifications.length) await LN.schedule({ notifications }); } catch (e) {}
+}
+async function listHabitReminders() {
+  if (!supabase || !state.user?.id) return [];
+  try { const { data } = await supabase.from('habit_reminders').select('*').eq('user_id', state.user.id); return data || []; } catch (e) { return []; }
+}
+async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
+  if (!supabase || !state.user?.id || !habitId) return null;
+  const row = {
+    habit_id: habitId, user_id: state.user.id, label: label || '',
+    at_time: time || '09:00', days: Array.isArray(days) ? days : [1, 2, 3, 4, 5],
+    tz: _deviceTz(), enabled: enabled !== false, snooze_until: null, updated_at: new Date().toISOString(),
+  };
+  try { await supabase.from('habit_reminders').upsert(row, { onConflict: 'habit_id' }); } catch (e) {}
+  scheduleLocalHabit(row);
+  return row;
+}
+// habit_id is the global PK (→ user_habits.id), so it identifies one user's row;
+// we still scope writes by user_id (matching the reads + RLS) so a mismatched id
+// can never touch another account's reminder.
+async function removeHabitReminder(habitId) {
+  if (!supabase || !state.user?.id || !habitId) return;
+  try { await supabase.from('habit_reminders').delete().eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
+  cancelLocalHabit(habitId);
+}
+async function snoozeHabitReminder(habitId, minutes) {
+  if (!supabase || !state.user?.id || !habitId) return;
+  const until = new Date(Date.now() + (minutes || 60) * 60000).toISOString();
+  try { await supabase.from('habit_reminders').update({ snooze_until: until }).eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
+}
+window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
+
+// ─── Source reconciliation (INT2) — "which source do you trust?" ─────────────
+// On-demand data-quality view. clientId optional (a coach reconciling a client).
+async function reconcileGet(clientId, days) {
+  if (!apiBaseUrl) return { items: [] };
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const qs = new URLSearchParams();
+  if (clientId) qs.set('clientId', clientId);
+  if (days) qs.set('days', String(days));
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/integrations/reconcile?${qs.toString()}`, { headers });
+    return await res.json().catch(() => ({ items: [] }));
+  } catch (e) { return { items: [] }; }
+}
+async function reconcileSet({ clientId, metric, source } = {}) {
+  if (!apiBaseUrl || !state.session?.access_token) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/integrations/reconcile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ clientId, metric, source }),
+    });
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false }; }
+}
+window.ShapeReconcile = { get: reconcileGet, set: reconcileSet };
+
+async function evaluateNotifications(force) {
+  if (!apiBaseUrl || !state.session?.access_token) return null;
+  // Throttle (the server layer dedups too, but don't hammer the endpoint).
+  try {
+    if (!force) {
+      const last = Number(window.localStorage.getItem('shape.notify.last') || 0);
+      if (Date.now() - last < 30 * 60_000) return null;
+    }
+  } catch (e) {}
+  try {
+    const role = state.profile?.role || 'client';
+    let body;
+    // Coach roles send their client roster; dietitian rides the nutrition rails
+    // (matches the server's isCoachRole, so /api/ai/notify takes the coach branch).
+    if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') {
+      // Pass the discipline so a nutritionist/dietitian evaluates the NUTRITION
+      // roster — not the trainer default coachRecords() would otherwise use.
+      const clients = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords(providerDiscipline(role)) : null;
+      if (!Array.isArray(clients) || !clients.length) return null; // honest: nothing to evaluate
+      body = { clients };
+    } else {
+      const record = window.ShapeSignals?.selfRecord ? await window.ShapeSignals.selfRecord() : null;
+      if (!record) return null;
+      body = { record };
+    }
+    // Stamp the throttle only now that a real payload exists — a not-ready
+    // ShapeSignals or an empty roster must NOT suppress the next 30 minutes.
+    try { window.localStorage.setItem('shape.notify.last', String(Date.now())); } catch (e) {}
+    const res = await fetch(`${apiBaseUrl}/api/ai/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify(body),
+    });
+    return await res.json().catch(() => null);
+  } catch (e) { return null; }
+}
+window.ShapeNotify = { evaluate: evaluateNotifications };
 
 // ─── Coach Console feed (banner + pushed items the coach sent to this client) ───
 // Backed by the coach_focus_banners + coach_pushed_items tables (2026-05-22

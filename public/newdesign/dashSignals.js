@@ -33,6 +33,10 @@
 //                // ≤ MAX_GOALS visible — pros set them, clients view them.
 //                // history drives the sparkline + the pace projection; a
 //                // weight goal's history is the live weigh-in series.
+//     recovery:  { sleepHours: { avg7?, lastNight?, target? }, recoveryScore?,
+//                  restingHr? } | null,   // sleep/recovery — the cross-domain lever
+//     coachDirective: { lever?, verdict?, reason?, severity?, action?:{label,kind},
+//                  setBy?, at? } | null,  // a coach override of the directive (WINS)
 //   }
 
 (function (root, factory) {
@@ -341,8 +345,9 @@
     var lc = c.lastContact;
     if (!lc) return null;
     var ts;
-    if (role === "trainer") ts = lc.trainer;
-    else if (role === "nutritionist") ts = lc.nutritionist;
+    var disc = disciplineForRole(role);
+    if (disc === "training") ts = lc.trainer;
+    else if (disc === "nutrition") ts = lc.nutritionist;
     else {
       // Client view: most recent contact from ANY of their pros.
       var a = toDate(lc.trainer), b = toDate(lc.nutritionist);
@@ -414,7 +419,7 @@
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
     if ((f = ruleGoalSlip(c, now))) flags.push(f);
-    if (role === "nutritionist") {
+    if (disciplineForRole(role) === "nutrition") {
       if ((f = ruleLedgerBlown(c))) flags.push(f);
       if ((f = ruleProteinUnder(c))) flags.push(f);
     }
@@ -426,8 +431,74 @@
     return { flags: flags, severity: severity };
   }
 
+  // ── Discipline classification + routing (coach triage) ──────────────────────
+  // Each signal belongs to a DISCIPLINE; the owning pro acts on it, the OTHER pro
+  // sees it READ-ONLY. General signals (check-in / score / contact / goal / basic
+  // food-logging) are owned by whoever is viewing. A client with a single pro →
+  // that pro owns everything (nothing read-only). This is purely a routing layer:
+  // severity is still exactly what evaluateClient computes — read-only context
+  // flags never escalate the viewer.
+  var FLAG_DISCIPLINE = {
+    streak_broken: "training",
+    ledger_blown: "nutrition",
+    protein_under: "nutrition",
+    food_gap: "general",       // basic logging adherence — either pro nudges it
+    score_drop: "general",
+    checkin_overdue: "general",
+    contact_gap: "general",
+    goal_slip: "general",
+  };
+  function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
+  function disciplineOwner(discipline) {
+    if (discipline === "training" || discipline === "recovery") return "trainer";
+    if (discipline === "nutrition") return "nutritionist";
+    return null; // general — both pros own it
+  }
+  // A provider role → the discipline it OWNS. Dietitian (RD/RDN) and nutritionist
+  // are both the NUTRITION owner — they share the nutritionist surfaces, write
+  // path and routing; only the credential/label differs.
+  function disciplineForRole(role) {
+    if (role === "trainer") return "training";
+    if (role === "nutritionist" || role === "dietitian") return "nutrition";
+    return "general"; // client / unknown
+  }
+  // Is the pro of `proRole` on this client? Defaults to present (so the routing
+  // shows) unless the record says otherwise via c.pros = {trainer, nutritionist}.
+  function hasPro(c, proRole) {
+    if (c && c.pros && typeof c.pros === "object" && proRole in c.pros) return !!c.pros[proRole];
+    return true; // server populates c.pros; absent → assume present
+  }
+  function tagFlag(f, role, c) {
+    var d = flagDiscipline(f.key);
+    var owner = disciplineOwner(d);
+    // Owned if general, the viewer's own discipline, or the owning pro isn't on
+    // this client (single pro → everything routes to them). Compared by
+    // DISCIPLINE so a dietitian owns nutrition flags exactly like a nutritionist.
+    var owned = owner === null || disciplineForRole(owner) === disciplineForRole(role) || !hasPro(c, owner);
+    return {
+      key: f.key, label: f.label, reason: f.reason, missedWeeks: f.missedWeeks,
+      discipline: d, owned: owned, routeTo: owner,
+    };
+  }
+  // The OTHER discipline's flags this role doesn't already evaluate — surfaced as
+  // routed context (a trainer/coach seeing the dietitian's macro flags). Each is
+  // tagged owned/read-only: READ-ONLY when a nutritionist is on the client, OWNED
+  // when the trainer is the only pro (everything routes to them). NOT counted
+  // toward severity either way — severity stays exactly as evaluateClient says.
+  function readOnlyFlags(c, now, role) {
+    var out = [];
+    if (disciplineForRole(role) !== "nutrition") {
+      var f;
+      if ((f = ruleLedgerBlown(c))) out.push(tagFlag(f, role, c));
+      if ((f = ruleProteinUnder(c))) out.push(tagFlag(f, role, c));
+    }
+    return out;
+  }
+
   // getTriageFeed(role, clients, now) -> rows sorted red → amber → green,
-  // most-flagged first within a band, name as the stable tiebreak.
+  // most-flagged first within a band, name as the stable tiebreak. Each flag is
+  // tagged with its discipline + owned/read-only routing; `readOnly` carries the
+  // other discipline's context flags (not counted in severity).
   function getTriageFeed(role, clients, now) {
     now = now || new Date();
     var rank = { red: 2, amber: 1, green: 0 };
@@ -437,8 +508,12 @@
         return {
           client: c,
           severity: r.severity,
-          flags: r.flags,
+          flags: r.flags.map(function (f) { return tagFlag(f, role, c); }),
+          readOnly: readOnlyFlags(c, now, role),
           reasons: r.flags.map(function (x) { return x.reason; }),
+          // The cross-domain directive (verdict + reason + the one action) + the
+          // coach read, so every triage surface reuses ONE source for the reason.
+          directive: buildDirective(c, now, role),
         };
       })
       .sort(function (a, b) {
@@ -763,10 +838,245 @@
     return out;
   }
 
+  // ── The directive ("one lead per page") ─────────────────────────────────────
+  // buildDirective(record, now, role) -> the ONE thing: a verdict + a
+  // cross-domain reason + a single action, plus a coach "read" (a 30-day summary
+  // + the one thing now). It REASONS ACROSS DISCIPLINES — the lever may be sleep,
+  // nutrition, or training — and is grounded ONLY in real signals from the
+  // record (honest "—" when there's nothing). A coach override on the record
+  // (record.coachDirective) WINS. Pure + deterministic — no model call, so it's
+  // cacheable and never fabricates.
+  //
+  //   { source:'coach'|'engine', lever, severity, verdict, reason,
+  //     action:{label,kind}|null, read:{ summary30d, oneThingNow }, cited:[…] }
+
+  var DIRECTIVE_MOVES = {
+    sleep: { kind: "log_sleep", label: "Log last night's sleep" },
+    nutrition: { kind: "log_meal", label: "Log a meal today" },
+    training: { kind: "open_session", label: "Open today's session" },
+    checkin: { kind: "check_in", label: "Send your weekly check-in" },
+    goal: { kind: "log_weighin", label: "Log a weigh-in" },
+    score: { kind: "open_habits", label: "Grab a win today" },
+    contact: { kind: "message", label: "Reach out today" },
+  };
+  var DIRECTIVE_VERDICTS = {
+    sleep: "Sleep is the lever", nutrition: "Tighten nutrition", training: "Train today",
+    checkin: "Check-in due", goal: "Goal pace slipped", score: "Grab a win",
+    contact: "Reconnect", none: "On pace",
+  };
+  function directiveKeyToLever(key) {
+    return ({
+      checkin_overdue: "checkin", streak_broken: "training", food_gap: "nutrition",
+      ledger_blown: "nutrition", protein_under: "nutrition", goal_slip: "goal",
+      score_drop: "score", contact_gap: "contact",
+    })[key] || null;
+  }
+  function recoveryRead(rec) {
+    var r = rec && rec.recovery;
+    if (!r || !r.sleepHours) return null;
+    var s = r.sleepHours;
+    var avg = s.avg7 != null && isFinite(Number(s.avg7)) ? Number(s.avg7) : null;
+    var target = s.target != null && isFinite(Number(s.target)) ? Number(s.target) : 7.5;
+    var lastNight = s.lastNight != null && isFinite(Number(s.lastNight)) ? Number(s.lastNight) : null;
+    // "low" if logged-but-short, OR last night not logged yet (nothing to act on).
+    var low = (avg != null && avg < target - 0.5) || s.lastNight == null;
+    return { avg: avg, target: target, lastNight: lastNight, low: low, hasData: avg != null || s.lastNight != null };
+  }
+  // "Deficit's fine" — nutrition is present and holding (≤ target+5%, no flag).
+  function nutritionHolding(rec) {
+    var n = rec && rec.nutrition;
+    if (!n || n.avgCalories == null || n.targetCalories == null) return false;
+    return Number(n.avgCalories) <= Number(n.targetCalories) * 1.05;
+  }
+  // The coach "read": a 30-day summary from real stats + the one thing now.
+  function buildDirectiveRead(rec, reason) {
+    var sum = [];
+    var ta = rec.trainingAdherence;
+    if (ta && ta.done != null && ta.planned != null) sum.push(ta.done + "/" + ta.planned + " sessions");
+    var n = rec.nutrition;
+    if (n && n.avgCalories != null) sum.push("avg " + Math.round(Number(n.avgCalories)) + " kcal");
+    var w = rec.weighIns;
+    if (Array.isArray(w) && w.length >= 2) {
+      var d = Number(w[w.length - 1].weight) - Number(w[0].weight);
+      if (isFinite(d)) sum.push((d <= 0 ? "" : "+") + (Math.round(d * 10) / 10) + " " + (w[0].unit || "lb"));
+    }
+    return {
+      summary30d: sum.length ? "30 days: " + sum.join(" · ") : "—",
+      oneThingNow: reason && reason !== "—" ? reason : "Nothing urgent — keep the routine.",
+    };
+  }
+  function onTrackReason(rec) {
+    var bits = [];
+    if (rec.streaks && rec.streaks.current >= 3) bits.push(rec.streaks.current + "-day streak");
+    if (nutritionHolding(rec)) bits.push("deficit holding");
+    var ta = rec.trainingAdherence;
+    if (ta && ta.pct != null && Number(ta.pct) >= 80) bits.push("sessions on plan");
+    return bits.length ? bits.join(", ") + " — keep it boring." : "—";
+  }
+  function buildDirective(rec, now, role) {
+    now = now || new Date();
+    rec = rec || {};
+
+    // 1) Coach override wins.
+    var ov = rec.coachDirective;
+    if (ov && (ov.lever || ov.verdict || ov.reason || (ov.action && ov.action.label))) {
+      var lever = ov.lever || "training";
+      var action = ov.action && ov.action.label ? ov.action : (DIRECTIVE_MOVES[lever] || null);
+      var rReason = ov.reason || onTrackReason(rec);
+      return {
+        source: "coach", lever: lever, severity: ov.severity || "amber",
+        verdict: ov.verdict || DIRECTIVE_VERDICTS[lever] || "Your move",
+        reason: rReason, action: action,
+        read: buildDirectiveRead(rec, rReason), cited: ["coach override"],
+      };
+    }
+
+    // 2) The top triage flag (already grounded + cross-discipline aware).
+    var ev = evaluateClient(rec, now, role || "client");
+    var top = ev.flags && ev.flags.length ? ev.flags[0] : null;
+    if (top) {
+      var lever2 = directiveKeyToLever(top.key) || "training";
+      return {
+        source: "engine", lever: lever2, severity: ev.severity,
+        verdict: DIRECTIVE_VERDICTS[lever2] || "Your move",
+        reason: top.reason, action: DIRECTIVE_MOVES[lever2] || null,
+        read: buildDirectiveRead(rec, top.reason), cited: [top.key],
+      };
+    }
+
+    // 3) Cross-domain secondary — sleep is the lever when recovery is low while
+    //    nutrition is holding. This is the differentiator: a single-vertical app
+    //    can't say "the deficit's fine, the problem is sleep."
+    var rr = recoveryRead(rec);
+    if (rr && rr.low && rr.hasData) {
+      var holding = nutritionHolding(rec);
+      var tail = rr.lastNight == null ? "; log last night to confirm." : "; tonight, lights out by 11.";
+      var sleepReason = (holding ? "Deficit's fine — " : "") + "sleep is stalling recovery" + tail;
+      sleepReason = sleepReason.charAt(0).toUpperCase() + sleepReason.slice(1);
+      return {
+        source: "engine", lever: "sleep", severity: "amber",
+        verdict: "Sleep is the lever", reason: sleepReason, action: DIRECTIVE_MOVES.sleep,
+        read: buildDirectiveRead(rec, sleepReason),
+        cited: holding ? ["recovery.sleepHours", "nutrition"] : ["recovery.sleepHours"],
+      };
+    }
+
+    // 4) On track — honest. "—" when there's no real signal at all.
+    var anySignal = !!(rec.trainingAdherence || rec.nutrition || (rec.weighIns && rec.weighIns.length) || rec.streaks);
+    if (!anySignal) {
+      return {
+        source: "engine", lever: null, severity: "green", verdict: "—", reason: "—",
+        action: null, read: { summary30d: "—", oneThingNow: "Not enough signal yet." }, cited: [],
+      };
+    }
+    var okReason = onTrackReason(rec);
+    return {
+      source: "engine", lever: "none", severity: "green", verdict: "On pace",
+      reason: okReason, action: DIRECTIVE_MOVES.nutrition,
+      read: buildDirectiveRead(rec, okReason), cited: ["on-track"],
+    };
+  }
+
+  // ── AI check-in drafting (grounded, cross-discipline) ───────────────────────
+  // buildEvidencePack(record, role) -> the real, current signals a coach message
+  // should cite, across BOTH disciplines, with anything missing OMITTED (never
+  // invented). buildCheckinDraft turns the pack into a deterministic grounded
+  // draft (the honest fallback + the demo); the server route hands the SAME pack
+  // to the model for warmer phrasing, instructed to cite only these signals — so
+  // a draft is specific to this client and never a templated mass-send.
+
+  function _capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  function buildEvidencePack(rec, role, now) {
+    rec = rec || {};
+    now = now || new Date();
+    var sig = [];
+    function push(domain, key, label, value, detail) {
+      if (value == null || value === '') return;
+      sig.push({ domain: domain, key: key, label: label, value: String(value), detail: detail || null });
+    }
+    var ta = rec.trainingAdherence;
+    if (ta && ta.done != null && ta.planned != null) push('training', 'sessions', 'Sessions', ta.done + '/' + ta.planned, ta.pct != null ? ta.pct + '% of plan' : null);
+    if (rec.streaks && rec.streaks.current != null && rec.streaks.current >= 1) push('training', 'streak', 'Streak', rec.streaks.current + '-day');
+    var n = rec.nutrition;
+    if (n) {
+      if (n.avgCalories != null) push('nutrition', 'calories', 'Avg calories', Math.round(Number(n.avgCalories)) + ' kcal', n.targetCalories != null ? Math.round(Number(n.targetCalories)) + ' kcal target' : null);
+      if (n.avgProtein != null) push('nutrition', 'protein', 'Avg protein', Math.round(Number(n.avgProtein)) + 'g', n.targetProtein != null ? Math.round(Number(n.targetProtein)) + 'g target' : null);
+    }
+    if (rec.foodLogs && rec.foodLogs.daysLogged7d != null) push('nutrition', 'logging', 'Days logged', rec.foodLogs.daysLogged7d + '/7');
+    var w = rec.weighIns;
+    if (Array.isArray(w) && w.length >= 2) {
+      var d = Math.round((Number(w[w.length - 1].weight) - Number(w[0].weight)) * 10) / 10;
+      if (isFinite(d)) push('body', 'weight', 'Weight', (d <= 0 ? '' : '+') + d + ' ' + (w[0].unit || 'lb'), 'over ' + w.length + ' weigh-ins');
+    }
+    var gs = visibleGoals(rec.goals);
+    if (gs.length) {
+      var pj = projectGoal(gs[0], now);
+      if (pj && pj.projectedLabel) push('goal', 'pace', (gs[0].label || 'Goal') + ' pace', 'on track for ' + pj.projectedLabel);
+      else if (pj && pj.state === 'stalled') push('goal', 'pace', (gs[0].label || 'Goal') + ' pace', 'stalled');
+    }
+    if (rec.recovery && rec.recovery.sleepHours && rec.recovery.sleepHours.avg7 != null) push('recovery', 'sleep', 'Avg sleep', rec.recovery.sleepHours.avg7 + 'h');
+    return {
+      signals: sig,
+      hasTraining: sig.some(function (s) { return s.domain === 'training'; }),
+      hasNutrition: sig.some(function (s) { return s.domain === 'nutrition'; }),
+    };
+  }
+
+  function _draftClause(s) {
+    switch (s.key) {
+      case 'sessions': return 'you logged ' + s.value + ' sessions' + (s.detail ? ' (' + s.detail + ')' : '');
+      case 'streak': return "you're on a " + s.value + ' streak';
+      case 'calories': return 'your intake averaged ' + s.value + (s.detail ? ' against a ' + s.detail : '');
+      case 'protein': return 'protein came in at ' + s.value + (s.detail ? ' vs a ' + s.detail : '');
+      case 'logging': return 'you logged food ' + s.value + ' days';
+      case 'weight': return s.value.charAt(0) === '+' ? "you're up " + s.value.slice(1) : "you're down " + s.value.replace('-', '');
+      case 'pace': return s.label.toLowerCase() + ' is ' + s.value;
+      case 'sleep': return 'sleep averaged ' + s.value;
+      default: return s.label.toLowerCase() + ' ' + s.value;
+    }
+  }
+
+  // buildCheckinDraft(record, role, now) -> { text, cited:[{label,value}], evidence }
+  // A grounded, editable check-in draft: leads with the coach's own discipline and
+  // ALSO cites the OTHER discipline when present (the cross-discipline hook). Omits
+  // any absent signal — never invents one. This is the fallback + the demo source.
+  function buildCheckinDraft(rec, role, now) {
+    rec = rec || {};
+    var name = (rec.profile && rec.profile.name) ? String(rec.profile.name).split(' ')[0] : 'there';
+    var pack = buildEvidencePack(rec, role, now);
+    var sig = pack.signals;
+    if (!sig.length) {
+      return { text: 'Hi ' + name + ' — checking in on your week. How did training and nutrition go, and is anything getting in the way?', cited: [], evidence: pack };
+    }
+    var primaryDomain = disciplineForRole(role) === 'nutrition' ? 'nutrition' : 'training';
+    var otherDomain = disciplineForRole(role) === 'nutrition' ? 'training' : 'nutrition';
+    var pick = function (dom) { return sig.filter(function (s) { return s.domain === dom; })[0] || null; };
+    var cited = [];
+    var clauses = [];
+    var add = function (s) { if (s) { clauses.push(_draftClause(s)); cited.push({ label: s.label, value: s.value }); } };
+    add(pick(primaryDomain));   // the coach's own discipline
+    add(pick(otherDomain));     // the OTHER discipline — what makes it non-generic
+    if (clauses.length < 2) { add(pick('body')); add(pick('goal')); add(pick('recovery')); }
+    var joined = clauses.join(', and ');
+    var bodyText = joined ? _capFirst(joined) + '. ' : '';
+    return {
+      text: 'Hi ' + name + ' — quick check-in on your week. ' + bodyText + 'How did it feel, and where do you want to focus next week?',
+      cited: cited,
+      evidence: pack,
+    };
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     MAX_GOALS: MAX_GOALS,
     evaluateClient: evaluateClient,
+    buildDirective: buildDirective,
+    buildEvidencePack: buildEvidencePack,
+    buildCheckinDraft: buildCheckinDraft,
+    flagDiscipline: flagDiscipline,
+    disciplineOwner: disciplineOwner,
+    disciplineForRole: disciplineForRole,
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,

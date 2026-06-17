@@ -21,3 +21,23 @@ export function isSessionReschedulable(status) {
 export function canWriteClientGoals(isCoachOnClient) {
   return isCoachOnClient === true;
 }
+
+// A pro may assign a workout / meal plan ONLY to a client they actively coach in
+// their own discipline. The route resolves which client ids the caller actively
+// coaches (active/trialing subscription for their provider row) and compares
+// against the requested ids. This is the server-side gate (mirrored by the
+// 2026-06-17 INSERT RLS policies) — not a UI affordance. Returns the requested
+// ids that are NOT in the active set (the rejected ones); empty ⇒ fully allowed.
+export function unauthorizedAssignTargets(requestedClientIds, activeClientIds) {
+  const active = new Set((activeClientIds || []).map((x) => String(x)));
+  const requested = [...new Set((requestedClientIds || []).map((x) => String(x)).filter(Boolean))];
+  return requested.filter((id) => !active.has(id));
+}
+
+// True only when every requested client is one the caller actively coaches (and
+// at least one client was requested).
+export function canAssignToClients(requestedClientIds, activeClientIds) {
+  const requested = (requestedClientIds || []).map((x) => String(x)).filter(Boolean);
+  if (requested.length === 0) return false;
+  return unauthorizedAssignTargets(requested, activeClientIds).length === 0;
+}

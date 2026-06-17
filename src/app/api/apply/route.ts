@@ -15,6 +15,7 @@ import {
   minimumYears,
   withBackgroundCheckDetails,
 } from '@/lib/provider-applications';
+import { attestationsComplete } from '@/lib/compliance/nutrition.mjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -188,6 +189,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Nutrition compliance attestations are enforced server-side, not just in the
+  // signup UI — independent-contractor framing + maintains licensure + malpractice
+  // insurance + scope understood. (RD/RDN dietitians ride on the nutritionist rails.)
+  if (
+    providerTypeRaw === 'nutritionist' &&
+    !attestationsComplete(details.compliance_attestations as Record<string, boolean> | undefined)
+  ) {
+    return NextResponse.json(
+      { error: 'All nutrition compliance attestations are required.' },
+      { status: 400, headers: CORS_HEADERS }
+    );
+  }
+
   details = withBackgroundCheckDetails({
     ...details,
     meets_experience_preference: true,
@@ -240,7 +254,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const role = providerTypeRaw === 'trainer' ? 'Trainer' : 'Nutritionist';
+  // A nutritionist applicant can declare RD/RDN inside the application — the
+  // provider rails stay 'nutritionist'; the label + details carry the dietitian
+  // distinction for the reviewer (who sets profiles.role='dietitian' + credential).
+  const isDietitian = providerTypeRaw === 'nutritionist' && String(details.nutrition_role || '').toLowerCase() === 'dietitian';
+  const role = providerTypeRaw === 'trainer' ? 'Trainer' : isDietitian ? 'Dietitian (RD/RDN)' : 'Nutritionist';
   const fullName = `${firstName} ${lastName}`.trim();
   void sendApplicationEmails({
     role,

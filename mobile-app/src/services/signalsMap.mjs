@@ -40,7 +40,7 @@ function normalizeWeighIns(raw) {
 // ── Coach view: one client's record from the get_client_* rollups the coach
 // app already fetches (ShapeClientStats.get / .getLifts, ShapeGoalsApi). ───────
 export function recordFromCoachData(raw = {}, deps = {}) {
-  const { id, name, stats, lifts, goalsDoc, checkins, lastContact } = raw;
+  const { id, name, stats, lifts, goalsDoc, checkins, lastContact, recovery, coachDirective } = raw;
   const rec = { profile: { id: id || null, name: name || 'Client' } };
 
   if (stats && typeof stats === 'object') {
@@ -67,13 +67,15 @@ export function recordFromCoachData(raw = {}, deps = {}) {
   applyGoals(rec, goalsDoc, deps);
   applyCheckIn(rec, checkins);
   if (lastContact && typeof lastContact === 'object') rec.lastContact = lastContact;
+  if (recovery && typeof recovery === 'object') rec.recovery = recovery;
+  if (coachDirective && typeof coachDirective === 'object') rec.coachDirective = coachDirective;
   return rec;
 }
 
 // ── Client (self) view: the signed-in member's own record, from the live client
 // APIs the app already calls (dashboard / nutrition / weigh-ins / goals). ──────
 export function recordFromSelfData(raw = {}, deps = {}) {
-  const { uid, name, dashboard, nutrition, weighIns, goalsDoc, checkins } = raw;
+  const { uid, name, dashboard, nutrition, weighIns, goalsDoc, checkins, recovery, coachDirective } = raw;
   const rec = { profile: { id: uid || null, name: name || 'You' } };
 
   const streak = firstNum(dashboard && dashboard.kpis && dashboard.kpis.streak, nutrition && nutrition.currentStreak);
@@ -100,6 +102,8 @@ export function recordFromSelfData(raw = {}, deps = {}) {
 
   applyGoals(rec, goalsDoc, deps);
   applyCheckIn(rec, checkins);
+  if (recovery && typeof recovery === 'object') rec.recovery = recovery;
+  if (coachDirective && typeof coachDirective === 'object') rec.coachDirective = coachDirective;
   return rec;
 }
 
