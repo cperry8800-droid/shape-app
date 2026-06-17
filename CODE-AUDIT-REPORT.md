@@ -322,7 +322,8 @@ of S1–S4. **Method:** direct read-only pass on deps/config/orphans + synthesis
 | S4-7 | P2 | Auth | `auth/callback` open-redirect (`next` unvalidated) | ✅ #1340 |
 | S4-8 | P2 | Dashboard | `WeeklyReadout` fetch race on client switch | ✅ #1343 (retired) |
 | S4-9 | P2 | Dashboard | `RecentPayouts` "payouts" mislabel on un-disbursed sums | ✅ #1343 (retired) |
-| S1-7/S2-10/S3-7 | P2 | Cross | UTC-vs-local date basis (one strategy) | ⬜ (S5-3 — needs per-user TZ decision) |
+| S1-7/S2-10/S3-7 | P2 | Cross | UTC-vs-local date basis (one strategy) | ✅ #1345 (writes) · ⬜ coach read windows |
+| S5-3 | P2 | Cross | Timezone strategy (client-sends-local-date) | ✅ #1345 |
 | S2-8/13/16, S2-DEAD | P3 | Mobile | INK60, booking year, award catch · ~814 dead lines | ✅ #1334/#1335 |
 | S1-SEC-1 | P3 | CI | No gitleaks in CI; confirm push-protection | ✅ #1342 (gitleaks gate) |
 | S3-14 | P3 | Engine | No tests for projection/directive core | ✅ #1341 (+7 tests) |
@@ -364,12 +365,18 @@ Everything actionable was shipped as one PR-per-concern series:
   **kept** the live admin coach-approval pipeline (`/dashboard/applications`) + `/dashboard/claim`
   (no newdesign equivalent — retiring them would break onboarding). newdesign untouched.
 
+**Done since (this follow-up):**
+- **S5-3 — timezone (#1345).** Chosen strategy: the **client sends its local date**; the server
+  uses it (UTC fallback). Day-scoped writes (meal log, weigh-in, habit check-off, daily check-in,
+  measurements) now bucket on the user's calendar day. Coach-facing *read* windows still aggregate
+  in UTC (display ranges, not user-day writes) — left as the only remaining slice.
+
 **Still open (need an external decision or input — not engineering-blocked):**
 - **S4-6** — login/signup/reset brute-force limits live in **Supabase Auth → Rate Limits** (those
-  requests bypass the Next app); set there, not in code.
-- **S1-2** — `consultation` CAPTCHA/Turnstile needs a provider + keys.
-- **S5-3** — one project-wide **timezone strategy** (per-user TZ or a documented canonical) closes
-  S1-7/S2-10/S3-7 together; needs a product decision on the TZ source.
+  requests bypass the Next app); set in the dashboard / Management API, not in code. The app's own
+  `/api/*` limiter is already live. Strongest login defense = enabling **CAPTCHA** + leaked-password
+  protection.
+- **S1-2** — `consultation` CAPTCHA/Turnstile needs a provider + keys (`TURNSTILE_SECRET_KEY`).
 - **S3-4** (latent — `ruleScoreDrop` sorted-history assumption), the **gym** dead-code path
   (threads through live `ProviderCard`/`ProviderFilter`), and the remaining P3 cleanups.
 
