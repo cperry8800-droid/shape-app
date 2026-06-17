@@ -1,0 +1,31 @@
+# gitleaks config for the Shape repo — drives the CI secret-scan gate
+# (.github/workflows/ci.yml). Extends the default ruleset and allowlists ONLY
+# known-safe, by-design values and generated artifacts, so the gate blocks real
+# secrets (service-role keys, Stripe secrets, webhook secrets, private keys)
+# without false-positives on the things we ship on purpose.
+title = "shape-app gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "By-design public values + generated/derived files (not secrets)"
+regexTarget = "match"
+regexes = [
+  # Supabase PUBLISHABLE (anon) key — public by design, safe in the client.
+  '''sb_publishable_[A-Za-z0-9_-]+''',
+  # Client-side localStorage key NAMES (e.g. shape.grocery.lists.v1) — these
+  # trip the generic-api-key rule on the `..._KEY = "..."` shape but are not keys.
+  '''shape\.[A-Za-z.]+\.v\d+''',
+]
+paths = [
+  # Generated/minified mobile bundle + source maps + lockfiles + Next build
+  # output trip entropy rules with no real secrets in them.
+  '''public/m/.*''',
+  '''.*\.map$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)\.next/.*''',
+  # Setup guide that documents the Apple Music .p8 PRIVATE KEY *format* as a
+  # placeholder (-----BEGIN PRIVATE KEY-----\n...), not a real key.
+  '''(^|/)docs/INTEGRATIONS_SETUP\.md$''',
+]
