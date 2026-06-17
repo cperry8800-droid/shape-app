@@ -347,7 +347,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
           <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 22, lineHeight: 1.25, color: t.INK }}>
             Your {isTrainer ? 'trainer' : 'nutritionist'} application is ready for review.
           </div>
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK60, lineHeight: 1.6 }}>
+          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
             Review target: 2-3 business days. If this says saved locally, check the provider application API and Supabase configuration before production.
             Uploaded resume and credential files are attached to the application review record.
           </div>

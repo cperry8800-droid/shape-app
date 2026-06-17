@@ -379,7 +379,7 @@ async function getCurrentSession() {
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
-  if (user) { try { supabase.rpc('award_tier_bonuses'); } catch (e) {} } // grant any one-time tier bonuses (idempotent)
+  if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);
@@ -919,21 +919,15 @@ async function submitProviderApplication({ role, values }) {
 function toBookingDate(date, month = 'May') {
   const day = Number(date);
   if (!Number.isFinite(day)) return null;
-  const monthIndex = {
-    Jan: '01',
-    Feb: '02',
-    Mar: '03',
-    Apr: '04',
-    May: '05',
-    Jun: '06',
-    Jul: '07',
-    Aug: '08',
-    Sep: '09',
-    Oct: '10',
-    Nov: '11',
-    Dec: '12',
-  }[month] || '04';
-  return `2026-${monthIndex}-${String(day).padStart(2, '0')}`;
+  const MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  const mi = MONTHS[month];
+  if (mi == null) return null; // unknown month → no guess (was silently April)
+  // Pick the year so the month/day is upcoming — this year, or next year if it
+  // has already passed. (Was hardcoded 2026, which silently breaks past 2026.)
+  const now = new Date();
+  let year = now.getFullYear();
+  if (mi < now.getMonth() || (mi === now.getMonth() && day < now.getDate())) year += 1;
+  return `${year}-${String(mi + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function scheduledAtFromSlot(slot = {}) {
