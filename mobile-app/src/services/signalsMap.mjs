@@ -32,7 +32,10 @@ function normalizeWeighIns(raw) {
     .map((w) => {
       const on = (w && (w.on || w.date || w.logged_on || w.d)) || null;
       const weight = num(w && (w.weight ?? w.value ?? w.lb ?? w.kg));
-      return on && weight != null ? { on: String(on).slice(0, 10), weight, unit: (w && w.unit) || 'lb' } : null;
+      // Null-unit default must match the data layer (ShapeWeighIns.list) + the
+      // backend (logWeighIn) + the goal default below — all 'kg' — so the engine
+      // never compares a weigh-in series against a goal in a different unit.
+      return on && weight != null ? { on: String(on).slice(0, 10), weight, unit: (w && w.unit) || 'kg' } : null;
     })
     .filter(Boolean);
 }
@@ -118,7 +121,7 @@ function applyGoals(rec, goalsDoc, deps) {
     const wi = normalizeWeighIns(overall.weighIns);
     if (wi.length && !rec.weighIns) rec.weighIns = wi;
     const target = num(overall.target);
-    if (target != null) rec.goal = { target, unit: overall.unit || 'lb', now: num(overall.now) };
+    if (target != null) rec.goal = { target, unit: overall.unit || 'kg', now: num(overall.now) };
   }
 }
 function applyCheckIn(rec, checkins) {
