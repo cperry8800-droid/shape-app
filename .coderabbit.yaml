@@ -16,9 +16,9 @@ reviews:
   # make it a hard gate — see note below).
   pre_merge_checks:
     docstrings:
-      mode: "off"            # JSX/TS codebase uses inline comments, not docstrings — 80% would warn on every PR
+      mode: "warning"        # advisory — flag undocumented exported/public APIs
     issue_assessment:
-      mode: "off"            # PR-driven solo repo, not issue-tracked
+      mode: "warning"        # advisory — assess the PR against its description/linked issue
     title:
       mode: "warning"
       requirements: "Concise, descriptive title; conventional-commit style preferred — e.g. feat/fix/docs/chore(scope): summary."
