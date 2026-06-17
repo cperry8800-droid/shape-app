@@ -12,14 +12,14 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { clientLocalDay, weekMondayOf } from '@/lib/local-day';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function weekOfMonday(): string {
-  const dt = new Date();
-  dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+// Week start (Monday) for a client-supplied local day, else for today (UTC).
+function weekOfMonday(localDay?: unknown): string {
+  return weekMondayOf(localDay);
 }
 
 const SITES = new Set(['waist', 'hips', 'chest', 'arm', 'thigh', 'calf', 'neck', 'shoulders']);
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   ]);
   return NextResponse.json({
     ok: true,
-    weekOf: weekOfMonday(),
+    weekOf: weekOfMonday(new URL(request.url).searchParams.get('date')),
     checkins: checkins.data ?? [],
     measurements: measurements.data ?? [],
     health: health.data?.data ?? null,
@@ -63,9 +63,10 @@ export async function POST(request: Request) {
 
   if (action === 'checkin') {
     const w = Number(body.weight);
+    const localDay = clientLocalDay(body.date);
     const row = {
       user_id: user.id,
-      week_of: weekOfMonday(),
+      week_of: weekOfMonday(localDay),
       ratings: body.ratings && typeof body.ratings === 'object' ? body.ratings : {},
       wins: String(body.wins || '').trim() || null,
       struggles: String(body.struggles || '').trim() || null,
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.from('client_checkins').upsert(row, { onConflict: 'user_id,week_of' });
     if (error) return dbError(error, 'checkin kit write', 500);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDay;
     const entries = (Array.isArray(body.measurements) ? body.measurements : [])
       .map((e) => (e && typeof e === 'object' ? (e as Record<string, unknown>) : {}))
       .filter((e) => SITES.has(String(e.site)) && Number.isFinite(Number(e.value)) && Number(e.value) > 0)

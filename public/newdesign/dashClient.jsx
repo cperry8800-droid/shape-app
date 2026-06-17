@@ -337,7 +337,7 @@ function ClientDashboardPage() {
       fetch("/api/nutrition/meal-log", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kcal: m.kcal || 0, protein: m.p || 0, carbs: m.c || 0, fat: m.f || 0 }),
+        body: JSON.stringify({ kcal: m.kcal || 0, protein: m.p || 0, carbs: m.c || 0, fat: m.f || 0, date: new Date().toLocaleDateString("en-CA") }),
       }).catch(() => {});
     }
   };
