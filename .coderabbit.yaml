@@ -35,15 +35,17 @@ reviews:
           Block on security regressions in the diff. API routes
           (src/app/api/**): missing auth or RLS scoping; IDOR on dynamic-id
           routes; a service-role / admin Supabase client used for a
-          USER-initiated action (RLS bypass); unbounded request bodies (the
-          shared readJson size guard must be used). Secrets: any API key,
-          token, or service-role key committed, or AI/model keys shipped into a
-          client bundle (mobile-app/src, public/newdesign) or the Edge proxy.
-          Injection: SQL/RPC built from unsanitized input; unescaped HTML
-          (dangerouslySetInnerHTML). AI write paths: any change that bypasses
-          the preview/confirm + ai_audit_log scaffold, or a confirm token that
-          isn't single-use/actor-bound. Nutrition/health: individualized
-          (clinical) actions not gated by provider licensure + scope (the
+          USER-initiated action (RLS bypass — RLS must stay authoritative at the
+          endpoint; the admin client is for system-only writes like audit /
+          notify-cron); unbounded request bodies (the shared readJson size guard
+          must be used). Secrets: any API key, token, or service-role key
+          committed, or AI/model keys shipped into a client bundle
+          (mobile-app/src, public/) or the Edge proxy. Injection: SQL/RPC built
+          from unsanitized input; unescaped HTML (dangerouslySetInnerHTML). AI
+          write paths: any change that bypasses the preview/confirm +
+          ai_audit_log scaffold, or a confirm token that isn't
+          single-use/actor-bound. Nutrition/health: individualized (clinical)
+          actions not gated by provider licensure + scope (the
           NUTRITION_COMPLIANCE controls). Auth/membership: gated /api prefixes
           removed from the proxy gate, or RLS policies weakened/dropped in a
           migration.
@@ -69,6 +71,28 @@ reviews:
     - "!**/*.min.js"
     - "!**/*-lock.json"
   path_instructions:
+    # Shape review invariants — apply to EVERY change.
+    - path: "**"
+      instructions: >-
+        Shape's core invariants — check every change against all five:
+        (1) RLS is authoritative — enforce access at the endpoint + RLS, never
+        trust the client. Flag any service-role / admin Supabase client used for
+        a USER-initiated action (system-only writes like audit / notify-cron are
+        the only exception).
+        (2) No client-side secrets — AI/model keys (OPENAI_API_KEY, etc.),
+        service-role keys, and webhook secrets must never reach a client bundle
+        (mobile-app/src, public/) or the Edge proxy; server-only.
+        (3) Honest data — demo / illustrative values may appear ONLY signed-out
+        (preview). A signed-in / live account must never be shown invented or
+        demo numbers; flag demo-vs-live data leaks.
+        (4) Keep the look — preserve the editorial aesthetic and theme tokens
+        (t.INK / t.PAPER / t.RULE / t.ACCENT). No hardcoded ink/paper on themed
+        surfaces, no theme tokens on fixed-background screens; bump the ?v=
+        cache-bust on any edited referenced public/newdesign/*.jsx.
+        (5) Don't fork web vs mobile — the website (public/newdesign) and the
+        mobile app (mobile-app/src) must stay in parity for shared features; a
+        change to shared behavior on one surface should not silently diverge from
+        the other. Remember mobile edits require re-syncing public/m.
     - path: "mobile-app/src/broadsheet/**"
       instructions: >-
         Broadsheet mobile app. Flag: theme-token violations (hardcoded ink/paper
