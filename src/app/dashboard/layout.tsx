@@ -39,16 +39,12 @@ export default async function DashboardLayout({
     isMember = Boolean(sub && ACTIVE_SUB.has(String(sub.status)));
   }
 
+  // The user-facing dashboards moved to the newdesign portal
+  // (public/newdesign/*.html). Only the admin tools still live under
+  // /dashboard, so the nav is just those.
   const tabs: { href: string; label: string; show: boolean }[] = [
-    { href: '/dashboard', label: 'Overview', show: true },
-    { href: '/dashboard/client', label: 'Client dashboard', show: true },
-    { href: '/dashboard/trainer', label: 'Trainer', show: true },
-    { href: '/dashboard/nutritionist', label: 'Nutritionist', show: true },
-    { href: '/dashboard/program-tools', label: 'Program tools', show: true },
-    { href: '/dashboard/workout-reviews', label: 'Workout reviews', show: true },
     { href: '/dashboard/applications', label: 'Applications', show: isAdmin },
-    { href: '/dashboard/claim', label: 'Claim profile', show: true },
-    { href: '/dashboard/settings', label: 'Settings', show: true },
+    { href: '/dashboard/claim', label: 'Claim profile', show: isAdmin },
   ];
 
   return (

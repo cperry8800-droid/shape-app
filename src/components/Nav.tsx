@@ -160,7 +160,7 @@ export default async function Nav() {
               <div className="nav-dropdown-menu">
                 <Link href="/trainers">Find a trainer</Link>
                 <Link href="/nutritionists">Find a nutritionist</Link>
-                <Link href="/dashboard/client">Client dashboard</Link>
+                <Link href="/newdesign/ClientDashboard.html">Client dashboard</Link>
               </div>
             </div>
             <div className="nav-dropdown">
@@ -168,7 +168,7 @@ export default async function Nav() {
               <div className="nav-dropdown-menu">
                 <Link href="/for-trainers">Overview</Link>
                 <Link href="/trainers">Trainer marketplace</Link>
-                <Link href="/dashboard/trainer">Trainer dashboard</Link>
+                <Link href="/newdesign/TrainerDashboard.html">Trainer dashboard</Link>
               </div>
             </div>
             <div className="nav-dropdown">
@@ -176,7 +176,7 @@ export default async function Nav() {
               <div className="nav-dropdown-menu">
                 <Link href="/for-nutritionists">Overview</Link>
                 <Link href="/nutritionists">Nutritionist marketplace</Link>
-                <Link href="/dashboard/nutritionist">Nutritionist dashboard</Link>
+                <Link href="/newdesign/NutritionistDashboard.html">Nutritionist dashboard</Link>
               </div>
             </div>
             <div className="nav-dropdown">

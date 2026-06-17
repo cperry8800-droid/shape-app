@@ -128,12 +128,19 @@ async function resolveOrInviteProviderUser(
   const existing = await findAuthUserByEmail(admin, application.email);
   if (existing) return existing;
 
+  // Land the freshly-invited coach on their newdesign portal dashboard (the
+  // legacy /dashboard/settings page was retired). auth/callback validates this
+  // `next` (same-origin path), so the absolute path is fine.
+  const providerNext =
+    application.provider_type === 'nutritionist'
+      ? '/newdesign/NutritionistDashboard.html'
+      : '/newdesign/TrainerDashboard.html';
   const { data, error } = await admin.auth.admin.inviteUserByEmail(application.email, {
     data: {
       role: application.provider_type,
       full_name: `${application.first_name} ${application.last_name}`.trim(),
     },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com'}/auth/callback?next=/dashboard/settings`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://theshapecommunity.com'}/auth/callback?next=${providerNext}`,
   });
   if (error) throw error;
   if (!data.user) throw new Error('Supabase did not return an invited user.');

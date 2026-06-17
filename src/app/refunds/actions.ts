@@ -7,7 +7,6 @@
 // 'refunded'.
 
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 
 export async function requestRefund(formData: FormData): Promise<void> {
@@ -18,7 +17,7 @@ export async function requestRefund(formData: FormData): Promise<void> {
   const hasSub = subscriptionId.length > 0;
   const hasOneTime = oneTimePurchaseId.length > 0;
   if (hasSub === hasOneTime) {
-    redirect('/dashboard/client?error=invalid_refund');
+    redirect('/newdesign/ClientDashboard.html?error=invalid_refund');
   }
 
   const supabase = await createClient();
@@ -38,7 +37,7 @@ export async function requestRefund(formData: FormData): Promise<void> {
       .eq('id', subscriptionId)
       .eq('client_id', user.id)
       .maybeSingle();
-    if (!row) redirect('/dashboard/client?error=not_found');
+    if (!row) redirect('/newdesign/ClientDashboard.html?error=not_found');
   } else {
     const { data: row } = await supabase
       .from('one_time_purchases')
@@ -46,7 +45,7 @@ export async function requestRefund(formData: FormData): Promise<void> {
       .eq('id', oneTimePurchaseId)
       .eq('client_id', user.id)
       .maybeSingle();
-    if (!row) redirect('/dashboard/client?error=not_found');
+    if (!row) redirect('/newdesign/ClientDashboard.html?error=not_found');
   }
 
   await supabase.from('refund_requests').insert({
@@ -57,6 +56,5 @@ export async function requestRefund(formData: FormData): Promise<void> {
     status: 'pending',
   });
 
-  revalidatePath('/dashboard/client');
-  redirect('/dashboard/client?notice=refund_requested');
+  redirect('/newdesign/ClientDashboard.html?notice=refund_requested');
 }
