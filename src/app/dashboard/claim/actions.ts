@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { requireAdminUser } from '@/lib/admin-access';
 
 /**
  * Server action invoked by the claim page. Calls the `claim_provider_row`
@@ -13,6 +14,13 @@ import { createClient } from '@/lib/supabase/server';
  * no-op and we just redirect to the provider dashboard anyway.
  */
 export async function claimProviderRow(formData: FormData): Promise<void> {
+  // SECURITY: provider assignment is ADMIN-MANAGED, never self-service. Approved
+  // coaches already get an owned provider row at application-approval time
+  // (applications/actions.ts), so the only unclaimed rows are seeded/demo ones —
+  // letting any signed-in user claim one was a privilege escalation (coach role +
+  // that profile's subscribers + revenue). Gate to admins (the migration's intent).
+  await requireAdminUser();
+
   const role = String(formData.get('role') ?? '');
   const providerIdRaw = String(formData.get('provider_id') ?? '');
   const providerId = parseInt(providerIdRaw, 10);
