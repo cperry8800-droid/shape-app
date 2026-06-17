@@ -177,12 +177,26 @@ changelog whenever something ships.
     `/dashboard` root is now a thin redirect to the role's newdesign dashboard;
     deleted-subpage links/redirects (Nav, subscribe/purchase success, refunds,
     the coach-approval invite) re-pointed to newdesign. **newdesign untouched.**
-- **Still open — need an external decision, not engineering** (tracked in the
-  report): **S4-6** login/signup brute-force limits → set in **Supabase Auth →
-  Rate Limits** (those requests bypass the Next app); **S1-2** consultation
-  CAPTCHA needs a provider + keys; **S5-3** one project-wide **timezone strategy**
-  needs a per-user-TZ product decision; plus S3-4 (latent) + the gym dead-code
-  path (threads through live components) + remaining P3 cleanups.
+- **Timezone (#1345, follow-up):** shipped the **S5-3** fix — chosen strategy is
+  **client-sends-local-date**. New `src/lib/local-day.ts` (`clientLocalDay` +
+  `weekMondayOf`); `nutrition/meal-log` · `client/checkin` · `client/checkin-kit`
+  honor a client `date` (UTC fallback); mobile `_localDate()` + web
+  `toLocaleDateString('en-CA')` on the day-scoped writers (weigh-in, meal log,
+  habit toggle, weekly check-in, measurements, workout minutes). Day-scoped
+  *writes* now bucket on the user's calendar day; coach *read* windows still
+  aggregate in UTC (display ranges). `?v=20260617` on the touched client pages.
+- **Rate limits (answered):** the app's own `/api/*` limiter is live (verified
+  `check_rate_limit` + `rate_limits` in the DB). The real login/signup
+  brute-force limits are **Supabase Auth → Rate Limits** (dashboard / Management
+  API — can't be set from the repo); strongest login defense is enabling
+  **Auth CAPTCHA** + leaked-password protection.
+- **Still open — need an external decision/input, not engineering** (tracked in
+  the report): **S4-6** Supabase Auth rate limits (dashboard); **S1-2**
+  consultation + Auth **CAPTCHA** needs a Turnstile/hCaptcha provider + keys
+  (`TURNSTILE_SECRET_KEY`); plus S3-4 (latent) + the gym dead-code path + P3s.
+- **Manual (can't be done via the available MCP tools):** add **`Secret scan
+  (gitleaks)`** to `main` branch protection to make it a hard gate (Settings →
+  Branches → required status checks).
 - **Manual follow-up:** add **Secret scan (gitleaks)** to `main` branch protection
   if you want it to be a hard gate (it's advisory until then, same as the existing
   Web + Mobile checks).
