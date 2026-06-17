@@ -3229,10 +3229,6 @@ window.ShapeAvailability = {
   saveProviderAvailability,
 };
 
-window.ShapePlaylists = {
-  listTrainerPlaylists,
-  createTrainerPlaylist,
-};
 
 window.ShapeWorkouts = {
   listClientWorkouts,
@@ -3444,7 +3440,10 @@ async function listMySpotifyPlaylists() {
     return null;
   } catch (e) { return null; }
 }
-window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl, mySpotify: listMySpotifyPlaylists };
+// Merged: member-playlist library + the trainer-playlist methods the Pros app
+// uses (listTrainerPlaylists/createTrainerPlaylist). A second assignment used to
+// clobber the trainer methods, silently breaking coach playlist load/create.
+window.ShapePlaylists = { mine: listMyPlaylists, listFor: listPlaylistsFor, add: addPlaylist, update: updatePlaylist, remove: removePlaylist, parseUrl: parsePlaylistUrl, mySpotify: listMySpotifyPlaylists, listTrainerPlaylists, createTrainerPlaylist };
 
 // Coach grocery lists — a coach's own + per-client lists (coach_grocery_lists,
 // owner-scoped). Same shape as soundtracks; returns null when signed out so the
