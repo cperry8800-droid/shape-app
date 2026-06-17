@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
+import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,25 @@ export async function POST(request: Request) {
     .eq('owner_id', user.id)
     .maybeSingle();
   if (!nutriRow) return NextResponse.json({ error: 'Not a nutritionist.' }, { status: 403 });
+
+  // On-client + discipline gate: a nutritionist may write a plan only for a
+  // client they actively coach AS A NUTRITIONIST. Read the caller's
+  // active/trialing subs for THIS nutritionist row and reject if the target
+  // client isn't among them. (The 2026-06-17 INSERT RLS policy enforces the same
+  // at the DB.)
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('client_id')
+    .eq('provider_id', nutriRow.id)
+    .eq('provider_role', 'nutritionist')
+    .in('status', ['active', 'trialing']);
+  const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
+  if (unauthorizedAssignTargets([clientId], activeClientIds).length) {
+    return NextResponse.json(
+      { error: 'You can only assign a meal plan to your own active client.' },
+      { status: 403 },
+    );
+  }
 
   // Retire the client's current published plan from this nutritionist.
   await supabase

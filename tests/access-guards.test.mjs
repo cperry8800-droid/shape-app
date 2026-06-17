@@ -9,6 +9,8 @@ import {
   isSessionReschedulable,
   canWriteClientGoals,
   RESCHEDULABLE_SESSION_STATUSES,
+  unauthorizedAssignTargets,
+  canAssignToClients,
 } from '../src/lib/access-guards.mjs';
 
 // ── ③ reschedule guard ──────────────────────────────────────────────────────
@@ -54,4 +56,29 @@ test('goal-write authorization is strict (no truthy coercion of RPC nulls/string
   assert.equal(canWriteClientGoals(null), false);
   assert.equal(canWriteClientGoals('true'), false);
   assert.equal(canWriteClientGoals(1), false);
+});
+
+// ── coach assign scope (2026-06-17 write-scope hardening) ────────────────────
+test('a pro can assign only to clients they actively coach', () => {
+  const active = ['c1', 'c2', 'c3'];
+  assert.equal(canAssignToClients(['c1'], active), true);
+  assert.equal(canAssignToClients(['c1', 'c2'], active), true);
+  // c9 is not theirs → rejected (the out-of-scope target).
+  assert.equal(canAssignToClients(['c1', 'c9'], active), false);
+  assert.equal(canAssignToClients(['c9'], active), false);
+});
+
+test('unauthorizedAssignTargets returns exactly the out-of-scope ids', () => {
+  assert.deepEqual(unauthorizedAssignTargets(['c1', 'c9', 'c2', 'cX'], ['c1', 'c2', 'c3']), ['c9', 'cX']);
+  assert.deepEqual(unauthorizedAssignTargets(['c1', 'c2'], ['c1', 'c2', 'c3']), []);
+  // de-dupes the request, coerces to string (uuid vs number safety)
+  assert.deepEqual(unauthorizedAssignTargets(['c1', 'c1'], ['c1']), []);
+  assert.deepEqual(unauthorizedAssignTargets([7, 8], ['7']), ['8']);
+});
+
+test('an empty request, or no active clients, is never authorized', () => {
+  assert.equal(canAssignToClients([], ['c1']), false);        // nothing requested
+  assert.equal(canAssignToClients(['c1'], []), false);         // pro coaches no one
+  assert.equal(canAssignToClients(['c1'], null), false);       // no active list at all
+  assert.equal(canAssignToClients(null, ['c1']), false);
 });

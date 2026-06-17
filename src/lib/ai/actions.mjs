@@ -145,6 +145,113 @@ export const setClientGoalAction = {
   },
 };
 
+// ── TIER 2 · coach assignments (discipline-scoped, on-client) ───────────────
+// Both wrap a hardened endpoint that enforces is-coach-on-client + discipline
+// (2026-06-17). The tool front-checks is_coach_on_client for an honest preview;
+// the endpoint (+ INSERT RLS) is the authoritative gate, so a 403 there surfaces
+// as a clean message and NOTHING is audited.
+
+async function requireOnClient(ctx, clientId) {
+  if (!clientId || typeof clientId !== 'string') {
+    throw new Error("Which client? I couldn't match one — tell me their name and I'll confirm before doing anything.");
+  }
+  var ok = await ctx.supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+  if (!(ok && ok.data === true)) throw new Error("You're not an active coach on this client, so I can't do that for them.");
+}
+async function ownProviderId(ctx, table) {
+  var row = await ctx.supabase.from(table).select('id').eq('owner_id', ctx.actor.id).maybeSingle();
+  return row && row.data ? row.data.id : null;
+}
+
+// assign_workout → POST /api/trainer/workout (trainer only). Undo archives the
+// assignment(s) it created (a clean withdraw).
+export const assignWorkoutAction = {
+  name: 'assign_workout',
+  roles: ['trainer'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    await requireOnClient(ctx, input.clientId);
+    var title = String(input.title || '').trim().slice(0, 200);
+    if (!title) throw new Error('What workout should I assign? Give me the title.');
+    var trainerId = await ownProviderId(ctx, 'trainers');
+    if (trainerId == null) throw new Error("You don't have a trainer profile, so I can't assign workouts.");
+    var scheduledDate = input.scheduledDate ? String(input.scheduledDate).slice(0, 10) : null;
+    var payload = (input.payload && typeof input.payload === 'object') ? input.payload : {};
+    var description = input.description ? String(input.description).slice(0, 2000) : null;
+    var body = { clientIds: [input.clientId], title: title, description: description, kind: 'template', scheduledDate: scheduledDate, payload: payload };
+    var who = input.clientName ? String(input.clientName) : 'this client';
+    var when = scheduledDate ? ' on ' + scheduledDate : '';
+    return {
+      summary: "Assign '" + title + "' to " + who + when,
+      diff: [{ label: 'Workout', field: 'assignment', before: '—', after: title + when }],
+      target: { userId: input.clientId, kind: 'workout', id: title },
+      beforeState: { trainerId: trainerId, clientId: input.clientId, title: title, scheduledDate: scheduledDate },
+      afterState: { title: title }, confirmedPayload: body,
+    };
+  },
+  async execute(ctx, plan) {
+    var r = await ctx.call('POST', '/api/trainer/workout', plan.confirmedPayload);
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not assign the workout.');
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    var b = plan.beforeState || {};
+    var q = ctx.supabase.from('client_workouts').update({ status: 'archived' })
+      .eq('trainer_id', b.trainerId).eq('client_id', b.clientId).eq('title', b.title).eq('status', 'published');
+    if (b.scheduledDate) q = q.eq('scheduled_date', b.scheduledDate);
+    await q;
+  },
+};
+
+// assign_meal_plan → POST /api/nutritionist/meal-plan (nutritionist only). The
+// endpoint archives the prior published plan + publishes the new one; undo
+// archives the new one and republishes the prior (captured at preview).
+export const assignMealPlanAction = {
+  name: 'assign_meal_plan',
+  roles: ['nutritionist'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    await requireOnClient(ctx, input.clientId);
+    var title = String(input.title || '').trim().slice(0, 200);
+    if (!title) throw new Error('What should I call the meal plan?');
+    var days = Array.isArray(input.days) ? input.days : null;
+    if (!days || !days.length) throw new Error("What's in the plan? I won't invent the meals — give me the days.");
+    var nutriId = await ownProviderId(ctx, 'nutritionists');
+    if (nutriId == null) throw new Error("You don't have a nutritionist profile, so I can't assign plans.");
+    // Capture the plan currently published for this client (for undo).
+    var prev = await ctx.supabase.from('client_meal_plans').select('id, title')
+      .eq('nutritionist_id', nutriId).eq('client_id', input.clientId).eq('status', 'published').maybeSingle();
+    var prevPlan = (prev && prev.data) || null;
+    var weekStart = input.weekStart ? String(input.weekStart).slice(0, 10) : null;
+    var body = { clientId: input.clientId, title: title, weekStart: weekStart, days: days };
+    var who = input.clientName ? String(input.clientName) : 'this client';
+    return {
+      summary: "Assign meal plan '" + title + "' (" + days.length + ' days) to ' + who,
+      diff: [{ label: 'Meal plan', field: 'published', before: prevPlan ? prevPlan.title : '—', after: title }],
+      target: { userId: input.clientId, kind: 'meal_plan', id: title },
+      beforeState: { nutritionistId: nutriId, clientId: input.clientId, title: title, prevPlanId: prevPlan ? prevPlan.id : null },
+      afterState: { title: title }, confirmedPayload: body,
+    };
+  },
+  async execute(ctx, plan) {
+    var r = await ctx.call('POST', '/api/nutritionist/meal-plan', plan.confirmedPayload);
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not assign the meal plan.');
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    var b = plan.beforeState || {};
+    // Archive the plan we just published…
+    await ctx.supabase.from('client_meal_plans').update({ status: 'archived' })
+      .eq('nutritionist_id', b.nutritionistId).eq('client_id', b.clientId).eq('title', b.title).eq('status', 'published');
+    // …and restore the one that was published before, if any.
+    if (b.prevPlanId) {
+      await ctx.supabase.from('client_meal_plans').update({ status: 'published' }).eq('id', b.prevPlanId);
+    }
+  },
+};
+
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.)
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction];

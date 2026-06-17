@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
+import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,26 @@ export async function POST(request: Request) {
     .eq('owner_id', user.id)
     .maybeSingle();
   if (!trainerRow) return NextResponse.json({ error: 'Not a trainer.' }, { status: 403 });
+
+  // On-client + discipline gate: a trainer may assign only to clients they
+  // actively coach AS A TRAINER. We read the caller's active/trialing
+  // subscriptions for THIS trainer row (RLS lets a provider read their own) and
+  // reject if any requested client isn't among them. (The 2026-06-17 INSERT RLS
+  // policy enforces the same rule at the DB for the direct-Supabase path.)
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('client_id')
+    .eq('provider_id', trainerRow.id)
+    .eq('provider_role', 'trainer')
+    .in('status', ['active', 'trialing']);
+  const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
+  const rejected = unauthorizedAssignTargets(clientIds, activeClientIds);
+  if (rejected.length) {
+    return NextResponse.json(
+      { error: 'You can only assign workouts to your own active clients.' },
+      { status: 403 },
+    );
+  }
 
   const rows = clientIds.map((clientId: string) => ({
     trainer_id: trainerRow.id,

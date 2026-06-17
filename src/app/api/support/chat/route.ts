@@ -56,7 +56,7 @@ const SYSTEM_PROMPT = [
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns.',
   '',
-  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH to set/update one of their own clients' goals, call set_client_goal. These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value the user didn't give. If a tool returns an error message, relay it plainly.",
+  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers), assign_meal_plan (nutritionists). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
   '',
   'OTHER FIRST-LINE HELP: account & login, billing/subscription ($5/mo platform membership; coaches set their own coaching prices), connecting integrations (Spotify, Strava, Whoop, Oura, Garmin, Apple Health, Instacart), and using the Train/Eat/Habits/Score/Radio tabs, channels & chat.',
   'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you have flagged it for the Shape team and they will follow up here. Do not promise specific timelines.',
@@ -133,7 +133,49 @@ const TOOLS = [
     },
     strict: false,
   },
+  {
+    type: 'function',
+    name: 'assign_workout',
+    description:
+      "Assign a workout to one of the TRAINER's own clients (trainers only). Use when a trainer says e.g. 'give Priya the upper-body session on Monday'. Always pass clientName; pass clientId only if known. Pass a title; scheduledDate (YYYY-MM-DD) if they named a day. DRAFTS the change for the trainer to confirm. If you cannot identify the client, ask — do not guess. The server rejects any client who isn't actively coached by this trainer.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the trainer referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        title: { type: 'string', description: "The workout title, e.g. 'Upper body — push'." },
+        scheduledDate: { type: 'string', description: 'The day to schedule it, YYYY-MM-DD, if given.' },
+        description: { type: 'string', description: 'Optional note to the client.' },
+      },
+      required: ['clientName', 'title'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+  {
+    type: 'function',
+    name: 'assign_meal_plan',
+    description:
+      "Assign a weekly meal plan to one of the NUTRITIONIST's own clients (nutritionists only). Use when a nutritionist hands a client a plan. Always pass clientName; pass clientId only if known; pass a title and the days array. NEVER invent the meals — only assign days the nutritionist actually provided. DRAFTS the change for the nutritionist to confirm. If you cannot identify the client, ask. The server rejects any client who isn't actively coached by this nutritionist.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the nutritionist referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        title: { type: 'string', description: "The plan title, e.g. 'Cut · week 1'." },
+        weekStart: { type: 'string', description: 'Week start date, YYYY-MM-DD, if given.' },
+        days: { type: 'array', description: 'The plan days the nutritionist provided (their shape passes through).', items: { type: 'object' } },
+      },
+      required: ['clientName', 'title', 'days'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
+
+// The write tools that DRAFT a confirm-required change (vs. read tools that
+// answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan']);
 
 function coachLine(c: Coach): string {
   return `${c.name} — ${c.role}, ${c.city}. ${c.specialties.join(', ')}. ${c.cert}, ${c.years}y, ${c.format}. $${c.rate}/session, ★${c.rating}.`;
@@ -157,7 +199,7 @@ type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOu
 // Read tools (recommend_coaches) run here; WRITE tools route through `propose`,
 // which drafts a confirm-required change via the AI1 scaffold (never executes).
 async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn): Promise<ToolOut> {
-  if (name === 'log_meal' || name === 'set_client_goal') {
+  if (WRITE_TOOLS.has(name)) {
     return propose(name, args);
   }
   if (name === 'recommend_coaches') {
