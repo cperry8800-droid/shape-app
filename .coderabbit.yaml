@@ -1,19 +1,26 @@
-# CodeRabbit — automated AI code review on every PR.
-# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+# Shape — CodeRabbit config. Place at repo root. Enforces the same invariants as CLAUDE.md.
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # NOTE: this file configures CodeRabbit; it only takes effect once the CodeRabbit
 # GitHub App is installed on this repo (https://coderabbit.ai → add this repo).
-language: en-US
+language: "en-US"
+tone_instructions: "Be concise and direct. Treat security, RLS, and committed-secret issues as blocking."
+
 reviews:
-  profile: assertive             # stricter reviews (more findings); "chill" for fewer
-  request_changes_workflow: false
+  profile: assertive               # thorough; switch to "chill" if it feels nitpicky
+  request_changes_workflow: true   # don't auto-approve until comments are resolved
   high_level_summary: true
-  review_status: true
-  poem: false
-  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    auto_incremental_review: true  # re-review on each push
+    drafts: false
+    base_branches:
+      - main
+      - staging
+
   # Pre-merge checks. Quality checks stay advisory (warning) so they never block
   # the owner's bypass merges; the SECURITY check is raised to "error" so a
   # security finding fails CodeRabbit's check (require it in branch protection to
-  # make it a hard gate — see note below).
+  # make it a hard gate — that can't be set from the repo).
   pre_merge_checks:
     docstrings:
       mode: "warning"        # advisory — flag undocumented exported/public APIs
@@ -24,10 +31,6 @@ reviews:
       requirements: "Concise, descriptive title; conventional-commit style preferred — e.g. feat/fix/docs/chore(scope): summary."
     description:
       mode: "warning"
-    # Security pre-merge check (custom). Raised to "error" — this is the
-    # increased security gate. It fails CodeRabbit's check on a finding; to make
-    # the merge itself blocking, add the CodeRabbit status to branch protection
-    # on main (Settings → Branches), which can't be set from the repo.
     custom_checks:
       - name: "Security review"
         mode: "error"
@@ -49,12 +52,7 @@ reviews:
           NUTRITION_COMPLIANCE controls). Auth/membership: gated /api prefixes
           removed from the proxy gate, or RLS policies weakened/dropped in a
           migration.
-  auto_review:
-    enabled: true
-    drafts: false
-    base_branches:
-      - main
-      - staging
+
   # Security scanners. On by default, but pinned here so the posture is durable
   # in the repo (the file overrides dashboard toggles). Gitleaks = secret
   # scanning; Semgrep = SAST; Checkov = IaC/config.
@@ -65,48 +63,71 @@ reviews:
       enabled: true
     checkov:
       enabled: true
-  # Skip generated/built output — review the source, not the bundle.
+
   path_filters:
-    - "!public/m/**"
-    - "!**/*.min.js"
+    - "!**/*.lock"
+    - "!**/package-lock.json"
     - "!**/*-lock.json"
+    - "!**/*.min.js"
+    - "!**/dist/**"
+    - "!**/.next/**"
+    - "!**/build/**"
+    - "!public/m/**"
+
   path_instructions:
-    # Shape review invariants — apply to EVERY change.
     - path: "**"
       instructions: >-
-        Shape's core invariants — check every change against all five:
-        (1) RLS is authoritative — enforce access at the endpoint + RLS, never
-        trust the client. Flag any service-role / admin Supabase client used for
-        a USER-initiated action (system-only writes like audit / notify-cron are
-        the only exception).
-        (2) No client-side secrets — AI/model keys (OPENAI_API_KEY, etc.),
-        service-role keys, and webhook secrets must never reach a client bundle
-        (mobile-app/src, public/) or the Edge proxy; server-only.
-        (3) Honest data — demo / illustrative values may appear ONLY signed-out
-        (preview). A signed-in / live account must never be shown invented or
-        demo numbers; flag demo-vs-live data leaks.
-        (4) Keep the look — preserve the editorial aesthetic and theme tokens
-        (t.INK / t.PAPER / t.RULE / t.ACCENT). No hardcoded ink/paper on themed
-        surfaces, no theme tokens on fixed-background screens; bump the ?v=
-        cache-bust on any edited referenced public/newdesign/*.jsx.
-        (5) Don't fork web vs mobile — the website (public/newdesign) and the
-        mobile app (mobile-app/src) must stay in parity for shared features; a
-        change to shared behavior on one surface should not silently diverge from
-        the other. Remember mobile edits require re-syncing public/m.
-    - path: "mobile-app/src/broadsheet/**"
-      instructions: >-
-        Broadsheet mobile app. Flag: theme-token violations (hardcoded ink/paper
-        on themed surfaces, or theme tokens on fixed-background screens),
-        demo-vs-live data leaks, and changes to shared components
-        (BSPage/BSPlate/BSClientFeed/BSFacetAvatar) that ripple across multiple
-        profiles or roles. Remember edits here require re-syncing public/m.
-    - path: "public/newdesign/**"
-      instructions: >-
-        Self-contained website pages (HTML + babel .jsx). Flag missing ?v=
-        cache-bust bumps on edited referenced .jsx, and theme-token violations.
+        Shape = a coaching marketplace (Next.js + Supabase/RLS, with a separate mobile
+        app). Treat as BLOCKING: (1) any hardcoded secret/key/token/password or a
+        committed .env file other than .env.example; (2) fabricated or placeholder data
+        where it should be live-or-"—" (honest-data principle); (3) a visual restyle
+        where only a layout/hierarchy change was intended (keep the look — reuse
+        existing components/tokens, no new motifs/colors/gradients).
+
     - path: "src/app/api/**"
       instructions: >-
-        Next.js API routes. Flag missing auth/RLS scoping, IDOR on dynamic-id
-        routes, and unbounded request bodies (use the shared readJson guard).
+        Server API routes. RLS is the authoritative gate: verify auth + membership +
+        is_coach_on_client (or owner) checks on every read/write. Flag as BLOCKING any
+        service-role / RLS-bypassing write performed for a user action, any missing
+        authorization, any IDOR (acting on another user's or client's data), and any
+        unvalidated input. Secrets come from server env only and must never be returned
+        to the client.
+
+    - path: "mobile-app/src/**"
+      instructions: >-
+        Mobile bundle. NEVER allow API keys/secrets or direct LLM/provider calls here —
+        AI is server-side only. Apple Health / Health Connect are on-device: data is
+        read in the app and uploaded to the backend; flag any attempted server-side
+        pull. Don't fork business logic that should live in the shared engine/lib. Keep
+        the existing look. Remember edits here require re-syncing public/m.
+
+    - path: "src/lib/**"
+      instructions: >-
+        Shared logic + AI helper. All LLM calls go through the server-side ai helper
+        (src/lib/ai.ts); never ship keys to the client. AI output used as data must be
+        validated/parsed — flag raw model text written to the record. Don't duplicate
+        logic that the web and mobile apps should share.
+
+    - path: "src/{app,components}/**"
+      instructions: >-
+        UI. Enforce "lead with the directive, demote the data": one lead per surface,
+        wins/streaks over bare percentages, and honest "—" over fabricated numbers.
+        Reuse existing components/tokens (BSPlate/DashPlate, dark teal/magenta
+        instrument-plate aesthetic) — flag new visual motifs/gradients/colors when a
+        restructure was the intent. AI writes must be human-in-the-loop
+        (preview/confirm), never auto-applied.
+
+    - path: "public/newdesign/**"
+      instructions: >-
+        Self-contained website pages (HTML + babel .jsx). Flag missing ?v= cache-bust
+        bumps on edited referenced .jsx, and theme-token violations (hardcoded ink/paper
+        on themed surfaces, or theme tokens on fixed-background screens).
+
+    - path: "**/*.sql"
+      instructions: >-
+        Database / migrations. Every new table must have RLS enabled with
+        owner/role-scoped policies before use. Flag any new table without RLS, and any
+        policy that could expose another user's or client's rows.
+
 chat:
   auto_reply: true
