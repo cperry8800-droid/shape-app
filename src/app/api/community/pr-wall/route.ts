@@ -4,7 +4,7 @@
 // so non-public members + non-PRs post nothing. Applies to every role.
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,6 +38,6 @@ export async function POST(request: Request) {
     p_unit: unit,
     p_reps: reps,
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'pr wall post', 500);
   return NextResponse.json(data ?? { ok: false });
 }

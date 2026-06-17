@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     { onConflict: 'user_id,provider' }
   );
   if (error) {
-    return NextResponse.json({ error: `Unable to store Apple Music token: ${error.message}` }, { status: 500 });
+    return dbError(error, 'apple-music token store', 500, 'Unable to store Apple Music token.');
   }
   return NextResponse.json({ ok: true });
 }

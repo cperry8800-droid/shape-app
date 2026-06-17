@@ -18,7 +18,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { canWriteClientGoals } from '@/lib/access-guards.mjs';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -121,10 +121,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .upsert({ user_id: clientId, detail, updated_by: user.id }, { onConflict: 'user_id' });
   if (error) {
     const denied = /row-level security/i.test(error.message);
-    return NextResponse.json(
-      { error: denied ? 'Not a coach on this client.' : error.message },
-      { status: denied ? 403 : 500 }
-    );
+    if (denied) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
+    return dbError(error, 'client goals write', 500);
   }
   return NextResponse.json({ ok: true, goals });
 }

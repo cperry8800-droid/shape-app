@@ -14,6 +14,7 @@
 // GET|POST /api/ai/notify/cron  → { ok, evaluated, delivered }
 
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
@@ -42,7 +43,7 @@ async function run(request: Request) {
     .select('user_id, data')
     .eq('kind', 'notify_snapshot')
     .limit(BATCH);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'ai notify cron read', 500);
 
   const cutoff = Date.now() - ACTIVE_WINDOW_MS;
   let evaluated = 0;

@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   const { error } = row.meal_ref
     ? await supabase.from('client_planned_meals').upsert(row, { onConflict: 'user_id,planned_on,meal_ref' })
     : await supabase.from('client_planned_meals').insert(row);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'planned meals write', 500);
   return NextResponse.json({ ok: true });
 }
 

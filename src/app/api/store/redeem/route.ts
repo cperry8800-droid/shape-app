@@ -22,7 +22,7 @@ import {
   type StoreItem,
 } from '@/lib/store-catalogue';
 import { sendEmail } from '@/lib/email';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
     if (msg.includes('insufficient_points')) {
       return NextResponse.json({ error: 'insufficient_points' }, { status: 409 });
     }
-    return NextResponse.json({ error: msg || 'Redemption failed.' }, { status: 500 });
+    return dbError(error, 'store redeem', 500, 'Redemption failed.');
   }
 
   const result = (data || {}) as { code?: string; balance?: number };

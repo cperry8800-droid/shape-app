@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
@@ -79,6 +79,6 @@ export async function POST(request: Request) {
     .insert(rows)
     .select('id');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'trainer workout write', 500);
   return NextResponse.json({ ok: true, count: inserted?.length ?? 0 });
 }

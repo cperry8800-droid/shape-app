@@ -12,6 +12,7 @@
 // membership proxy gate applies.
 
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
     .order('taken_on', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(120);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'progress photos query', 500);
   return NextResponse.json({ ok: true, photos: data ?? [] });
 }
 
@@ -65,11 +66,11 @@ export async function POST(request: Request) {
       contentType: photo.type || 'image/jpeg',
       upsert: false,
     });
-    if (upErr) return NextResponse.json({ error: `Upload failed: ${upErr.message}` }, { status: 500 });
+    if (upErr) return dbError(upErr, 'progress photo upload', 500, 'Upload failed.');
     const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
     url = signed?.signedUrl ?? null;
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Upload failed.' }, { status: 500 });
+    return dbError(e, 'progress photo upload', 500, 'Upload failed.');
   }
   if (!url) return NextResponse.json({ error: 'Could not sign the photo URL.' }, { status: 500 });
 
@@ -78,6 +79,6 @@ export async function POST(request: Request) {
     .insert({ user_id: user.id, taken_on: takenOn, pose, url, storage_path: path })
     .select('id, taken_on, pose, url, created_at')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'progress photos query', 500);
   return NextResponse.json({ ok: true, photo: row });
 }

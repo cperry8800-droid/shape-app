@@ -24,7 +24,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -317,7 +317,7 @@ export async function POST(request: Request) {
     .insert(insert)
     .select('id, user_id, created_by, created_by_role, kind, title, sub, event_date, event_time, duration_min, with_name, location, accent, status')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'calendar write', 500);
   return NextResponse.json({ event: shape(data as EventRow) });
 }
 
@@ -354,7 +354,7 @@ export async function PATCH(request: Request) {
     .eq('id', id)
     .select('id, user_id, created_by, created_by_role, kind, title, sub, event_date, event_time, duration_min, with_name, location, accent, status')
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'calendar write', 500);
   if (!data) return NextResponse.json({ error: 'Not found or not allowed.' }, { status: 404 });
   return NextResponse.json({ event: shape(data as EventRow) });
 }
@@ -372,6 +372,6 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
 
   const { error } = await supabase.from('calendar_events').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'calendar write', 500);
   return NextResponse.json({ ok: true });
 }

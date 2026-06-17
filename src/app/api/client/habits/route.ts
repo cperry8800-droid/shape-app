@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export async function GET() {
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
 
-  if (habitsErr) return NextResponse.json({ error: habitsErr.message }, { status: 500 });
+  if (habitsErr) return dbError(habitsErr, 'habits read', 500);
 
   // Pull last 90 days of completions in one shot so streaks are stable.
   const since = new Date();
@@ -41,7 +41,7 @@ export async function GET() {
     .eq('user_id', user.id)
     .gte('done_on', sinceISO);
 
-  if (compErr) return NextResponse.json({ error: compErr.message }, { status: 500 });
+  if (compErr) return dbError(compErr, 'habit completions read', 500);
 
   const byHabit = new Map<string, string[]>();
   for (const c of (completions || []) as CompletionRow[]) {
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
       .insert({ user_id: user.id, name, type, cadence, visibility })
       .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'habits write', 500);
     return NextResponse.json({ habit: { ...data, history: [] } });
   }
 
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
       .eq('user_id', user.id)
       .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'habits write', 500);
     return NextResponse.json({ habit: data });
   }
 
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       .eq('id', id)
       .eq('user_id', user.id)
       .maybeSingle();
-    if (ownErr) return NextResponse.json({ error: ownErr.message }, { status: 500 });
+    if (ownErr) return dbError(ownErr, 'habit ownership check', 500);
     if (!owned) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
 
     const { data: existing } = await supabase
@@ -136,7 +136,7 @@ export async function POST(req: Request) {
         .from('user_habit_completions')
         .delete()
         .eq('id', existing.id);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return dbError(error, 'habits write', 500);
       // Roll back the score credit tied to this completion row. Log (don't
       // swallow) a failure so a stuck ledger row is visible in server logs.
       const { error: ledgerErr } = await supabase
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
       .insert({ habit_id: id, user_id: user.id, done_on: date })
       .select('id')
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'habits write', 500);
     // Award 3 points to Shape Score under category 'habits'. The dedupe
     // index on (user_id, source_kind, source_id) prevents double-credit
     // if this is retried. Surface a failed award in logs rather than
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
       .delete()
       .eq('id', id)
       .eq('user_id', user.id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'habits write', 500);
     return NextResponse.json({ ok: true });
   }
 

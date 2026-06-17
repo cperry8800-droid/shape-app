@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
+import { dbError } from '@/lib/request-utils';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeStravaSnapshots } from '@/lib/health-snapshot';
@@ -412,7 +413,8 @@ async function importStravaActivities(
       .maybeSingle();
 
     if (lookupError) {
-      errors.push(lookupError.message);
+      console.error('[shape-api] strava activity lookup failed:', lookupError.message);
+      errors.push('Could not sync an activity.');
       continue;
     }
 
@@ -444,7 +446,8 @@ async function importStravaActivities(
       : await client.from('community_posts').insert(payload);
 
     if (result.error) {
-      errors.push(result.error.message);
+      console.error('[shape-api] strava activity write failed:', result.error.message);
+      errors.push('Could not save an activity.');
     } else {
       imported += 1;
     }
@@ -500,9 +503,6 @@ export async function GET(request: Request) {
       snapshot,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Strava sync failed.' },
-      { status: 502 }
-    );
+    return dbError(error, 'strava sync', 502, 'Strava sync failed.');
   }
 }

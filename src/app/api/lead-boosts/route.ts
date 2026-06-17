@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     .limit(1)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'lead boosts write', 400);
   if (!data) return NextResponse.json({ active: null });
 
   const startsMs = new Date(data.starts_at as string).getTime();
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   let providerQuery = client.from(table).select('id').eq('owner_id', user.id).order('id', { ascending: true }).limit(1);
   if (providerIdRaw > 0) providerQuery = providerQuery.eq('id', providerIdRaw);
   const { data: providers, error: providerError } = await providerQuery;
-  if (providerError) return NextResponse.json({ error: providerError.message }, { status: 400 });
+  if (providerError) return dbError(providerError, 'lead boosts provider read', 400);
 
   const provider = providers?.[0];
   if (!provider) return NextResponse.json({ error: `No ${role} profile linked to this account.` }, { status: 403 });
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     .select('id, provider_role, provider_id, starts_at, ends_at, status, source')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'lead boosts write', 400);
 
   return NextResponse.json({
     boost: {

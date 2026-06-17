@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError, cleanText } from '@/lib/request-utils';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'community feed read', 400);
   return NextResponse.json({ posts: posts ?? [] });
 }
 
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
     sourceActivityId?: unknown;
   } | null;
 
-  const photoUrl = String(payload?.photoUrl ?? '').trim();
-  const title = String(payload?.title ?? '').trim() || (photoUrl ? 'Photo' : '');
+  const photoUrl = cleanText(payload?.photoUrl, 2048);
+  const title = cleanText(payload?.title, 200) || (photoUrl ? 'Photo' : '');
   if (!title) return NextResponse.json({ error: 'Title is required.' }, { status: 400 });
 
   const profile = await profileForUser(client, user.id);
@@ -76,19 +76,19 @@ export async function POST(request: Request) {
       author_name: authorName,
       author_role: normalizeRole(profile?.role),
       privacy: normalizePrivacy(payload?.privacy),
-      activity_type: String(payload?.activityType || 'workout'),
+      activity_type: cleanText(payload?.activityType, 60) || 'workout',
       title,
-      status: String(payload?.status || '').trim() || null,
-      note: String(payload?.note || '').trim() || null,
+      status: cleanText(payload?.status, 200) || null,
+      note: cleanText(payload?.note, 4000) || null,
       metrics: typeof payload?.metrics === 'object' && payload?.metrics ? payload.metrics : {},
       route: typeof payload?.route === 'object' && payload?.route ? payload.route : {},
       photo_url: photoUrl || null,
-      source_provider: String(payload?.sourceProvider || '').trim() || null,
-      source_activity_id: String(payload?.sourceActivityId || '').trim() || null,
+      source_provider: cleanText(payload?.sourceProvider, 60) || null,
+      source_activity_id: cleanText(payload?.sourceActivityId, 200) || null,
     })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'community feed write', 400);
   return NextResponse.json({ post: data });
 }

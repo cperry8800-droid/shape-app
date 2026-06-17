@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createAnonClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 async function clientForRequest(request: Request) {
   const auth = request.headers.get('authorization') ?? '';
@@ -294,7 +294,7 @@ export async function POST(req: Request) {
       },
       { onConflict: 'provider_role,provider_id,client_id' },
     );
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) return dbError(error, 'trainer console write', 400);
     return NextResponse.json({ ok: true });
   }
 
@@ -315,7 +315,7 @@ export async function POST(req: Request) {
       })
       .select('id')
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) return dbError(error, 'trainer console write', 400);
     return NextResponse.json({ ok: true, id: data.id });
   }
 
@@ -330,7 +330,7 @@ export async function POST(req: Request) {
       .eq('id', itemId)
       .eq('provider_role', ROLE)
       .eq('provider_id', providerId);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) return dbError(error, 'trainer console write', 400);
     return NextResponse.json({ ok: true });
   }
 

@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,12 +52,12 @@ export async function POST(request: Request) {
       .from('daily_health_snapshot')
       .update(patch)
       .eq('id', (existing as { id: string }).id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'checkin write', 500);
   } else {
     const { error } = await supabase
       .from('daily_health_snapshot')
       .insert({ user_id: user.id, snapshot_date: today, ...patch });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'checkin write', 500);
   }
 
   return NextResponse.json({ ok: true, mood });

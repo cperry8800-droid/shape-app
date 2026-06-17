@@ -126,12 +126,18 @@ async function importWorkouts(
       .eq('source_provider', 'apple_health')
       .eq('source_activity_id', w.externalId)
       .maybeSingle();
-    if (lookupError) { errors.push(lookupError.message); continue; }
+    if (lookupError) {
+      console.error('[shape-api] apple-health activity lookup failed:', lookupError.message);
+      errors.push('Could not sync an activity.');
+      continue;
+    }
     const result = existing?.id
       ? await client.from('community_posts').update(payload).eq('id', existing.id)
       : await client.from('community_posts').insert(payload);
-    if (result.error) errors.push(result.error.message);
-    else imported += 1;
+    if (result.error) {
+      console.error('[shape-api] apple-health activity write failed:', result.error.message);
+      errors.push('Could not save an activity.');
+    } else imported += 1;
   }
   return { imported, errors };
 }

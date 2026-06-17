@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { cleanText, readJson } from '@/lib/request-utils';
+import { cleanText, readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
   }
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'radio room write', 400);
   const rows = (data ?? []) as RadioRoomRow[];
   return NextResponse.json({ rooms: rows.map(roomToApi) });
 }
@@ -144,6 +144,6 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'radio room write', 400);
   return NextResponse.json({ room: roomToApi(data as RadioRoomRow) });
 }

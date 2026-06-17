@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     })
     .select('id, source, activity_type, title, started_at, duration_min, distance_km, calories, strain')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'client activities write', 500);
 
   // Award Shape Score — 1 pt per 5 min, 2–20 range. Idempotent on source_id.
   const pts = Math.max(2, Math.min(20, Math.round((durationMin || 10) / 5)));

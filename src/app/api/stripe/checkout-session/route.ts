@@ -4,7 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
     .eq('id', providerId)
     .maybeSingle<ProviderRow>();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'checkout credit lookup', 500);
   if (!provider) return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
   if (isEffectivelyAtCapacity(provider)) {
     return NextResponse.json({ error: 'Provider is currently at capacity.' }, { status: 409 });
@@ -223,10 +223,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ url: session.url, creditAppliedCents: storeCreditApplied });
   } catch (err) {
-    console.error('[shape-app] mobile checkout-session error', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Could not start checkout.' },
-      { status: 500 }
-    );
+    return dbError(err, 'mobile checkout-session', 500, 'Could not start checkout.');
   }
 }

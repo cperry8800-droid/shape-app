@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError, cleanText } from '@/lib/request-utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,7 @@ export async function GET() {
     .limit(50);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return dbError(error, 'direct thread list', 400);
   }
 
   const ids = (conversations ?? []).map((conversation) => conversation.id);
@@ -44,7 +44,7 @@ export async function GET() {
     .order('created_at', { ascending: true });
 
   if (messagesError) {
-    return NextResponse.json({ error: messagesError.message }, { status: 400 });
+    return dbError(messagesError, 'direct messages read', 400);
   }
 
   return NextResponse.json({ conversations, messages: messages ?? [] });
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   const payload = body as { providerRole?: unknown; providerId?: unknown; message?: unknown } | null;
   const providerRole = normalizeProviderRole(payload?.providerRole);
   const providerId = Number(payload?.providerId);
-  const message = String(payload?.message ?? '').trim();
+  const message = cleanText(payload?.message, 4000);
 
   if (!providerRole || !Number.isInteger(providerId) || providerId <= 0) {
     return NextResponse.json({ error: 'Missing provider details.' }, { status: 400 });
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   );
 
   if (conversationError) {
-    return NextResponse.json({ error: conversationError.message }, { status: 400 });
+    return dbError(conversationError, 'direct conversation create', 400);
   }
 
   const { data: sent, error: messageError } = await supabase
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     .single();
 
   if (messageError) {
-    return NextResponse.json({ error: messageError.message }, { status: 400 });
+    return dbError(messageError, 'direct message send', 400);
   }
 
   return NextResponse.json({ ok: true, conversationId, message: sent });

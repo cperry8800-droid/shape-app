@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,7 +69,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url: session.url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Stripe portal session failed.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return dbError(err, 'stripe billing portal', 500, 'Stripe portal session failed.');
   }
 }

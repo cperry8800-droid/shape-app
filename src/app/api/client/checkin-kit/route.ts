@@ -11,7 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const { error } = await supabase
       .from('user_goals')
       .upsert({ user_id: user.id, kind: 'health_profile', data: doc }, { onConflict: 'user_id,kind' });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'checkin kit write', 500);
     return NextResponse.json({ ok: true });
   }
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       unit: body.unit === 'lb' ? 'lb' : 'kg',
     };
     const { error } = await supabase.from('client_checkins').upsert(row, { onConflict: 'user_id,week_of' });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'checkin kit write', 500);
 
     const today = new Date().toISOString().slice(0, 10);
     const entries = (Array.isArray(body.measurements) ? body.measurements : [])
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       const { error: mErr } = await supabase
         .from('client_measurements')
         .upsert(entries, { onConflict: 'user_id,measured_on,site' });
-      if (mErr) return NextResponse.json({ error: mErr.message }, { status: 500 });
+      if (mErr) return dbError(mErr, 'measurement write', 500);
     }
     return NextResponse.json({ ok: true, weekOf: row.week_of });
   }

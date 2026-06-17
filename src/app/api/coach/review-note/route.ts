@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -75,10 +75,8 @@ export async function POST(request: Request) {
 
   if (error) {
     const denied = /row-level security/i.test(error.message);
-    return NextResponse.json(
-      { error: denied ? 'You are not the coach on this session.' : error.message },
-      { status: denied ? 403 : 500 },
-    );
+    if (denied) return NextResponse.json({ error: 'You are not the coach on this session.' }, { status: 403 });
+    return dbError(error, 'review note insert', 500);
   }
   return NextResponse.json({ ok: true, id: inserted?.id ?? null });
 }

@@ -7,6 +7,7 @@
 // `recent` returns the most recent 20 ledger entries (any time).
 
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,7 @@ export async function GET() {
     .select('category, delta, earned_at')
     .eq('user_id', user.id);
 
-  if (allErr) return NextResponse.json({ error: allErr.message }, { status: 500 });
+  if (allErr) return dbError(allErr, 'score ledger read', 500);
 
   const { data: recent, error: recentErr } = await supabase
     .from('score_ledger')
@@ -68,7 +69,7 @@ export async function GET() {
     .order('earned_at', { ascending: false })
     .limit(20);
 
-  if (recentErr) return NextResponse.json({ error: recentErr.message }, { status: 500 });
+  if (recentErr) return dbError(recentErr, 'recent score read', 500);
 
   const rows = (allRows || []) as Array<{ category: string; delta: number; earned_at: string }>;
   const totals = new Map<string, number>();
