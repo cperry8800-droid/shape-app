@@ -931,6 +931,8 @@ function LvCoachAvailability({ d }) {
     byDay.set(wd, { min: Math.min(cur.min, start), max: Math.max(cur.max, end) });
   }
   const openDays = byDay.size;
+  // Newdesign consultation page (the single canonical booking form, with the
+  // Turnstile captcha). Legacy /consultation(.html) redirects here too.
   const bookHref = "/newdesign/consultation.html?type=" + role + (pid ? "&id=" + pid : "") + "&name=" + encodeURIComponent(d.name || "");
 
   if (state === "loading") {

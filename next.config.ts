@@ -16,7 +16,7 @@ const legacyPages = [
   'signup-client', 'signup-trainer', 'signup-nutritionist', 'signup-gym', 'signup-radio',
   'contact', 'help', 'community', 'integrations',
   'privacy', 'terms',
-  'radio', 'ai-trainers', 'live-workout', 'messages', 'consultation',
+  'radio', 'ai-trainers', 'live-workout', 'messages',
   'shape-score', 'shape-score-trainer', 'shape-score-nutritionist', 'shape-store',
   'dashboard-preview',
 ];
@@ -27,6 +27,9 @@ const nextConfig: NextConfig = {
     return [
       { source: '/pricing', destination: '/newdesign/Pricing.html', permanent: true },
       { source: '/pricing.html', destination: '/newdesign/Pricing.html', permanent: true },
+      // Consultation booking now lives in newdesign (the legacy page is retired).
+      { source: '/consultation', destination: '/newdesign/consultation.html', permanent: true },
+      { source: '/consultation.html', destination: '/newdesign/consultation.html', permanent: true },
     ];
   },
   async rewrites() {

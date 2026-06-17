@@ -21,7 +21,7 @@ const ASSETS = [
   '/nutrition-schedule.html',
   '/trainer-dashboard.html',
   '/messages.html',
-  '/consultation.html',
+  '/newdesign/consultation.html',
   '/signup-client.html',
   '/signup-trainer.html',
   '/signup-nutritionist.html',
