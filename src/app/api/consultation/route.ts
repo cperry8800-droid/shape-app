@@ -13,6 +13,7 @@ import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
 import { buildIcs, sendEmail } from '@/lib/email';
 import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
+import { verifyTurnstile } from '@/lib/turnstile';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,13 @@ export async function POST(req: NextRequest) {
   const parsedBody = await readJson<Record<string, unknown>>(req);
   if (!parsedBody.ok) return parsedBody.response;
   const body = parsedBody.data;
+
+  // Bot gate (Cloudflare Turnstile). No-op until TURNSTILE_SECRET_KEY is set;
+  // once set, a public booking must carry a valid captcha token.
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+  if (!(await verifyTurnstile(body.captchaToken ?? body.turnstileToken, ip))) {
+    return NextResponse.json({ error: 'Captcha check failed — please retry.' }, { status: 400 });
+  }
 
   const providerIdRaw = Number(body.providerId ?? body.provider_id ?? 0);
   const providerRoleRaw = clean(body.professionalType ?? body.provider_role, 20).toLowerCase();

@@ -249,6 +249,7 @@
           <div class="consult-confirm-detail" id="confirmDetail"></div>
         </div>
 
+        <div id="turnstile-slot" style="margin:0 0 12px;"></div>
         <button class="btn btn-primary btn-block" onclick="confirmBooking()">Book Consultation</button>
       </div>
 
@@ -311,6 +312,21 @@
 
     let selectedDate = null;
     let selectedTime = null;
+    // Cloudflare Turnstile (captcha) — renders only when a site key is set in
+    // supabase.js (window.SHAPE_TURNSTILE_SITEKEY); otherwise a no-op.
+    let captchaToken = '';
+    window.onShapeTurnstileLoad = function () {
+      var key = window.SHAPE_TURNSTILE_SITEKEY || '';
+      if (!key || !window.turnstile) return;
+      try {
+        window.turnstile.render('#turnstile-slot', {
+          sitekey: key,
+          callback: function (t) { captchaToken = t; },
+          'expired-callback': function () { captchaToken = ''; },
+          'error-callback': function () { captchaToken = ''; }
+        });
+      } catch (e) {}
+    };
     // Weekly recurring slots, indexed by weekday (0-6) → array of start_minute.
     let weeklySlots = {};
     // Already-booked timestamps (ISO strings) that should render as unavailable.
@@ -475,6 +491,11 @@
         showToast('Please enter your name and email');
         return;
       }
+      // If the captcha is enabled (a site key is configured), require a token.
+      if (window.SHAPE_TURNSTILE_SITEKEY && !captchaToken) {
+        showToast('Please complete the captcha to continue.');
+        return;
+      }
 
       const d = new Date(selectedDate + 'T00:00:00');
       const dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -494,7 +515,8 @@
             time: selectedTime,
             clientName: name,
             clientEmail: email,
-            topic: topic
+            topic: topic,
+            captchaToken: captchaToken
           })
         });
         const data = await res.json().catch(() => ({}));
@@ -540,6 +562,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
+  <!-- Cloudflare Turnstile — loads after supabase.js so window.SHAPE_TURNSTILE_SITEKEY is set; renders only if a site key is configured. -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onShapeTurnstileLoad" async defer></script>
   <script src="/pwa-install.js" defer></script>
 <script src="/newdesign/globalChatButton.js?v=20260613" defer></script>
 </body>
