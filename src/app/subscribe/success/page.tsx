@@ -16,7 +16,7 @@ export default function SubscribeSuccessPage() {
       </p>
       <div className="flex items-center justify-center gap-3">
         <Link
-          href="/dashboard/client"
+          href="/newdesign/ClientDashboard.html"
           className="text-sm font-medium bg-teal-400 text-neutral-950 rounded-full px-6 py-3 hover:bg-teal-300 transition-colors"
         >
           Go to dashboard

@@ -11,7 +11,7 @@ export default function PurchaseSuccessPage() {
         provider will reach out shortly to schedule or deliver.
       </p>
       <Link
-        href="/dashboard/client"
+        href="/newdesign/ClientDashboard.html"
         className="inline-block text-sm font-medium bg-white text-neutral-950 rounded-full px-5 py-2.5 hover:bg-white/90 transition-colors"
       >
         Go to dashboard

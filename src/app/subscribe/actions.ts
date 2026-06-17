@@ -174,5 +174,5 @@ export async function cancelSubscription(formData: FormData): Promise<void> {
   }
 
   await stripe.subscriptions.update(row.stripe_subscription_id, { cancel_at_period_end: true });
-  redirect('/dashboard/client?notice=cancel_scheduled');
+  redirect('/newdesign/ClientDashboard.html?notice=cancel_scheduled');
 }
