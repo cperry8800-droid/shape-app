@@ -121,6 +121,20 @@ function ChatWidget(props) {
   const hydratedRef = React.useRef(false);
   const dirtyRef = React.useRef(false);
 
+  // Nora's tone (supportive | direct) syncs from the account (user_goals
+  // 'nora_voice'), set on the mobile app — so her framing matches across surfaces.
+  const noraToneRef = React.useRef("supportive");
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("nora_voice") : null;
+        if (!cancelled && doc && (doc.tone === "direct" || doc.tone === "supportive")) noraToneRef.current = doc.tone;
+      } catch (e) { /* default supportive */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -418,7 +432,7 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history }),
+            body: JSON.stringify({ messages: history, tone: noraToneRef.current }),
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data && data.reply) { reply = data.reply; actions = data.actions; }

@@ -367,6 +367,7 @@ async function getCurrentSession() {
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
   if (user) { try { registerPush(); } catch (e) {} } // register device for system push (native only; no-op on web)
+  if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { supabase.rpc('award_tier_bonuses'); } catch (e) {} } // grant any one-time tier bonuses (idempotent)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
@@ -4391,12 +4392,30 @@ async function speakVoice(text, toneOverride) {
   }
   return { ok: speakOnDevice(clean, tone), source: 'device' };
 }
+// The TONE syncs to the account (user_goals 'nora_voice') so Nora's framing
+// follows you across devices/surfaces; the on/off ENABLED flag stays per-device
+// (localStorage) — audio is device-appropriate, tone is a person-level pref.
+function persistToneToAccount(tone) {
+  try { window.shapeDb?.saveUserGoals?.('nora_voice', { tone: tone === 'direct' ? 'direct' : 'supportive' }); } catch (e) {}
+}
+async function loadVoiceTone() {
+  try {
+    if (!window.shapeDb?.getUserGoals) return null;
+    const doc = await window.shapeDb.getUserGoals('nora_voice');
+    const tone = doc && (doc.tone === 'direct' ? 'direct' : doc.tone === 'supportive' ? 'supportive' : null);
+    if (!tone) return null;
+    const p = readVoicePrefs();
+    if (p.tone !== tone) { p.tone = tone; writeVoicePrefs(p); } // updates localStorage + fires shape:voice
+    return tone;
+  } catch (e) { return null; }
+}
 window.ShapeVoice = {
   get: readVoicePrefs,
   enabled() { return readVoicePrefs().enabled; },
   tone() { return readVoicePrefs().tone; },
   setEnabled(b) { const p = readVoicePrefs(); p.enabled = b === true; writeVoicePrefs(p); if (!p.enabled) stopVoice(); return p; },
-  setTone(t) { const p = readVoicePrefs(); p.tone = t === 'direct' ? 'direct' : 'supportive'; writeVoicePrefs(p); return p; },
+  setTone(t) { const p = readVoicePrefs(); p.tone = t === 'direct' ? 'direct' : 'supportive'; writeVoicePrefs(p); persistToneToAccount(p.tone); return p; },
+  load: loadVoiceTone,
   speak: speakVoice,
   stop: stopVoice,
 };

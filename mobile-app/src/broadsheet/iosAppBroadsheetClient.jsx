@@ -10091,6 +10091,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
   const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
   const speakReply = (text) => { try { window.ShapeVoice && window.ShapeVoice.speak(text); } catch (e) {} };
+  // Reflect a tone that arrives async (account sync on login, or a change on another surface).
+  React.useEffect(() => {
+    const h = () => { try { if (window.ShapeVoice) setVoicePrefs(window.ShapeVoice.get()); } catch (e) {} };
+    window.addEventListener('shape:voice', h);
+    return () => window.removeEventListener('shape:voice', h);
+  }, []);
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
