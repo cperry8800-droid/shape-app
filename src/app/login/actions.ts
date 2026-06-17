@@ -21,9 +21,14 @@ export async function login(formData: FormData): Promise<{ error: string } | voi
       ? '/newdesign/NutritionistDashboard.html'
       : '/newdesign/ClientDashboard.html';
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : roleDefaultNext;
+  const captchaToken = String(formData.get('captchaToken') ?? '');
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    options: captchaToken ? { captchaToken } : undefined,
+  });
 
   if (error) return { error: error.message };
 
@@ -38,6 +43,7 @@ export async function signup(
   const password = String(formData.get('password') ?? '');
   const rawRole = String(formData.get('role') ?? 'client');
   const role = ['client', 'trainer', 'nutritionist'].includes(rawRole) ? rawRole : 'client';
+  const captchaToken = String(formData.get('captchaToken') ?? '');
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -45,6 +51,7 @@ export async function signup(
     password,
     options: {
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback`,
+      ...(captchaToken ? { captchaToken } : {}),
       data: { role },
     },
   });
@@ -66,9 +73,11 @@ export async function requestPasswordReset(
   formData: FormData
 ): Promise<{ error: string } | { ok: true }> {
   const email = String(formData.get('email') ?? '');
+  const captchaToken = String(formData.get('captchaToken') ?? '');
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback?next=/reset-password`,
+    ...(captchaToken ? { captchaToken } : {}),
   });
   if (error) return { error: error.message };
   return { ok: true };

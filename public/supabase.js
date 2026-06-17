@@ -876,6 +876,50 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
   };
   try { startWebPresence(); } catch (e) {}
 
+  // ===== Cloudflare Turnstile (CAPTCHA) — shared controller for the auth forms.
+  // Lazy-loads the Turnstile script once, renders explicit widgets, and hands the
+  // solved token back via callback. enabled() === false (no-op) when no site key
+  // is set, so forms keep working pre-activation. Same graceful pattern as the
+  // consultation form's server-side verify (src/lib/turnstile.ts).
+  var _tsLoading = null;
+  function _tsLoad() {
+    if (window.turnstile) return Promise.resolve(window.turnstile);
+    if (_tsLoading) return _tsLoading;
+    _tsLoading = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true; s.defer = true;
+      s.onload = function () {
+        if (window.turnstile) resolve(window.turnstile);
+        else reject(new Error('Turnstile global missing after load'));
+      };
+      s.onerror = function () { _tsLoading = null; reject(new Error('Turnstile script failed to load')); };
+      document.head.appendChild(s);
+    });
+    return _tsLoading;
+  }
+  window.ShapeTurnstile = {
+    enabled: function () { return !!window.SHAPE_TURNSTILE_SITEKEY; },
+    siteKey: function () { return window.SHAPE_TURNSTILE_SITEKEY || ''; },
+    // Render an explicit widget into `el`. onToken(token) fires on solve;
+    // onToken('') on expire/error so the caller can re-block submit. Resolves to
+    // the widget id (or null when disabled / the script can't load).
+    render: function (el, onToken) {
+      if (!el || !window.SHAPE_TURNSTILE_SITEKEY) return Promise.resolve(null);
+      var cb = function (tok) { try { onToken(tok || ''); } catch (e) {} };
+      return _tsLoad().then(function (ts) {
+        return ts.render(el, {
+          sitekey: window.SHAPE_TURNSTILE_SITEKEY,
+          callback: cb,
+          'expired-callback': function () { cb(''); },
+          'error-callback': function () { cb(''); },
+        });
+      }).catch(function (e) { console.warn('[shape] turnstile render failed', e); return null; });
+    },
+    // Clear a widget's token so the next submit re-solves (tokens are single-use).
+    reset: function (id) { try { if (window.turnstile && id != null) window.turnstile.reset(id); } catch (e) {} },
+  };
+
   // Global sign-out helper (used by navbar buttons site-wide).
   window.shapeSignOut = async function () {
     if (window.shapeDb) await window.shapeDb.signOut();

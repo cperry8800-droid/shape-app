@@ -1,8 +1,9 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import { requestPasswordReset } from '../login/actions';
+import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 
 type State = { error: string } | { ok: true; email: string } | null;
 
@@ -15,6 +16,8 @@ async function resetAction(_prev: State, formData: FormData): Promise<State> {
 
 export default function ForgotPasswordForm() {
   const [state, formAction, pending] = useActionState<State, FormData>(resetAction, null);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaPending = turnstileEnabled() && !captchaToken;
 
   if (state && 'ok' in state) {
     return (
@@ -42,12 +45,14 @@ export default function ForgotPasswordForm() {
         </div>
       )}
 
+      <Turnstile onToken={setCaptchaToken} />
+
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || captchaPending}
         className="text-sm font-medium bg-teal-400 text-neutral-950 rounded-full px-6 py-3 hover:bg-teal-300 transition-colors disabled:opacity-50"
       >
-        {pending ? 'Sending...' : 'Send reset link'}
+        {pending ? 'Sending...' : captchaPending ? 'Confirming you’re human…' : 'Send reset link'}
       </button>
 
       <p className="text-sm text-neutral-400 text-center">

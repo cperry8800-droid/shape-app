@@ -623,6 +623,25 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const [busy, setBusy] = useStateBSM(false);
   const [verifyEmail, setVerifyEmail] = useStateBSM(''); // set → show the "check your email" screen
   const [isDietitian, setIsDietitian] = useStateBSM(false); // within the nutritionist signup: RD/RDN
+  // Cloudflare Turnstile (CAPTCHA) — bot protection on the auth requests. No-op
+  // until a site key is set (window.SHAPE_TURNSTILE_SITEKEY via turnstile.js).
+  // We block submit until a token exists, then hand it to Supabase Auth (which
+  // verifies it server-side once Auth CAPTCHA is enabled in the dashboard).
+  const [captchaToken, setCaptchaToken] = useStateBSM('');
+  const captchaRef = React.useRef(null);
+  const captchaIdRef = React.useRef(null);
+  const captchaOn = typeof window !== 'undefined' && !!(window.ShapeTurnstile && window.ShapeTurnstile.enabled());
+  // Render the widget once whenever its container is mounted in the auth form.
+  React.useEffect(() => {
+    if (!captchaOn) return;
+    const el = captchaRef.current;
+    if (!el || captchaIdRef.current != null) return;
+    window.ShapeTurnstile.render(el, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
+  });
+  // Leaving the form (verify-email screen) drops the widget DOM — forget the id
+  // so re-entering the login view renders a fresh challenge.
+  React.useEffect(() => { if (verifyEmail) { captchaIdRef.current = null; setCaptchaToken(''); } }, [verifyEmail]);
+  const resetCaptcha = () => { setCaptchaToken(''); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
   const isCreate = mode === 'create';
   const isPhone = authMethod === 'phone';
   // A nutritionist applicant who is a Registered Dietitian signs up as 'dietitian'
@@ -656,11 +675,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
       return;
     }
+    if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
     setBusy(true);
     try {
       const result = isCreate
-        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role: signupRole, username })
-        : await auth.signIn({ email: trimmedEmail, password, role });
+        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role: signupRole, username, captchaToken })
+        : await auth.signIn({ email: trimmedEmail, password, role, captchaToken });
       // New account needs email confirmation → show the verify screen, don't enter the app.
       if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
       const nextRole = result?.profile?.role;
@@ -674,6 +694,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       }
       onLogin(result);
     } catch (error) {
+      if (captchaOn) resetCaptcha();
       setAuthError(error?.message || 'Unable to sign in.');
     } finally {
       setBusy(false);
@@ -692,12 +713,14 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       setAuthError('Enter a valid phone number, e.g. +1 555 123 4567.');
       return;
     }
+    if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
     setPhone(e164);
     setBusy(true);
     try {
-      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole });
+      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken });
       setOtpSent(true);
     } catch (error) {
+      if (captchaOn) resetCaptcha();
       setAuthError(error?.message || 'Could not send the code.');
     } finally {
       setBusy(false);
@@ -882,6 +905,11 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
             <button onClick={forgotPassword} style={{ alignSelf: 'flex-end', background: 'transparent', border: 0, color: '#2ee0c4', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer', padding: '2px 0' }}>Forgot password →</button>
           )}
         </div>
+
+        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token). */}
+        {captchaOn && !(isPhone && otpSent) && (
+          <div ref={captchaRef} style={{ minHeight: 65, display: 'flex', justifyContent: 'center' }} />
+        )}
 
         {/* Primary action — cream button */}
         <button

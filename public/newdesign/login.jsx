@@ -90,6 +90,22 @@ function LoginCard() {
   const [submitting, setSubmitting] = React.useState(false);
   const [errMsg, setErrMsg] = React.useState("");
 
+  // Cloudflare Turnstile (CAPTCHA) — bot protection on the auth requests. No-op
+  // until a site key is set (window.SHAPE_TURNSTILE_SITEKEY in /supabase.js).
+  // We block submit until a token exists, then pass it to Supabase Auth, which
+  // verifies it server-side (must be enabled in Dashboard → Auth → Attack
+  // Protection with the matching TURNSTILE_SECRET_KEY).
+  const captchaOn = typeof window !== "undefined" && window.ShapeTurnstile && window.ShapeTurnstile.enabled();
+  const [captchaToken, setCaptchaToken] = React.useState("");
+  const captchaRef = React.useRef(null);
+  const captchaIdRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!captchaOn || !captchaRef.current || captchaIdRef.current != null) return;
+    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
+  }, [captchaOn]);
+  // Tokens are single-use — clear after a failed attempt so a retry re-solves.
+  const resetCaptcha = () => { setCaptchaToken(""); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
+
   // Bridge a Supabase session into Next.js cookies, then route to the dashboard.
   const finishLogin = async (session) => {
     if (session && session.access_token) {
@@ -118,11 +134,14 @@ function LoginCard() {
     if (!sb) { setErrMsg("Auth is still loading. Try again in a second."); return; }
     const e164 = normalizePhoneE164(phone);
     if (!e164 || e164.length < 8) { setErrMsg("Enter a valid phone number, e.g. +1 555 123 4567."); return; }
+    if (captchaOn && !captchaToken) { setErrMsg("Just a moment — confirming you're human…"); return; }
     setPhone(e164);
     setSubmitting(true);
-    const { error } = await sb.auth.signInWithOtp({ phone: e164, options: { shouldCreateUser: true } });
+    const otpOpts = { shouldCreateUser: true };
+    if (captchaOn) otpOpts.captchaToken = captchaToken;
+    const { error } = await sb.auth.signInWithOtp({ phone: e164, options: otpOpts });
     setSubmitting(false);
-    if (error) { setErrMsg(error.message || "Could not send the code."); return; }
+    if (error) { if (captchaOn) resetCaptcha(); setErrMsg(error.message || "Could not send the code."); return; }
     setOtpSent(true);
   };
   // Phone — verify the code.
@@ -143,6 +162,7 @@ function LoginCard() {
     e.preventDefault();
     if (submitting) return;
     setErrMsg("");
+    if (captchaOn && !captchaToken) { setErrMsg("Just a moment — confirming you're human…"); return; }
     setSubmitting(true);
     try {
       const sb = window.shapeDb && window.shapeDb.client;
@@ -162,8 +182,9 @@ function LoginCard() {
         if (resolved === null) { setErrMsg("No account with that username — check the spelling or sign in with your email."); setSubmitting(false); return; }
         if (resolved) loginEmail = resolved;
       }
-      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password });
+      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password, options: captchaOn ? { captchaToken } : {} });
       if (error || !data.session) {
+        if (captchaOn) resetCaptcha();
         setErrMsg(error ? error.message : "Could not sign in.");
         setSubmitting(false);
         return;
@@ -314,6 +335,11 @@ function LoginCard() {
 
         {errMsg ? (
           <div style={{ marginTop: 4, padding: "10px 14px", borderRadius: 6, background: "rgba(220,80,80,0.1)", border: "1px solid rgba(220,80,80,0.3)", color: "#e27a7a", fontFamily: sans, fontSize: 13 }}>{errMsg}</div>
+        ) : null}
+
+        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token). */}
+        {captchaOn && !(method === "phone" && otpSent) ? (
+          <div ref={captchaRef} style={{ minHeight: 65 }} />
         ) : null}
 
         <button type="submit" disabled={submitting} style={{

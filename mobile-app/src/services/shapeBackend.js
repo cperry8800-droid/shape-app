@@ -155,7 +155,7 @@ async function upsertProfile(user, overrides = {}) {
   return data;
 }
 
-async function signIn({ email, password, role }) {
+async function signIn({ email, password, role, captchaToken }) {
   if (!authConfigured) {
     const profile = demoProfile({ email, role });
     return setCached({
@@ -175,7 +175,7 @@ async function signIn({ email, password, role }) {
     if (resolved) loginEmail = resolved;
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password, options: captchaToken ? { captchaToken } : undefined });
   if (error) throw error;
 
   let profile = await fetchProfile(data.user);
@@ -213,7 +213,7 @@ async function claimUsername(username) {
   return data;
 }
 
-async function signUp({ email, password, fullName, role, username }) {
+async function signUp({ email, password, fullName, role, username, captchaToken }) {
   const normalizedRole = normalizeRole(role);
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
@@ -230,6 +230,7 @@ async function signUp({ email, password, fullName, role, username }) {
     password,
     options: {
       emailRedirectTo: (typeof window !== 'undefined') ? `${window.location.origin}${window.location.pathname}` : undefined,
+      ...(captchaToken ? { captchaToken } : {}),
       data: {
         full_name: fullName,
         role: normalizedRole,
@@ -260,7 +261,7 @@ async function signUp({ email, password, fullName, role, username }) {
 // Step 1: request an SMS one-time code. Supabase sends it via the configured
 // SMS provider (Twilio) — see the Auth → Providers → Phone settings. With
 // `shouldCreateUser: true` this doubles as passwordless sign-UP for new phones.
-async function signInWithPhone({ phone, fullName, role }) {
+async function signInWithPhone({ phone, fullName, role, captchaToken }) {
   const normalizedPhone = String(phone || '').trim();
   if (!normalizedPhone) throw new Error('Enter your phone number.');
   if (!authConfigured) {
@@ -271,6 +272,7 @@ async function signInWithPhone({ phone, fullName, role }) {
     phone: normalizedPhone,
     options: {
       shouldCreateUser: true,
+      ...(captchaToken ? { captchaToken } : {}),
       data: fullName || role
         ? { full_name: fullName || '', role: normalizeRole(role) }
         : undefined,
@@ -2850,12 +2852,12 @@ async function signInWithApple({ role } = {}) {
 }
 
 // Re-send the signup confirmation email (for the "check your email" screen).
-async function resendConfirmation(email) {
+async function resendConfirmation(email, captchaToken) {
   if (!supabase) throw new Error('Email verification is not configured.');
   const cleanEmail = String(email || '').trim();
   if (!cleanEmail) throw new Error('No email to resend to.');
   const emailRedirectTo = (typeof window !== 'undefined') ? `${window.location.origin}${window.location.pathname}` : undefined;
-  const { error } = await supabase.auth.resend({ type: 'signup', email: cleanEmail, options: { emailRedirectTo } });
+  const { error } = await supabase.auth.resend({ type: 'signup', email: cleanEmail, options: { emailRedirectTo, ...(captchaToken ? { captchaToken } : {}) } });
   if (error) throw error;
   return true;
 }

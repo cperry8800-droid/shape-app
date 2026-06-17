@@ -3,6 +3,7 @@
 import { useState, useActionState } from 'react';
 import Link from 'next/link';
 import { signup } from '../login/actions';
+import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 
 type State = { error: string } | { ok: true; needsConfirm: boolean } | null;
 
@@ -18,6 +19,8 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
   const [role, setRole] = useState<string>(
     defaultRole && roles.includes(defaultRole as (typeof roles)[number]) ? defaultRole : 'client',
   );
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaPending = turnstileEnabled() && !captchaToken;
 
   if (state && 'ok' in state && state.needsConfirm) {
     return (
@@ -78,12 +81,14 @@ export default function SignupForm({ defaultRole }: { defaultRole?: string }) {
         </div>
       )}
 
+      <Turnstile onToken={setCaptchaToken} />
+
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || captchaPending}
         className="text-sm font-medium bg-teal-400 text-neutral-950 rounded-full px-6 py-3 hover:bg-teal-300 transition-colors disabled:opacity-50"
       >
-        {pending ? 'Creating...' : 'Create account'}
+        {pending ? 'Creating...' : captchaPending ? 'Confirming you’re human…' : 'Create account'}
       </button>
 
       <p className="text-sm text-neutral-400 text-center">

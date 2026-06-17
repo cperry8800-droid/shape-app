@@ -140,6 +140,50 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-17 — Auth CAPTCHA: Turnstile wired into login/signup across ALL surfaces (S1-2 follow-up)
+- Closes the deferred **"Auth login/signup CAPTCHA — client wiring"** follow-up
+  (the dashboard half — Auth → Attack Protection — is still a manual owner step,
+  below). The consultation form already had Turnstile; this extends it to the
+  **Supabase Auth** requests (sign-in · sign-up · phone OTP · resend · password
+  reset). **Why all surfaces at once:** enabling Auth CAPTCHA in the Supabase
+  dashboard is **global** — every tokenless auth request is rejected the moment
+  it's flipped — so all session-creating clients must send a token first.
+- **Shared pattern:** render a Turnstile widget (lazy-loaded
+  `challenges.cloudflare.com/turnstile/v0/api.js?render=explicit`), **block
+  submit until a token exists** (shows "confirming you're human…"), pass it as
+  Supabase's `options.captchaToken`, and **reset on a failed attempt** (tokens
+  are single-use). **No-op until a site key is present** (same graceful pattern
+  as the consultation verify) so nothing breaks pre-activation. The public SITE
+  key is the one already committed (`0x4AAAAAADmrGKVw7Ghzs1gQ`).
+- **Website** (`public/newdesign/login.jsx`, `?v=20260617d`): new
+  **`window.ShapeTurnstile`** helper in `public/supabase.js` (load/render/reset);
+  wired into the password sign-in + the phone-OTP **send** (verify needs no
+  token). Website *signup* is an application stub (no `auth.signUp`) — nothing to
+  wire there.
+- **Mobile** (`BSLogin` in `iosAppBroadsheetMain.jsx`): new
+  `mobile-app/src/services/turnstile.js` (`window.ShapeTurnstile`, imported in
+  `main.jsx`); `ShapeAuth.signIn/signUp/signInWithPhone/resendConfirmation` now
+  accept + forward `captchaToken` (`shapeBackend.js`). Widget renders in the auth
+  form, hidden at the phone code-entry step.
+- **Next.js** (legacy `/signup` + `/forgot-password`, still live): new reusable
+  **`src/components/Turnstile.tsx`** client component (mirrors the token into a
+  hidden `captchaToken` input + gates the submit button); the `login`, `signup`,
+  and `requestPasswordReset` server actions (`src/app/login/actions.ts`) read
+  `formData.captchaToken` and pass it through.
+- **⚠ Before enabling the dashboard toggle — two owner steps:**
+  (1) **Enable** CAPTCHA in Supabase → Auth → Attack Protection with provider
+  **Cloudflare Turnstile** + the **`TURNSTILE_SECRET_KEY`** already set in Vercel.
+  (2) **Native app caveat:** Turnstile validates the page hostname against the
+  widget's allowed hostnames. The website domains are configured; the Capacitor
+  **native** origin (`capacitor://localhost` / `https://localhost`) must be ADDED
+  to the widget's hostnames (or a separate key used, `VITE_TURNSTILE_SITEKEY`)
+  or native logins get rejected server-side. The `/m/` web build is fine.
+- **Known minor gaps** (don't block the toggle but degrade if hit): the mobile
+  **resend-confirmation** button and any web **forgot-password** flow that lack a
+  visible widget will need a fresh challenge — wire a widget on those screens if
+  the toggle surfaces failures. Verified: `tsc --noEmit` clean · mobile build +
+  `public/m` synced · all edited JS/JSX parse-check clean.
+
 ### 2026-06-17 — Turnstile CAPTCHA (live) + consultation → newdesign (PRs #1347–#1350)
 - **Consultation CAPTCHA (audit S1-2; built #1347, activated #1349) — LIVE.**
   Cloudflare Turnstile bot challenge on the public consultation form.
