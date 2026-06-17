@@ -4,6 +4,12 @@
 //   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 //   <script src="supabase.js"></script>
 
+// Cloudflare Turnstile (CAPTCHA) SITE key — PUBLIC, safe to commit. Paste the
+// site key from your Turnstile widget (dash.cloudflare.com → Turnstile) here to
+// turn on the bot challenge on the consultation form. Leave '' to keep it
+// disabled. The matching server secret is the TURNSTILE_SECRET_KEY env var.
+if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHAPE_TURNSTILE_SITEKEY || ''; }
+
 (function () {
   var SUPABASE_URL = 'https://zznufekgjngecelwxndw.supabase.co';
   var SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_vuOq-03RJHruIz0PWtXiUA_R4zvTJcR';
