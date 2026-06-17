@@ -302,8 +302,8 @@ of S1–S4. **Method:** direct read-only pass on deps/config/orphans + synthesis
 |----|-----|------|---------------------|--------|
 | S3-1 | **P1** | API/Stripe | Client-trusted one-time checkout price ($1 for a $180 session) | ✅ #1337 |
 | S4-1 | **P1** | Dashboard | Self-service provider claim → coach-role + revenue takeover | ✅ #1338 |
-| S4-2 | P1\* | Dashboard | `CoachCompliancePanel` fabricated subscriber telemetry as real | 🔵 retire (legacy) |
-| S4-3 | P1\* | Dashboard | `CoachClientCRM` fabricated LTV/revenue + drafts | 🔵 retire (legacy) |
+| S4-2 | P1\* | Dashboard | `CoachCompliancePanel` fabricated subscriber telemetry as real | ✅ #1343 (retired) |
+| S4-3 | P1\* | Dashboard | `CoachClientCRM` fabricated LTV/revenue + drafts | ✅ #1343 (retired) |
 | S2-1 | P1 | Mobile | Home Energy card demo leak (signed-in, non-today) | ✅ #1332 |
 | S2-2 | P1 | Mobile | Meal logger fake totals + hardcoded title to coach | ✅ #1332 |
 | S2-3 | P1 | Mobile | `ShapePlaylists` clobbered → coach playlists broken | ✅ #1333 |
@@ -311,21 +311,23 @@ of S1–S4. **Method:** direct read-only pass on deps/config/orphans + synthesis
 | S1-3 | P2 | API | Raw `error.message` leaks (94 sites) | ✅ #1336 |
 | S1-4 | P2 | API | Unbounded string writes | ✅ #1336 |
 | S1-5/6 | P3 | API | cron constant-time · garmin secret required | ✅ #1336 |
-| S2-4 | P2 | Mobile/engine | Weigh-in unit default mismatch | ✅ #1333 (default) · ⬜ S3-2 |
-| S3-2 | P2 | Engine | Unit-blind goal projection (no conversion) | ⬜ |
-| S3-3 | P2 | Engine | Weigh-in series unsorted → inverted coach/AI weight delta | ⬜ |
-| S3-4 | P2 | Engine | `ruleScoreDrop` assumes sorted history (latent) | ⬜ |
-| S3-5 | P2 | Engine | Directive lead by push-order, not severity | ⬜ |
-| S3-6 | P2 | API | `store/redeem` fulfillment emails unescaped | ⬜ |
-| S4-5 | P2 | Actions | Refund IDOR-lite (missing `client_id` check) | ⬜ |
-| S4-6 | P2 | Auth | No rate-limit on login/signup/reset server actions | ⬜ (Supabase Auth) |
-| S4-7 | P2 | Auth | `auth/callback` open-redirect (`next` unvalidated) | ⬜ |
-| S4-8 | P2 | Dashboard | `WeeklyReadout` fetch race on client switch | 🔵 retire (legacy) |
-| S4-9 | P2 | Dashboard | `RecentPayouts` "payouts" mislabel on un-disbursed sums | 🔵 retire (legacy) |
-| S1-7/S2-10/S3-7 | P2 | Cross | UTC-vs-local date basis (one strategy) | ⬜ (S5-3) |
+| S2-4 | P2 | Mobile/engine | Weigh-in unit default mismatch | ✅ #1333 (default) · ✅ #1341 (reconcile) |
+| S3-2 | P2 | Engine | Unit-blind goal projection (no conversion) | ✅ #1341 |
+| S3-3 | P2 | Engine | Weigh-in series unsorted → inverted coach/AI weight delta | ✅ #1341 |
+| S3-4 | P2 | Engine | `ruleScoreDrop` assumes sorted history (latent) | ⬜ (latent; not yet hit) |
+| S3-5 | P2 | Engine | Directive lead by push-order, not severity | ✅ #1341 |
+| S3-6 | P2 | API | `store/redeem` fulfillment emails unescaped | ✅ #1340 |
+| S4-5 | P2 | Actions | Refund IDOR-lite (missing `client_id` check) | ✅ #1340 |
+| S4-6 | P2 | Auth | No rate-limit on login/signup/reset server actions | ⬜ (Supabase Auth dashboard) |
+| S4-7 | P2 | Auth | `auth/callback` open-redirect (`next` unvalidated) | ✅ #1340 |
+| S4-8 | P2 | Dashboard | `WeeklyReadout` fetch race on client switch | ✅ #1343 (retired) |
+| S4-9 | P2 | Dashboard | `RecentPayouts` "payouts" mislabel on un-disbursed sums | ✅ #1343 (retired) |
+| S1-7/S2-10/S3-7 | P2 | Cross | UTC-vs-local date basis (one strategy) | ⬜ (S5-3 — needs per-user TZ decision) |
 | S2-8/13/16, S2-DEAD | P3 | Mobile | INK60, booking year, award catch · ~814 dead lines | ✅ #1334/#1335 |
-| S1-SEC-1 | P3 | CI | No gitleaks in CI; confirm push-protection | ⬜ |
-| S3-8..14, S4-12/13, S5-1/2 | P3 | Various | directive cache, signed90, dead code, duplication, etc. | ⬜ |
+| S1-SEC-1 | P3 | CI | No gitleaks in CI; confirm push-protection | ✅ #1342 (gitleaks gate) |
+| S3-14 | P3 | Engine | No tests for projection/directive core | ✅ #1341 (+7 tests) |
+| S5-1 | P3 | Various | Dead code (orphan components, gym path) | ✅ #1342 (5 files) · ⬜ gym path (live components) |
+| S3-8..13, S4-12/13, S5-2 | P3 | Various | directive cache, signed90, duplication, etc. | ⬜ |
 
 \* P1 only if the surface is live; the owner has marked it **legacy → retire**.
 
@@ -346,11 +348,30 @@ of S1–S4. **Method:** direct read-only pass on deps/config/orphans + synthesis
 
 ### The single highest-impact thing to do first
 **Both P1s are already fixed** (S3-1 checkout price, S4-1 claim escalation — the two genuine
-security/money holes). With those closed, **the highest-impact *remaining* item is the owner's
-decision to retire the legacy `src/app/dashboard/*` surface** — it erases the two P1-class
-fabricated-data panels (S4-2/3) plus S4-8/9/10 in one move, rather than investing in patching a
-surface that's going away. If that surface lingers, **S3-3 (inverted weight delta feeding the
-AI check-in draft + coach read)** is the next most consequential correctness fix.
+security/money holes). With those closed, **the highest-impact *remaining* item was the owner's
+decision to retire the legacy `src/app/dashboard/*` surface** — it erased the two P1-class
+fabricated-data panels (S4-2/3) plus S4-8/9 in one move.
+
+### Resolution (this engagement — all merged to `main`)
+Everything actionable was shipped as one PR-per-concern series:
+- **P1s:** S3-1 (#1337), S4-1 (#1338).
+- **Quick wins (#1340):** S4-7 open-redirect guard · S4-5 refund ownership · S3-6 email escaping.
+- **Engine (#1341):** S3-2 unit reconciliation · S3-3 sorted weigh-in delta · S3-5 urgency-ranked
+  directive · S3-14 (+7 projection/directive tests).
+- **Hygiene (#1342):** gitleaks secret-scan CI gate (S1-SEC-1) · removed 5 orphan src files (S5-1).
+  Kept `public/newdesign/memberProfile.jsx` (owner: don't delete newdesign).
+- **Legacy retirement (#1343):** deleted the user-facing legacy dashboards (closes S4-2/3/8/9);
+  **kept** the live admin coach-approval pipeline (`/dashboard/applications`) + `/dashboard/claim`
+  (no newdesign equivalent — retiring them would break onboarding). newdesign untouched.
+
+**Still open (need an external decision or input — not engineering-blocked):**
+- **S4-6** — login/signup/reset brute-force limits live in **Supabase Auth → Rate Limits** (those
+  requests bypass the Next app); set there, not in code.
+- **S1-2** — `consultation` CAPTCHA/Turnstile needs a provider + keys.
+- **S5-3** — one project-wide **timezone strategy** (per-user TZ or a documented canonical) closes
+  S1-7/S2-10/S3-7 together; needs a product decision on the TZ source.
+- **S3-4** (latent — `ruleScoreDrop` sorted-history assumption), the **gym** dead-code path
+  (threads through live `ProviderCard`/`ProviderFilter`), and the remaining P3 cleanups.
 
 ---
 

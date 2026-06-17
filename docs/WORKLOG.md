@@ -76,8 +76,10 @@ changelog whenever something ships.
   Docs/config-only commits may skip layer 1.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
-    build)** and **Mobile (build + public/m sync)**. These two are the
-    **required** checks for branch protection on `main`.
+    build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
+    (added #1342 — scans the working tree against `.gitleaks.toml`; advisory until
+    added to branch protection). Web + Mobile are the **required** checks for
+    branch protection on `main`.
   - **`android-build.yml`** (only when `mobile-app/**` changes) — **Build debug
     APK** (debug-signed, no secrets). A **release APK** job is opt-in and runs
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
@@ -137,6 +139,53 @@ changelog whenever something ships.
   the go-live status board — register new routes in `RAW_ROUTES` and add checklist items there.
 
 ## Changelog
+
+### 2026-06-17 — Code-audit fix sweep (PRs #1337–#1343) + legacy dashboard retired
+- Worked the read-only **`CODE-AUDIT-REPORT.md`** (S1–S5, landed #1339) into fixes,
+  one **PR-per-concern**, all merged to `main` with CI green:
+  - **P1s (the two real security/money holes):** **#1337** — one-time Stripe
+    checkout price is now **server-authoritative** (plan price by `planId` from
+    `coach_plans` / provider row; `body.item.price` no longer trusted → no more
+    $1-for-$180). **#1338** — `claimProviderRow` is **admin-gated**
+    (`requireAdminUser()`), closing the self-service coach-role/revenue takeover.
+  - **#1340 quick wins:** `auth/callback` `next` open-redirect guard (same-origin
+    only); refund actions add an explicit `.eq('client_id', user.id)` to both
+    branches; `store/redeem` fulfillment emails **escape** the member-supplied
+    shipping fields (new local `escapeHtml`, matching consultation/contact/apply).
+  - **#1341 engine** (`public/newdesign/dashSignals.js`): **unit-reconcile** the
+    goal projection (`goalsFromDoc` converts the weigh-in series into the goal's
+    unit — a kg series no longer "achieves" an lb goal); **sort** the weigh-in
+    series before the first-vs-last delta in `buildDirectiveRead` +
+    `buildEvidencePack` (no more sign-inverted weight read on the coach surface /
+    AI evidence pack); `buildDirective` **leads by an urgency ranking**
+    (`DIRECTIVE_PRIORITY` + `topFlag`), not rule push-order; **+7 unit tests**
+    (projectGoal/goalsFromDoc/buildDirective/buildEvidencePack) → 232/232.
+  - **#1342 hygiene:** new **gitleaks secret-scan CI job** (`ci.yml` +
+    `.gitleaks.toml` — allowlists the by-design publishable key, client-side
+    localStorage key names, and generated bundles; verified 0 leaks, passes in
+    CI). Removed 5 zero-import orphan src files (`SubscribeButton`/`PageHero`/
+    `Section`/`LegalSection`/`LoginForm`). **Kept `public/newdesign/memberProfile.jsx`**
+    — it's a newdesign file and the rule is *don't delete anything under newdesign*,
+    even orphans.
+  - **#1343 legacy dashboard retirement:** removed the user-facing legacy Next.js
+    dashboards (`/dashboard/{client,trainer,nutritionist}`, program-tools,
+    workout-reviews, settings + `_components` + `src/lib/analytics-data.ts`) —
+    superseded by the newdesign portal. **Kept the live admin tooling**
+    (`/dashboard/applications` — the coach-approval pipeline that inserts
+    `trainers`/`nutritionists` rows on approval — and `/dashboard/claim`); no
+    newdesign equivalent exists, so retiring them would break onboarding.
+    `/dashboard` root is now a thin redirect to the role's newdesign dashboard;
+    deleted-subpage links/redirects (Nav, subscribe/purchase success, refunds,
+    the coach-approval invite) re-pointed to newdesign. **newdesign untouched.**
+- **Still open — need an external decision, not engineering** (tracked in the
+  report): **S4-6** login/signup brute-force limits → set in **Supabase Auth →
+  Rate Limits** (those requests bypass the Next app); **S1-2** consultation
+  CAPTCHA needs a provider + keys; **S5-3** one project-wide **timezone strategy**
+  needs a per-user-TZ product decision; plus S3-4 (latent) + the gym dead-code
+  path (threads through live components) + remaining P3 cleanups.
+- **Manual follow-up:** add **Secret scan (gitleaks)** to `main` branch protection
+  if you want it to be a hard gate (it's advisory until then, same as the existing
+  Web + Mobile checks).
 
 ### 2026-06-17 — AI features shipped (#1326) + CodeRabbit review pass
 - **#1326 merged to `main`** (squash `d341198`) — the accumulated **AI-features**
