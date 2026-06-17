@@ -2045,7 +2045,7 @@ async function saveStructuredWorkoutSession({
   // series counts in-app workouts (integrations write the same column for
   // device-synced workouts). Accumulates — best-effort, never blocks the save.
   try {
-    const day = String(sessionEndedAt || new Date().toISOString()).slice(0, 10);
+    const day = _localDate(sessionEndedAt ? new Date(sessionEndedAt) : new Date());
     const mins = Math.max(1, Math.round(Number(durationSeconds || 0) / 60));
     const { data: snap } = await supabase
       .from('daily_health_snapshot')
@@ -3675,7 +3675,7 @@ async function logWeighIn({ weight, unit = 'kg', bodyFat = null } = {}) {
   if (!supabase || !state.user?.id) return null;
   const w = Number(weight);
   if (!Number.isFinite(w)) return null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = _localDate();
   const bf = Number(bodyFat);
   const row = { user_id: state.user.id, logged_on: today, weight: w, unit };
   if (Number.isFinite(bf) && bf > 0 && bf < 75) row.body_fat_pct = bf;
@@ -3706,7 +3706,7 @@ async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
-      body: JSON.stringify({ kcal, protein, carbs, fat, hydrationL }),
+      body: JSON.stringify({ kcal, protein, carbs, fat, hydrationL, date: _localDate() }),
     });
     if (!res.ok) return null;
     invalidateClientMetrics();
@@ -3769,7 +3769,7 @@ window.ShapeCheckins = { submit: checkinSubmit, mine: checkinMine, weekOf: bsWee
 
 async function measurementsLog(entries = [], { unit = 'cm', date = null } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in first.');
-  const day = date || new Date().toISOString().slice(0, 10);
+  const day = date || _localDate();
   const rows = (entries || [])
     .filter((e) => e && e.site && Number.isFinite(Number(e.value)) && Number(e.value) > 0)
     .map((e) => ({ user_id: state.user.id, measured_on: day, site: e.site, value: Number(e.value), unit: e.unit || unit }));
@@ -4487,6 +4487,13 @@ window.ShapeVoice = {
 // server agree. evaluate() runs the engine server-side over the REAL record and
 // writes any due notifications (deduped/capped/quiet-hours-aware over there).
 function _deviceTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } }
+// The device's LOCAL calendar day (YYYY-MM-DD) — never UTC. Day-bucketed writes
+// (weigh-in, meal log, measurements, workout minutes) must use this so an
+// evening log lands on the user's "today", not UTC's. (toISOString() is UTC.)
+function _localDate(d = new Date()) {
+  const x = d instanceof Date ? d : new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
 // The preference center: settings (mute/quiet hours/cap/tz) + the per-type ×
 // per-channel matrix (notification_preferences) + the user's habit reminders.
 // One RPC read; targeted upserts on change. The SAME tables /api/ai/notify reads.

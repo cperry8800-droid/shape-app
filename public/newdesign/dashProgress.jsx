@@ -252,7 +252,7 @@ function DprCheckinForm({ kit, onSaved }) {
       const res = await fetch("/api/client/checkin-kit", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: "kg", measurements }),
+        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: "kg", measurements, date: new Date().toLocaleDateString("en-CA") }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
       for (const pose of ["front", "side", "back"]) {

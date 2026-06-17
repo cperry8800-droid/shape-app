@@ -89,7 +89,9 @@ function ClientHabitsPage() {
   const toggleToday = (id) => {
     setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
     if (synced) {
-      const today = new Date().toISOString().slice(0, 10);
+      // The user's LOCAL calendar day (en-CA → YYYY-MM-DD), never UTC, so an
+      // evening check-off lands on today and not tomorrow.
+      const today = new Date().toLocaleDateString('en-CA');
       apiPost({ action: 'toggle', id, date: today });
     }
   };

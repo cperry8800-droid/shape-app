@@ -5,13 +5,16 @@
 // analytics rollups and the coach consoles already read. Merges with any
 // device-synced metrics for the day rather than overwriting them.
 //
-// POST { kcal?, protein?, carbs?, fat?, hydrationL? } -> { ok, day }
+// POST { kcal?, protein?, carbs?, fat?, hydrationL?, date? } -> { ok, day }
+// `date` is the client's local YYYY-MM-DD (so an evening log buckets to the
+// user's calendar day, not UTC's); falls back to the server's UTC date.
 // Auth: cookie session OR Bearer token (mobile bridges either). Sits under
 // /api/nutrition so the membership proxy gate applies.
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
+import { clientLocalDay } from '@/lib/local-day';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = await clientForRequest(request);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = clientLocalDay((body as Record<string, unknown>).date);
 
   const { data: existing } = await supabase
     .from('daily_health_snapshot')
