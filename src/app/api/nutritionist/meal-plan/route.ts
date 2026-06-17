@@ -96,7 +96,10 @@ export async function POST(request: Request) {
     .select('id')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[shape-api] Failed to insert client_meal_plans:', error.message);
+    return NextResponse.json({ error: 'Failed to create meal plan. Please retry.' }, { status: 500 });
+  }
   // The "not medical advice" / individualized-care disclaimer rides on every
   // assignment, plus a warning if compliance is in observe-only (not enforced) mode.
   return NextResponse.json({

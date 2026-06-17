@@ -81,13 +81,14 @@ export async function POST(request: Request) {
         expires_on: /^\d{4}-\d{2}-\d{2}$/.test(String(l.expires)) ? String(l.expires) : null,
         updated_at: new Date().toISOString(),
       }));
-    await supabase.from('provider_licenses').delete().eq('owner_id', user.id);
-    if (valid.length) {
-      const { error: licErr } = await supabase.from('provider_licenses').insert(valid);
-      if (licErr) {
-        console.error('[shape] provider_licenses insert failed:', licErr.message);
-        return NextResponse.json({ error: 'Could not save your licenses.' }, { status: 500 });
-      }
+    // Atomic delete+insert in a single SECURITY DEFINER transaction so a failed
+    // insert can never leave the provider with zero licenses (see the
+    // replace_provider_licenses migration). owner_id is re-derived from
+    // auth.uid() server-side, so RLS stays authoritative.
+    const { error: licErr } = await supabase.rpc('replace_provider_licenses', { p_licenses: valid });
+    if (licErr) {
+      console.error('[shape] provider_licenses replace failed:', licErr.message);
+      return NextResponse.json({ error: 'Could not save your licenses.' }, { status: 500 });
     }
   }
 

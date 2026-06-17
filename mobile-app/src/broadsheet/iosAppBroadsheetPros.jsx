@@ -2641,11 +2641,21 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
     let on = true;
     (async () => {
       try {
+        // LIVE client (signed-in coach): the server route is authoritative — it
+        // re-checks coach scope and writes the draft to ai_audit_log. On failure
+        // we surface an error rather than silently falling back to an UNAUDITED
+        // client-side draft (which would bypass the scope/audit contract). The
+        // DashSignals fallback is for demo / signed-out preview only.
         if (clientUid && bsProSignedIn()) {
-          const res = await fetch('/api/ai/draft-message', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, record, role }) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-          if (on && res && res.draft) { setDraft(res.draft); setCited(res.cited || []); setAuditId(res.draftAuditId || null); setLoading(false); return; }
+          const r = await fetch('/api/ai/draft-message', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, record, role }) }).catch(() => null);
+          const res = r && r.ok ? await r.json().catch(() => null) : null;
+          if (!on) return;
+          if (res && res.draft) { setDraft(res.draft); setCited(res.cited || []); setAuditId(res.draftAuditId || null); setLoading(false); return; }
+          setDraft(''); setCited([]); setAuditId(null); setLoading(false);
+          window.__bsToast?.((res && res.error) || 'Could not draft check-in', 'err');
+          return;
         }
-        // Demo / fallback — the SAME grounded engine, client-side.
+        // Demo / signed-out fallback — the SAME grounded engine, client-side.
         const E = typeof window !== 'undefined' && window.DashSignals;
         const d = E && E.buildCheckinDraft ? E.buildCheckinDraft(record, role) : { text: '', cited: [] };
         if (on) { setDraft(d.text || ''); setCited(d.cited || []); setLoading(false); }
@@ -3254,7 +3264,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // ---- directive lead — the page opens with ONE move for THIS client (the
   // same severity + directive the roster row showed, so tapping a flagged client
   // lands on "here's the read + here's your move"). Engine-consistent vocabulary.
-  const _sig = bsRosterSeverity(client, role);
+  const _sig = bsRowSeverity(client, role);
   const _SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
   const _sevCol = _SEVCOL[_sig.sev] || accent;
   const _leadCta = (_sig.rank <= 2) ? `Message ${first} →` : (_sig.label === 'PR' ? 'Send props →' : null);
