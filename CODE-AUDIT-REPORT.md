@@ -274,3 +274,93 @@ the server actions — they're server-derived + ownership-checked). A lot of **d
 - **Correctness sound:** `[id]` pages `notFound()` on missing/NaN id; `subscribe`/`purchase` pages have explicit `ErrorShell` + role↔kind checks; `HealthMetricsPanel`/`IntegrationsPanel`/`ClientProgressAnalyticsClient` have honest loading/empty/error states + `'real'/'sample'` labels; `dashboard/layout.tsx` re-checks the subscription server-side (the member gate).
 
 **S4 bottom line:** **S4-1 (provider-claim privilege escalation) is the actionable P1** (a clean auth gap, independent of any surface question). **S4-2/S4-3** (fabricated coach data) are P1 *if* `src/app/dashboard/*` is still a live surface — **resolve that surface question first** (they may instead be deleted as legacy). Payments + admin authorization are clean; the rest is dead-code pruning and the trainer/nutritionist de-dup.
+
+> **S4-1 fixed** (PR #1338, post-audit): `claimProviderRow` now requires admin — closes the self-service escalation. **Surface decision (owner): `src/app/dashboard/{trainer,nutritionist,client}` is LEGACY, being retired** → S4-2/S4-3 (fabricated panels) become **delete the legacy surface**, not patch the fabrications.
+
+---
+
+## S5 — Cross-cutting + consolidation
+
+**Scope:** dependencies, config, repo-wide dead code; then the merged, prioritized view
+of S1–S4. **Method:** direct read-only pass on deps/config/orphans + synthesis.
+
+### S5 cross-cutting findings
+| ID | Sev | Eff | Finding |
+|----|-----|-----|---------|
+| S5-1 | P3 | S | **Dead code, repo-wide.** Confirmed orphan `public/newdesign/memberProfile.jsx` (referenced by 0 HTML; `profileCustomizer.jsx` already deleted). Plus the S4 web dead code (`LoginForm.tsx`, the entire `gym` path — `getGyms`/`getGymById`/`ProviderCard` vertical variant/`ProviderFilter` gym branch, no `/gyms` route — and 4 orphan components: `SubscribeButton`/`PageHero`/`Section`/`LegalSection`), the S3 engine dead exports (`flagDiscipline`/`disciplineOwner`), and the S2 mobile dead code (~814 lines already removed in #1334; the Radio `{false && …}` branches + stranded context API remain). |
+| S5-2 | P3 | S | **Duplication, repo-wide.** trainer/nutritionist Next pages ~95% identical (S4-10); `hashString`/`Avatar`-initials/`Subscriber` type repeated 2-3× (S4); 12-hour time + Monday-of-week helpers repeated 3× in mobile (S2); UTC-vs-local date helpers reimplemented per module (S3-7). Candidates for shared helpers. |
+| S5-3 | P2 | — | **Timezone strategy (cross-cutting, consolidates S1-7 / S2-10 / S3-7).** `toISOString().slice(0,10)` (UTC) is used for "today"/day-bucketing in `health-snapshot`, `analytics-data`, `coach-growth`, the mobile weigh-in/snapshot writers, and the engine's `daysBetween`/`mondayOf` (local) vs the mapper's `mondayKey` (UTC). All internally consistent but **off-by-one near a user's local midnight / week edge** and DST. One project-wide timezone decision (a per-user TZ or a documented canonical) would close ~5 findings at once. |
+| — | — | — | **Clean:** `npm audit` = 0 (root + mobile-app); deps lean (Next 16.2.9 / React 19.2.4); CI (`ci.yml` web+mobile required) + `android-build.yml` + Dependabot + CodeRabbit + `.coderabbit.yaml` all present; 0 TODO/FIXME repo-wide; no committed secrets (S1). |
+
+---
+
+## Consolidated triage — all sessions (S1–S5)
+
+### Status legend: ✅ fixed this engagement · ⬜ open · 🔵 decision made
+
+| ID | Sev | Area | Finding (one-liner) | Status |
+|----|-----|------|---------------------|--------|
+| S3-1 | **P1** | API/Stripe | Client-trusted one-time checkout price ($1 for a $180 session) | ✅ #1337 |
+| S4-1 | **P1** | Dashboard | Self-service provider claim → coach-role + revenue takeover | ✅ #1338 |
+| S4-2 | P1\* | Dashboard | `CoachCompliancePanel` fabricated subscriber telemetry as real | 🔵 retire (legacy) |
+| S4-3 | P1\* | Dashboard | `CoachClientCRM` fabricated LTV/revenue + drafts | 🔵 retire (legacy) |
+| S2-1 | P1 | Mobile | Home Energy card demo leak (signed-in, non-today) | ✅ #1332 |
+| S2-2 | P1 | Mobile | Meal logger fake totals + hardcoded title to coach | ✅ #1332 |
+| S2-3 | P1 | Mobile | `ShapePlaylists` clobbered → coach playlists broken | ✅ #1333 |
+| S1-1/2 | P2 | API | `consultation` unescaped emails + unauth abuse | ✅ esc. #1336 · ⬜ CAPTCHA |
+| S1-3 | P2 | API | Raw `error.message` leaks (94 sites) | ✅ #1336 |
+| S1-4 | P2 | API | Unbounded string writes | ✅ #1336 |
+| S1-5/6 | P3 | API | cron constant-time · garmin secret required | ✅ #1336 |
+| S2-4 | P2 | Mobile/engine | Weigh-in unit default mismatch | ✅ #1333 (default) · ⬜ S3-2 |
+| S3-2 | P2 | Engine | Unit-blind goal projection (no conversion) | ⬜ |
+| S3-3 | P2 | Engine | Weigh-in series unsorted → inverted coach/AI weight delta | ⬜ |
+| S3-4 | P2 | Engine | `ruleScoreDrop` assumes sorted history (latent) | ⬜ |
+| S3-5 | P2 | Engine | Directive lead by push-order, not severity | ⬜ |
+| S3-6 | P2 | API | `store/redeem` fulfillment emails unescaped | ⬜ |
+| S4-5 | P2 | Actions | Refund IDOR-lite (missing `client_id` check) | ⬜ |
+| S4-6 | P2 | Auth | No rate-limit on login/signup/reset server actions | ⬜ (Supabase Auth) |
+| S4-7 | P2 | Auth | `auth/callback` open-redirect (`next` unvalidated) | ⬜ |
+| S4-8 | P2 | Dashboard | `WeeklyReadout` fetch race on client switch | 🔵 retire (legacy) |
+| S4-9 | P2 | Dashboard | `RecentPayouts` "payouts" mislabel on un-disbursed sums | 🔵 retire (legacy) |
+| S1-7/S2-10/S3-7 | P2 | Cross | UTC-vs-local date basis (one strategy) | ⬜ (S5-3) |
+| S2-8/13/16, S2-DEAD | P3 | Mobile | INK60, booking year, award catch · ~814 dead lines | ✅ #1334/#1335 |
+| S1-SEC-1 | P3 | CI | No gitleaks in CI; confirm push-protection | ⬜ |
+| S3-8..14, S4-12/13, S5-1/2 | P3 | Various | directive cache, signed90, dead code, duplication, etc. | ⬜ |
+
+\* P1 only if the surface is live; the owner has marked it **legacy → retire**.
+
+### Quick wins (small, high-value, mostly independent)
+1. **S4-7** — apply the login action's `next`-guard to `auth/callback` (open-redirect; ~1 line).
+2. **S4-5** — add `.eq('client_id', user.id)` to the refund subscription branch (mirror `cancelSubscription`).
+3. **S3-6** — reuse `escapeHtml` on `store/redeem` shipping fields (the consultation pattern).
+4. **S3-3** — sort the weigh-in series once in `normalizeWeighIns` (fixes inverted coach/AI weight deltas).
+5. **S1-SEC-1** — add a `gitleaks` CI step + confirm GitHub push-protection.
+6. **Dead-code prune** — `memberProfile.jsx`, `LoginForm`, the `gym` path, 4 orphan components (S5-1).
+
+### Structural (bigger, sequence deliberately)
+1. **Retire the legacy `src/app/dashboard/{trainer,nutritionist,client}` surface** (owner decision) — deletes S4-2/S4-3/S4-8/S4-9/S4-10 wholesale instead of patching fabricated panels.
+2. **One timezone strategy** (S5-3) — a per-user TZ (or documented canonical) closes S1-7/S2-10/S3-7 together.
+3. **Engine unit reconciliation** (S3-2) — convert/assert units in `projectGoal`/`goalsFromDoc`; add the missing projection/directive unit tests (S3-14).
+4. **Directive priority** (S3-5) — order the "one lead" by severity, not rule push-order.
+5. **`consultation` abuse hardening** (S1-2) — add CAPTCHA/Turnstile (needs a provider + keys).
+
+### The single highest-impact thing to do first
+**Both P1s are already fixed** (S3-1 checkout price, S4-1 claim escalation — the two genuine
+security/money holes). With those closed, **the highest-impact *remaining* item is the owner's
+decision to retire the legacy `src/app/dashboard/*` surface** — it erases the two P1-class
+fabricated-data panels (S4-2/3) plus S4-8/9/10 in one move, rather than investing in patching a
+surface that's going away. If that surface lingers, **S3-3 (inverted weight delta feeding the
+AI check-in draft + coach read)** is the next most consequential correctness fix.
+
+---
+
+## Audit complete (S1–S5)
+- **Coverage:** API/data-access + secrets (S1) · mobile app (S2) · engine & shared lib (S3) ·
+  web UI (S4) · cross-cutting + consolidation (S5). All findings cite real code; severities
+  calibrated by verification (which **corrected 6 agent over-claims** across the run — 3 in S2
+  dead-code, the directive-cache in S3, and two P0→P1 recalibrations in S4).
+- **Shipped during the engagement** (separately approved): both P1s + the full S1/S2 fix set
+  (PRs #1332–#1338).
+- **Posture:** no committed secrets, no IDOR on the coach→client surface, the AI/auth/token/
+  compliance core is well-built (defense-in-depth). The residue is correctness (engine
+  units/sorting/timezone), the legacy-dashboard fabrications (to retire), and cleanup.
