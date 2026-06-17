@@ -320,6 +320,91 @@ export const setProgramDetailAction = {
   },
 };
 
+// add_review_note → POST /api/coach/review-note. The coach must own the provider
+// row on the workout session (endpoint + RLS enforce). Undo deletes the created
+// note (the author-delete policy authorizes it). The execute enriches afterState
+// with the new note id so undo can target it.
+export const addReviewNoteAction = {
+  name: 'add_review_note',
+  roles: ['trainer', 'nutritionist'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    if (!input.sessionId || typeof input.sessionId !== 'string') {
+      throw new Error('Which session should I add the note to? I need the session id.');
+    }
+    var text = String(input.body || '').trim().slice(0, 4000);
+    if (!text) throw new Error("What should the note say? I won't write one for you.");
+    var vis = ['client', 'coach_private', 'team'].includes(input.visibility) ? input.visibility : 'client';
+    // Read the session — if the coach can't read it (RLS), it isn't theirs.
+    var sess = await ctx.supabase.from('workout_sessions').select('id, client_id, provider_role').eq('id', input.sessionId).maybeSingle();
+    if (!(sess && sess.data)) throw new Error("I can't find that session — it may not be one of yours.");
+    var preview = text.length > 80 ? text.slice(0, 77) + '…' : text;
+    return {
+      summary: 'Add a review note to this session' + (vis === 'coach_private' ? ' (private to you)' : vis === 'team' ? ' (visible to the care team)' : ''),
+      diff: [{ label: 'Review note', field: 'body', before: '—', after: preview }],
+      target: { userId: sess.data.client_id, kind: 'review_note', id: input.sessionId },
+      beforeState: { sessionId: input.sessionId },
+      afterState: {},
+      confirmedPayload: { sessionId: input.sessionId, body: text, visibility: vis },
+    };
+  },
+  async execute(ctx, plan) {
+    var r = await ctx.call('POST', '/api/coach/review-note', plan.confirmedPayload);
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not add the note.');
+    plan.afterState = { ...(plan.afterState || {}), noteId: r.data && r.data.id }; // captured for undo
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    var id = plan.afterState && plan.afterState.noteId;
+    if (!id) return;
+    await ctx.supabase.from('coach_workout_review_notes').delete().eq('id', id);
+  },
+};
+
+// reschedule_session → POST /api/sessions/manage (action 'reschedule'). The
+// endpoint enforces coach-on-session + only-active-is-reschedulable. Undo moves
+// it back to the original slot (captured at preview).
+export const rescheduleSessionAction = {
+  name: 'reschedule_session',
+  roles: ['trainer', 'nutritionist'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    if (!input.sessionId || typeof input.sessionId !== 'string') {
+      throw new Error('Which session should I move? I need the session id.');
+    }
+    var date = String(input.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('What day should I move it to? Give me a date (YYYY-MM-DD).');
+    var time = /^\d{1,2}:\d{2}$/.test(String(input.time || '')) ? String(input.time) : null;
+    var sess = await ctx.supabase.from('sessions').select('id, client_id, scheduled_at, status').eq('id', input.sessionId).maybeSingle();
+    if (!(sess && sess.data)) throw new Error("I can't find that session — it may not be one of yours.");
+    var prev = String(sess.data.scheduled_at || '');
+    var prevDate = prev.slice(0, 10);
+    var prevTime = prev.length >= 16 ? prev.slice(11, 16) : null;
+    var fmt = function (d, t) { return d + (t && t !== '00:00' ? ' ' + t : ''); };
+    return {
+      summary: 'Move this session to ' + fmt(date, time),
+      diff: [{ label: 'Session time', field: 'scheduled_at', before: fmt(prevDate, prevTime) || '—', after: fmt(date, time) }],
+      target: { userId: sess.data.client_id, kind: 'session', id: input.sessionId },
+      beforeState: { sessionId: input.sessionId, prevDate: prevDate, prevTime: prevTime },
+      afterState: { date: date, time: time },
+      confirmedPayload: { sessionId: input.sessionId, action: 'reschedule', date: date, time: time },
+    };
+  },
+  async execute(ctx, plan) {
+    var r = await ctx.call('POST', '/api/sessions/manage', plan.confirmedPayload);
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not reschedule the session.');
+    return r.data;
+  },
+  async undo(ctx, plan) {
+    var b = plan.beforeState || {};
+    if (!b.prevDate) return;
+    var r = await ctx.call('POST', '/api/sessions/manage', { sessionId: b.sessionId, action: 'reschedule', date: b.prevDate, time: b.prevTime });
+    if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not undo the reschedule.');
+  },
+};
+
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.)
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction];

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createRegistry, proposeChange, confirmChange, undoChange, inMemoryAudit } = require('../src/lib/ai/proposals.mjs');
-const { logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction } = require('../src/lib/ai/actions.mjs');
+const { logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction } = require('../src/lib/ai/actions.mjs');
 
 const SECRET = 'test-secret';
 
@@ -138,8 +138,8 @@ test('nothing to log is refused with a clear ask', async () => {
 // ── coach assign tools (write-scope hardening) ──────────────────────────────
 // A richer Supabase stub: rpc('is_coach_on_client'), provider-row lookup, the
 // current published meal plan, and awaitable update chains (records patch+filters).
-function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, prevPlan = null, program = null } = {}) {
-  const calls = { updates: [], rpc: [] };
+function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, prevPlan = null, program = null, workoutSession = null, apptSession = null } = {}) {
+  const calls = { updates: [], rpc: [], deletes: [] };
   return {
     from(table) {
       const chain = {
@@ -150,12 +150,19 @@ function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, prevP
           if (table === 'trainers' || table === 'nutritionists') return { data: providerId == null ? null : { id: providerId } };
           if (table === 'client_meal_plans') return { data: prevPlan };
           if (table === 'client_programs') return { data: program };
+          if (table === 'workout_sessions') return { data: workoutSession };
+          if (table === 'sessions') return { data: apptSession };
           return { data: null };
         },
         update(patch) {
           const u = { table, patch, filters: {} };
           const up = { eq(c, v) { u.filters[c] = v; return up; }, then(res, rej) { calls.updates.push(u); return Promise.resolve({}).then(res, rej); } };
           return up;
+        },
+        delete() {
+          const d = { table, filters: {} };
+          const dp = { eq(c, v) { d.filters[c] = v; return dp; }, then(res, rej) { calls.deletes.push(d); return Promise.resolve({}).then(res, rej); } };
+          return dp;
         },
       };
       return chain;
@@ -344,4 +351,98 @@ test('set_program_detail: a client cannot propose it (role gate)', async () => {
   const r = await proposeChange({ registry: registryWith(setProgramDetailAction), action: 'set_program_detail', input: { clientId: 'x', phase: 'Peak' }, actor: { id: 'c', role: 'client' }, ctx: {}, secret: SECRET });
   assert.equal(r.ok, false);
   assert.equal(r.error, 'role_not_allowed');
+});
+
+// ── add_review_note: gated endpoint, undo deletes the created note ───────────
+test('add_review_note: coach on the session → endpoint → audit → undo deletes the note', async () => {
+  const registry = registryWith(addReviewNoteAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({ workoutSession: { id: 'ws-1', client_id: 'client-9', provider_role: 'trainer' } });
+  const ctx = ctxFor(actor, supabase, (m, p) => (m === 'POST' && p === '/api/coach/review-note')
+    ? { ok: true, status: 200, data: { ok: true, id: 'note-7' } } : { ok: false, status: 404, data: {} });
+
+  const p = await proposeChange({ registry, action: 'add_review_note', input: { sessionId: 'ws-1', body: 'Great depth on squats — add 5lb next week.' }, actor, ctx, secret: SECRET });
+  assert.equal(p.ok, true);
+  assert.match(p.preview.diff[0].after, /Great depth on squats/);
+
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, true);
+  assert.equal(ctx._calls[0].path, '/api/coach/review-note');
+  assert.equal(audit._rows[0].action, 'add_review_note');
+  assert.equal(audit._rows[0].target.userId, 'client-9');
+
+  await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
+  assert.equal(supabase._calls.deletes[0].table, 'coach_workout_review_notes');
+  assert.equal(supabase._calls.deletes[0].filters.id, 'note-7'); // the captured note id
+  assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('add_review_note: OUT-OF-SCOPE session rejected AT THE ENDPOINT (403) — no audit', async () => {
+  const registry = registryWith(addReviewNoteAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'trainer-2', role: 'trainer' };
+  const supabase = richSupabase2({ workoutSession: { id: 'ws-1', client_id: 'client-9', provider_role: 'trainer' } });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: false, status: 403, data: { error: 'You are not the coach on this session.' } }));
+  const p = await proposeChange({ registry, action: 'add_review_note', input: { sessionId: 'ws-1', body: 'note' }, actor, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, false);
+  assert.equal(c.error, 'execute_failed');
+  assert.match(c.message, /not the coach on this session/);
+  assert.equal(audit._rows.length, 0);
+  assert.equal(supabase._calls.deletes.length, 0);
+});
+
+test('add_review_note: refuses to INVENT the note (empty body asks)', async () => {
+  const registry = registryWith(addReviewNoteAction);
+  const supabase = richSupabase2({ workoutSession: { id: 'ws-1', client_id: 'client-9', provider_role: 'trainer' } });
+  const ctx = ctxFor({ id: 't', role: 'trainer' }, supabase, () => ({ ok: true, status: 200, data: {} }));
+  const r = await proposeChange({ registry, action: 'add_review_note', input: { sessionId: 'ws-1' }, actor: { id: 't', role: 'trainer' }, ctx, secret: SECRET });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /won't write one for you/);
+});
+
+// ── reschedule_session: gated manage endpoint, undo moves it back ────────────
+test('reschedule_session: coach → manage endpoint → audit → undo restores the old slot', async () => {
+  const registry = registryWith(rescheduleSessionAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({ apptSession: { id: 's-1', client_id: 'client-9', scheduled_at: '2026-06-20T15:00:00Z', status: 'confirmed' } });
+  const posts = [];
+  const ctx = ctxFor(actor, supabase, (m, p, b) => { if (p === '/api/sessions/manage') { posts.push(b); return { ok: true, status: 200, data: { ok: true } }; } return { ok: false, status: 404, data: {} }; });
+
+  const p = await proposeChange({ registry, action: 'reschedule_session', input: { sessionId: 's-1', date: '2026-06-25', time: '09:00' }, actor, ctx, secret: SECRET });
+  assert.equal(p.ok, true);
+  assert.match(p.preview.summary, /Move this session to 2026-06-25 09:00/);
+  assert.equal(p.preview.diff[0].before, '2026-06-20 15:00');
+
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, true);
+  assert.deepEqual(posts[0], { sessionId: 's-1', action: 'reschedule', date: '2026-06-25', time: '09:00' });
+  assert.equal(audit._rows[0].action, 'reschedule_session');
+
+  await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
+  assert.deepEqual(posts[1], { sessionId: 's-1', action: 'reschedule', date: '2026-06-20', time: '15:00' }); // back to the original
+  assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('reschedule_session: a 409 from the endpoint (not reschedulable) surfaces, no audit', async () => {
+  const registry = registryWith(rescheduleSessionAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({ apptSession: { id: 's-1', client_id: 'client-9', scheduled_at: '2026-06-20T15:00:00Z', status: 'completed' } });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: false, status: 409, data: { error: "Can't reschedule a completed session." } }));
+  const p = await proposeChange({ registry, action: 'reschedule_session', input: { sessionId: 's-1', date: '2026-06-25' }, actor, ctx, secret: SECRET });
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, false);
+  assert.match(c.message, /completed session/);
+  assert.equal(audit._rows.length, 0);
+});
+
+test('reschedule_session: needs the session id (asks, never guesses)', async () => {
+  const registry = registryWith(rescheduleSessionAction);
+  const ctx = ctxFor({ id: 't', role: 'trainer' }, richSupabase2({}), () => ({ ok: true, status: 200, data: {} }));
+  const r = await proposeChange({ registry, action: 'reschedule_session', input: { date: '2026-06-25' }, actor: { id: 't', role: 'trainer' }, ctx, secret: SECRET });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /need the session id/);
 });
