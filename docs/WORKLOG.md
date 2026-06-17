@@ -140,6 +140,41 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-17 — Turnstile CAPTCHA (live) + consultation → newdesign (PRs #1347–#1350)
+- **Consultation CAPTCHA (audit S1-2; built #1347, activated #1349) — LIVE.**
+  Cloudflare Turnstile bot challenge on the public consultation form.
+  `src/lib/turnstile.ts` (`verifyTurnstile` — graceful **no-op until
+  `TURNSTILE_SECRET_KEY` is set**; rejects a missing/invalid token; fails OPEN on
+  a Cloudflare network blip so an outage can't block real bookings).
+  `/api/consultation` verifies `body.captchaToken` before any DB/email work. The
+  **public** SITE key lives in `public/supabase.js`
+  (`window.SHAPE_TURNSTILE_SITEKEY = '0x4AAAAAADmrGKVw7Ghzs1gQ'`); the secret is
+  set in **Vercel env**, so the widget renders AND the server enforces.
+- **Consultation is now a NEWDESIGN page (#1350).** New
+  **`public/newdesign/consultation.html`** — self-contained, house-style
+  (mono eyebrows · serif display · role-accented trainer-rust/nutritionist-gold ·
+  squared cards · ledger rules), same booking logic (`GET /api/availability` +
+  `POST /api/consultation`) + the Turnstile captcha + an **inline success state**
+  (no bounce to a legacy page). Fixed the coach-profile **"Book a consult" 404**
+  (`livingDesktop.jsx` `bookHref` → `/newdesign/consultation.html`, `?v=26` on the
+  7 loader pages). **Legacy `public/consultation.html` deleted**; `next.config.ts`
+  permanent-redirects `/consultation`(.html) → the newdesign page; `sw.js`
+  precache repointed. *(Note: a full legacy-website retirement is still a separate
+  pending pass — only the consultation page moved.)*
+- **War Room (#1348)** Database & Auth checklist now tracks the deferred manual
+  auth-hardening items (below).
+- **Still manual — only the account owner can do these (tracked in War Room):**
+  (1) **Auth rate limits** — Dashboard → Auth → Rate Limits, or the `config/auth`
+  Management-API PATCH (OTP 60 · verify 100 · email_sent 30 · anonymous_users 5;
+  keep `token_refresh` ~1800). The app's own `/api/*` limiter is already live.
+  (2) Make **`Secret scan (gitleaks)`** a required check on `main` (Settings →
+  Branches) — runs on every PR now, advisory until added. (3) **Pro upgrade →
+  leaked-password protection** (HaveIBeenPwned is Pro-gated; org "Shape" is on
+  Free). (4) **Supabase Auth login/signup CAPTCHA** — enable in Dashboard → Auth
+  with the same Turnstile secret; client wiring on login/signup is a follow-up.
+- All squash-merged to `main`, CI green (Web · Mobile · gitleaks); dev branch
+  re-synced. `docs/HANDOFF-2026-06-17.md` written.
+
 ### 2026-06-17 — Code-audit fix sweep (PRs #1337–#1343) + legacy dashboard retired
 - Worked the read-only **`CODE-AUDIT-REPORT.md`** (S1–S5, landed #1339) into fixes,
   one **PR-per-concern**, all merged to `main` with CI green:
