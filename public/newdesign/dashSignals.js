@@ -106,6 +106,50 @@
     return out;
   }
 
+  // ── Weight-unit reconciliation (S3-2) ───────────────────────────────────────
+  // A weigh-in series can arrive in a different unit than the goal target (e.g.
+  // a kg-logged series against an lb goal). Reconcile to one canonical unit
+  // BEFORE any to-go / pace / ETA / achieved math — otherwise the projection is
+  // unit-blind (a 78 kg reading would "achieve" a 165 lb goal).
+  function weightUnit(u) {
+    u = String(u || "").toLowerCase();
+    return (u === "kg" || u === "kgs" || u === "kilo" || u === "kilos" || u === "kilogram" || u === "kilograms") ? "kg" : "lb";
+  }
+  function toWeightUnit(value, from, to) {
+    if (value == null || !isFinite(Number(value))) return value;
+    from = weightUnit(from); to = weightUnit(to);
+    if (from === to) return Number(value);
+    return from === "kg" ? Number(value) * 2.2046226218 : Number(value) / 2.2046226218;
+  }
+  // A weigh-in array → sorted-ascending {on(ISO), value} points, each value
+  // converted into `unit` using the point's own unit (defaults to `unit`).
+  function weightSeriesIn(raw, unit) {
+    var arr = Array.isArray(raw) ? raw : [];
+    var pts = [];
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i]; if (!p) continue;
+      var on = toDate(p.on != null ? p.on : p.date != null ? p.date : p.d != null ? p.d : p.logged_on);
+      var v = p.value != null ? p.value : p.v != null ? p.v : p.weight != null ? p.weight : p.kg != null ? p.kg : p.w;
+      if (!on || v == null || !isFinite(Number(v))) continue;
+      pts.push({ on: on, value: toWeightUnit(Number(v), p.unit || unit, unit) });
+    }
+    pts.sort(function (a, b) { return a.on - b.on; });
+    return pts.map(function (p) { return { on: iso(p.on), value: p.value }; });
+  }
+
+  // Weigh-ins for a first-vs-last delta must be oldest→newest. The coach JSONB
+  // path (overall.weighIns) and arbitrary callers carry no order guarantee, so
+  // sort defensively (S3-3) — a newest-first array otherwise inverts the
+  // gained/lost sign in the coach read + the AI evidence pack.
+  function sortedWeighIns(w) {
+    if (!Array.isArray(w)) return [];
+    return w.slice().sort(function (a, b) {
+      var da = toDate(a && (a.on != null ? a.on : a.date != null ? a.date : a.logged_on != null ? a.logged_on : a.d));
+      var db = toDate(b && (b.on != null ? b.on : b.date != null ? b.date : b.logged_on != null ? b.logged_on : b.d));
+      return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+    });
+  }
+
   function goalDateLabel(v) {
     var d = toDate(v);
     return d ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
@@ -245,21 +289,24 @@
         history: Array.isArray(g.history) ? g.history : [],
       });
     }
-    var series = goalSeries({ history: Array.isArray(src.weighIns) && src.weighIns.length ? src.weighIns : (src.overall && src.overall.weighIns) || [] })
-      .map(function (p) { return { on: iso(p.on), value: p.value }; });
+    var rawWeighIns = Array.isArray(src.weighIns) && src.weighIns.length ? src.weighIns : (src.overall && src.overall.weighIns) || [];
     var weightGoal = null;
     for (var w2 = 0; w2 < out.length; w2++) if (out[w2].metric === "weight") { weightGoal = out[w2]; break; }
     if (weightGoal) {
-      if (series.length && goalSeries(weightGoal).length < 2) weightGoal.history = series;
+      // Adopt the live weigh-in series only when the goal lacks its own — and
+      // convert it into the goal's unit so projectGoal compares like-for-like.
+      var cseries = weightSeriesIn(rawWeighIns, weightGoal.unit || "lb");
+      if (cseries.length && goalSeries(weightGoal).length < 2) weightGoal.history = cseries;
     } else if (src.overall && src.overall.target != null && isFinite(Number(src.overall.target))) {
       var o = src.overall;
+      var oUnit = o.unit || "lb";
       out.push({
         id: "overall", label: o.title || "Goal weight", metric: "weight",
-        unit: o.unit || "lb", target: Number(o.target),
+        unit: oUnit, target: Number(o.target),
         start: o.start != null && isFinite(Number(o.start)) ? Number(o.start) : null,
         startedOn: null, setBy: "you",
         now: o.now != null && isFinite(Number(o.now)) ? Number(o.now) : null,
-        history: series,
+        history: weightSeriesIn(rawWeighIns, oUnit),
       });
     }
     var legacy = [].concat(Array.isArray(src.training) ? src.training : [], Array.isArray(src.nutrition) ? src.nutrition : []);
@@ -871,6 +918,32 @@
       score_drop: "score", contact_gap: "contact",
     })[key] || null;
   }
+
+  // The single directive must lead with the MOST URGENT flag, not whichever rule
+  // ran first in push order (S3-5). A months-late check-in (a lost coaching
+  // relationship) outranks a "grab a win" score dip. checkin_overdue escalates
+  // further the longer it's been missed.
+  var DIRECTIVE_PRIORITY = {
+    checkin_overdue: 100, contact_gap: 80, goal_slip: 60, food_gap: 55,
+    ledger_blown: 50, protein_under: 45, streak_broken: 40, score_drop: 30,
+  };
+  function flagPriority(f) {
+    if (!f) return 0;
+    var base = DIRECTIVE_PRIORITY[f.key] || 10;
+    if (f.key === "checkin_overdue" && f.missedWeeks != null && isFinite(Number(f.missedWeeks))) {
+      base += Math.min(50, Number(f.missedWeeks) * 5);
+    }
+    return base;
+  }
+  function topFlag(flags) {
+    if (!Array.isArray(flags) || !flags.length) return null;
+    var best = flags[0], bestP = flagPriority(best);
+    for (var i = 1; i < flags.length; i++) {
+      var p = flagPriority(flags[i]);
+      if (p > bestP) { best = flags[i]; bestP = p; }
+    }
+    return best;
+  }
   function recoveryRead(rec) {
     var r = rec && rec.recovery;
     if (!r || !r.sleepHours) return null;
@@ -895,8 +968,8 @@
     if (ta && ta.done != null && ta.planned != null) sum.push(ta.done + "/" + ta.planned + " sessions");
     var n = rec.nutrition;
     if (n && n.avgCalories != null) sum.push("avg " + Math.round(Number(n.avgCalories)) + " kcal");
-    var w = rec.weighIns;
-    if (Array.isArray(w) && w.length >= 2) {
+    var w = sortedWeighIns(rec.weighIns);
+    if (w.length >= 2) {
       var d = Number(w[w.length - 1].weight) - Number(w[0].weight);
       if (isFinite(d)) sum.push((d <= 0 ? "" : "+") + (Math.round(d * 10) / 10) + " " + (w[0].unit || "lb"));
     }
@@ -931,9 +1004,10 @@
       };
     }
 
-    // 2) The top triage flag (already grounded + cross-discipline aware).
+    // 2) The top triage flag (already grounded + cross-discipline aware),
+    //    chosen by urgency — not rule push-order (S3-5).
     var ev = evaluateClient(rec, now, role || "client");
-    var top = ev.flags && ev.flags.length ? ev.flags[0] : null;
+    var top = topFlag(ev.flags);
     if (top) {
       var lever2 = directiveKeyToLever(top.key) || "training";
       return {
@@ -1004,8 +1078,8 @@
       if (n.avgProtein != null) push('nutrition', 'protein', 'Avg protein', Math.round(Number(n.avgProtein)) + 'g', n.targetProtein != null ? Math.round(Number(n.targetProtein)) + 'g target' : null);
     }
     if (rec.foodLogs && rec.foodLogs.daysLogged7d != null) push('nutrition', 'logging', 'Days logged', rec.foodLogs.daysLogged7d + '/7');
-    var w = rec.weighIns;
-    if (Array.isArray(w) && w.length >= 2) {
+    var w = sortedWeighIns(rec.weighIns);
+    if (w.length >= 2) {
       var d = Math.round((Number(w[w.length - 1].weight) - Number(w[0].weight)) * 10) / 10;
       if (isFinite(d)) push('body', 'weight', 'Weight', (d <= 0 ? '' : '+') + d + ' ' + (w[0].unit || 'lb'), 'over ' + w.length + ' weigh-ins');
     }
