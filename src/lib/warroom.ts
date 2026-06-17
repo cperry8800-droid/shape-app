@@ -533,6 +533,10 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Migrations applied (notifications, push_tokens, activities)', status: 'manual' },
         { label: 'Auth Site URL + redirect URLs set', status: 'manual' },
         { label: 'Phone (Twilio) login configured', status: 'manual' },
+        { label: 'Leaked-password protection (HaveIBeenPwned) — DEFERRED: requires Supabase Pro (org "Shape" is on Free). After the Pro upgrade: Auth → Passwords → "Prevent use of leaked passwords" (or Management API config/auth password_hibp_enabled:true). Free-tier alternative now: raise minimum password length + required character types', status: 'manual' },
+        { label: 'Supabase Auth rate limits (the real login/signup/OTP brute-force gate) — set in Auth → Rate Limits or Management API PATCH config/auth (rate_limit_otp 60 / verify 100 / email_sent 30 / anonymous_users 5; keep token_refresh ~1800). The app /api/* limiter is already live (check_rate_limit + rate_limits table), but credential endpoints hit Supabase directly and bypass the Next app', status: 'manual' },
+        { label: 'Auth CAPTCHA (Cloudflare Turnstile) — enable in Auth → Settings with the secret. The consultation-form CAPTCHA is already wired (src/lib/turnstile.ts + TURNSTILE_SECRET_KEY env + public window.SHAPE_TURNSTILE_SITEKEY in supabase.js); login/signup client wiring is a follow-up once the Turnstile widget + key exist', status: 'manual' },
+        { label: 'Secret scan (gitleaks) → make it a REQUIRED check on main (Settings → Branches). Runs on every PR/push now via ci.yml + .gitleaks.toml (verified 0 leaks); advisory until added to branch protection', status: 'manual' },
       ],
     },
     {
