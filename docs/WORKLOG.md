@@ -166,10 +166,13 @@ changelog whenever something ships.
 - **CodeRabbit review pass (commit `54ff99b`, this session)** — addressed the
   full review on the open PR before merge (verified each against the code, fixed
   every valid finding, skipped 3 verified false-positives):
-  - **Critical** — `coach-write-scope.sql`: assignment keys (`client_id`,
-    provider id) made **immutable on UPDATE** via triggers (the owner-only UPDATE
-    `with check` let a coach reassign a row to an un-coached client, bypassing the
-    on-client INSERT guard). `apply/route.ts`: nutrition attestations enforced
+  - **Critical** — assignment keys (`client_id`, provider id) are **immutable on
+    UPDATE** so a coach can't reassign a row to an un-coached client (which would
+    bypass the on-client INSERT guard). This is enforced by the `freeze_*_keys`
+    triggers the PR already shipped in `2026-06-17-coach-write-scope-update-guard.sql`
+    — I'd briefly added duplicate triggers to `coach-write-scope.sql` before
+    spotting the companion migration; those were removed (DB only ever got the
+    `freeze_*_keys` set). `apply/route.ts`: nutrition attestations enforced
     **server-side** (`attestationsComplete`), not just in the signup UI.
   - **Major** — `draft-message` builds its AI grounding record **server-side**
     from `get_client_stats` (never caller input — also fixes a client stats
@@ -195,11 +198,18 @@ changelog whenever something ships.
   draft-message/sent,notify,notify/cron,proposals,proposals/confirm,speak,
   transcribe}` · `/api/coach/review-note` · `/api/integrations/reconcile`) and
   added the AI-features checklist section.
-- **Migrations — confirm on Supabase** (idempotent, safe to re-run; 6 already
-  applied live):
-  `https://raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-17-coach-write-scope.sql`
-  (now includes the assignment-key immutability triggers),
-  `…/2026-06-17-review-note-delete.sql`, `…/2026-06-17-dietitian-role.sql`.
+- **Migrations — ALL applied to Supabase this session** (idempotent; via the
+  MCP). Verified the AI-features batch live (`ai-audit-log`, `ai-proposal-nonces`,
+  `notification-center`, `nutrition-compliance`, `program-detail-discipline`,
+  `source-reconcile`, `dietitian-role`, `coach-write-scope` + its
+  `…-update-guard` `freeze_*_keys` triggers, `replace-provider-licenses`) and
+  applied the two that were still missing — **`review-note-delete`** (author
+  DELETE policy on `coach_workout_review_notes`) and the **`coach-write-scope`
+  base** (the discipline predicate + split owner/INSERT policies). Security
+  advisors after: **0 ERROR**; remaining WARNs are pre-existing / by-design
+  (gated SECURITY DEFINER RPCs, `function_search_path_mutable` on older funcs,
+  write-only intake policies, public media buckets, leaked-password toggle
+  deferred to Pro).
 - Verified: 225/225 tests · `tsc --noEmit` · `next build` · mobile build +
   `public/m` in sync. CI green on `54ff99b`; CodeRabbit marked every thread
   addressed.
