@@ -4591,7 +4591,9 @@ async function evaluateNotifications(force) {
   try {
     const role = state.profile?.role || 'client';
     let body;
-    if (role === 'trainer' || role === 'nutritionist') {
+    // Coach roles send their client roster; dietitian rides the nutrition rails
+    // (matches the server's isCoachRole, so /api/ai/notify takes the coach branch).
+    if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') {
       const clients = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords() : null;
       if (!Array.isArray(clients) || !clients.length) return null; // honest: nothing to evaluate
       body = { clients };

@@ -12313,7 +12313,7 @@ const _NP_CAPS = [2, 3, 4, 6, 8];
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
-  const isCoach = role === 'trainer' || role === 'nutritionist';
+  const isCoach = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
   const [settings, setSettings] = useStateBSC(null);
   const [matrix, setMatrix] = useStateBSC({});
   React.useEffect(() => {

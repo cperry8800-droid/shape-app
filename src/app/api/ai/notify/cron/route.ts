@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { isCoachRole } from '@/lib/roles.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,7 +58,7 @@ async function run(request: Request) {
     if (prefs.muted) continue;                          // honor master mute
     const last = await readUserGoal(admin, userId, 'notify_state');
     const now = new Date();
-    const isCoach = snapshot.role === 'trainer' || snapshot.role === 'nutritionist';
+    const isCoach = isCoachRole(snapshot.role);  // trainer | nutritionist | dietitian
     const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
 
     const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext });
