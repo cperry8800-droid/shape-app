@@ -10085,6 +10085,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
+  // Nora's voice (off by default) + tone toggle. Lives in localStorage via
+  // window.ShapeVoice; the thread mirrors it so toggles re-render immediately.
+  const [voicePrefs, setVoicePrefs] = useStateBSC(() => (window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive' }));
+  const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
+  const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
+  const speakReply = (text) => { try { window.ShapeVoice && window.ShapeVoice.speak(text); } catch (e) {} };
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
@@ -10100,6 +10106,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
+      if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply); // off by default
+
     } catch (e) {
       setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
     } finally { setSupportBusy(false); }
@@ -11258,7 +11266,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
-                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
+                    {/* Nora's voice — off by default, fully usable without it. */}
+                    <button onClick={() => setVoiceEnabled(!voicePrefs.enabled)} title="Speak Nora's replies" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 999, border: `1px solid ${voicePrefs.enabled ? '#2e6fa0' : hair}`, background: voicePrefs.enabled ? '#2e6fa01f' : 'transparent', color: voicePrefs.enabled ? '#2e6fa0' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                      {voicePrefs.enabled ? '🔊' : '🔇'} Voice {voicePrefs.enabled ? 'on' : 'off'}
+                    </button>
+                    <div style={{ display: 'inline-flex', borderRadius: 999, border: `1px solid ${hair}`, overflow: 'hidden' }}>
+                      {['supportive', 'direct'].map(tn => (
+                        <button key={tn} onClick={() => setVoiceTone(tn)} title={tn === 'supportive' ? 'Warm and encouraging' : 'Concise and factual'} style={{ padding: '5px 10px', border: 0, background: voicePrefs.tone === tn ? '#2e6fa0' : 'transparent', color: voicePrefs.tone === tn ? '#fff' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tn}</button>
+                      ))}
+                    </div>
+                  </div>
                   {supportMsgs.map((m, i) => (
                     m.me ? (
                       <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
@@ -11272,6 +11291,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                         <div style={{ minWidth: 0 }}>
                           <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Concierge" : ''}</div>
                           <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                          {m.bot && (
+                            <button onClick={() => speakReply(m.t)} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 5, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>🔊 Listen</button>
+                          )}
                           {Array.isArray(m.actions) && m.actions.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
                               {m.actions.map((a, ai) => (

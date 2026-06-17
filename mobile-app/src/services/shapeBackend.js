@@ -2747,14 +2747,14 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 
 // Ask the in-app support assistant. Works signed-out (server returns a
 // rule-based reply); signed-in users get the AI assistant.
-async function askSupportBot(messages) {
+async function askSupportBot(messages, tone) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [] }),
+    body: JSON.stringify({ messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' }),
   });
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || 'Support is unavailable right now.');
@@ -4331,6 +4331,74 @@ window.ShapeIntegrations = {
 
 window.ShapeSupport = {
   ask: askSupportBot,
+};
+
+// ─── Nora's voice (server-side TTS) + tone toggle ────────────────────────────
+// Off by default; fully usable without audio. `tone` (supportive | direct) also
+// rides along with Nora's text replies so the framing matches what's spoken.
+// speak() prefers the server route (consistent voice + tone→voice mapping) and
+// falls back to on-device speech (Web Speech API) when the route is unavailable.
+const VOICE_KEY = 'shape.voice';
+function readVoicePrefs() {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(VOICE_KEY) || '{}');
+    return { enabled: raw.enabled === true, tone: raw.tone === 'direct' ? 'direct' : 'supportive' };
+  } catch (e) { return { enabled: false, tone: 'supportive' }; }
+}
+function writeVoicePrefs(p) {
+  try { window.localStorage.setItem(VOICE_KEY, JSON.stringify(p)); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:voice', { detail: p })); } catch (e) {}
+}
+let _voiceAudio = null;
+function stopVoice() {
+  try { if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; } } catch (e) {}
+  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+}
+function speakOnDevice(text, tone) {
+  try {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text || ''));
+    u.rate = tone === 'direct' ? 1.05 : 0.98; // direct = a touch crisper
+    window.speechSynthesis.speak(u);
+    return true;
+  } catch (e) { return false; }
+}
+async function speakVoice(text, toneOverride) {
+  const clean = String(text || '').trim();
+  if (!clean) return { ok: false };
+  const tone = toneOverride || readVoicePrefs().tone;
+  stopVoice();
+  // Prefer the server route (better voice + the tone→voice mapping).
+  if (apiBaseUrl && state.session?.access_token) {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+        body: JSON.stringify({ text: clean.slice(0, 2000), tone }),
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        _voiceAudio = audio;
+        audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+        await audio.play();
+        return { ok: true, source: 'server' };
+      }
+      // 503/unavailable → fall through to on-device speech.
+    } catch (e) { /* network → fall back */ }
+  }
+  return { ok: speakOnDevice(clean, tone), source: 'device' };
+}
+window.ShapeVoice = {
+  get: readVoicePrefs,
+  enabled() { return readVoicePrefs().enabled; },
+  tone() { return readVoicePrefs().tone; },
+  setEnabled(b) { const p = readVoicePrefs(); p.enabled = b === true; writeVoicePrefs(p); if (!p.enabled) stopVoice(); return p; },
+  setTone(t) { const p = readVoicePrefs(); p.tone = t === 'direct' ? 'direct' : 'supportive'; writeVoicePrefs(p); return p; },
+  speak: speakVoice,
+  stop: stopVoice,
 };
 
 // ─── Coach Console feed (banner + pushed items the coach sent to this client) ───

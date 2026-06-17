@@ -11,8 +11,10 @@
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
+const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
 const DEFAULT_MODEL = 'gpt-5.4-mini';
 const DEFAULT_TRANSCRIBE_MODEL = 'whisper-1';
+const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 export function aiModel(): string {
@@ -184,6 +186,75 @@ export async function transcribeAudio(
     const data = (await res.json()) as { text?: string };
     logAI({ promptId, ok: true, latencyMs });
     return { ok: true, text: String(data?.text || '').trim(), latencyMs, promptId };
+  } catch (err) {
+    const latencyMs = Date.now() - started;
+    const reason = (err as Error)?.name === 'AbortError' ? 'timeout' : 'network';
+    logAI({ promptId, ok: false, reason, latencyMs });
+    return { ok: false, reason, latencyMs, promptId };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export type SpeechFormat = 'mp3' | 'opus' | 'aac' | 'wav';
+export type SynthesizeResult =
+  | { ok: true; audio: Buffer; contentType: string; latencyMs: number; promptId: string }
+  | {
+      ok: false;
+      reason: 'no_key' | 'timeout' | 'http_error' | 'network';
+      status?: number;
+      latencyMs: number;
+      promptId: string;
+    };
+
+const SPEECH_CONTENT_TYPE: Record<SpeechFormat, string> = {
+  mp3: 'audio/mpeg',
+  opus: 'audio/ogg',
+  aac: 'audio/aac',
+  wav: 'audio/wav',
+};
+
+/**
+ * Synthesize speech from text with the OpenAI TTS API, same key + timeout +
+ * logging discipline as callAI. The route hands us text VERBATIM (the caller
+ * owns text↔speech parity); we only pick the voice. Returns audio bytes.
+ */
+export async function synthesizeSpeech(
+  text: string,
+  opts: { promptId: string; voice?: string; format?: SpeechFormat; timeoutMs?: number },
+): Promise<SynthesizeResult> {
+  const { promptId } = opts;
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    logAI({ promptId, ok: false, reason: 'no_key' });
+    return { ok: false, reason: 'no_key', latencyMs: 0, promptId };
+  }
+  const format: SpeechFormat = opts.format || 'mp3';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const started = Date.now();
+  try {
+    const res = await fetch(OPENAI_SPEECH_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.OPENAI_TTS_MODEL || DEFAULT_TTS_MODEL,
+        voice: opts.voice || 'shimmer',
+        input: text,
+        response_format: format,
+      }),
+      signal: controller.signal,
+    });
+    const latencyMs = Date.now() - started;
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      logAI({ promptId, ok: false, reason: 'http_error', status: res.status, latencyMs });
+      console.warn(`[shape-ai] ${promptId} tts ${res.status}:`, detail.slice(0, 300));
+      return { ok: false, reason: 'http_error', status: res.status, latencyMs, promptId };
+    }
+    const audio = Buffer.from(await res.arrayBuffer());
+    logAI({ promptId, ok: true, latencyMs });
+    return { ok: true, audio, contentType: SPEECH_CONTENT_TYPE[format], latencyMs, promptId };
   } catch (err) {
     const latencyMs = Date.now() - started;
     const reason = (err as Error)?.name === 'AbortError' ? 'timeout' : 'network';

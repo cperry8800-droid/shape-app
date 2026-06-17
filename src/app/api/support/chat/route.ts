@@ -19,6 +19,7 @@ import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
 import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret } from '@/lib/ai/server';
+import { toneInstruction } from '@/lib/ai/tone.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -339,6 +340,7 @@ async function makePropose(request: Request): Promise<ProposeFn> {
 async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
+  tone?: string,
 ): Promise<{ reply: string; actions: SupportAction[] } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
@@ -346,7 +348,9 @@ async function askOpenAI(
     content: String(m.content || '').slice(0, 2000),
   }));
 
-  let input: unknown[] = [{ role: 'system', content: SYSTEM_PROMPT }, ...recent];
+  // The tone shapes the framing (supportive vs direct) but never the facts.
+  const systemPrompt = `${SYSTEM_PROMPT}\n\n${toneInstruction(tone)}`;
+  let input: unknown[] = [{ role: 'system', content: systemPrompt }, ...recent];
   const actions: SupportAction[] = [];
 
   // Allow up to 2 tool rounds, then take the text.
@@ -408,7 +412,7 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[] }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
@@ -416,7 +420,7 @@ export async function POST(request: Request) {
   if (!lastUser) return NextResponse.json({ error: 'No message provided.' }, { status: 400 });
 
   const propose = await makePropose(request);
-  const ai = await askOpenAI(messages, propose).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
 
   const fb = fallbackReply(String(lastUser.content || ''));
