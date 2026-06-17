@@ -2677,8 +2677,15 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
       }
       if (cid && window.ShapeMessages?.sendMessage) {
         await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: 'checkin', notify: true } });
-        try { await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) }); } catch (e) { /* audit is best-effort */ }
-        window.__bsToast?.(`Sent to ${first}`, 'ok');
+        // The message is now sent. Record the SENT version for the audit trail.
+        // If THIS fails the send still stands (re-sending would double-post), so
+        // surface a soft warning rather than silently dropping the audit.
+        let audited = false;
+        try {
+          const ar = await fetch('/api/ai/draft-message/sent', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: clientUid, sentText: body, draftAuditId: auditId, conversationId: cid }) });
+          audited = !!(ar && ar.ok);
+        } catch (e) { audited = false; }
+        window.__bsToast?.(audited ? `Sent to ${first}` : `Sent to ${first} — couldn't log it`, audited ? 'ok' : 'info');
         setSending(false);
         onClose();
         return;

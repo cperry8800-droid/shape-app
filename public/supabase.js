@@ -61,9 +61,12 @@
 
     // Add an additional role to the logged-in user's profile.
     // Used by the "Become a trainer / nutritionist" flow on existing accounts.
+    // NOTE: 'dietitian' (RD/RDN) is a CREDENTIALED role — it is assigned only by a
+    // reviewer after licensure verification, never self-asserted client-side. It is
+    // deliberately excluded from the self-service allow-list here.
     async addRole(newRole) {
       try {
-        if (['client','trainer','nutritionist','dietitian'].indexOf(newRole) === -1) {
+        if (['client','trainer','nutritionist'].indexOf(newRole) === -1) {
           return { error: { message: 'Invalid role' } };
         }
         var session = await shapeDb.getSession();

@@ -1,10 +1,13 @@
 // AI-draft a coach's check-in / message to a client — grounded in the client's
-// real, current cross-discipline signals from the shared record. Returns an
-// EDITABLE draft + the conversation to send it in; SENDS NOTHING. The coach edits
-// freely and sends via the existing POST /api/conversations/[id]/messages. The
-// draft is logged to ai_audit_log. Coach-only, on their own client.
+// real, current cross-discipline signals. The grounding record is built
+// SERVER-SIDE from the client's coach-readable stats (get_client_stats), NOT from
+// caller input, so a coach can't draft (and audit) a check-in on fabricated
+// numbers. Returns an EDITABLE draft + the conversation to send it in; SENDS
+// NOTHING. The coach edits freely and sends via the existing
+// POST /api/conversations/[id]/messages. The draft is logged to ai_audit_log.
+// Coach-only, on their own client.
 //
-// POST /api/ai/draft-message  { clientId, record, role?, kind? }
+// POST /api/ai/draft-message  { clientId, role?, kind?, clientName? }
 //   → { draft, cited, source, conversationId, draftAuditId, hasTraining, hasNutrition }
 
 import { NextResponse } from 'next/server';
@@ -15,11 +18,40 @@ import { draftCheckin } from '@/lib/ai/draft';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Build the grounding record from the client's REAL stats rollup (get_client_stats),
+// mirroring the client-side bsBuildDraftRecord mapping. Only real values; a missing
+// stat is simply absent (the engine drafts an honest "just checking in" note). The
+// display NAME is the only field allowed from the request (a greeting, not a cited
+// signal), so it can never become fabricated evidence.
+function groundedRecord(stats: Record<string, unknown> | null, name: string): Record<string, unknown> {
+  const rec: Record<string, unknown> = { profile: { name: name || 'your client' } };
+  if (!stats || typeof stats !== 'object') return rec;
+  const n = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const sessionsPlanned = n(stats.sessionsPlanned);
+  if (sessionsPlanned != null) {
+    const done = n(stats.sessionsCompleted) ?? 0;
+    rec.trainingAdherence = { done, planned: sessionsPlanned, pct: sessionsPlanned ? Math.round((done / sessionsPlanned) * 100) : null };
+  }
+  const avgCalories = n(stats.avgCalories);
+  const avgProtein = n(stats.avgProtein);
+  if (avgCalories != null || avgProtein != null) {
+    rec.nutrition = { avgCalories, avgProtein, targetCalories: null, targetProtein: null };
+  }
+  const daysLogged7d = n(stats.daysLogged7d);
+  if (daysLogged7d != null) rec.foodLogs = { daysLogged7d };
+  const weightNow = n(stats.weightNow);
+  const weightStart = n(stats.weightStart);
+  if (weightNow != null && weightStart != null) {
+    rec.weighIns = [{ on: '', weight: weightStart, unit: 'lb' }, { on: '', weight: weightNow, unit: 'lb' }];
+  }
+  return rec;
+}
+
 export async function POST(request: Request) {
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const parsed = await readJson<{ clientId?: string; record?: unknown; role?: string; kind?: string }>(request);
+  const parsed = await readJson<{ clientId?: string; role?: string; kind?: string; clientName?: string; record?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const clientId = parsed.data.clientId;
   if (typeof clientId !== 'string' || !clientId) {
@@ -31,8 +63,15 @@ export async function POST(request: Request) {
   if (scopeErr) return NextResponse.json({ error: 'Unable to verify coach scope right now.' }, { status: 500 });
   if (ok !== true) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
 
-  const record =
-    parsed.data.record && typeof parsed.data.record === 'object' ? (parsed.data.record as Record<string, unknown>) : {};
+  // SERVER-AUTHORITATIVE grounding: fetch the client's real stats ourselves (the
+  // RPC is RLS/scope-gated) and build the evidence record from THAT — never from
+  // caller input. The only thing taken from the request is a display name.
+  const { data: stats } = await actor.supabase.rpc('get_client_stats', { p_user_id: clientId });
+  const reqName =
+    (parsed.data.clientName && typeof parsed.data.clientName === 'string' && parsed.data.clientName) ||
+    ((parsed.data.record as { profile?: { name?: string } } | undefined)?.profile?.name) ||
+    '';
+  const record = groundedRecord((stats as Record<string, unknown> | null) ?? null, String(reqName).slice(0, 80));
   const role = typeof parsed.data.role === 'string' && parsed.data.role ? parsed.data.role : actor.role;
 
   const result = await draftCheckin(record, role, { kind: parsed.data.kind });

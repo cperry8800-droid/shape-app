@@ -197,20 +197,33 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
     return { ok: false, error: 'execute_failed', message: (e && e.message) || 'I could not apply that change.' };
   }
 
-  const auditId = await audit.log({
-    actorUserId: actor.id,
-    actorRole: actor.role,
-    source: plan.source,
-    action: plan.action,
-    target: plan.target,
-    suggestion: plan.suggestion,
-    confirmedPayload: plan.confirmedPayload,
-    beforeState: plan.beforeState,
-    afterState: plan.afterState,
-    reversal: plan.reversal,
-  });
+  // The change is already applied (and its nonce consumed, so it can't re-run).
+  // If the audit write fails, DON'T throw — that would surface as a failure to a
+  // user whose change actually succeeded, and would re-run nothing. Report success
+  // with audited:false instead (no undo handle), and log loudly so the untracked
+  // change is visible server-side.
+  let auditId = null;
+  try {
+    auditId = await audit.log({
+      actorUserId: actor.id,
+      actorRole: actor.role,
+      source: plan.source,
+      action: plan.action,
+      target: plan.target,
+      suggestion: plan.suggestion,
+      confirmedPayload: plan.confirmedPayload,
+      beforeState: plan.beforeState,
+      afterState: plan.afterState,
+      reversal: plan.reversal,
+    });
+  } catch (e) {
+    console.error('[shape-ai] audit.log failed after a successful execute — change applied but untracked:', {
+      action: plan.action, target: plan.target, message: (e && e.message) || String(e),
+    });
+    return { ok: true, auditId: null, audited: false, result };
+  }
 
-  return { ok: true, auditId, result };
+  return { ok: true, auditId, audited: true, result };
 }
 
 /**

@@ -10090,7 +10090,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [voicePrefs, setVoicePrefs] = useStateBSC(() => (window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive' }));
   const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
   const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
-  const speakReply = (text) => { try { window.ShapeVoice && window.ShapeVoice.speak(text); } catch (e) {} };
+  const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
   // Reflect a tone that arrives async (account sync on login, or a change on another surface).
   React.useEffect(() => {
     const h = () => { try { if (window.ShapeVoice) setVoicePrefs(window.ShapeVoice.get()); } catch (e) {} };
@@ -11298,7 +11298,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                           <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#2e6fa0', fontWeight: 700, marginBottom: 3, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? " · Shape's Concierge" : ''}</div>
                           <div style={{ padding: '9px 12px', borderRadius: 14, background: card, color: cardInk, border: `1px solid ${hair}`, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>{m.t}</div>
                           {m.bot && (
-                            <button onClick={() => speakReply(m.t)} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 5, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>🔊 Listen</button>
+                            <button onClick={() => speakReply(m.t, { force: true })} title="Read this aloud" aria-label="Read this aloud" style={{ marginTop: 5, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>🔊 Listen</button>
                           )}
                           {Array.isArray(m.actions) && m.actions.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>

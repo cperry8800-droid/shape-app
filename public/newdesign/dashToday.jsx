@@ -423,6 +423,9 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
   const ok = feed.filter((r) => r.severity === "green" && !r.client.profile.isNew);
   const rows = [...atRisk, ...fresh, ...ok];
   const ink50 = "rgba(242,237,228,0.55)";
+  // A HEX muted ink for DashPill: the pill composes its bg/border by appending hex
+  // suffixes (c + "1c" / "55"), so an rgba() value would produce invalid CSS.
+  const inkMutedPill = "#9b968d";
   // Rows open the shared client drilldown (step 11) when dashRoster.jsx is
   // loaded on the page; the Message button keeps working either way.
   const [openRow, setOpenRow] = React.useState(null);
@@ -476,7 +479,7 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
                 {extra > 0 && <DashPill c={sevColor}>+{extra}</DashPill>}
                 {routedFlags.slice(0, 2).map((f, j) => f.owned
                   ? <DashPill key={"ro" + j} c={sevColor}>{f.label}</DashPill>
-                  : <DashPill key={"ro" + j} c={ink50}>{f.label} {f.routeTo === "nutritionist" ? "→ dietitian" : "→ trainer"}</DashPill>)}
+                  : <DashPill key={"ro" + j} c={inkMutedPill}>{f.label} {f.routeTo === "nutritionist" ? "→ dietitian" : "→ trainer"}</DashPill>)}
                 {isNew && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
                 {r.severity === "green" && !isNew && <DashPill c={DASH_SEV_COLORS.green}>On track</DashPill>}
               </div>

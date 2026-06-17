@@ -621,7 +621,12 @@ function ChatWidget(props) {
       recRef.current = mr;
       setVoiceErr(null); setVoiceState("listening");
       mr.start();
-    } catch (e) { setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead."); }
+    } catch (e) {
+      // MediaRecorder construction/start failed AFTER getUserMedia granted —
+      // release the mic so capture doesn't stay live in the background.
+      try { stream.getTracks().forEach((tr) => tr.stop()); } catch (e2) {}
+      setVoiceState("idle"); setVoiceErr("Voice unavailable — type instead.");
+    }
   };
 
   const toggleVoice = () => {

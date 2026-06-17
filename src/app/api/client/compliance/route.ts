@@ -64,7 +64,10 @@ export async function POST(request: Request) {
     .upsert(patch, { onConflict: 'user_id' })
     .select('us_state, cross_discipline_consent')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[shape] client_compliance upsert failed:', error.message);
+    return NextResponse.json({ error: 'Could not save your compliance profile.' }, { status: 500 });
+  }
 
   // Audit the consent / state change (best-effort; service role so the subject
   // is the actor here, which the RLS read policy allows them to see).

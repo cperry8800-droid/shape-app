@@ -44,12 +44,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'This session has no coach to review it.' }, { status: 403 });
   }
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data: owned } = await supabase
+  const { data: owned, error: ownedErr } = await supabase
     .from(table)
     .select('id')
     .eq('id', providerId)
     .eq('owner_id', user.id)
     .maybeSingle();
+  // A DB error here is a server problem, NOT "you're not the coach" — don't let
+  // it masquerade as a 403 (which would mislead a legitimate coach).
+  if (ownedErr) {
+    console.error('[shape] review-note ownership check failed:', ownedErr.message);
+    return NextResponse.json({ error: 'Could not verify coach access right now.' }, { status: 500 });
+  }
   if (!owned) {
     return NextResponse.json({ error: 'You are not the coach on this session.' }, { status: 403 });
   }

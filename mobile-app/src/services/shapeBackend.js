@@ -52,6 +52,15 @@ function normalizeRole(role) {
   return ['client', 'trainer', 'nutritionist', 'dietitian'].includes(role) ? role : 'client';
 }
 
+// A dietitian (RD/RDN) is a CREDENTIAL on the NUTRITIONIST provider rails — the
+// provider row, provider_role, roster/booking/availability endpoints, and console
+// are all keyed by the physical discipline ('trainer' | 'nutritionist'). Map a
+// dietitian onto 'nutritionist' anywhere we pick a discipline so they never fall
+// through to the trainer path (or get rejected).
+function providerDiscipline(role) {
+  return role === 'dietitian' ? 'nutritionist' : role;
+}
+
 function normalizeRoles(roles, fallbackRole = 'client') {
   const input = Array.isArray(roles) ? roles : [fallbackRole];
   const normalized = input
@@ -3138,7 +3147,8 @@ window.ShapePlan = { get: getPlan };
 // client_meal_plans (POST /api/nutritionist/meal-plan). The roster is the
 // coach's real linked clients (subscriptions + sessions); uuid-backed only.
 async function listAssignableClients(role) {
-  const path = role === 'nutritionist' ? '/api/nutritionist/clients' : '/api/trainer/clients';
+  // dietitian → the nutritionist roster endpoint (not the trainer default).
+  const path = providerDiscipline(role) === 'nutritionist' ? '/api/nutritionist/clients' : '/api/trainer/clients';
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}${path}`, null);
   const list = Array.isArray(d?.clients) ? d.clients : [];
   return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0 }));
@@ -3287,7 +3297,13 @@ async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail 
       const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
       if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
     } catch (e) { /* first write — no existing row */ }
-    payload.detail = { ...existing, ...detail };
+    // A SELF write must never set `detail.directive`: that field is the coach's
+    // override (written only by the server /api/ai/directive/override route) and
+    // the engine honors it as an authoritative coach directive. Strip it from
+    // client-supplied input so a client can't forge a coach directive for
+    // themselves; the stored coach value (existing.directive) is preserved here.
+    const { directive: _coachOnly, ...selfDetail } = detail;
+    payload.detail = { ...existing, ...selfDetail };
   }
   const { data, error } = await supabase
     .from('client_programs')
@@ -4403,10 +4419,14 @@ function speakOnDevice(text, tone) {
     return true;
   } catch (e) { return false; }
 }
-async function speakVoice(text, toneOverride) {
+async function speakVoice(text, toneOverride, opts = {}) {
   const clean = String(text || '').trim();
   if (!clean) return { ok: false };
   const prefs = readVoicePrefs();
+  // Honor the voice opt-out: when auto-speak is OFF, a stray speak() call must NOT
+  // read coaching content aloud. An explicit "Listen" tap passes { force:true } —
+  // that's a deliberate one-off the toggle shouldn't block.
+  if (!opts.force && !prefs.enabled) return { ok: false, disabled: true };
   const tone = toneOverride || prefs.tone;
   stopVoice();
   // Prefer the server route (better voice + the tone→voice mapping).
@@ -4539,15 +4559,18 @@ async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
   scheduleLocalHabit(row);
   return row;
 }
+// habit_id is the global PK (→ user_habits.id), so it identifies one user's row;
+// we still scope writes by user_id (matching the reads + RLS) so a mismatched id
+// can never touch another account's reminder.
 async function removeHabitReminder(habitId) {
   if (!supabase || !state.user?.id || !habitId) return;
-  try { await supabase.from('habit_reminders').delete().eq('habit_id', habitId); } catch (e) {}
+  try { await supabase.from('habit_reminders').delete().eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
   cancelLocalHabit(habitId);
 }
 async function snoozeHabitReminder(habitId, minutes) {
   if (!supabase || !state.user?.id || !habitId) return;
   const until = new Date(Date.now() + (minutes || 60) * 60000).toISOString();
-  try { await supabase.from('habit_reminders').update({ snooze_until: until }).eq('habit_id', habitId); } catch (e) {}
+  try { await supabase.from('habit_reminders').update({ snooze_until: until }).eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
 }
 window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
 
@@ -4580,13 +4603,12 @@ window.ShapeReconcile = { get: reconcileGet, set: reconcileSet };
 
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;
-  // Throttle: the layer dedups anyway, but don't hammer the endpoint.
+  // Throttle (the server layer dedups too, but don't hammer the endpoint).
   try {
     if (!force) {
       const last = Number(window.localStorage.getItem('shape.notify.last') || 0);
       if (Date.now() - last < 30 * 60_000) return null;
     }
-    window.localStorage.setItem('shape.notify.last', String(Date.now()));
   } catch (e) {}
   try {
     const role = state.profile?.role || 'client';
@@ -4594,7 +4616,9 @@ async function evaluateNotifications(force) {
     // Coach roles send their client roster; dietitian rides the nutrition rails
     // (matches the server's isCoachRole, so /api/ai/notify takes the coach branch).
     if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') {
-      const clients = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords() : null;
+      // Pass the discipline so a nutritionist/dietitian evaluates the NUTRITION
+      // roster — not the trainer default coachRecords() would otherwise use.
+      const clients = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords(providerDiscipline(role)) : null;
       if (!Array.isArray(clients) || !clients.length) return null; // honest: nothing to evaluate
       body = { clients };
     } else {
@@ -4602,6 +4626,9 @@ async function evaluateNotifications(force) {
       if (!record) return null;
       body = { record };
     }
+    // Stamp the throttle only now that a real payload exists — a not-ready
+    // ShapeSignals or an empty roster must NOT suppress the next 30 minutes.
+    try { window.localStorage.setItem('shape.notify.last', String(Date.now())); } catch (e) {}
     const res = await fetch(`${apiBaseUrl}/api/ai/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },

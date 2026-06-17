@@ -14,7 +14,10 @@ export async function GET(request: Request) {
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const limitParam = Number(new URL(request.url).searchParams.get('limit'));
+  // A MISSING ?limit must fall back to 50 — but Number(null) is 0 (finite), so
+  // guard the null/empty case before coercing, else the clamp would yield 1.
+  const limitRaw = new URL(request.url).searchParams.get('limit');
+  const limitParam = limitRaw == null || limitRaw === '' ? NaN : Number(limitRaw);
   const limit = Math.min(Math.max(Number.isFinite(limitParam) ? limitParam : 50, 1), 100);
 
   const { data, error } = await actor.supabase

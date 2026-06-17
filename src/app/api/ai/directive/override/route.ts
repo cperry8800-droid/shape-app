@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor, auditSink } from '@/lib/ai/server';
-import { engineDirective, writeOverride, sanitizeOverride, invalidateDirectiveCache } from '@/lib/ai/directive';
+import { writeOverride, sanitizeOverride, invalidateDirectiveCache } from '@/lib/ai/directive';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,9 +31,6 @@ export async function POST(request: Request) {
   if (ok !== true) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
 
   const override = parsed.data.override == null ? null : sanitizeOverride(parsed.data.override, actor.user.id);
-  const baseRecord =
-    parsed.data.record && typeof parsed.data.record === 'object' ? (parsed.data.record as Record<string, unknown>) : {};
-  const suggestion = engineDirective(baseRecord); // the engine directive the coach is replacing
 
   const { before, after } = await writeOverride(actor.supabase, clientId, actor.user.id, override);
 
@@ -45,7 +42,12 @@ export async function POST(request: Request) {
       source: 'engine',
       action: override ? 'directive_override' : 'directive_override_clear',
       target: { userId: clientId, kind: 'directive', id: null },
-      suggestion,
+      // The audited record is the authoritative override + before/after the server
+      // wrote. We deliberately do NOT store a client-supplied "engine baseline" as
+      // the suggestion — that would let the caller fabricate audit context. The
+      // true engine directive is reconstructable from the client's record server-
+      // side if ever needed; it's not part of this write's integrity.
+      suggestion: null,
       confirmedPayload: override,
       beforeState: before,
       afterState: after,

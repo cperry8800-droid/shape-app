@@ -48,5 +48,7 @@ export async function POST(request: Request) {
         : 400;
     return NextResponse.json({ error: res.error, message: (res as { message?: string }).message }, { status });
   }
-  return NextResponse.json({ ok: true, auditId: res.auditId, result: res.result });
+  // audited:false means the change applied but the audit row couldn't be written
+  // (no undo handle) — the UI uses this to suppress the Undo affordance.
+  return NextResponse.json({ ok: true, auditId: res.auditId, audited: (res as { audited?: boolean }).audited !== false, result: res.result });
 }
