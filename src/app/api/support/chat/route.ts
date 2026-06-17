@@ -56,7 +56,7 @@ const SYSTEM_PROMPT = [
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns.',
   '',
-  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers), assign_meal_plan (nutritionists). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
+  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers), assign_meal_plan (nutritionists), set_program_detail (program phase/note — a trainer's training block or a nutritionist's nutrition phase). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
   '',
   'OTHER FIRST-LINE HELP: account & login, billing/subscription ($5/mo platform membership; coaches set their own coaching prices), connecting integrations (Spotify, Strava, Whoop, Oura, Garmin, Apple Health, Instacart), and using the Train/Eat/Habits/Score/Radio tabs, channels & chat.',
   'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you have flagged it for the Shape team and they will follow up here. Do not promise specific timelines.',
@@ -171,11 +171,29 @@ const TOOLS = [
     },
     strict: false,
   },
+  {
+    type: 'function',
+    name: 'set_program_detail',
+    description:
+      "Set a client's program phase and/or a coach note for the CALLER's own discipline (a trainer sets the training block; a nutritionist sets the nutrition phase). Use when a coach says e.g. 'move Priya to a peak block' or 'put Sam on a deload'. Always pass clientName; pass clientId only if known; pass phase (e.g. 'Peak', 'Deload', 'Cut') and/or a note. The server only lets a coach change their OWN discipline for a client they actively coach. DRAFTS the change for the coach to confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string', description: "The client's name as the coach referred to them." },
+        clientId: { type: 'string', description: "The client's user id, if known from context." },
+        phase: { type: 'string', description: "The program phase, e.g. 'Peak', 'Deload', 'Cut', 'Build'." },
+        note: { type: 'string', description: 'An optional note to the client about the change.' },
+      },
+      required: ['clientName'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
 
 // The write tools that DRAFT a confirm-required change (vs. read tools that
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
-const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan']);
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan', 'set_program_detail']);
 
 function coachLine(c: Coach): string {
   return `${c.name} — ${c.role}, ${c.city}. ${c.specialties.join(', ')}. ${c.cert}, ${c.years}y, ${c.format}. $${c.rate}/session, ★${c.rating}.`;

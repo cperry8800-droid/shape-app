@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createRegistry, proposeChange, confirmChange, undoChange, inMemoryAudit } = require('../src/lib/ai/proposals.mjs');
-const { logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction } = require('../src/lib/ai/actions.mjs');
+const { logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction } = require('../src/lib/ai/actions.mjs');
 
 const SECRET = 'test-secret';
 
@@ -138,7 +138,7 @@ test('nothing to log is refused with a clear ask', async () => {
 // ── coach assign tools (write-scope hardening) ──────────────────────────────
 // A richer Supabase stub: rpc('is_coach_on_client'), provider-row lookup, the
 // current published meal plan, and awaitable update chains (records patch+filters).
-function richSupabase2({ coachMap = {}, providerId = 7, prevPlan = null } = {}) {
+function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, prevPlan = null, program = null } = {}) {
   const calls = { updates: [], rpc: [] };
   return {
     from(table) {
@@ -149,6 +149,7 @@ function richSupabase2({ coachMap = {}, providerId = 7, prevPlan = null } = {}) 
         maybeSingle: async () => {
           if (table === 'trainers' || table === 'nutritionists') return { data: providerId == null ? null : { id: providerId } };
           if (table === 'client_meal_plans') return { data: prevPlan };
+          if (table === 'client_programs') return { data: program };
           return { data: null };
         },
         update(patch) {
@@ -159,7 +160,13 @@ function richSupabase2({ coachMap = {}, providerId = 7, prevPlan = null } = {}) 
       };
       return chain;
     },
-    rpc: async (name, args) => { calls.rpc.push({ name, args }); return { data: name === 'is_coach_on_client' ? coachMap[args.p_client_id] === true : null }; },
+    rpc: async (name, args) => {
+      calls.rpc.push({ name, args });
+      if (name === 'is_coach_on_client') return { data: coachMap[args.p_client_id] === true };
+      if (name === 'is_discipline_coach_on_client') return { data: (discCoachMap[args.p_client_id] || {})[args.p_discipline] === true };
+      if (name === 'set_program_detail') return { data: { trainingPhase: args.p_discipline === 'training' ? args.p_phase : (program && program.training_phase) || null, nutritionPhase: args.p_discipline === 'nutrition' ? args.p_phase : (program && program.nutrition_phase) || null, detail: {} } };
+      return { data: null };
+    },
     _calls: calls,
   };
 }
@@ -274,4 +281,67 @@ test('assign_meal_plan: refuses to INVENT meals — empty days asks instead of a
   assert.equal(r.ok, false);
   assert.match(r.message, /won't invent the meals/);
   assert.equal(ctx._calls.length, 0);
+});
+
+// ── set_program_detail: discipline-scoped program phase/note ─────────────────
+test('set_program_detail: a trainer sets the TRAINING block → RPC → audit → undo', async () => {
+  const registry = registryWith(setProgramDetailAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({
+    coachMap: { 'client-9': true }, discCoachMap: { 'client-9': { trainer: true } },
+    program: { training_phase: 'Build', nutrition_phase: 'Maintain', detail: { training: { note: 'old' }, nutrition: { calories: 2200 } } },
+  });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: {} }));
+
+  const p = await proposeChange({ registry, action: 'set_program_detail', input: { clientId: 'client-9', clientName: 'Priya', phase: 'Peak' }, actor, ctx, secret: SECRET });
+  assert.equal(p.ok, true);
+  assert.match(p.preview.summary, /Move Priya to the Peak training block/);
+  const cell = p.preview.diff.find((d) => d.field === 'phase');
+  assert.equal(cell.before, 'Build');
+  assert.equal(cell.after, 'Peak');
+
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, true);
+  const rpc = supabase._calls.rpc.find((x) => x.name === 'set_program_detail');
+  assert.equal(rpc.args.p_discipline, 'training');   // derived from the trainer role
+  assert.equal(rpc.args.p_phase, 'Peak');
+  assert.equal(audit._rows[0].action, 'set_program_detail');
+
+  // undo: restores the prior training_phase + section, leaving nutrition alone.
+  await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
+  const u = supabase._calls.updates[0];
+  assert.equal(u.table, 'client_programs');
+  assert.equal(u.patch.training_phase, 'Build');
+  assert.deepEqual(u.patch.detail.training, { note: 'old' });
+  assert.deepEqual(u.patch.detail.nutrition, { calories: 2200 }); // untouched
+  assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('set_program_detail: a nutritionist is refused on the TRAINING side — they only get nutrition', async () => {
+  // role-derived discipline = nutrition; this client has no nutrition link → refused.
+  const registry = registryWith(setProgramDetailAction);
+  const actor = { id: 'nutri-1', role: 'nutritionist' };
+  const supabase = richSupabase2({ coachMap: { 'client-9': true }, discCoachMap: { 'client-9': { trainer: true /* not nutritionist */ } } });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: {} }));
+  const r = await proposeChange({ registry, action: 'set_program_detail', input: { clientId: 'client-9', phase: 'Cut' }, actor, ctx, secret: SECRET });
+  assert.equal(r.ok, false);
+  assert.equal(r.error, 'preview_failed');
+  assert.match(r.message, /not the active nutritionist on this client/);
+});
+
+test('set_program_detail: nothing to change asks instead of acting', async () => {
+  const registry = registryWith(setProgramDetailAction);
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({ coachMap: { 'client-9': true }, discCoachMap: { 'client-9': { trainer: true } } });
+  const ctx = ctxFor(actor, supabase, () => ({ ok: true, status: 200, data: {} }));
+  const r = await proposeChange({ registry, action: 'set_program_detail', input: { clientId: 'client-9' }, actor, ctx, secret: SECRET });
+  assert.equal(r.ok, false);
+  assert.match(r.message, /phase, or a note/);
+});
+
+test('set_program_detail: a client cannot propose it (role gate)', async () => {
+  const r = await proposeChange({ registry: registryWith(setProgramDetailAction), action: 'set_program_detail', input: { clientId: 'x', phase: 'Peak' }, actor: { id: 'c', role: 'client' }, ctx: {}, secret: SECRET });
+  assert.equal(r.ok, false);
+  assert.equal(r.error, 'role_not_allowed');
 });

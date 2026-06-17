@@ -252,6 +252,74 @@ export const assignMealPlanAction = {
   },
 };
 
+// set_program_detail → set_program_detail RPC (the discipline-split writer). The
+// coach's OWN discipline is derived from their role (a trainer can only touch
+// training, a nutritionist only nutrition); the RPC + the client_programs trigger
+// enforce it server-side. Sets the program phase and/or a coach note for the
+// section. Undo restores the prior phase + section (direct update; the trigger
+// still gates it to the coach's discipline).
+export const setProgramDetailAction = {
+  name: 'set_program_detail',
+  roles: ['trainer', 'nutritionist'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    await requireOnClient(ctx, input.clientId); // also asks if no client
+    var discipline = ctx.actor.role === 'trainer' ? 'training' : 'nutrition';
+    var role = ctx.actor.role === 'trainer' ? 'trainer' : 'nutritionist';
+    // Authoritative front check: the discipline-scoped coach link (RPC backstops).
+    var ok = await ctx.supabase.rpc('is_discipline_coach_on_client', { p_client_id: input.clientId, p_discipline: role });
+    if (!(ok && ok.data === true)) {
+      throw new Error("You're not the active " + role + " on this client, so I can't change their " + discipline + ' program.');
+    }
+    var phase = input.phase ? String(input.phase).slice(0, 60) : null;
+    var note = input.note ? String(input.note).slice(0, 1000) : null;
+    if (!phase && !note) throw new Error('What should I change — the program phase, or a note to the client?');
+
+    var cur = await ctx.supabase.from('client_programs')
+      .select('training_phase, nutrition_phase, detail').eq('user_id', input.clientId).maybeSingle();
+    var row = (cur && cur.data) || {};
+    var prevPhase = discipline === 'training' ? (row.training_phase || null) : (row.nutrition_phase || null);
+    var prevSection = (row.detail && typeof row.detail === 'object' && row.detail[discipline]) ? row.detail[discipline] : null;
+
+    var section = note ? { note: note, updatedAt: new Date().toISOString() } : null;
+    var who = input.clientName ? String(input.clientName) : 'this client';
+    var label = discipline === 'training' ? 'Training block' : 'Nutrition phase';
+    var summary = phase
+      ? (discipline === 'training' ? 'Move ' + who + ' to the ' + phase + ' training block' : "Set " + who + "'s nutrition phase to " + phase)
+      : 'Update ' + who + "'s " + discipline + ' note';
+    var diff = [];
+    if (phase) diff.push({ label: label, field: 'phase', before: prevPhase || '—', after: phase });
+    if (note) diff.push({ label: 'Note', field: 'note', before: (prevSection && prevSection.note) || '—', after: note });
+
+    return {
+      summary: summary, diff: diff,
+      target: { userId: input.clientId, kind: 'program', id: discipline },
+      beforeState: { clientId: input.clientId, discipline: discipline, prevPhase: prevPhase, prevSection: prevSection },
+      afterState: { phase: phase },
+      confirmedPayload: { p_client_id: input.clientId, p_discipline: discipline, p_phase: phase, p_detail: section },
+    };
+  },
+  async execute(ctx, plan) {
+    var r = await ctx.supabase.rpc('set_program_detail', plan.confirmedPayload);
+    if (r && r.error) throw new Error(r.error.message || 'Could not update the program.');
+    return r ? r.data : null;
+  },
+  async undo(ctx, plan) {
+    var b = plan.beforeState || {};
+    var col = b.discipline === 'training' ? 'training_phase' : 'nutrition_phase';
+    // Splice the discipline's section back to what it was, leaving the other
+    // discipline's CURRENT value untouched. The trigger still requires the
+    // coach's own discipline for this change (they have it).
+    var cur = await ctx.supabase.from('client_programs').select('detail').eq('user_id', b.clientId).maybeSingle();
+    var detail = (cur && cur.data && cur.data.detail && typeof cur.data.detail === 'object') ? { ...cur.data.detail } : {};
+    if (b.prevSection == null) delete detail[b.discipline]; else detail[b.discipline] = b.prevSection;
+    var patch = { detail: detail };
+    patch[col] = b.prevPhase;
+    await ctx.supabase.from('client_programs').update(patch).eq('user_id', b.clientId);
+  },
+};
+
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.)
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction];

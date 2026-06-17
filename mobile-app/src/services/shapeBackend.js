@@ -3247,11 +3247,37 @@ async function getClientProgram(userId) {
 async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail } = {}) {
   if (!supabase || !state.user?.id) return null;
   const uid = userId || state.user.id;
+
+  // Self-edit: the client may set their own row directly (self RLS). A COACH
+  // setting a client's program goes through set_program_detail, which enforces
+  // discipline server-side (a trainer can only touch training, a nutritionist
+  // only nutrition) and merges over what's stored. Per-discipline so neither
+  // coach can clobber the other's section.
+  if (uid !== state.user.id) {
+    let result = null;
+    const sections = [
+      { d: 'training', phase: trainingPhase, body: detail?.training },
+      { d: 'nutrition', phase: nutritionPhase, body: detail?.nutrition },
+    ];
+    for (const s of sections) {
+      if (s.phase == null && s.body == null) continue;
+      const { data, error } = await supabase.rpc('set_program_detail', {
+        p_client_id: uid,
+        p_discipline: s.d,
+        p_phase: s.phase ?? null,
+        p_detail: s.body ?? null,
+      });
+      if (error) throw error;
+      result = data || result;
+    }
+    if (!result) return getClientProgram(uid);
+    return { trainingPhase: result.trainingPhase, nutritionPhase: result.nutritionPhase, detail: result.detail || {} };
+  }
+
   const payload = { user_id: uid, updated_by: state.user.id, updated_at: new Date().toISOString() };
   if (trainingPhase != null) payload.training_phase = trainingPhase;
   if (nutritionPhase != null) payload.nutrition_phase = nutritionPhase;
-  // Merge the incoming detail sections (training / nutrition) over what's stored
-  // so a trainer's adjustment never clobbers a nutritionist's, and vice-versa.
+  // Merge the incoming detail sections (training / nutrition) over what's stored.
   if (detail && typeof detail === 'object') {
     let existing = {};
     try {
