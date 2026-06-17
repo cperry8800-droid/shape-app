@@ -138,6 +138,72 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-17 — AI features shipped (#1326) + CodeRabbit review pass
+- **#1326 merged to `main`** (squash `d341198`) — the accumulated **AI-features**
+  work, all server-side, human-in-the-loop on every write, RLS/endpoint
+  authoritative, audited + reversible:
+  - **Nora takes actions (AI1–AI6)** — preview→confirm→`ai_audit_log`→undo; 7 tools
+    (Tier 1 `log_meal`; Tier 2 `set_client_goal` / `assign_workout` /
+    `assign_meal_plan` / `set_program_detail` / `add_review_note` /
+    `reschedule_session`). Coach writes gated by `is_coach_on_client` /
+    `is_discipline_coach_on_client` at the **endpoint + RLS**. Single-use signed
+    tokens (nonce reserved before execute, released on failure). Confirm card in
+    both chat UIs (web `CwProposalCard` + mobile `BSNoraProposal`).
+  - **Proactive notifications (AI8/AI9)** — fire only on real engine events;
+    per-type×per-channel preference center, quiet hours, daily cap, dedupe,
+    never-shaming copy + sanitize guard; per-habit reminders.
+  - **AI directive engine + coach triage routing** (one lead per page,
+    discipline-routed); coach directive override (audited, reversible).
+  - **Nora voice** — server STT (`/api/ai/transcribe`) + server TTS
+    (`/api/ai/speak`, verbatim + `X-Spoken-Text` parity); tone/voice synced.
+  - **Source reconciliation (INT2)** — per-source observations, authoritative
+    source per metric (override else device rank, never blended).
+  - **Dietitian (RD/RDN)** as a first-class nutrition-discipline provider (rides
+    the nutritionist rails) + self-serve signup; **NC1 nutrition compliance**
+    (credential capture, licensure↔client-state match, scope gating, consent +
+    audit, attestations). **Hard enforcement (`NUTRITION_COMPLIANCE_ENFORCE`)
+    needs healthcare-regulatory counsel sign-off** — engineering controls only.
+- **CodeRabbit review pass (commit `54ff99b`, this session)** — addressed the
+  full review on the open PR before merge (verified each against the code, fixed
+  every valid finding, skipped 3 verified false-positives):
+  - **Critical** — `coach-write-scope.sql`: assignment keys (`client_id`,
+    provider id) made **immutable on UPDATE** via triggers (the owner-only UPDATE
+    `with check` let a coach reassign a row to an un-coached client, bypassing the
+    on-client INSERT guard). `apply/route.ts`: nutrition attestations enforced
+    **server-side** (`attestationsComplete`), not just in the signup UI.
+  - **Major** — `draft-message` builds its AI grounding record **server-side**
+    from `get_client_stats` (never caller input — also fixes a client stats
+    race); `proposals.mjs` audit-write failure after a successful execute no
+    longer throws (returns `audited:false` + logs; confirm route surfaces it so
+    the UI hides Undo); `notify` parallelizes the per-client scope checks +
+    persists dedup state **before** delivery (so a delivery failure can't resend);
+    dietitians routed through the nutrition rails (`providerDiscipline`) for
+    roster + notification eval; voice opt-out honored in `speakVoice` (explicit
+    Listen forces); self-written `detail.directive` stripped (coach-only); habit
+    reminder writes scoped by `user_id`; notify throttle stamped only after a real
+    payload; `chatWidget` mic stream released on recorder failure; self-service
+    `addRole('dietitian')` blocked.
+  - **Minor** — audit `?limit` defaults to 50 not 1; no raw DB-error leaks
+    (`client/compliance`, `coach/review-note` → 500 not a misleading 403);
+    `DashPill` gets a hex (not `rgba`) color; `index-explorations` `?v=` aligned.
+  - **Skipped (verified):** the `/v1/responses` + `gpt-5.4-mini` note in `ai.ts`
+    (intentional, documented), the `chatWidget.jsx` `?v=` bump (the file *was*
+    edited), and the `BSTerrainProfile` "theme token" flag (`INK/BG/TEAL` are
+    theme-derived locals).
+- **War Room:** registered the new AI/compliance routes in `RAW_ROUTES`
+  (`/api/ai/{audit,audit/undo,directive,directive/override,draft-message,
+  draft-message/sent,notify,notify/cron,proposals,proposals/confirm,speak,
+  transcribe}` · `/api/coach/review-note` · `/api/integrations/reconcile`) and
+  added the AI-features checklist section.
+- **Migrations — confirm on Supabase** (idempotent, safe to re-run; 6 already
+  applied live):
+  `https://raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-17-coach-write-scope.sql`
+  (now includes the assignment-key immutability triggers),
+  `…/2026-06-17-review-note-delete.sql`, `…/2026-06-17-dietitian-role.sql`.
+- Verified: 225/225 tests · `tsc --noEmit` · `next build` · mobile build +
+  `public/m` in sync. CI green on `54ff99b`; CodeRabbit marked every thread
+  addressed.
+
 ### 2026-06-16 — Habits Grid card → instrument plate · sentence-cased habit names (#1324)
 - **Grid card redesign (mobile, `iosAppBroadsheetHabits.jsx` `BSHabitGrid`):** the
   "Grid · Last 7 days" card was the odd one out — a soft `radius:12` card with gray
