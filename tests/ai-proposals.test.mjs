@@ -9,6 +9,7 @@ import {
   demoEchoAction,
   inMemoryStore,
   inMemoryAudit,
+  inMemoryConsumer,
   proposeChange,
   confirmChange,
   undoChange,
@@ -130,4 +131,58 @@ test('an unknown action is rejected', async () => {
   const p = await proposeChange({ registry, action: 'does_not_exist', input: {}, actor: ACTOR, ctx, secret: SECRET });
   assert.equal(p.ok, false);
   assert.equal(p.error, 'unknown_action');
+});
+
+// ── single-use confirm tokens (no double-apply) ─────────────────────────────
+// An action that counts how many times it actually executed.
+function counterAction() {
+  let calls = 0;
+  return {
+    calls: () => calls,
+    action: {
+      name: 'count.inc', roles: ['client'], source: 'engine',
+      async buildPreview() { return { summary: 'inc', diff: [], confirmedPayload: {} }; },
+      async execute() { calls += 1; return { calls }; },
+      async undo() { calls -= 1; },
+    },
+  };
+}
+
+test('a confirmed token is single-use — a replay is rejected and never re-executes', async () => {
+  const { registry, audit, ctx } = setup();
+  const consume = inMemoryConsumer();
+  const ctr = counterAction();
+  registry.define(ctr.action.name, ctr.action);
+  const p = await proposeChange({ registry, action: 'count.inc', input: {}, actor: ACTOR, ctx, secret: SECRET });
+
+  const c1 = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit, consume: consume.consume, release: consume.release });
+  assert.equal(c1.ok, true);
+  // Same token again (re-render / two devices / double-tap): rejected, no re-run.
+  const c2 = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit, consume: consume.consume, release: consume.release });
+  assert.equal(c2.ok, false);
+  assert.equal(c2.error, 'already_confirmed');
+  assert.equal(ctr.calls(), 1);        // executed exactly once
+  assert.equal(audit._rows.length, 1); // audited exactly once
+});
+
+test('a failed execute RELEASES the nonce so the same draft can be retried', async () => {
+  const { registry, audit, ctx } = setup();
+  const consume = inMemoryConsumer();
+  let fail = true;
+  registry.define('flaky', {
+    name: 'flaky', roles: ['client'], source: 'engine',
+    async buildPreview() { return { summary: 's', diff: [], confirmedPayload: {} }; },
+    async execute() { if (fail) { fail = false; throw new Error('boom'); } return { ok: true }; },
+    async undo() {},
+  });
+  const p = await proposeChange({ registry, action: 'flaky', input: {}, actor: ACTOR, ctx, secret: SECRET });
+
+  const c1 = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit, consume: consume.consume, release: consume.release });
+  assert.equal(c1.ok, false);
+  assert.equal(c1.error, 'execute_failed');
+  assert.equal(consume._used.size, 0); // reservation released
+  // Retrying the SAME token now succeeds (the draft wasn't burned by the failure).
+  const c2 = await confirmChange({ registry, token: p.token, actor: ACTOR, ctx, secret: SECRET, audit, consume: consume.consume, release: consume.release });
+  assert.equal(c2.ok, true);
+  assert.equal(audit._rows.length, 1);
 });

@@ -123,6 +123,22 @@ export function auditSink(supabase: SupabaseClient) {
   };
 }
 
+/** Single-use proposal-token reservation, backed by ai_proposal_nonces. consume
+ * returns true the first time a nonce is confirmed (false on a replay); release
+ * frees it so a failed execute can be retried with the same draft. */
+export function proposalConsumer(supabase: SupabaseClient) {
+  return {
+    async consume(nonce: string): Promise<boolean> {
+      const { data, error } = await supabase.rpc('consume_ai_proposal', { p_nonce: nonce });
+      if (error) throw new Error(`proposal consume failed: ${error.message}`);
+      return data === true;
+    },
+    async release(nonce: string): Promise<void> {
+      await supabase.rpc('release_ai_proposal', { p_nonce: nonce });
+    },
+  };
+}
+
 /** The execution context passed to actions (actor identity + the RLS store + an
  * endpoint caller that forwards the actor's session). */
 export function makeCtx(actor: Actor, request?: Request) {

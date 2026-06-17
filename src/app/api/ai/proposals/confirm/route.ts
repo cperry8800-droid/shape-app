@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { confirmChange } from '@/lib/ai/proposals.mjs';
-import { resolveActor, makeCtx, serverRegistry, proposalSecret, auditSink } from '@/lib/ai/server';
+import { resolveActor, makeCtx, serverRegistry, proposalSecret, auditSink, proposalConsumer } from '@/lib/ai/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   const secret = proposalSecret();
   if (!secret) return NextResponse.json({ error: 'AI proposals are not configured.' }, { status: 503 });
 
+  const consumer = proposalConsumer(actor.supabase);
   const res = await confirmChange({
     registry: serverRegistry,
     token,
@@ -34,10 +35,17 @@ export async function POST(request: Request) {
     ctx: makeCtx(actor, request),
     secret,
     audit: auditSink(actor.supabase),
+    consume: consumer.consume,
+    release: consumer.release,
   });
 
   if (!res.ok) {
-    const status = res.error === 'actor_mismatch' || res.error === 'role_not_allowed' ? 403 : 400;
+    // already_confirmed → 409 (replay of a token already applied); auth → 403; else 400.
+    const status = res.error === 'actor_mismatch' || res.error === 'role_not_allowed'
+      ? 403
+      : res.error === 'already_confirmed'
+        ? 409
+        : 400;
     return NextResponse.json({ error: res.error, message: (res as { message?: string }).message }, { status });
   }
   return NextResponse.json({ ok: true, auditId: res.auditId, result: res.result });

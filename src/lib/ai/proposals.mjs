@@ -157,9 +157,15 @@ export async function proposeChange({
 /**
  * The human confirms: verify the token (REQUIRED — nothing executes without it),
  * execute the exact previewed change, write one audit row, return an undo handle.
+ *
+ * Single-use: when a `consume(nonce)` is supplied, the token's nonce is atomically
+ * RESERVED before execute, so the same token can never be applied twice (a second
+ * confirm — re-render, two devices, double-tap across a remount — is rejected with
+ * `already_confirmed` and never re-executes). If execute fails, the reservation is
+ * released (via `release`) so the human can retry the SAME draft.
  * @returns {{ok:true, auditId, result} | {ok:false, error}}
  */
-export async function confirmChange({ registry, token, actor, ctx, secret, audit, now = Date.now() }) {
+export async function confirmChange({ registry, token, actor, ctx, secret, audit, consume, release, now = Date.now() }) {
   const plan = verifyToken(token, secret, now);
   if (!plan) return { ok: false, error: 'invalid_or_expired_token' };
   if (!actor || !plan.actor || plan.actor.id !== actor.id) return { ok: false, error: 'actor_mismatch' };
@@ -168,12 +174,26 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
   if (!action) return { ok: false, error: 'unknown_action' };
   if (!roleAllowed(action, actor.role)) return { ok: false, error: 'role_not_allowed' };
 
+  // Single-use gate: reserve the nonce BEFORE executing. A duplicate reservation
+  // means this token was already confirmed — reject without re-running the action.
+  if (typeof consume === 'function') {
+    let fresh;
+    try {
+      fresh = await consume(plan.nonce);
+    } catch {
+      return { ok: false, error: 'consume_failed', message: 'Could not verify this action — please try again.' };
+    }
+    if (!fresh) return { ok: false, error: 'already_confirmed', message: 'That change was already applied.' };
+  }
+
   // Execute via the endpoint; a failure (endpoint 4xx/RLS) is reported, not 500.
   // Nothing is audited unless the change actually applied.
   let result;
   try {
     result = await action.execute(ctx, plan);
   } catch (e) {
+    // Execute failed → release the reservation so a retry of the same draft works.
+    if (typeof release === 'function') { try { await release(plan.nonce); } catch { /* best-effort */ } }
     return { ok: false, error: 'execute_failed', message: (e && e.message) || 'I could not apply that change.' };
   }
 
@@ -260,6 +280,24 @@ export function inMemoryAudit() {
       return true;
     },
     _rows: rows,
+  };
+}
+
+// Single-use nonce reservation (tests + any non-DB use). `consume` returns true
+// the FIRST time a nonce is seen, false thereafter; `release` lets a failed
+// execute free the nonce so the same draft can be retried.
+export function inMemoryConsumer() {
+  const used = new Set();
+  return {
+    async consume(nonce) {
+      if (used.has(nonce)) return false;
+      used.add(nonce);
+      return true;
+    },
+    async release(nonce) {
+      used.delete(nonce);
+    },
+    _used: used,
   };
 }
 
