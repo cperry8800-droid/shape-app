@@ -143,47 +143,8 @@ create policy "nutritionist_insert_on_meal_plans"
     and public.is_discipline_coach_on_client(client_meal_plans.client_id, 'nutritionist')
   );
 
--- ===== assignment keys are immutable on UPDATE =====
--- The owner-scoped UPDATE policies above intentionally allow editing a row's
--- CONTENT even after a subscription lapses (history stays editable). But an
--- unconstrained UPDATE would also let a coach REASSIGN client_id (or the
--- provider id) to a client they don't actively coach — re-opening the exact gap
--- the on-client INSERT guard closes (RLS WITH CHECK only sees the NEW row, so it
--- can't compare to the old client_id; a trigger can). Lock the assignment keys:
--- they can never change on UPDATE. Putting a row on a different client must go
--- through a fresh INSERT, which is discipline-coach gated.
-create or replace function public.lock_client_workout_assignment()
-returns trigger
-language plpgsql
-as $$
-begin
-  if new.client_id is distinct from old.client_id
-     or new.trainer_id is distinct from old.trainer_id then
-    raise exception 'client_id and trainer_id are immutable on update (reassign via insert)';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_lock_client_workout_assignment on public.client_workouts;
-create trigger trg_lock_client_workout_assignment
-  before update on public.client_workouts
-  for each row execute function public.lock_client_workout_assignment();
-
-create or replace function public.lock_client_meal_plan_assignment()
-returns trigger
-language plpgsql
-as $$
-begin
-  if new.client_id is distinct from old.client_id
-     or new.nutritionist_id is distinct from old.nutritionist_id then
-    raise exception 'client_id and nutritionist_id are immutable on update (reassign via insert)';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_lock_client_meal_plan_assignment on public.client_meal_plans;
-create trigger trg_lock_client_meal_plan_assignment
-  before update on public.client_meal_plans
-  for each row execute function public.lock_client_meal_plan_assignment();
+-- NOTE: assignment-key immutability on UPDATE — preventing a coach from
+-- reassigning client_id (or the provider FK) to an un-coached client through
+-- UPDATE, which would bypass the on-client INSERT guard — is handled by the
+-- companion migration 2026-06-17-coach-write-scope-update-guard.sql
+-- (freeze_client_workout_keys / freeze_client_meal_plan_keys triggers).
