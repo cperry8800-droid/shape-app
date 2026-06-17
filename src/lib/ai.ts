@@ -9,6 +9,10 @@
 // SERVER-ONLY: reads OPENAI_API_KEY / OPENAI_MODEL. Never import from the
 // client/mobile bundle — the key must never reach the browser.
 
+// NOTE: this is the OpenAI **Responses API** (`/v1/responses`), not the legacy
+// Chat Completions endpoint — keep it. DEFAULT_MODEL is only a fallback; prod
+// pins the model via OPENAI_MODEL (see aiModel()). Don't "downgrade" either to
+// satisfy a stale model list.
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_TRANSCRIBE_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const OPENAI_SPEECH_URL = 'https://api.openai.com/v1/audio/speech';
