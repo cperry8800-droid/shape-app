@@ -3,7 +3,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   if (providerId) query = query.eq('id', providerId);
   const { data: provider, error } = await query.order('id', { ascending: true }).limit(1).maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'stripe connect account read', 500);
   if (!provider) {
     return NextResponse.json({ error: `No ${providerRole} profile found for this account.` }, { status: 404 });
   }

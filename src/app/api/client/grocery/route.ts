@@ -11,6 +11,7 @@
 // Plain strings are auto-parsed into { item, qty } using a simple heuristic.
 
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export async function GET() {
     .order('sent_at', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return dbError(error, 'grocery write', 400);
   }
 
   // Flatten every pushed meal's ingredients[] into individual grocery rows.

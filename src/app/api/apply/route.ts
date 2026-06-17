@@ -247,9 +247,9 @@ export async function POST(req: NextRequest) {
       if (updateError) throw updateError;
     }
   } catch (uploadError) {
-    console.error('provider application upload failed:', uploadError);
+    console.error('[shape-api] provider application upload failed:', uploadError);
     return NextResponse.json(
-      { error: uploadError instanceof Error ? uploadError.message : 'Could not upload application files.' },
+      { error: 'Could not upload application files.' },
       { status: 500, headers: CORS_HEADERS }
     );
   }

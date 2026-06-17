@@ -16,7 +16,7 @@ import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
     const { error } = await supabase.from('league_members').upsert({
       user_id: user.id, tier: 'ember', cohort, season_week: week, settled_week: null,
     }, { onConflict: 'user_id' });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'league read', 500);
     return NextResponse.json({ ok: true, joined: true, tier: 'ember', cohort, week });
   }
   return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });

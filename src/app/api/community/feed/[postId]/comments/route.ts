@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError, cleanText } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export async function POST(
   const bodyResult = await readJson<unknown>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
-  const text = String((body as { body?: unknown } | null)?.body ?? '').trim();
+  const text = cleanText((body as { body?: unknown } | null)?.body, 2000);
   if (!text) return NextResponse.json({ error: 'Comment cannot be empty.' }, { status: 400 });
 
   const client = await clientForRequest(request);
@@ -37,6 +37,6 @@ export async function POST(
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'community comment write', 400);
   return NextResponse.json({ comment: data });
 }

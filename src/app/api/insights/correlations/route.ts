@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 import { computeCorrelations, type SnapshotPoint } from '@/lib/correlations';
 
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
     .returns<SnapshotPoint[]>();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return dbError(error, 'insights correlations read', 500);
   }
 
   const rows = data ?? [];

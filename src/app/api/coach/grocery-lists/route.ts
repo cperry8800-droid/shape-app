@@ -3,7 +3,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,7 @@ export async function GET() {
     .select(SELECT)
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'coach grocery lists write', 500);
   return NextResponse.json({ lists: data ?? [] });
 }
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     items: normItems(body.items),
   };
   const { data, error } = await supabase.from('coach_grocery_lists').insert(insert).select(SELECT).single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'coach grocery lists write', 500);
   return NextResponse.json({ list: data });
 }
 
@@ -84,7 +84,7 @@ export async function PATCH(request: Request) {
     .eq('owner_id', user.id)
     .select(SELECT)
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'coach grocery lists write', 500);
   return NextResponse.json({ list: data });
 }
 
@@ -98,6 +98,6 @@ export async function DELETE(request: Request) {
   const id = clean(body.id, 64);
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
   const { error } = await supabase.from('coach_grocery_lists').delete().eq('id', id).eq('owner_id', user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'coach grocery lists write', 500);
   return NextResponse.json({ ok: true });
 }

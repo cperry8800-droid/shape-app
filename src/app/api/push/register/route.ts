@@ -7,7 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const { error } = await supabase
     .from('push_tokens')
     .upsert({ user_id: user.id, token, platform, updated_at: new Date().toISOString() }, { onConflict: 'token' });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'push token register', 500);
   return NextResponse.json({ ok: true });
 }
 

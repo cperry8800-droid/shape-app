@@ -35,6 +35,17 @@ function parseTime(s: string): { hour: number; minute: number } | null {
   return { hour, minute };
 }
 
+// Escape user/provider values before interpolating them into email HTML bodies
+// (these are unauthenticated, attacker-supplied). Same approach as apply/route.ts.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function POST(req: NextRequest) {
   const parsedBody = await readJson<Record<string, unknown>>(req);
   if (!parsedBody.ok) return parsedBody.response;
@@ -185,12 +196,18 @@ export async function POST(req: NextRequest) {
         })
       : undefined;
 
+  // Attacker-supplied (unauthenticated) values are HTML-escaped in every email body.
+  const providerNameHtml = escapeHtml(provider.name);
+  const clientNameHtml = escapeHtml(clientName);
+  const clientEmailHtml = escapeHtml(clientEmail);
+  const topicHtml = escapeHtml(topic);
+
   const clientHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
-      <h2 style="margin:0 0 16px;">You're booked with ${provider.name}</h2>
+      <h2 style="margin:0 0 16px;">You're booked with ${providerNameHtml}</h2>
       <p><strong>${niceDate} UTC</strong><br/>15-minute video consultation</p>
-      ${topic ? `<p><em>Topic:</em> ${topic}</p>` : ''}
-      <p>${provider.name} will confirm shortly. You'll get a second email with the call link once they accept.</p>
+      ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
+      <p>${providerNameHtml} will confirm shortly. You'll get a second email with the call link once they accept.</p>
       <p style="color:#666;font-size:13px;margin-top:32px;">
         Need to cancel? Reply to this email.
       </p>
@@ -199,20 +216,20 @@ export async function POST(req: NextRequest) {
   const coachHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
       <h2 style="margin:0 0 16px;">New consultation request</h2>
-      <p><strong>${clientName}</strong> (${clientEmail})<br/>
+      <p><strong>${clientNameHtml}</strong> (${clientEmailHtml})<br/>
       <strong>${niceDate} UTC</strong> — 15 min video</p>
-      ${topic ? `<p><em>Topic:</em> ${topic}</p>` : ''}
+      ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p><a href="https://theshapecommunity.com/dashboard/${providerRole}">Open your dashboard →</a></p>
     </div>`.trim();
 
   const adminHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
       <h2 style="margin:0 0 16px;">New consultation booking</h2>
-      <p><strong>Coach:</strong> ${provider.name} (${providerRole})<br/>
-      <strong>Client:</strong> ${clientName} &lt;${clientEmail}&gt;<br/>
+      <p><strong>Coach:</strong> ${providerNameHtml} (${providerRole})<br/>
+      <strong>Client:</strong> ${clientNameHtml} &lt;${clientEmailHtml}&gt;<br/>
       <strong>When:</strong> ${niceDate} UTC<br/>
       <strong>Duration:</strong> 15 min video</p>
-      ${topic ? `<p><em>Topic:</em> ${topic}</p>` : ''}
+      ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p style="color:#666;font-size:12px;">Session ID: ${inserted.id}</p>
     </div>`.trim();
 

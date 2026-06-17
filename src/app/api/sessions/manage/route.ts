@@ -19,7 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
     .eq('id', sessionId)
     .select('id, status, type, scheduled_at, duration_min, meeting_url, topic')
     .maybeSingle();
-  if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+  if (updErr) return dbError(updErr, 'session update', 500);
 
   // Notify the client when the coach confirms, declines, or reschedules
   // (best-effort). The recipient is a different user than the actor, so use

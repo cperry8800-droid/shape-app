@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError, cleanText } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,7 @@ export async function GET(
     if (!Number.isNaN(since.getTime())) q = q.gt('created_at', since.toISOString());
   }
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'conversation messages', 400);
   return NextResponse.json({ messages: data ?? [], me: user.id });
 }
 
@@ -57,7 +57,7 @@ export async function POST(
   const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
-  const text = typeof body?.body === 'string' ? body.body.trim() : '';
+  const text = cleanText(body?.body, 4000);
   if (!text) return NextResponse.json({ error: 'Message cannot be empty.' }, { status: 400 });
 
   const { data: sent, error } = await supabase
@@ -65,6 +65,6 @@ export async function POST(
     .insert({ conversation_id: id, sender_id: user.id, body: text })
     .select('id, sender_id, body, metadata, created_at')
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'conversation messages', 400);
   return NextResponse.json({ message: sent });
 }

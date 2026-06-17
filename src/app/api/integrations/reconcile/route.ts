@@ -11,7 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 import { buildReconciliation } from '@/lib/integrations/reconcile.mjs';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   const conflictsOnly = url.searchParams.get('all') !== '1';
 
   const { data, error } = await supabase.rpc('get_health_sources', { p_user_id: clientId, p_days: days });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'reconcile sources read', 500);
   if (data == null) return NextResponse.json({ error: 'Not authorized for this user.' }, { status: 403 });
 
   const blob = data as { observations?: unknown[]; overrides?: Record<string, string> };
@@ -54,7 +54,8 @@ export async function POST(request: Request) {
   const { data, error } = await supabase.rpc('set_metric_source', { p_user_id: clientId, p_metric: metric, p_source: source });
   if (error) {
     const denied = /not authorized/i.test(error.message) || error.code === '42501';
-    return NextResponse.json({ error: denied ? 'Not authorized for this user.' : error.message }, { status: denied ? 403 : 500 });
+    if (denied) return NextResponse.json({ error: 'Not authorized for this user.' }, { status: 403 });
+    return dbError(error, 'set metric source', 500);
   }
   return NextResponse.json({ ok: true, result: data });
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { cleanText, readJson } from '@/lib/request-utils';
+import { cleanText, readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (providerError) {
-    return NextResponse.json({ error: providerError.message }, { status: 500 });
+    return dbError(providerError, 'program templates provider read', 500);
   }
 
   if (!provider) {
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return dbError(error, 'program templates write', 500);
   }
 
   if (clientAssignments.length > 0) {
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
     );
 
     if (assignmentError) {
-      return NextResponse.json({ error: assignmentError.message }, { status: 500 });
+      return dbError(assignmentError, 'program template assignment', 500);
     }
   }
 

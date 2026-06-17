@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeOuraSnapshots } from '@/lib/health-snapshot';
 
@@ -152,7 +153,8 @@ async function importOuraWorkouts(
       .maybeSingle();
 
     if (lookupError) {
-      errors.push(lookupError.message);
+      console.error('[shape-api] oura activity lookup failed:', lookupError.message);
+      errors.push('Could not sync an activity.');
       continue;
     }
 
@@ -160,8 +162,10 @@ async function importOuraWorkouts(
       ? await client.from('community_posts').update(payload).eq('id', existing.id)
       : await client.from('community_posts').insert(payload);
 
-    if (result.error) errors.push(result.error.message);
-    else imported += 1;
+    if (result.error) {
+      console.error('[shape-api] oura activity write failed:', result.error.message);
+      errors.push('Could not save an activity.');
+    } else imported += 1;
   }
 
   return { imported, errors };
@@ -224,9 +228,6 @@ export async function GET(request: Request) {
       snapshot,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Oura sync failed.' },
-      { status: 502 }
-    );
+    return dbError(error, 'oura sync', 502, 'Oura sync failed.');
   }
 }

@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import {
   computeCorrelations,
@@ -241,7 +241,7 @@ export async function POST(request: Request) {
     .returns<SnapshotPoint[]>();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return dbError(error, 'weekly readout', 500);
   }
 
   const rows = data ?? [];

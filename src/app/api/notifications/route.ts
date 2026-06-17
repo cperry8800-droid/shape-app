@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       .from('notifications')
       .update({ read_at: nowIso })
       .is('read_at', null);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, 'notifications write', 500);
     return NextResponse.json({ ok: true });
   }
   const id = String(body.id ?? '');
@@ -65,6 +65,6 @@ export async function POST(request: Request) {
     .from('notifications')
     .update({ read_at: nowIso })
     .eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'notifications read', 500);
   return NextResponse.json({ ok: true });
 }

@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,7 @@ export async function POST(
     counterpart_user_id: counterpartUserId,
     acknowledged_at: new Date().toISOString(),
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'shared-client ack write', 500);
   return NextResponse.json({ ok: true });
 }
 
@@ -62,6 +62,6 @@ export async function DELETE(
     .eq('coach_user_id', user.id)
     .eq('client_id', clientId)
     .eq('counterpart_user_id', counterpartUserId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'shared-client ack write', 500);
   return NextResponse.json({ ok: true });
 }

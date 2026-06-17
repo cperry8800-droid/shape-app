@@ -136,13 +136,8 @@ export async function GET(
       providerUserId,
     });
   } catch (error) {
-    return redirectBack(
-      origin,
-      returnTo,
-      'error',
-      cfg.id,
-      error instanceof Error ? error.message.slice(0, 180) : 'token_store_failed'
-    );
+    console.error('[shape-api] integration token store failed:', error instanceof Error ? error.message : error);
+    return redirectBack(origin, returnTo, 'error', cfg.id, 'token_store_failed');
   }
 
   return redirectBack(origin, returnTo, 'ok', cfg.id);

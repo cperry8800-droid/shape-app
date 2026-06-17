@@ -13,7 +13,9 @@
 //
 // GET|POST /api/ai/notify/cron  → { ok, evaluated, delivered }
 
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { isCoachRole } from '@/lib/roles.mjs';
@@ -24,12 +26,19 @@ export const dynamic = 'force-dynamic';
 const ACTIVE_WINDOW_MS = 14 * 86400000; // only users whose app checked in ≤14d ago
 const BATCH = 500;
 
+// Constant-time, length-safe compare so the shared secret can't be probed by
+// timing the response.
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 function authorized(request: Request): boolean {
   const secret = process.env.NOTIFY_CRON_SECRET || process.env.CRON_SECRET || '';
   if (!secret) return false;
   const hdr = request.headers.get('x-notify-secret') || '';
   const auth = request.headers.get('authorization') || '';
-  return hdr === secret || auth === `Bearer ${secret}`;
+  return safeEqual(hdr, secret) || safeEqual(auth, `Bearer ${secret}`);
 }
 
 async function run(request: Request) {
@@ -42,7 +51,7 @@ async function run(request: Request) {
     .select('user_id, data')
     .eq('kind', 'notify_snapshot')
     .limit(BATCH);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, 'ai notify cron read', 500);
 
   const cutoff = Date.now() - ACTIVE_WINDOW_MS;
   let evaluated = 0;

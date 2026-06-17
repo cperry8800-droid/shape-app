@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 
 export const runtime = 'nodejs';
@@ -26,13 +27,13 @@ export async function POST(
       .delete()
       .eq('post_id', postId)
       .eq('user_id', user.id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) return dbError(error, 'community like write', 400);
     return NextResponse.json({ liked: false });
   }
 
   const { error } = await client
     .from('community_likes')
     .insert({ post_id: postId, user_id: user.id });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbError(error, 'community like write', 400);
   return NextResponse.json({ liked: true });
 }

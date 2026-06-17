@@ -16,12 +16,20 @@
 //
 // Reuses existing tables — no migration required.
 
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { upsertSnapshot } from '@/lib/health-snapshot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/** Constant-time, length-safe compare for the shared webhook token. */
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(String(a || ''));
+  const y = Buffer.from(String(b || ''));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 
 type GarminDaily = {
   userId?: string;
@@ -62,8 +70,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const secret = process.env.GARMIN_WEBHOOK_SECRET;
-  if (secret && new URL(request.url).searchParams.get('token') !== secret) {
+  // Required (fail-closed): Garmin push has no signature, so the shared ?token=
+  // secret is the only gate. If it's unset, reject — never accept an
+  // unauthenticated write. Set GARMIN_WEBHOOK_SECRET before enabling the webhook.
+  const secret = process.env.GARMIN_WEBHOOK_SECRET || '';
+  const token = new URL(request.url).searchParams.get('token') || '';
+  if (!secret || !safeEqual(token, secret)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 

@@ -6,6 +6,7 @@
 // directly.
 
 import { NextResponse } from 'next/server';
+import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +50,7 @@ export async function GET() {
     .eq('client_id', user.id)
     .in('status', ['active', 'trialing'])
     .order('created_at', { ascending: true });
-  if (subsErr) return NextResponse.json({ error: subsErr.message }, { status: 500 });
+  if (subsErr) return dbError(subsErr, 'team subscriptions read', 500);
 
   const rows = (subs || []) as SubRow[];
   if (!rows.length) return NextResponse.json({ coaches: [] });

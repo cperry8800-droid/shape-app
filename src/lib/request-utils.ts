@@ -9,6 +9,21 @@ export function isEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+/**
+ * Log the real error server-side; return a generic client-safe message.
+ * Never leaks DB internals (table/column names, RLS predicates, constraint text).
+ * Preserve the existing HTTP status at the call site (400 vs 500).
+ */
+export function dbError(
+  error: unknown,
+  context: string,
+  status = 500,
+  clientMessage = 'Something went wrong. Please try again.'
+): NextResponse {
+  console.error(`[shape-api] ${context}:`, error instanceof Error ? error.message : error);
+  return NextResponse.json({ error: clientMessage }, { status });
+}
+
 // Default max JSON body for API routes (1 MB). Upload routes that read files
 // set their own larger ceiling; the proxy enforces a matching cap up front.
 export const JSON_BODY_LIMIT = 1_000_000;

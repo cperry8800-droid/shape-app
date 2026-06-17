@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeWhoopSnapshots } from '@/lib/health-snapshot';
 
@@ -179,7 +180,8 @@ async function importWhoopWorkouts(
       .maybeSingle();
 
     if (lookupError) {
-      errors.push(lookupError.message);
+      console.error('[shape-api] whoop activity lookup failed:', lookupError.message);
+      errors.push('Could not sync an activity.');
       continue;
     }
 
@@ -188,7 +190,8 @@ async function importWhoopWorkouts(
       : await client.from('community_posts').insert(payload);
 
     if (result.error) {
-      errors.push(result.error.message);
+      console.error('[shape-api] whoop activity write failed:', result.error.message);
+      errors.push('Could not save an activity.');
     } else {
       imported += 1;
     }
@@ -256,9 +259,6 @@ export async function GET(request: Request) {
       snapshot,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'WHOOP sync failed.' },
-      { status: 502 }
-    );
+    return dbError(error, 'whoop sync', 502, 'WHOOP sync failed.');
   }
 }

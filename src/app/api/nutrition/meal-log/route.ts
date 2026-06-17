@@ -11,7 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { readJson } from '@/lib/request-utils';
+import { readJson, dbError } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     ? await supabase.from('daily_health_snapshot').update(patch).eq('user_id', user.id).eq('snapshot_date', today)
     : await supabase.from('daily_health_snapshot').insert({ user_id: user.id, snapshot_date: today, ...patch });
   if (result.error) {
-    return NextResponse.json({ error: result.error.message }, { status: 500 });
+    return dbError(result.error, 'meal log write', 500);
   }
   return NextResponse.json({ ok: true, day: today });
 }
