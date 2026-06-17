@@ -6,6 +6,9 @@ import {
   clientCandidates, coachCandidates, decideNotifications, NOTIFY_TYPES,
   inQuietHours, localHour, DEFAULT_PREFS,
 } from '../src/lib/ai/notifications.mjs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { evaluateClient, buildDirective } = require('../public/newdesign/dashSignals.js');
 
 const TZ = 'UTC';
 const DAYTIME = new Date('2026-06-17T10:00:00Z'); // 10:00 — outside default quiet
@@ -150,6 +153,26 @@ test('streak copy is a restart, never shame', () => {
   assert.equal(cands.length, 1);
   assert.match(cands[0].title, /restart/i);
   assert.doesNotMatch((cands[0].title + ' ' + cands[0].body).toLowerCase(), /you (failed|broke|only|never)/);
+});
+
+// ── the cron's promise: re-evaluating a stored snapshot surfaces NEW time-based
+// events (the engine recomputes against `now`), fires once, then dedups ────────
+test('cron: a snapshot whose check-in has since gone overdue fires once, then dedups', () => {
+  const now = new Date('2026-06-17T10:00:00Z');
+  const monday = (d) => { const x = new Date(d); const day = (x.getUTCDay() + 6) % 7; x.setUTCDate(x.getUTCDate() - day); return x.toISOString().slice(0, 10); };
+  // a real check-in logged 3 weeks ago → overdue *now* (a time-based event)
+  const record = { profile: { id: 'u1', name: 'You' }, checkIn: { lastWeekOf: monday(new Date(now.getTime() - 21 * 86400000)) } };
+  const { flags } = evaluateClient(record, now, 'client');
+  assert.ok(flags.some(f => f.key === 'checkin_overdue'), 'engine flags the overdue check-in against now');
+
+  const directive = buildDirective(record, now, 'client');
+  const cands = clientCandidates({ directive: { ...directive, line: 'x' }, flags, tone: 'supportive' });
+  assert.ok(cands.some(c => c.type === 'checkin_due'));
+
+  const r1 = decideNotifications({ candidates: cands, last: {}, prefs: { tz: 'UTC' }, now, audience: 'client' });
+  assert.ok(r1.send.some(s => s.type === 'checkin_due'));            // fires once
+  const r2 = decideNotifications({ candidates: cands, last: r1.nextState, prefs: { tz: 'UTC' }, now, audience: 'client' });
+  assert.ok(!r2.send.some(s => s.type === 'checkin_due'));           // cron re-run → no re-nag
 });
 
 test('every notify type is informational (carries a deep-link route)', () => {
