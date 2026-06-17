@@ -4523,6 +4523,33 @@ async function snoozeHabitReminder(habitId, minutes) {
 }
 window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
 
+// ─── Source reconciliation (INT2) — "which source do you trust?" ─────────────
+// On-demand data-quality view. clientId optional (a coach reconciling a client).
+async function reconcileGet(clientId, days) {
+  if (!apiBaseUrl) return { items: [] };
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const qs = new URLSearchParams();
+  if (clientId) qs.set('clientId', clientId);
+  if (days) qs.set('days', String(days));
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/integrations/reconcile?${qs.toString()}`, { headers });
+    return await res.json().catch(() => ({ items: [] }));
+  } catch (e) { return { items: [] }; }
+}
+async function reconcileSet({ clientId, metric, source } = {}) {
+  if (!apiBaseUrl || !state.session?.access_token) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/integrations/reconcile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ clientId, metric, source }),
+    });
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false }; }
+}
+window.ShapeReconcile = { get: reconcileGet, set: reconcileSet };
+
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;
   // Throttle: the layer dedups anyway, but don't hammer the endpoint.

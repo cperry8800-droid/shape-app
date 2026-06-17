@@ -14547,6 +14547,83 @@ function BSClientMe(props) {
   );
 }
 
+const _BS_SOURCE_NAMES = { whoop: 'WHOOP', oura: 'Oura', garmin: 'Garmin', apple_health: 'Apple Health', strava: 'Strava', manual: 'Manual' };
+const _bsSourceName = (s) => _BS_SOURCE_NAMES[s] || String(s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+// Source reconciliation (INT2): on-demand "these two disagree — which do you
+// trust?" Shows only metrics where connected providers actually differ; tapping
+// a source makes it authoritative (writes the override + re-points the snapshot).
+function BSReconcile({ onBack, clientId }) {
+  const t = useBS();
+  const { BSPage, BSDetailHeader } = window;
+  const [items, setItems] = useStateBSC(null);
+  const [busy, setBusy] = useStateBSC('');
+  const load = React.useCallback(() => {
+    Promise.resolve(window.ShapeReconcile?.get?.(clientId) || { items: [] })
+      .then(r => setItems(Array.isArray(r.items) ? r.items : []))
+      .catch(() => setItems([]));
+  }, [clientId]);
+  React.useEffect(() => { load(); }, [load]);
+  const pick = async (metric, source) => {
+    setBusy(`${metric}:${source}`);
+    try { await window.ShapeReconcile?.set?.({ clientId, metric, source }); } catch (e) {}
+    // optimistic: mark chosen authoritative, then refresh from the server
+    setItems(list => (list || []).map(it => it.metric !== metric ? it : {
+      ...it, override: source, authoritativeSource: source,
+      sources: it.sources.map(s => ({ ...s, isAuthoritative: s.source === source })),
+    }));
+    setBusy('');
+    load();
+  };
+  const fmt = (v, unit) => `${Number.isInteger(v) ? v : Number(v).toFixed(1)}${unit ? (unit === '%' || unit === '' ? unit : ' ' + unit) : ''}`;
+
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Data · Integrations" kicker="Reconcile" title={<>Which source<br/>do you trust?</>} />
+      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>When two connected devices report a metric differently, pick the one to trust. Your choice becomes the authoritative source going forward.</div>
+      </div>
+      {items === null && <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Checking sources…</div>}
+      {items !== null && items.length === 0 && (
+        <div style={{ padding: `0 ${t.padX}px 18px` }}>
+          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>Your sources agree.</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Nothing to reconcile right now. This only appears when two connected devices disagree on the same metric.</div>
+          </div>
+        </div>
+      )}
+      {items !== null && items.length > 0 && (
+        <div style={{ padding: `12px ${t.padX}px 30px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {items.map((it) => (
+            <div key={it.metric} style={{ border: `1px solid ${t.RULE}`, borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 13px', borderBottom: `1px solid ${t.HAIR}`, background: t.PAPER2 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{it.label}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>Disagree</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(it.sources.length, 2)}, 1fr)`, gap: 0 }}>
+                {it.sources.map((s, i) => (
+                  <div key={s.source} style={{ padding: '12px 13px', borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, background: s.isAuthoritative ? `${t.ACCENT}14` : 'transparent' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.isAuthoritative ? t.ACCENT : t.INK50 }}>{_bsSourceName(s.source)}</div>
+                      {s.isAuthoritative && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.ACCENT }}>✓ Trusted</span>}
+                    </div>
+                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{fmt(s.value, it.unit)}</div>
+                    {s.isAuthoritative ? (
+                      <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>Your source</div>
+                    ) : (
+                      <button onClick={() => pick(it.metric, s.source)} disabled={busy === `${it.metric}:${s.source}`} style={{ marginTop: 8, width: '100%', padding: '7px', borderRadius: 8, border: `1px solid ${t.ACCENT}`, background: 'transparent', color: t.ACCENT, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                        {busy === `${it.metric}:${s.source}` ? 'Saving…' : 'Make this my source'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </BSPage>
+  );
+}
 function BSIntegrationsPage({ onBack }) {
   const t = useBS();
   const [providers, setProviders] = useStateBSC([]);
@@ -14554,6 +14631,7 @@ function BSIntegrationsPage({ onBack }) {
   const [busy, setBusy] = useStateBSC('');
   const [summary, setSummary] = useStateBSC(null);
   const [error, setError] = useStateBSC('');
+  const [showReconcile, setShowReconcile] = useStateBSC(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -14668,6 +14746,8 @@ function BSIntegrationsPage({ onBack }) {
     ['Workouts', `${summary.result.whoop.workouts?.records?.length ?? 0}`],
   ] : null;
 
+  if (showReconcile) return <BSReconcile onBack={() => setShowReconcile(false)} />;
+
   return (
     <BSPage>
       <BSDetailHeader
@@ -14688,6 +14768,15 @@ function BSIntegrationsPage({ onBack }) {
           Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.
         </div>
       </div>
+
+      {/* On-demand data-quality check — only surfaces when sources disagree. */}
+      <button onClick={() => setShowReconcile(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Reconcile sources</div>
+          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>When two devices disagree — pick which to trust</div>
+        </div>
+        <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT }}>→</span>
+      </button>
 
       {error && (
         <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, color: t.RUST, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>

@@ -6,6 +6,10 @@
 // missing field is distinguishable from "no integration connected".
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { METRICS } from '@/lib/integrations/reconcile.mjs';
+
+// The provider-sourced metrics we track per-source for reconciliation (INT2).
+const RECONCILABLE = new Set(Object.keys(METRICS as Record<string, unknown>));
 
 export type SnapshotPatch = {
   sleep_hours?: number | null;
@@ -67,6 +71,34 @@ export async function upsertSnapshot(
 
   const snapshot_date = isoDate(params.date);
 
+  // (INT2) record every provider's raw value as an observation, so a conflict is
+  // recoverable later — independent of which source "won" the snapshot column.
+  const obsRows = fields
+    .filter((f) => RECONCILABLE.has(f))
+    .map((f) => ({ user_id: params.userId, snapshot_date, metric: f, source: params.source, value: (params.patch as Record<string, number>)[f], observed_at: new Date().toISOString() }));
+  if (obsRows.length) {
+    await client.from('health_metric_observations').upsert(obsRows, { onConflict: 'user_id,snapshot_date,metric,source' });
+  }
+
+  // (INT2) honor the per-metric authoritative-source override: a sync from a
+  // different source must NOT overwrite a metric the user/coach pinned to another
+  // provider. The observation above is still recorded.
+  const { data: ovr } = await client
+    .from('metric_source_overrides')
+    .select('metric, source')
+    .eq('user_id', params.userId);
+  const overrideBy = new Map<string, string>((ovr ?? []).map((r: { metric: string; source: string }) => [r.metric, r.source]));
+
+  const effective: SnapshotPatch = {};
+  const writtenFields: string[] = [];
+  for (const field of fields) {
+    const pinned = overrideBy.get(field);
+    if (pinned && pinned !== params.source) continue; // pinned elsewhere → don't clobber
+    (effective as Record<string, unknown>)[field] = (params.patch as Record<string, unknown>)[field];
+    writtenFields.push(field);
+  }
+  if (writtenFields.length === 0) return { written: 0 };
+
   const { data: existing, error: lookupError } = await client
     .from('daily_health_snapshot')
     .select('id, sources')
@@ -79,12 +111,12 @@ export async function upsertSnapshot(
   }
 
   const sources: Record<string, string> = { ...(existing?.sources ?? {}) };
-  for (const field of fields) sources[field] = params.source;
+  for (const field of writtenFields) sources[field] = params.source;
 
   const row: SnapshotRow = {
     user_id: params.userId,
     snapshot_date,
-    ...params.patch,
+    ...effective,
     sources,
   };
 
@@ -93,7 +125,7 @@ export async function upsertSnapshot(
     : await client.from('daily_health_snapshot').insert(row);
 
   if (result.error) return { written: 0, error: result.error.message };
-  return { written: fields.length };
+  return { written: writtenFields.length };
 }
 
 // WHOOP sync helper. Pulls the most recent recovery, sleep, cycle (strain),
