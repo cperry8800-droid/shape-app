@@ -47,6 +47,8 @@ next-env.d.ts
 
 # Locally-installed agent skills (not part of the app)
 .agents/
+# Transient subagent worktrees (isolated checkouts — never part of the app)
+.claude/worktrees/
 .claude/skills/higgsfield-generate
 .claude/skills/higgsfield-marketplace-cards
 .claude/skills/higgsfield-product-photoshoot

@@ -1073,29 +1073,6 @@ function DarkChannelRow({ active, onClick, eyebrow, eyebrowColor, title, meta, r
   );
 }
 
-function DarkTrackRow({ time, title, sub, live, last, t, cream, cream50, rule, accent }) {
-  return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '52px 40px 1fr',
-      alignItems: 'center', gap: 10, padding: `${t.rowY}px ${t.padX}px`,
-      borderBottom: last ? 0 : `1px solid ${rule}`,
-      color: cream,
-    }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: cream50 }}>{time}</div>
-      <div style={{
-        fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
-        color: live ? '#050707' : cream50,
-        background: live ? accent : 'transparent',
-        border: live ? 0 : `1px solid ${rule}`,
-        padding: '3px 6px', textAlign: 'center',
-      }}>TRX</div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: cream, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: cream50, marginTop: 3, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
-      </div>
-    </div>
-  );
-}
 
 // ── Shape Sets — an editorial "about Shape Radio + Shape Sets" page (mirrors the
 // website's Shape Radio page), reached from the Radio screen. Sits on the Club

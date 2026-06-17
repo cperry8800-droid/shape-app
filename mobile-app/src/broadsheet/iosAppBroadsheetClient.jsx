@@ -12668,28 +12668,6 @@ function _bsSignedNum(n, digits = 1, unit = '') {
   return `${s}${Math.abs(v).toFixed(digits)}${unit}`;
 }
 
-function BSProgressSpark({ values, color, h = 40 }) {
-  const t = useBS();
-  if (!values || values.length < 2) return null;
-  const min = Math.min(...values), max = Math.max(...values);
-  const range = max - min || 1;
-  const W = 100;
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * W;
-    const y = h - ((v - min) / range) * (h - 6) - 3;
-    return [Number(x.toFixed(2)), Number(y.toFixed(2))];
-  });
-  const line = pts.map(([x, y]) => `${x},${y}`).join(' ');
-  const area = `M 0,${h} L ${pts.map(([x, y]) => `${x},${y}`).join(' L ')} L ${W},${h} Z`;
-  const last = pts[pts.length - 1];
-  return (
-    <svg width="100%" height={h} viewBox={`0 0 ${W} ${h}`} preserveAspectRatio="none" style={{ display: 'block' }}>
-      <path d={area} fill={color} opacity="0.14" />
-      <polyline points={line} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={last[0]} cy={last[1]} r="1.6" fill={t.PAPER} stroke={color} strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
 
 const _BS_ACTIVITY_TYPES = ['Run', 'Ride', 'Swim', 'Walk', 'Hike', 'Tennis', 'Pilates', 'Rowing', 'Golf', 'Stairmaster', 'Elliptical', 'Yoga', 'HIIT', 'Strength', 'Other'];
 // Activities that care about distance (km) — others hide that field.
