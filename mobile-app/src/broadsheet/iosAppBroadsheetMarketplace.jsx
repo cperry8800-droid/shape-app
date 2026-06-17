@@ -451,7 +451,14 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
     return () => { active = false; };
   }, []);
 
-  const marketplaceCoaches = remoteCoaches || BSM_MARKETPLACE_COACHES;
+  // Demo fallback: the "YOUR COACH"/"YOUR NUTRITIONIST" relationship badges are
+  // honest only in the signed-out preview — strip them for a signed-in account
+  // (they have no such coach) so the fallback can't imply a relationship.
+  const _bsmSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const _bsmStripTag = (c) => ((c.tag === 'YOUR COACH' || c.tag === 'YOUR NUTRITIONIST') ? { ...c, tag: undefined } : c);
+  const marketplaceCoaches = remoteCoaches || (_bsmSignedIn
+    ? { Trainer: (BSM_MARKETPLACE_COACHES.Trainer || []).map(_bsmStripTag), Nutritionist: (BSM_MARKETPLACE_COACHES.Nutritionist || []).map(_bsmStripTag) }
+    : BSM_MARKETPLACE_COACHES);
   const trainers = marketplaceCoaches.Trainer || [];
   const nutritionists = marketplaceCoaches.Nutritionist || [];
   const everyone = useMemoBSM2(() => [...trainers, ...nutritionists], [trainers, nutritionists]);

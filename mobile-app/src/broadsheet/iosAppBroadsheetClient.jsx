@@ -1378,7 +1378,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
 // Full meal-logging flow — opened from the home "Up next" meal card's
 // "Log now" button. One-tap "ate as planned", or adjust portion / ingredients,
 // photo, or voice; writes to the day total and shows a logged confirmation.
-function BSLogMealFlow({ onClose, onLogged = () => {} }) {
+function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = null, signedIn = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [mode, setMode] = useStateBSC('adjust');
@@ -1386,13 +1386,22 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   const [note, setNote] = useStateBSC('');
   const [foodQuery, setFoodQuery] = useStateBSC('');
   const [logged, setLogged] = useStateBSC(false);
-  const [ings, setIngs] = useStateBSC([
-    { name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
-    { name: 'Jasmine rice',           qty: '1 cup', kcal: 205, p: 4,  c: 45, f: 0,  on: true },
-    { name: 'Charred broccoli',       qty: '1 cup', kcal: 55,  p: 4,  c: 11, f: 0,  on: true },
-    { name: 'Avocado',                qty: '½',     kcal: 120, p: 2,  c: 6,  f: 11, on: true },
-    { name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
-  ]);
+  const [ings, setIngs] = useStateBSC(() => {
+    // Seed from the REAL meal being logged when its macros are known; for a
+    // signed-in account with no macro breakdown, start empty (add what you ate)
+    // — never the demo plate. The demo ingredients are the signed-out preview.
+    if (meal && Number.isFinite(Number(meal.kcal))) {
+      return [{ name: meal.title || 'Meal', qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
+    }
+    if (signedIn) return [];
+    return [
+      { name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
+      { name: 'Jasmine rice',           qty: '1 cup', kcal: 205, p: 4,  c: 45, f: 0,  on: true },
+      { name: 'Charred broccoli',       qty: '1 cup', kcal: 55,  p: 4,  c: 11, f: 0,  on: true },
+      { name: 'Avocado',                qty: '½',     kcal: 120, p: 2,  c: 6,  f: 11, on: true },
+      { name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
+    ];
+  });
   const toggle = (i) => setIngs(arr => arr.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
   // Broadcast "cooking" presence while the meal logger is open (amber dot).
   React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
@@ -1519,8 +1528,19 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
   const C = Math.round(sum('c') * portion);
   const F = Math.round(sum('f') * portion);
   const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
-  const dayCal = DAY_BASE_CAL + kcal;
-  const dayP = DAY_BASE_P + P;
+  // Real "day so far" for a signed-in account (today's snapshot, passed in); the
+  // demo base is only for the signed-out preview. Title/eyebrow/planned/time all
+  // reflect the actual meal being logged — never a hardcoded sample.
+  const dayBaseCal = signedIn ? Math.max(0, Math.round(Number(daySoFar && daySoFar.cal) || 0)) : DAY_BASE_CAL;
+  const dayBaseP = signedIn ? Math.max(0, Math.round(Number(daySoFar && daySoFar.protein) || 0)) : DAY_BASE_P;
+  const dayCal = dayBaseCal + kcal;
+  const dayP = dayBaseP + P;
+  const mealTitle = (meal && meal.title) || (signedIn ? 'Meal' : 'Chicken bowl + rice');
+  const logTime = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const plannedLine = (meal && Number.isFinite(Number(meal.kcal)))
+    ? `${Math.round(Number(meal.kcal))} planned · ${Math.round(Number(meal.p) || 0)}P · ${Math.round(Number(meal.c) || 0)}C · ${Math.round(Number(meal.f) || 0)}F`
+    : (signedIn ? 'Add what you ate to log it' : '620 planned · 48P · 72C · 14F');
+  const mealEyebrow = (meal && meal.tag) ? `${meal.tag} · Planned` : (signedIn ? 'Log a meal' : 'Lunch · Planned');
   // On log, deliver the written note + any voice memo to the client's
   // nutritionist (best-effort; the endpoint resolves the coach and no-ops when
   // there's nothing to send or no coach linked).
@@ -1532,7 +1552,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
     try {
       const fd = new FormData();
       if (hasNote) fd.append('note', note.trim());
-      fd.append('mealTitle', 'Chicken bowl + rice');
+      fd.append('mealTitle', mealTitle);
       fd.append('mealSummary', `${kcal} kcal · ${P}P · ${C}C · ${F}F`);
       if (hasMemo) fd.append('audio', voiceMemo.blob, 'memo.webm');
       if (hasPhoto) fd.append('photo', photo.blob, photo.blob.name || 'meal.jpg');
@@ -1576,7 +1596,7 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#04201d" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
           </div>
           <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em' }}>Logged<span style={{ color: teal }}>.</span></div>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · 12:40 PM</div>
+          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>{kcal} kcal · {P}P · {logTime}</div>
         </div>
         <div style={{ padding: `26px ${t.padX}px 0` }}>
           <BSPlate c={teal} tick bracket pad="16px 16px 14px 22px"><DayTotals compact /></BSPlate>
@@ -1596,13 +1616,13 @@ function BSLogMealFlow({ onClose, onLogged = () => {} }) {
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>× Cancel</button>
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Log meal</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>12:40 PM</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{logTime}</span>
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <BSEyebrow color={t.INK50}>Lunch · Planned</BSEyebrow>
-        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>Chicken bowl + rice<span style={{ color: teal }}>.</span></div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>620 planned · 48P · 72C · 14F</div>
+        <BSEyebrow color={t.INK50}>{mealEyebrow}</BSEyebrow>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{mealTitle}<span style={{ color: teal }}>.</span></div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{plannedLine}</div>
       </div>
 
       {/* ONE TAP — primary action on a clipped instrument plate (teal-filled) */}
@@ -1974,6 +1994,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][selIdx];
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
+  const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
@@ -2216,12 +2237,16 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const liveCal = ticker && typeof ticker.cal === 'number' ? ticker.cal : null;
   const liveTarget = ticker && typeof ticker.cal_target === 'number' ? ticker.cal_target : null;
   const hasLiveBalance = selIdx === todayIdx && liveCal != null && liveTarget != null;
-  const balance = hasLiveBalance ? (liveCal - liveTarget) : (macros.kcalIn - macros.kcalBurn); // negative = deficit
+  // Demo macro balance is the SIGNED-OUT preview only — a signed-in account
+  // never sees fabricated kcal/notes (the honest "log to see" state covers it).
+  const balance = hasLiveBalance ? (liveCal - liveTarget) : (bsHomeSignedIn ? 0 : (macros.kcalIn - macros.kcalBurn)); // negative = deficit
   const balanceSign = balance < 0 ? '−' : '+';
   const balanceValue = Math.abs(balance).toString();
   // Demoted secondary line with a tilde (admits it's approximate). '— kcal' when
   // today has no logged nutrition yet.
-  const noLiveToday = selIdx === todayIdx && liveCal == null;
+  // Honest "no live data" state: today before any logs, OR any day a signed-in
+  // account has no real balance for (kills the demo-note leak on non-today days).
+  const noLiveToday = (selIdx === todayIdx && liveCal == null) || (bsHomeSignedIn && !hasLiveBalance);
   const energyEstimate = noLiveToday ? '— kcal' : `~${balanceSign}${balanceValue} kcal`;
 
   // ── ENERGY card — one component, three goal-driven states. Same balance,
@@ -2269,13 +2294,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   };
 
   if (previewMeal) {
-    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setPreviewMeal(null); setShowLogMeal(true); }} />;
+    return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setShowLogMeal(true); setPreviewMeal(null); }} />;
   }
   if (showWorkoutPreview) {
     return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
-    return <BSLogMealFlow onClose={() => setShowLogMeal(false)} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
+    return <BSLogMealFlow meal={mealToLog} daySoFar={{ cal: liveCal, protein: (ticker && typeof ticker.protein_g === 'number' ? ticker.protein_g : null) }} signedIn={bsHomeSignedIn} onClose={() => { setShowLogMeal(false); setMealToLog(null); }} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
   }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
@@ -2312,7 +2337,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: engineFlag.reason, cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
     if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN });
     if (!todo.length) return { done: true, head: "You're all set today.", sub: 'Everything logged — nice work.', c: t.GREEN };
@@ -2626,7 +2651,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                       </div>
                       {!logged && (isHeroTarget
                         ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, border: `1px solid ${teal}`, borderRadius: 999, padding: '6px 11px' }}>Next ↑</span>
-                        : <button onClick={() => { setLoggingMealId(next.id); setShowLogMeal(true); }} style={{ ...pillFilled, padding: '8px 13px' }}>Log →</button>)}
+                        : <button onClick={() => { setMealToLog(next); setLoggingMealId(next.id); setShowLogMeal(true); }} style={{ ...pillFilled, padding: '8px 13px' }}>Log →</button>)}
                     </div>
                   </div>
                   {more > 0 && (
