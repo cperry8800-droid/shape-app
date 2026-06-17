@@ -31,23 +31,42 @@ export const NOTIFY_TYPES = {
   score_drop:    { audience: 'client', priority: 'med',  route: 'score',   defaultOn: true },
   coach_cosign:  { audience: 'client', priority: 'low',  route: 'feed',    defaultOn: true },
   streak_broken: { audience: 'client', priority: 'low',  route: 'habits',  defaultOn: true },
+  habit_reminder:{ audience: 'client', priority: 'med',  route: 'habits',  defaultOn: true },
   // coach (own clients), routed by discipline upstream (getTriageFeed(role,…))
   client_red:    { audience: 'coach',  priority: 'high', route: 'client',  defaultOn: true },
   client_amber:  { audience: 'coach',  priority: 'med',  route: 'client',  defaultOn: true },
+  checkin_submitted: { audience: 'coach', priority: 'low', route: 'client', defaultOn: true },
 };
+
+export const CHANNELS = ['inapp', 'push', 'email'];
+// Default channel matrix: opt-IN for high-value low-frequency types means in-app +
+// push on, email off everywhere by default. The per-habit reminder itself is the
+// opt-in (no reminders exist until the user makes one), so the TYPE gate is on so
+// an enabled reminder actually delivers.
+function defaultChannels() { return { inapp: true, push: true, email: false }; }
+// Per-type × per-channel resolution: the stored override (prefs.matrix[type])
+// wins over the default; a type is OFF entirely when no channel is on.
+export function channelsForType(prefs, type) {
+  const base = defaultChannels();
+  const o = prefs && prefs.matrix && prefs.matrix[type];
+  if (o && typeof o === 'object') {
+    return { inapp: o.inapp !== undefined ? !!o.inapp : base.inapp, push: o.push !== undefined ? !!o.push : base.push, email: o.email !== undefined ? !!o.email : base.email };
+  }
+  return base;
+}
+function anyChannelOn(ch) { return !!(ch.inapp || ch.push || ch.email); }
 
 const PRIORITY_RANK = { high: 3, med: 2, low: 1 };
 const DAY = 86400000;
 
 export const DEFAULT_PREFS = {
-  enabled: true,
+  muted: false,           // master mute
   tone: 'supportive',
-  maxPerDay: 4,            // immediate (non-digest) cap; the rest digest
+  maxPerDay: 4,           // immediate (non-digest) cap; the rest digest
   quietStart: 22,         // local hour [0-23] inclusive
   quietEnd: 7,            // local hour exclusive
   tz: 'UTC',
-  channels: { inApp: true, push: true, email: false },
-  types: {},              // { [type]: false } to opt out; absent = default on
+  matrix: {},             // { [type]: { inapp, push, email } } overrides; absent = default
 };
 
 // ── small helpers ───────────────────────────────────────────────────────────
@@ -63,17 +82,21 @@ export function localHour(now, tz) {
     return Number.isFinite(h) ? (h % 24) : new Date(now).getUTCHours();
   } catch { return new Date(now).getUTCHours(); }
 }
+export function localMinute(now, tz) {
+  try { return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', minute: '2-digit' }).format(now), 10) || 0; }
+  catch { return new Date(now).getUTCMinutes(); }
+}
+const _DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+export function localDow(now, tz) {
+  try { const w = new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', weekday: 'short' }).format(now); return _DOW[w] != null ? _DOW[w] : new Date(now).getUTCDay(); }
+  catch { return new Date(now).getUTCDay(); }
+}
 export function inQuietHours(now, prefs) {
   const start = Number.isFinite(prefs.quietStart) ? prefs.quietStart : 22;
   const end = Number.isFinite(prefs.quietEnd) ? prefs.quietEnd : 7;
   if (start === end) return false;
   const h = localHour(now, prefs.tz);
   return start < end ? (h >= start && h < end) : (h >= start || h < end);
-}
-function typeOn(prefs, type) {
-  const def = NOTIFY_TYPES[type] ? NOTIFY_TYPES[type].defaultOn : true;
-  const v = prefs && prefs.types ? prefs.types[type] : undefined;
-  return v === undefined ? def : v !== false;
 }
 function nonEmpty(s) { return typeof s === 'string' && s.trim().length > 0; }
 
@@ -100,6 +123,9 @@ function clientCopy(type, ctx, tone) {
     case 'streak_broken':
       // Explicitly NOT streak-shaming.
       return { title: `Ready to restart your ${ctx.habit || 'habit'}?`, body: direct ? 'Pick it back up today.' : 'No streak-shaming — just a clean restart whenever you are.' };
+    case 'habit_reminder':
+      // Gentle + encouraging, NEVER "you still haven't…". Just the cue.
+      return { title: `Time for: ${ctx.label || 'your habit'}`, body: direct ? 'Tap to log it.' : 'A quick nudge — tap to check it off.' };
     default:
       return { title: 'Update', body: String(ctx.reason || '') };
   }
@@ -193,22 +219,50 @@ export function coachCandidates(input) {
   return out;
 }
 
+// HABIT REMINDERS (user-scheduled, opt-in). A reminder is DUE when today's local
+// weekday is in its days AND its local time has been reached (never early), and is
+// SUPPRESSED when the habit is already done today or it's snoozed. One candidate
+// per due habit; the per-day signature dedups so an hourly cron fires it once. The
+// per-channel gate + quiet hours + cap still apply downstream (so multiple habits
+// batch into the digest, never spam).
+export function habitReminderCandidates(input) {
+  const { reminders = [], doneToday = [], now = new Date(), tone } = input;
+  const done = new Set((doneToday || []).map((x) => String(x)));
+  const out = [];
+  for (const r of reminders) {
+    if (!r || r.enabled === false || !nonEmpty(r.habitId)) continue;
+    if (done.has(String(r.habitId))) continue;                       // suppress: already done today
+    if (r.snoozeUntil && +new Date(r.snoozeUntil) > +now) continue;  // suppress: snoozed
+    const tz = r.tz || 'UTC';
+    const days = Array.isArray(r.days) ? r.days : [];
+    if (!days.includes(localDow(now, tz))) continue;                 // not a scheduled day
+    const parts = String(r.at || r.atTime || '09:00').split(':');
+    const hh = parseInt(parts[0], 10) || 0, mm = parseInt(parts[1], 10) || 0;
+    const h = localHour(now, tz), m = localMinute(now, tz);
+    if (!(h > hh || (h === hh && m >= mm))) continue;                // time not reached yet (never early)
+    const copy = clientCopy('habit_reminder', { label: r.label }, tone);
+    out.push({ type: 'habit_reminder', key: r.habitId, sig: `${r.habitId}:${ymd(now, tz)}`, priority: 'med', route: 'habits', data: { habitId: r.habitId }, title: copy.title, body: copy.body });
+  }
+  return out;
+}
+
 // ── the gate: dedup → opt-out → quiet hours / cap → digest ──────────────────
 // candidates: from clientCandidates / coachCandidates. Returns the immediate
 // sends, a single optional digest, the per-channel hints, and the nextState.
 export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client' }) {
-  const P = { ...DEFAULT_PREFS, ...prefs, channels: { ...DEFAULT_PREFS.channels, ...(prefs.channels || {}) }, types: { ...(prefs.types || {}) } };
+  const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   const today = ymd(now, P.tz);
   const state = {
-    date: last.date === today ? today : today,
+    date: today,
     sentToday: last.date === today ? (last.sentToday || 0) : 0,
     types: { ...(last.types || {}) },
     coachClients: { ...(last.coachClients || {}) },
     pendingDigest: Array.isArray(last.pendingDigest) ? last.pendingDigest.slice() : [],
   };
 
-  if (P.enabled === false) {
-    return { send: [], digest: null, nextState: state, suppressed: candidates.map((c) => ({ type: c.type, reason: 'disabled' })) };
+  // Master mute — the authoritative kill switch.
+  if (P.muted === true) {
+    return { send: [], digest: null, nextState: state, suppressed: candidates.map((c) => ({ type: c.type, reason: 'muted' })) };
   }
 
   const quiet = inQuietHours(now, P);
@@ -220,7 +274,9 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
   const ranked = candidates.slice().sort((a, b) => (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
 
   for (const c of ranked) {
-    if (!typeOn(P, c.type)) { suppressed.push({ type: c.type, reason: 'opted_out' }); continue; }
+    // per-type × per-channel gate: a type is OFF entirely when no channel is on.
+    const ch = channelsForType(P, c.type);
+    if (!anyChannelOn(ch)) { suppressed.push({ type: c.type, reason: 'opted_out' }); continue; }
     if (!nonEmpty(c.title)) { suppressed.push({ type: c.type, reason: 'empty' }); continue; }
 
     // dedup: per (type+key) signature
@@ -228,7 +284,7 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     const prevSig = state.types[sigKey] && state.types[sigKey].sig;
     if (prevSig === c.sig) { suppressed.push({ type: c.type, reason: 'duplicate' }); continue; }
 
-    const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority };
+    const item = { type: c.type, title: c.title, body: c.body, route: c.route, data: c.data || {}, priority: c.priority, channels: ch };
 
     const overCap = state.sentToday >= (P.maxPerDay || DEFAULT_PREFS.maxPerDay);
     const lowPri = c.priority === 'low';
@@ -241,7 +297,6 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       continue;
     }
 
-    item.channels = { inApp: P.channels.inApp !== false, push: P.channels.push !== false, email: false };
     send.push(item);
     state.sentToday += 1;
     state.types[sigKey] = { sig: c.sig, at: +now };
@@ -263,7 +318,12 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
       route: audience === 'coach' ? 'clients' : 'home',
       data: { items: items.map((i) => ({ type: i.type, route: i.route, data: i.data })) },
       priority: 'low',
-      channels: { inApp: P.channels.inApp !== false, push: P.channels.push !== false, email: P.channels.email === true },
+      // the digest goes out on the UNION of channels its held items wanted.
+      channels: {
+        inapp: items.some((i) => i.channels && i.channels.inapp),
+        push: items.some((i) => i.channels && i.channels.push),
+        email: items.some((i) => i.channels && i.channels.email),
+      },
     };
     state.pendingDigest = [];
   }

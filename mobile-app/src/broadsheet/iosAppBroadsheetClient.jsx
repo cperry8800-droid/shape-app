@@ -12237,42 +12237,38 @@ function _bsNotifStyle(type, t) {
 }
 
 const _NP_HOURS = Array.from({ length: 24 }, (_, h) => ({ v: h, l: (h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM') }));
-function _npNorm(p) {
-  p = p && typeof p === 'object' ? p : {};
-  return {
-    enabled: p.enabled !== false,
-    quietStart: Number.isFinite(p.quietStart) ? p.quietStart : 22,
-    quietEnd: Number.isFinite(p.quietEnd) ? p.quietEnd : 7,
-    tz: p.tz || 'UTC',
-    channels: { push: !(p.channels && p.channels.push === false) },
-    types: (p.types && typeof p.types === 'object') ? { ...p.types } : {},
-  };
-}
-// Proactive-notification preferences: master switch · quiet hours (tz-aware) ·
-// push channel · per-type opt-out. Persists to user_goals('notify_prefs') — the
-// SAME doc /api/ai/notify reads — so the screen and the server agree.
+const _NP_DEF_CH = { inapp: true, push: true, email: false };
+const _NP_CHANNELS = [['inapp', 'App'], ['push', 'Push'], ['email', 'Email']];
+const _NP_CAPS = [2, 3, 4, 6, 8];
+// The notification PREFERENCE CENTER — the authoritative gate over what each
+// person is notified about, per TYPE × per CHANNEL, plus master mute, quiet
+// hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
+// notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
   const isCoach = role === 'trainer' || role === 'nutritionist';
-  const [prefs, setPrefs] = useStateBSC(null);
+  const [settings, setSettings] = useStateBSC(null);
+  const [matrix, setMatrix] = useStateBSC({});
   React.useEffect(() => {
     let alive = true;
-    Promise.resolve(window.ShapeNotifyPrefs?.get?.() || {}).then(p => { if (alive) setPrefs(_npNorm(p)); });
+    Promise.resolve(window.ShapeNotifyPrefs?.center?.() || { settings: null, prefs: [] }).then(c => {
+      if (!alive) return;
+      const s = c.settings || {};
+      setSettings({ muted: s.muted === true, quiet_start: Number.isFinite(s.quiet_start) ? s.quiet_start : 22, quiet_end: Number.isFinite(s.quiet_end) ? s.quiet_end : 7, daily_cap: Number.isFinite(s.daily_cap) ? s.daily_cap : 4 });
+      const m = {};
+      (c.prefs || []).forEach(p => { (m[p.type] = m[p.type] || {})[p.channel] = p.enabled; });
+      setMatrix(m);
+    });
     return () => { alive = false; };
   }, []);
-  const commit = (next) => {
-    try { next.tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) {}
-    setPrefs(next);
-    window.ShapeNotifyPrefs?.save?.(next);
-  };
-  const setField = (k, v) => commit({ ...prefs, [k]: v });
-  const setType = (type, on) => commit({ ...prefs, types: { ...(prefs.types || {}), [type]: on } });
-  const setChannel = (k, v) => commit({ ...prefs, channels: { ...(prefs.channels || {}), [k]: v } });
+  const saveSettings = (patch) => { setSettings(s => ({ ...s, ...patch })); window.ShapeNotifyPrefs?.saveSettings?.(patch); };
+  const chOn = (type, ch) => { const o = matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : _NP_DEF_CH[ch]; };
+  const toggleCh = (type, ch) => { const next = !chOn(type, ch); setMatrix(m => ({ ...m, [type]: { ...(m[type] || {}), [ch]: next } })); window.ShapeNotifyPrefs?.setChannel?.(type, ch, next); };
 
   const TYPES = isCoach
-    ? [['client_red', 'Clients in the red', 'A client crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up before it’s urgent']]
-    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never streak-shaming']];
+    ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['checkin_submitted', 'Check-in submitted', 'A client logs their week']]
+    : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Score dips', 'When your Shape Score drops'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page']];
 
   const Toggle = ({ on, onClick }) => (
     <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
@@ -12289,33 +12285,47 @@ function BSNotifyPrefs({ onBack, role }) {
     </div>
   );
   const Head = (txt) => <div style={{ marginTop: 18, marginBottom: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
-  const HourSelect = ({ value, onChange }) => (
+  const Pill = ({ value, opts, fmt, onChange }) => (
     <select value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ background: 'transparent', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
-      {_NP_HOURS.map(h => <option key={h.v} value={h.v} style={{ color: '#000' }}>{h.l}</option>)}
+      {opts.map(o => <option key={o} value={o} style={{ color: '#000' }}>{fmt(o)}</option>)}
     </select>
   );
+  const ChannelChip = ({ on, label, onClick }) => (
+    <button onClick={onClick} aria-pressed={on} style={{ width: 44, padding: '5px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
+  );
+  const hourLabel = (h) => _NP_HOURS.find(x => x.v === h)?.l || `${h}:00`;
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Notifications" kicker="Proactive nudges" title={<>When Shape<br/>reaches you.</>} />
-      {prefs === null ? (
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Notifications" kicker="Notifications" title={<>What reaches<br/>you.</>} />
+      {settings === null ? (
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
       ) : (
         <div style={{ padding: `4px ${t.padX}px 30px` }}>
-          <Row l="Proactive nudges" sub={prefs.enabled === false ? 'Off — only the in-app bell' : 'Real events only — never spam'} border={false} right={<Toggle on={prefs.enabled !== false} onClick={() => setField('enabled', prefs.enabled === false)} />} />
-          {prefs.enabled !== false && (
+          <Row l="Mute everything" sub={settings.muted ? 'All notifications paused' : 'Real events only — never spam'} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
+          {!settings.muted && (
             <React.Fragment>
               {Head('Quiet hours')}
-              <Row l="From" sub="No nudges — held for a daily digest" right={<HourSelect value={prefs.quietStart} onChange={(v) => setField('quietStart', v)} />} />
-              <Row l="To" sub="Uses your device time zone" border={false} right={<HourSelect value={prefs.quietEnd} onChange={(v) => setField('quietEnd', v)} />} />
-              {Head('Channels')}
-              <Row l="Push notifications" sub="The in-app bell is always on" border={false} right={<Toggle on={prefs.channels.push !== false} onClick={() => setChannel('push', !(prefs.channels.push !== false))} />} />
-              {Head('What you’ll hear about')}
-              {TYPES.map(([type, label, sub], i) => {
-                const on = !(prefs.types && prefs.types[type] === false);
-                return <Row key={type} l={label} sub={sub} border={i < TYPES.length - 1} right={<Toggle on={on} onClick={() => setType(type, !on)} />} />;
-              })}
-              <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Shape only notifies on a real event — never a guilt-trip, never a fake streak. Each one deep-links you to the right place; nothing changes your data.</div>
+              <Row l="From" sub="Held for a daily digest" right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
+              <Row l="To" sub="Uses your device time zone" right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
+              <Row l="Daily limit" sub="Extra items batch into a digest" border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => `${n}/day`} onChange={(v) => saveSettings({ daily_cap: v })} />} />
+
+              {Head('What you hear about · per channel')}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, padding: '0 0 6px' }}>
+                {_NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 44, textAlign: 'center', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{l}</span>)}
+              </div>
+              {TYPES.map(([type, label, sub], i) => (
+                <div key={type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{label}</div>
+                    {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {_NP_CHANNELS.map(([k, l]) => <ChannelChip key={k} on={chOn(type, k)} label={l} onClick={() => toggleCh(type, k)} />)}
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.</div>
             </React.Fragment>
           )}
         </div>
@@ -17504,7 +17514,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Notifications',
       meta: (prefs.workoutReminders !== 'Off' || prefs.coachReplies !== 'Off' || prefs.weeklyDigest !== 'Off') ? 'On' : 'Off',
       rows: [
-        { l: 'Proactive nudges', r: 'Types · quiet hours', action: () => setShowNotifyPrefs(true) },
+        { l: 'Notification center', r: 'All types · channels', action: () => setShowNotifyPrefs(true) },
         { l: 'Workout reminders', key: 'workoutReminders' },
         { l: 'Coach replies',     key: 'coachReplies' },
         { l: 'Weekly digest',     key: 'weeklyDigest' },

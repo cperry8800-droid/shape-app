@@ -15,7 +15,7 @@
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot } from '@/lib/ai/notify-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,13 +53,14 @@ async function run(request: Request) {
     if (!snapshot || typeof snapshot !== 'object' || !userId) continue;
     if (typeof snapshot.at === 'number' && snapshot.at < cutoff) continue; // inactive → skip
 
-    const prefs = { ...Notify.DEFAULT_PREFS, ...(await readUserGoal(admin, userId, 'notify_prefs')) };
-    if (prefs.enabled === false) continue; // honor the master switch
+    const prefs = await loadPrefs(admin, userId);      // the preference center
+    if (prefs.muted) continue;                          // honor master mute
     const last = await readUserGoal(admin, userId, 'notify_state');
     const now = new Date();
-    const tone = typeof prefs.tone === 'string' ? prefs.tone : 'supportive';
+    const isCoach = snapshot.role === 'trainer' || snapshot.role === 'nutritionist';
+    const habitContext = isCoach ? undefined : await loadHabitContext(admin, userId, now, prefs.tz);
 
-    const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now });
+    const { audience, candidates } = candidatesFor(snapshot, { tone: prefs.tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext });
     const { send, digest, nextState } = Notify.decideNotifications({ candidates, last, prefs, now, audience });
     const items = digest ? [...send, digest] : send;
     if (items.length) { await deliver(admin, userId, items); delivered += items.length; }

@@ -24,6 +24,7 @@ type NotificationRecord = {
   body?: string;
   route?: string | null;
   type?: string;
+  data?: { channels?: { push?: boolean } } | null;
 };
 
 export async function POST(request: Request) {
@@ -40,6 +41,11 @@ export async function POST(request: Request) {
   const record = (payload?.record ?? payload?.new ?? {}) as NotificationRecord;
   if (!record.user_id || !record.title) {
     return NextResponse.json({ ok: true, skipped: 'no_record' });
+  }
+  // Honor the notification preference center: a notification can be in-app-only
+  // (push channel turned off for its type). Default ON when unspecified.
+  if (record.data && record.data.channels && record.data.channels.push === false) {
+    return NextResponse.json({ ok: true, skipped: 'push_channel_off' });
   }
 
   const admin = createAdminClient();

@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, deliver, readUserGoal, writeUserGoal, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,14 +30,16 @@ export async function POST(request: Request) {
   const parsed = await readJson<{ record?: Record<string, unknown>; clients?: unknown[] }>(request, { allowEmpty: true });
   if (!parsed.ok) return parsed.response;
 
-  const prefs = { ...Notify.DEFAULT_PREFS, ...(await readUserGoal(actor.supabase, actor.user.id, 'notify_prefs')) };
+  // THE preference center is the single source of truth.
+  const prefs = await loadPrefs(actor.supabase, actor.user.id);
   const last = await readUserGoal(actor.supabase, actor.user.id, 'notify_state');
   const now = new Date();
-  const tone = typeof prefs.tone === 'string' ? prefs.tone : 'supportive';
+  const tone = prefs.tone;
   const isCoach = actor.role === 'trainer' || actor.role === 'nutritionist';
 
   // Build the snapshot of REAL data, role-scoped.
-  const snapshot: Snapshot = { role: actor.role, tz: typeof prefs.tz === 'string' ? prefs.tz : 'UTC', at: +now };
+  const snapshot: Snapshot = { role: actor.role, tz: prefs.tz, at: +now };
+  let habitContext: HabitContext | undefined;
   if (isCoach) {
     const clients = Array.isArray(parsed.data.clients) ? parsed.data.clients.slice(0, 100) : [];
     const verified: unknown[] = [];
@@ -54,9 +56,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'record is required.' }, { status: 400 });
     }
     snapshot.record = record;
+    habitContext = await loadHabitContext(actor.supabase, actor.user.id, now, prefs.tz);
   }
 
-  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now });
+  const { audience, candidates } = candidatesFor(snapshot, { tone, lastSeverity: (last.coachClients as Record<string, string>) || {}, now, habitContext });
   const { send, digest, nextState, suppressed } = Notify.decideNotifications({ candidates, last, prefs, now, audience });
 
   const admin = createAdminClient();

@@ -202,15 +202,87 @@ function _bsHabitPts(h) {
 }
 
 // One habit as a card — check, title, status line, points, remove (×).
-function BSHabitRow({ habit, accent, onToggle, onRemove }) {
+const _BS_REM_DAYS = [['S', 0], ['M', 1], ['T', 2], ['W', 3], ['T', 4], ['F', 5], ['S', 6]];
+function _bsBellIcon(filled, color) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10 21a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+// Per-habit reminder: opt-in time + days. Persists to habit_reminders (the cron
+// reads it; the device schedules a local notification). Gentle by design.
+function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
+  const t = useBS();
+  const r = reminder || {};
+  const c = accent;
+  const [on, setOn] = React.useState(!!reminder && r.enabled !== false);
+  const [time, setTime] = React.useState(r.at_time || '09:00');
+  const [days, setDays] = React.useState(Array.isArray(r.days) ? r.days.slice() : [1, 2, 3, 4, 5]);
+  const toggleDay = (d) => setDays(ds => ds.includes(d) ? ds.filter(x => x !== d) : [...ds, d].sort((a, b) => a - b));
+  const save = async () => {
+    try {
+      if (!on || !days.length) await window.ShapeHabitReminders?.remove?.(habit.id);
+      else await window.ShapeHabitReminders?.set?.({ habitId: habit.id, label: habit.name, time, days, enabled: true });
+    } catch (e) {}
+    onSaved && onSaved();
+    onClose();
+  };
+  const chip = { flex: 1, padding: '7px 0', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' };
+  const target = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: '18px 18px 24px', borderTop: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Habit reminder</div>
+        <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{habit.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingBottom: 14, borderBottom: `1px solid ${t.HAIR}` }}>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>Remind me</div>
+          <button onClick={() => setOn(v => !v)} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? c : t.RULE}`, background: on ? c : 'transparent', position: 'relative', cursor: 'pointer' }}>
+            <span style={{ position: 'absolute', top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? '#fff' : t.INK50 }} />
+          </button>
+        </div>
+        {on && (
+          <React.Fragment>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>Time</div>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ background: 'transparent', color: c, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 10px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, cursor: 'pointer' }} />
+            </div>
+            <div style={{ padding: '14px 0' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginBottom: 10 }}>Days</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {_BS_REM_DAYS.map(([lab, d], i) => { const dn = days.includes(d); return (
+                  <button key={i} onClick={() => toggleDay(d)} style={{ flex: 1, height: 36, borderRadius: 8, border: `1px solid ${dn ? c : t.RULE}`, background: dn ? `${c}22` : 'transparent', color: dn ? c : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>{lab}</button>
+                ); })}
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                <button onClick={() => setDays([1, 2, 3, 4, 5])} style={chip}>Weekdays</button>
+                <button onClick={() => setDays([0, 1, 2, 3, 4, 5, 6])} style={chip}>Every day</button>
+              </div>
+            </div>
+          </React.Fragment>
+        )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} style={{ flex: '0 0 auto', padding: '12px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={save} style={{ flex: 1, padding: '12px', borderRadius: 999, background: c, color: '#04201d', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: 'pointer' }}>{on && days.length ? 'Save reminder' : 'Turn off'}</button>
+        </div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>Off by default · skipped once you check it off · never nagging</div>
+      </div>
+    </div>
+  );
+  return target ? createPortal(sheet, target) : sheet;
+}
+function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange }) {
   const t = useBS();
   const done = (habit.history || []).includes(_bsHabitsToday);
   const isAvoid = habit.type === 'avoid';
   const pts = _bsHabitPts(habit);
   const c = accent;
+  const [remOpen, setRemOpen] = React.useState(false);
+  const hasRem = !!reminder && reminder.enabled !== false;
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
+      display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto', alignItems: 'center', gap: 10,
       padding: '10px 12px', borderRadius: 5,
       border: `1px solid ${done ? `${c}66` : t.RULE}`,
       borderLeft: `3px solid ${done ? c : `${c}55`}`,
@@ -228,14 +300,15 @@ function BSHabitRow({ habit, accent, onToggle, onRemove }) {
           {done ? (isAvoid ? '✓ Stayed clean' : '✓ Done') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
         </div>
       </button>
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: done ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts}</span>
+      <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label="Habit reminder" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
       <button onClick={() => onRemove(habit.id)} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
+      {remOpen && <BSHabitReminderSheet habit={habit} reminder={reminder} accent={c} onClose={() => setRemOpen(false)} onSaved={onReminderChange} />}
     </div>
   );
 }
 
 // Section: "To-dos" / "To-don'ts" — count eyebrow, +Add link, card rows.
-function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd }) {
+function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd, reminders, onReminderChange }) {
   const t = useBS();
   const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
   const word = type === 'avoid' ? 'Stop' : 'Done';
@@ -254,7 +327,7 @@ function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd
             + Add a {type === 'avoid' ? 'to-don’t' : 'to-do'}
           </button>
         ) : habits.map(h => (
-          <BSHabitRow key={h.id} habit={h} accent={accent} onToggle={onToggle} onRemove={onRemove} />
+          <BSHabitRow key={h.id} habit={h} accent={accent} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} />
         ))}
       </div>
     </div>
@@ -587,6 +660,13 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   // the home tracker so completions and edits stay in sync across surfaces.
   const { habits, create, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
   const [adding, setAdding] = useStateBSH(null); // 'do' | 'avoid' | null
+  // Per-habit reminders (opt-in). Map habit_id → row; refreshed after each edit.
+  const [reminders, setReminders] = React.useState({});
+  const loadReminders = React.useCallback(() => {
+    if (!window.ShapeHabitReminders?.list) return;
+    window.ShapeHabitReminders.list().then(list => { const m = {}; (list || []).forEach(r => { m[r.habit_id] = r; }); setReminders(m); }).catch(() => {});
+  }, []);
+  React.useEffect(() => { loadReminders(); }, [loadReminders]);
   const dos = habits.filter(h => h.type !== 'avoid');
   const donts = habits.filter(h => h.type === 'avoid');
   const onCreate = ({ name, type, pts }) => { create({ name, type, pts, visibility: 'private' }); setAdding(null); };
@@ -603,8 +683,8 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
       <div style={{ padding: `12px ${t.padX}px 0` }}>
         <BSHabitGrid habits={habits} />
       </div>
-      <BSHabitSection title="To do" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} />
-      <BSHabitSection title="To don't" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} />
+      <BSHabitSection title="To do" type="do" accent={teal} habits={dos} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('do')} reminders={reminders} onReminderChange={loadReminders} />
+      <BSHabitSection title="To don't" type="avoid" accent={t.RUST} habits={donts} onToggle={toggle} onRemove={removeHabit} onAdd={() => setAdding('avoid')} reminders={reminders} onReminderChange={loadReminders} />
       <div style={{ height: 28 }} />
       {adding && <BSHabitAddSheet type={adding} accent={adding === 'avoid' ? t.RUST : teal} onClose={() => setAdding(null)} onCreate={onCreate} />}
     </BSPage>

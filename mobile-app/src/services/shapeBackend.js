@@ -4445,15 +4445,83 @@ window.ShapeVoice = {
 // 'notify_prefs' — the SAME doc /api/ai/notify reads, so the screen and the
 // server agree. evaluate() runs the engine server-side over the REAL record and
 // writes any due notifications (deduped/capped/quiet-hours-aware over there).
-async function getNotifyPrefs() {
-  try { return (window.shapeDb?.getUserGoals ? await window.shapeDb.getUserGoals('notify_prefs') : null) || {}; } catch (e) { return {}; }
+function _deviceTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } }
+// The preference center: settings (mute/quiet hours/cap/tz) + the per-type ×
+// per-channel matrix (notification_preferences) + the user's habit reminders.
+// One RPC read; targeted upserts on change. The SAME tables /api/ai/notify reads.
+async function notifyCenter() {
+  if (!supabase || !state.user?.id) return { settings: null, prefs: [], reminders: [] };
+  try {
+    const { data, error } = await supabase.rpc('get_notification_center');
+    if (error || !data) return { settings: null, prefs: [], reminders: [] };
+    return { settings: data.settings || null, prefs: Array.isArray(data.prefs) ? data.prefs : [], reminders: Array.isArray(data.reminders) ? data.reminders : [] };
+  } catch (e) { return { settings: null, prefs: [], reminders: [] }; }
 }
-async function saveNotifyPrefs(p) {
-  try { await window.shapeDb?.saveUserGoals?.('notify_prefs', p || {}); } catch (e) {}
-  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs', { detail: p })); } catch (e) {}
-  return p;
+async function saveNotifySettings(patch) {
+  if (!supabase || !state.user?.id) return;
+  const row = { user_id: state.user.id, tz: _deviceTz(), updated_at: new Date().toISOString(), ...patch };
+  try { await supabase.from('notification_settings').upsert(row, { onConflict: 'user_id' }); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
 }
-window.ShapeNotifyPrefs = { get: getNotifyPrefs, save: saveNotifyPrefs };
+async function setNotifyChannel(type, channel, enabled) {
+  if (!supabase || !state.user?.id) return;
+  try { await supabase.from('notification_preferences').upsert({ user_id: state.user.id, type, channel, enabled: enabled === true, updated_at: new Date().toISOString() }, { onConflict: 'user_id,type,channel' }); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
+}
+window.ShapeNotifyPrefs = { center: notifyCenter, saveSettings: saveNotifySettings, setChannel: setNotifyChannel };
+
+// ─── Habit reminders (Part B) — user-scheduled, opt-in ───────────────────────
+// Persisted to habit_reminders (the cron reads it for push/email); also scheduled
+// as device-LOCAL notifications (offline, no server cost) when the native plugin
+// is present. Suppression-when-done + batching live in the server decision layer.
+function _localNotifs() { try { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null; } catch (e) { return null; } }
+function _habitNotifBase(habitId) { let h = 0; const s = String(habitId); for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; } return (h % 200000) * 10; }
+async function cancelLocalHabit(habitId) {
+  const LN = _localNotifs(); if (!LN || !LN.cancel) return;
+  const base = _habitNotifBase(habitId);
+  try { await LN.cancel({ notifications: [0, 1, 2, 3, 4, 5, 6].map(d => ({ id: base + d })) }); } catch (e) {}
+}
+async function scheduleLocalHabit(r) {
+  const LN = _localNotifs(); if (!LN || !LN.schedule) return;
+  await cancelLocalHabit(r.habit_id);
+  if (r.enabled === false) return;
+  const parts = String(r.at_time || '09:00').split(':');
+  const hour = parseInt(parts[0], 10) || 9, minute = parseInt(parts[1], 10) || 0;
+  const notifications = (r.days || []).map((dow) => ({
+    id: _habitNotifBase(r.habit_id) + dow,
+    title: `Time for: ${r.label || 'your habit'}`,
+    body: 'A quick nudge — tap to check it off.',
+    schedule: { on: { weekday: dow + 1, hour, minute }, allowWhileIdle: true }, // Capacitor weekday 1=Sun…7=Sat
+    extra: { route: 'habits', habitId: r.habit_id },
+  }));
+  try { if (notifications.length) await LN.schedule({ notifications }); } catch (e) {}
+}
+async function listHabitReminders() {
+  if (!supabase || !state.user?.id) return [];
+  try { const { data } = await supabase.from('habit_reminders').select('*').eq('user_id', state.user.id); return data || []; } catch (e) { return []; }
+}
+async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
+  if (!supabase || !state.user?.id || !habitId) return null;
+  const row = {
+    habit_id: habitId, user_id: state.user.id, label: label || '',
+    at_time: time || '09:00', days: Array.isArray(days) ? days : [1, 2, 3, 4, 5],
+    tz: _deviceTz(), enabled: enabled !== false, snooze_until: null, updated_at: new Date().toISOString(),
+  };
+  try { await supabase.from('habit_reminders').upsert(row, { onConflict: 'habit_id' }); } catch (e) {}
+  scheduleLocalHabit(row);
+  return row;
+}
+async function removeHabitReminder(habitId) {
+  if (!supabase || !state.user?.id || !habitId) return;
+  try { await supabase.from('habit_reminders').delete().eq('habit_id', habitId); } catch (e) {}
+  cancelLocalHabit(habitId);
+}
+async function snoozeHabitReminder(habitId, minutes) {
+  if (!supabase || !state.user?.id || !habitId) return;
+  const until = new Date(Date.now() + (minutes || 60) * 60000).toISOString();
+  try { await supabase.from('habit_reminders').update({ snooze_until: until }).eq('habit_id', habitId); } catch (e) {}
+}
+window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
 
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;
