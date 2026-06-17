@@ -54,6 +54,19 @@ function parseShipping(input: unknown): ShipTo | null {
   return ship;
 }
 
+// Escape user-derived values before they're interpolated into HTML email
+// bodies (the shipping address comes straight from the request). Plain-text
+// `text:` parts don't need it. Matches the per-route helper in
+// consultation/contact/apply.
+function escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -91,7 +104,7 @@ async function fulfillEmails(item: StoreItem, code: string, email: string | null
       to: email,
       subject: `Your Shape Store reward — ${item.name}`,
       text,
-      html: `<div style="font-family:system-ui,sans-serif;max-width:480px"><h2 style="margin:0 0 8px">You redeemed ${item.name}</h2><p style="font-size:13px;color:#555">Confirmation code</p><p style="font-family:monospace;font-size:18px;font-weight:700;letter-spacing:1px;margin:0 0 16px">${code}</p><p style="white-space:pre-line;font-size:14px;line-height:1.5">${next}</p><p style="font-size:12px;color:#888;margin-top:24px">Spend more points anytime in the <a href="${SITE}">Shape Store</a>.</p></div>`,
+      html: `<div style="font-family:system-ui,sans-serif;max-width:480px"><h2 style="margin:0 0 8px">You redeemed ${escapeHtml(item.name)}</h2><p style="font-size:13px;color:#555">Confirmation code</p><p style="font-family:monospace;font-size:18px;font-weight:700;letter-spacing:1px;margin:0 0 16px">${escapeHtml(code)}</p><p style="white-space:pre-line;font-size:14px;line-height:1.5">${escapeHtml(next)}</p><p style="font-size:12px;color:#888;margin-top:24px">Spend more points anytime in the <a href="${SITE}">Shape Store</a>.</p></div>`,
     }).catch(() => {});
   }
 
@@ -104,7 +117,7 @@ async function fulfillEmails(item: StoreItem, code: string, email: string | null
         to: ops,
         subject: `[Shape Store] Ship: ${item.name} — ${code}`,
         text: `A member redeemed merch.\n\nItem: ${item.name}\nCode: ${code}\nMember: ${email || 'unknown'}\n\nShip to:\n${addr}`,
-        html: `<div style="font-family:system-ui,sans-serif"><h3>Ship: ${item.name}</h3><p>Code <b>${code}</b> · member ${email || 'unknown'}</p><pre style="font-size:13px">${addr}</pre></div>`,
+        html: `<div style="font-family:system-ui,sans-serif"><h3>Ship: ${escapeHtml(item.name)}</h3><p>Code <b>${escapeHtml(code)}</b> · member ${escapeHtml(email || 'unknown')}</p><pre style="font-size:13px">${escapeHtml(addr)}</pre></div>`,
       }).catch(() => {});
     }
   }

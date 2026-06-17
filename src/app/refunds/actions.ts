@@ -28,13 +28,15 @@ export async function requestRefund(formData: FormData): Promise<void> {
   if (!user) redirect('/login');
 
   // Confirm the target row actually belongs to this user before inserting
-  // a refund request. RLS already limits reads to the owner, so if the
-  // select comes back empty the id is bogus / not theirs.
+  // a refund request. RLS already limits reads to the owner, but we also
+  // filter on client_id explicitly (mirrors cancelSubscription) so a bogus /
+  // someone-else's id can never seed a refund request against their purchase.
   if (hasSub) {
     const { data: row } = await supabase
       .from('subscriptions')
       .select('id')
       .eq('id', subscriptionId)
+      .eq('client_id', user.id)
       .maybeSingle();
     if (!row) redirect('/dashboard/client?error=not_found');
   } else {
@@ -42,6 +44,7 @@ export async function requestRefund(formData: FormData): Promise<void> {
       .from('one_time_purchases')
       .select('id')
       .eq('id', oneTimePurchaseId)
+      .eq('client_id', user.id)
       .maybeSingle();
     if (!row) redirect('/dashboard/client?error=not_found');
   }
