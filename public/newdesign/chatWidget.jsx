@@ -121,19 +121,50 @@ function ChatWidget(props) {
   const hydratedRef = React.useRef(false);
   const dirtyRef = React.useRef(false);
 
-  // Nora's tone (supportive | direct) syncs from the account (user_goals
-  // 'nora_voice'), set on the mobile app — so her framing matches across surfaces.
-  const noraToneRef = React.useRef("supportive");
+  // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
+  // without it. tone + voice sync from the account (user_goals 'nora_voice') so
+  // they match the mobile app; the on/off flag is per-device (localStorage).
+  const NORA_VOICES = [
+    { id: "shimmer", label: "Warm" }, { id: "alloy", label: "Neutral" }, { id: "sage", label: "Calm" },
+    { id: "nova", label: "Bright" }, { id: "onyx", label: "Deep" }, { id: "verse", label: "Expressive" },
+  ];
+  const normNoraVoice = (v) => NORA_VOICES.some(x => x.id === v) ? v : "auto";
+  const readNoraEnabled = () => { try { return localStorage.getItem("shape.nora.voice") === "on"; } catch (e) { return false; } };
+  const [noraVoice, setNoraVoiceState] = React.useState({ enabled: readNoraEnabled(), tone: "supportive", voice: "auto" });
+  const noraAudioRef = React.useRef(null);
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const doc = window.shapeDb && window.shapeDb.getUserGoals ? await window.shapeDb.getUserGoals("nora_voice") : null;
-        if (!cancelled && doc && (doc.tone === "direct" || doc.tone === "supportive")) noraToneRef.current = doc.tone;
-      } catch (e) { /* default supportive */ }
+        if (!cancelled && doc && typeof doc === "object") setNoraVoiceState(s => ({ ...s, tone: doc.tone === "direct" ? "direct" : "supportive", voice: normNoraVoice(doc.voice) }));
+      } catch (e) { /* default supportive/auto */ }
     })();
     return () => { cancelled = true; };
   }, []);
+  const saveNoraAccount = (tone, voice) => { try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals("nora_voice", { tone, voice: normNoraVoice(voice) }); } catch (e) {} };
+  const stopNora = () => { try { if (noraAudioRef.current) { noraAudioRef.current.pause(); noraAudioRef.current = null; } } catch (e) {} try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {} };
+  const setNoraEnabled = (on) => { try { localStorage.setItem("shape.nora.voice", on ? "on" : "off"); } catch (e) {} if (!on) stopNora(); setNoraVoiceState(s => ({ ...s, enabled: on })); };
+  const setNoraTone = (tone) => setNoraVoiceState(s => { const n = { ...s, tone }; saveNoraAccount(n.tone, n.voice); return n; });
+  const setNoraVoiceId = (voice) => setNoraVoiceState(s => { const n = { ...s, voice: normNoraVoice(voice) }; saveNoraAccount(n.tone, n.voice); return n; });
+  const speakNora = async (text) => {
+    const clean = String(text || "").trim();
+    if (!clean) return;
+    stopNora();
+    try {
+      const res = await fetch("/api/ai/speak", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean.slice(0, 2000), tone: noraVoice.tone, voice: noraVoice.voice !== "auto" ? noraVoice.voice : undefined }),
+      });
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url); noraAudioRef.current = audio;
+        audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
+        await audio.play(); return;
+      }
+    } catch (e) { /* fall back to the browser voice (e.g. non-members, no key) */ }
+    try { if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(clean); u.rate = noraVoice.tone === "direct" ? 1.05 : 0.98; window.speechSynthesis.speak(u); } } catch (e) {}
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -432,13 +463,15 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history, tone: noraToneRef.current }),
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone }),
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data && data.reply) { reply = data.reply; actions = data.actions; }
         } catch (e) { /* fall back below */ }
         setTyping(false);
-        appendReply("Nora", reply || supportReply(text), actions);
+        const finalReply = reply || supportReply(text);
+        appendReply("Nora", finalReply, actions);
+        if (noraVoice.enabled) speakNora(finalReply); // off by default
       })();
       return;
     }
@@ -1223,6 +1256,10 @@ function ChatWidget(props) {
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(242,237,228,0.4)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
+                  {!m.me && isSupport && (
+                    <button onClick={() => speakNora(m.t)} title="Read this aloud" aria-label="Read this aloud"
+                      style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", background: "transparent", color: "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>🔊 Listen</button>
+                  )}
                   {!m.me && Array.isArray(m.actions) && m.actions.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 8, maxWidth: "92%" }}>
                       {m.actions.map((a, ai) => (
@@ -1265,6 +1302,25 @@ function ChatWidget(props) {
               </div>
             ) : (
             <React.Fragment>
+            {isSupport && (
+              <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(242,237,228,0.14)"}`, background: noraVoice.enabled ? "rgba(10,197,168,0.12)" : "transparent", color: noraVoice.enabled ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                  {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
+                </button>
+                <div style={{ display: "inline-flex", borderRadius: 999, border: "1px solid rgba(242,237,228,0.14)", overflow: "hidden" }}>
+                  {["supportive", "direct"].map(tn => (
+                    <button key={tn} onClick={() => setNoraTone(tn)} title={tn === "supportive" ? "Warm and encouraging" : "Concise and factual"}
+                      style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
+                  ))}
+                </div>
+                <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
+                  style={{ background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.14)", borderRadius: 999, padding: "5px 8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, cursor: "pointer" }}>
+                  <option value="auto">Auto voice</option>
+                  {NORA_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
+                </select>
+              </div>
+            )}
             {isSupport && (voiceState !== "idle" || voiceErr) && (
               <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: voiceErr ? "#e0a23a" : (voiceState === "listening" ? "#e0463c" : "rgba(242,237,228,0.6)") }}>
                 {voiceState === "listening" ? "● Listening… tap the mic to stop" : voiceState === "transcribing" ? "Transcribing…" : voiceErr}

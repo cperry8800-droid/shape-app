@@ -4340,11 +4340,20 @@ window.ShapeSupport = {
 // speak() prefers the server route (consistent voice + tone→voice mapping) and
 // falls back to on-device speech (Web Speech API) when the route is unavailable.
 const VOICE_KEY = 'shape.voice';
+// The voices a member can pick for Nora (curated OpenAI TTS set). 'auto' follows
+// the tone. Mirrors src/lib/ai/tone.mjs NORA_VOICES (kept in sync by hand — the
+// mobile bundle can't import the server module).
+const NORA_VOICE_LIST = [
+  { id: 'shimmer', label: 'Warm' }, { id: 'alloy', label: 'Neutral' }, { id: 'sage', label: 'Calm' },
+  { id: 'nova', label: 'Bright' }, { id: 'onyx', label: 'Deep' }, { id: 'verse', label: 'Expressive' },
+];
+const NORA_VOICE_IDS = NORA_VOICE_LIST.map(v => v.id);
+function normVoice(v) { return NORA_VOICE_IDS.indexOf(String(v)) >= 0 ? String(v) : 'auto'; }
 function readVoicePrefs() {
   try {
     const raw = JSON.parse(window.localStorage.getItem(VOICE_KEY) || '{}');
-    return { enabled: raw.enabled === true, tone: raw.tone === 'direct' ? 'direct' : 'supportive' };
-  } catch (e) { return { enabled: false, tone: 'supportive' }; }
+    return { enabled: raw.enabled === true, tone: raw.tone === 'direct' ? 'direct' : 'supportive', voice: normVoice(raw.voice) };
+  } catch (e) { return { enabled: false, tone: 'supportive', voice: 'auto' }; }
 }
 function writeVoicePrefs(p) {
   try { window.localStorage.setItem(VOICE_KEY, JSON.stringify(p)); } catch (e) {}
@@ -4368,7 +4377,8 @@ function speakOnDevice(text, tone) {
 async function speakVoice(text, toneOverride) {
   const clean = String(text || '').trim();
   if (!clean) return { ok: false };
-  const tone = toneOverride || readVoicePrefs().tone;
+  const prefs = readVoicePrefs();
+  const tone = toneOverride || prefs.tone;
   stopVoice();
   // Prefer the server route (better voice + the tone→voice mapping).
   if (apiBaseUrl && state.session?.access_token) {
@@ -4376,7 +4386,7 @@ async function speakVoice(text, toneOverride) {
       const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
-        body: JSON.stringify({ text: clean.slice(0, 2000), tone }),
+        body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
       });
       if (res.ok) {
         const blob = await res.blob();
@@ -4392,29 +4402,38 @@ async function speakVoice(text, toneOverride) {
   }
   return { ok: speakOnDevice(clean, tone), source: 'device' };
 }
-// The TONE syncs to the account (user_goals 'nora_voice') so Nora's framing
-// follows you across devices/surfaces; the on/off ENABLED flag stays per-device
-// (localStorage) — audio is device-appropriate, tone is a person-level pref.
-function persistToneToAccount(tone) {
-  try { window.shapeDb?.saveUserGoals?.('nora_voice', { tone: tone === 'direct' ? 'direct' : 'supportive' }); } catch (e) {}
+// The TONE + VOICE sync to the account (user_goals 'nora_voice') so Nora's
+// framing + sound follow you across devices/surfaces; the on/off ENABLED flag
+// stays per-device (localStorage) — audio is device-appropriate, tone/voice are
+// person-level prefs.
+function persistPrefsToAccount(p) {
+  try { window.shapeDb?.saveUserGoals?.('nora_voice', { tone: p.tone === 'direct' ? 'direct' : 'supportive', voice: normVoice(p.voice) }); } catch (e) {}
 }
 async function loadVoiceTone() {
   try {
     if (!window.shapeDb?.getUserGoals) return null;
     const doc = await window.shapeDb.getUserGoals('nora_voice');
-    const tone = doc && (doc.tone === 'direct' ? 'direct' : doc.tone === 'supportive' ? 'supportive' : null);
-    if (!tone) return null;
+    if (!doc || typeof doc !== 'object') return null;
+    const tone = doc.tone === 'direct' ? 'direct' : doc.tone === 'supportive' ? 'supportive' : null;
+    const voice = NORA_VOICE_IDS.indexOf(String(doc.voice)) >= 0 ? String(doc.voice) : (doc.voice === 'auto' ? 'auto' : null);
+    if (tone == null && voice == null) return null;
     const p = readVoicePrefs();
-    if (p.tone !== tone) { p.tone = tone; writeVoicePrefs(p); } // updates localStorage + fires shape:voice
-    return tone;
+    let changed = false;
+    if (tone != null && p.tone !== tone) { p.tone = tone; changed = true; }
+    if (voice != null && p.voice !== voice) { p.voice = voice; changed = true; }
+    if (changed) writeVoicePrefs(p); // updates localStorage + fires shape:voice
+    return p;
   } catch (e) { return null; }
 }
 window.ShapeVoice = {
   get: readVoicePrefs,
+  voices: NORA_VOICE_LIST,
   enabled() { return readVoicePrefs().enabled; },
   tone() { return readVoicePrefs().tone; },
+  voice() { return readVoicePrefs().voice; },
   setEnabled(b) { const p = readVoicePrefs(); p.enabled = b === true; writeVoicePrefs(p); if (!p.enabled) stopVoice(); return p; },
-  setTone(t) { const p = readVoicePrefs(); p.tone = t === 'direct' ? 'direct' : 'supportive'; writeVoicePrefs(p); persistToneToAccount(p.tone); return p; },
+  setTone(t) { const p = readVoicePrefs(); p.tone = t === 'direct' ? 'direct' : 'supportive'; writeVoicePrefs(p); persistPrefsToAccount(p); return p; },
+  setVoice(v) { const p = readVoicePrefs(); p.voice = normVoice(v); writeVoicePrefs(p); persistPrefsToAccount(p); return p; },
   load: loadVoiceTone,
   speak: speakVoice,
   stop: stopVoice,

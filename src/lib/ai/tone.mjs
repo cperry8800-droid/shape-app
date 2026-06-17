@@ -47,6 +47,27 @@ export function voiceForTone(tone) {
   return normalizeTone(tone) === 'direct' ? 'alloy' : 'shimmer';
 }
 
+// The voices a member can pick for Nora (curated OpenAI TTS set, friendly
+// labels). 'auto' (or anything unknown) means "follow the tone" via voiceForTone.
+export const NORA_VOICES = [
+  { id: 'shimmer', label: 'Warm' },
+  { id: 'alloy', label: 'Neutral' },
+  { id: 'sage', label: 'Calm' },
+  { id: 'nova', label: 'Bright' },
+  { id: 'onyx', label: 'Deep' },
+  { id: 'verse', label: 'Expressive' },
+];
+const VOICE_IDS = NORA_VOICES.map((v) => v.id);
+
+// A chosen voice id, or null when it should fall back to the tone default.
+export function normalizeVoice(voice) {
+  return VOICE_IDS.includes(String(voice)) ? String(voice) : null;
+}
+// What the speak route actually uses: the explicit choice, else the tone default.
+export function resolveVoice(voice, tone) {
+  return normalizeVoice(voice) || voiceForTone(tone);
+}
+
 // ── spoken directive (parity) ───────────────────────────────────────────────
 // Compose the ONE line that is BOTH shown and spoken for a directive, so what
 // you read is exactly what you hear. The engine's verdict + reason (the facts)

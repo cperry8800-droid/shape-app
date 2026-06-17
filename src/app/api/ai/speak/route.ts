@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { hasOpenAIKey, synthesizeSpeech } from '@/lib/ai';
-import { voiceForTone, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
+import { resolveVoice, encodeSpokenText, SPOKEN_TEXT_HEADER } from '@/lib/ai/tone.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const actor = await resolveActor(request);
   if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const parsed = await readJson<{ text?: string; tone?: string }>(request);
+  const parsed = await readJson<{ text?: string; tone?: string; voice?: string }>(request);
   if (!parsed.ok) return parsed.response;
   const text = String(parsed.data.text ?? '').trim();
   if (!text) return NextResponse.json({ error: 'Nothing to speak.' }, { status: 400 });
@@ -34,7 +34,8 @@ export async function POST(request: Request) {
   // back to on-device speech (or just shows the text).
   if (!hasOpenAIKey()) return NextResponse.json({ error: 'Voice is unavailable.' }, { status: 503 });
 
-  const voice = voiceForTone(parsed.data.tone);
+  // The member's explicit voice choice, else the tone's default voice.
+  const voice = resolveVoice(parsed.data.voice, parsed.data.tone);
   const res = await synthesizeSpeech(text, { voice, promptId: 'nora.speak' });
   if (!res.ok) {
     const status = res.reason === 'no_key' ? 503 : 502;

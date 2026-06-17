@@ -16801,9 +16801,25 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     mealDinner:        BS_MEAL_TIME_OPTS,
     trainingPhase:     ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'],
     nutritionPhase:    ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'],
+    noraVoice:         ['On', 'Off'],
+    noraTone:          ['Supportive', 'Direct'],
+    noraVoiceName:     ['Auto', ...((window.ShapeVoice && window.ShapeVoice.voices) || []).map(v => v.label)],
   };
   const PREF_DEFAULTS = { ...Object.fromEntries(Object.entries(PREF_OPTIONS).map(([k, v]) => [k, v[0]])),
-    mealBreakfast: '8:00 AM', mealLunch: '12:30 PM', mealSnack: '4:00 PM', mealDinner: '7:00 PM' };
+    mealBreakfast: '8:00 AM', mealLunch: '12:30 PM', mealSnack: '4:00 PM', mealDinner: '7:00 PM',
+    noraVoice: 'Off', noraTone: 'Supportive', noraVoiceName: 'Auto' };
+  // Nora's voice prefs are owned by window.ShapeVoice (localStorage + account
+  // sync), NOT the client_settings doc — these map the Settings labels to it.
+  const NORA_KEYS = ['noraVoice', 'noraTone', 'noraVoiceName'];
+  const noraVoiceList = () => (window.ShapeVoice && window.ShapeVoice.voices) || [];
+  const noraVoiceIdFromLabel = (label) => label === 'Auto' ? 'auto' : ((noraVoiceList().find(v => v.label === label) || {}).id || 'auto');
+  const noraVoiceLabelFromId = (id) => id === 'auto' ? 'Auto' : ((noraVoiceList().find(v => v.id === id) || {}).label || 'Auto');
+  const applyNora = (key, val) => {
+    if (!window.ShapeVoice) return;
+    if (key === 'noraVoice') window.ShapeVoice.setEnabled(val === 'On');
+    else if (key === 'noraTone') window.ShapeVoice.setTone(val === 'Direct' ? 'direct' : 'supportive');
+    else if (key === 'noraVoiceName') window.ShapeVoice.setVoice(noraVoiceIdFromLabel(val));
+  };
   const [prefs, setPrefs] = useStateBSC(PREF_DEFAULTS);
   React.useEffect(() => {
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -16821,12 +16837,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }, []);
   // Seed the meal-time cache from defaults immediately (before the async load).
   React.useEffect(() => { window.ShapeMealTimes?.setFromPrefs(PREF_DEFAULTS); }, []);
+  // Mirror Nora's voice prefs (owned by window.ShapeVoice) into the Settings rows,
+  // and reflect a change that arrives async (account sync, or the chat toggle).
+  React.useEffect(() => {
+    const sync = () => {
+      const v = window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive', voice: 'auto' };
+      setPrefs(p => ({ ...p, noraVoice: v.enabled ? 'On' : 'Off', noraTone: v.tone === 'direct' ? 'Direct' : 'Supportive', noraVoiceName: noraVoiceLabelFromId(v.voice) }));
+    };
+    sync();
+    window.addEventListener('shape:voice', sync);
+    return () => window.removeEventListener('shape:voice', sync);
+  }, []);
   const cyclePref = (key, label) => {
     const opts = PREF_OPTIONS[key];
     if (!opts) return;
     setPrefs(p => {
       const idx = Math.max(0, opts.indexOf(p[key]));
       const next = { ...p, [key]: opts[(idx + 1) % opts.length] };
+      if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(next[key]); // propagate app-wide
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -16839,6 +16867,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     setPrefs(p => {
       if (p[key] === value) return p;
       const next = { ...p, [key]: value };
+      if (NORA_KEYS.includes(key)) { applyNora(key, next[key]); return next; } // ShapeVoice owns persistence + sync
       try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_settings', next); } catch (e) {}
       if (key === 'units') window.ShapeUnits?.set(value);
       if (key.startsWith('meal')) window.ShapeMealTimes?.setFromPrefs(next);
@@ -17413,6 +17442,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
         { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible },
         { l: 'Share workout data', key: 'shareWorkoutData' },
+      ],
+    },
+    {
+      title: 'Nora’s voice',
+      meta: prefs.noraVoice === 'On' ? 'On' : 'Off',
+      rows: [
+        { l: 'Speak replies', key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice },
+        { l: 'Tone', key: 'noraTone', segmented: PREF_OPTIONS.noraTone },
+        { l: 'Voice', key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
+        { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound."); } catch (e) {} } },
       ],
     },
     {

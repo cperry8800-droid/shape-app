@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   TONES, DEFAULT_TONE, normalizeTone, FRAMING_RULES, toneInstruction, voiceForTone,
   speakableDirective, encodeSpokenText, decodeSpokenText, containsShaming,
+  NORA_VOICES, normalizeVoice, resolveVoice,
 } from '../src/lib/ai/tone.mjs';
 
 test('tone normalizes safely and defaults to supportive', () => {
@@ -43,6 +44,21 @@ test('voice maps per tone (supportive warmer, direct neutral)', () => {
   assert.equal(voiceForTone('supportive'), 'shimmer');
   assert.equal(voiceForTone('direct'), 'alloy');
   assert.equal(voiceForTone('bogus'), 'shimmer'); // default
+});
+
+test('a member can pick a voice; unknown/auto falls back to the tone default', () => {
+  assert.ok(NORA_VOICES.length >= 4);
+  for (const v of NORA_VOICES) {
+    assert.equal(normalizeVoice(v.id), v.id);     // every catalog id is valid
+    assert.ok(typeof v.label === 'string' && v.label);
+  }
+  assert.equal(normalizeVoice('auto'), null);     // sentinel → tone default
+  assert.equal(normalizeVoice('haxxor'), null);   // junk → tone default (never trusted)
+  // resolveVoice: explicit choice wins; else the tone's default voice.
+  assert.equal(resolveVoice('onyx', 'supportive'), 'onyx');
+  assert.equal(resolveVoice('auto', 'supportive'), 'shimmer');
+  assert.equal(resolveVoice(undefined, 'direct'), 'alloy');
+  assert.equal(resolveVoice('not-a-voice', 'direct'), 'alloy');
 });
 
 const DIRECTIVE = {
