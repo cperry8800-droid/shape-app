@@ -2698,6 +2698,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
   const [showDraft, setShowDraft] = useStateBSP(false);
+  const [showReconcile, setShowReconcile] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'manage'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
   const [cLifts, setCLifts] = useStateBSP(null); // strength rollup (coach read)
@@ -2750,6 +2751,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
   if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
   if (showAssignPage) return <BSProAssignPage role={role} client={client} clientUid={clientUid} onBack={() => setShowAssignPage(false)} onDone={() => setShowAssignPage(false)} />;
+  // Source reconciliation for THIS client (data-quality check) — the shared
+  // client-bundle view, scoped to the client's id (RLS re-checks is_coach_on_client).
+  if (showReconcile && window.BSReconcile) { const Reconcile = window.BSReconcile; return <Reconcile clientId={clientUid} onBack={() => setShowReconcile(false)} />; }
 
   // ---- theme + derived facts ----
   const accent = isNutri ? '#d8b25a' : teal;   // gold for nutrition, teal for training
@@ -3127,6 +3131,22 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       <div>
         <Section eyebrow="CLIENT GOALS" title="Shared goals" />
         {goalsContent}
+      </div>
+      <div>
+        <Section eyebrow="DATA QUALITY" title="Reconcile sources" />
+        {clientUid ? (
+          <BSPlate c={accent} notch={10} pad="15px 16px 15px 20px" role="button" ariaLabel="Reconcile sources" onClick={() => setShowReconcile(true)}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Which source to trust</div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>When {first}'s devices disagree on a metric</div>
+              </div>
+              <span style={{ color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
+            </div>
+          </BSPlate>
+        ) : (
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · appears once linked to a live member</div>
+        )}
       </div>
       {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
         <div>

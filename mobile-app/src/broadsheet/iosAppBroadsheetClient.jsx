@@ -15549,6 +15549,7 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  BSReconcile,
   BSFacetAvatar,
   bsAmLive,
   SHAPE_SCORE_PROFILES,
