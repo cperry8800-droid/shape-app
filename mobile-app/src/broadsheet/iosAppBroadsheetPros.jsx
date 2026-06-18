@@ -146,9 +146,16 @@ function bsProSignedIn() { try { return !!(window.ShapeAuth && window.ShapeAuth.
 // Me tab is opened. Mirrors the client shell's startup fetch.
 function _bsHydrateProScore() {
   if (typeof window === 'undefined') return;
-  fetch('/api/client/score', { credentials: 'same-origin' })
+  // A coach's tier comes from their COACH score (clients/sessions/programs), not
+  // their personal member ledger — fetch /api/coach/score, which now returns the
+  // 5-rung coach ladder (Certified/Pro/Elite/Master/Icon) as a string current_tier
+  // (no bsCoachTier remap needed). Dietitians ride the nutritionist rails.
+  const role = String(window.ShapeAuth?.getCachedState?.()?.profile?.role || '').toLowerCase();
+  const coachRole = role === 'trainer' ? 'trainer' : (role === 'nutritionist' || role === 'dietitian') ? 'nutritionist' : null;
+  if (!coachRole) return;
+  fetch(`/api/coach/score?role=${coachRole}`, { credentials: 'same-origin' })
     .then(r => (r.ok ? r.json() : null))
-    .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: bsCoachTier(d.current_tier ? d.current_tier.name : 'Base') }; } catch (e) {} } })
+    .then(d => { if (d && typeof d.total === 'number') { try { window.ShapeScore = { points: d.total || 0, tier: d.current_tier || 'Certified' }; } catch (e) {} } })
     .catch(() => {});
 }
 

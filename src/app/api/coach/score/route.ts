@@ -7,8 +7,11 @@
 //     authored by this provider's subscribed clients in the last 90 days)
 //   - Programs published (client_workouts owned by this provider)
 //
-// Points are simple multipliers per metric. The page renders the breakdown
-// it gets; tier is computed against the same Raw/Tempo/Peak/Legend ladder.
+// Points are simple multipliers per metric. The page renders the breakdown it
+// gets; tier is computed against the canonical 5-rung COACH ladder
+// (Certified/Pro/Elite/Master/Icon at 0/750/2000/5000/15000) — the same ladder
+// the mobile avatars, Me page, public profiles, and marketplace already display
+// via bsCoachTier(). Keep these thresholds in sync with SHAPE_SCORE_TIERS_COACH.
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -16,10 +19,11 @@ import { createClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 const TIERS: Array<[string, number]> = [
-  ['Raw', 0],
-  ['Tempo', 1000],
-  ['Peak', 5000],
-  ['Legend', 15000],
+  ['Certified', 0],
+  ['Pro', 750],
+  ['Elite', 2000],
+  ['Master', 5000],
+  ['Icon', 15000],
 ];
 
 export async function GET(req: Request) {
