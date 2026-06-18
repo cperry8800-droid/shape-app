@@ -3575,6 +3575,17 @@ async function waiveClientPenalty(clientUid, sourceKind, sourceId) {
 }
 window.ShapeCoachPenalties = { list: listClientPenalties, waive: waiveClientPenalty };
 
+// Coach: propose a weekly commitment for a client (set_commitment makes it 'proposed';
+// the client must accept before any points are at risk). No-op pre-migration.
+async function proposeCommitment(clientUid, targets, stake) {
+  if (!supabase || !clientUid) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('set_commitment', { p_user: clientUid, p_targets: targets, p_stake: stake });
+    return error ? { ok: false } : (data || { ok: false });
+  } catch (e) { return { ok: false }; }
+}
+window.ShapeCoachCommit = { propose: proposeCommitment };
+
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.
 async function listCoachPlans(kind) {

@@ -2678,6 +2678,22 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     if (r && r.waived) { window.__bsToast?.('Penalty waived', 'ok'); loadPens(); }
     else { window.__bsToast?.('Couldn’t waive that', 'info'); }
   };
+  // Propose a weekly commitment for this client (they accept before points are at risk).
+  const [commitForm, setCommitForm] = useStateBSP(false);
+  const [cf, setCf] = useStateBSP({ workouts: 4, checkin: true, habits: 5, stake: 20 });
+  const [cfBusy, setCfBusy] = useStateBSP(false);
+  const proposeCommit = async () => {
+    if (cfBusy || !clientUid || !window.ShapeCoachCommit) return;
+    setCfBusy(true);
+    const targets = {};
+    if (cf.workouts > 0) targets.workouts = cf.workouts;
+    if (cf.checkin) targets.checkin = true;
+    if (cf.habits > 0) targets.habits = cf.habits;
+    const r = await window.ShapeCoachCommit.propose(clientUid, targets, cf.stake);
+    setCfBusy(false);
+    if (r && r.ok) { window.__bsToast?.('Commitment proposed', 'ok'); setCommitForm(false); }
+    else { window.__bsToast?.(r && r.reason === 'no_targets' ? 'Pick at least one target' : 'Couldn’t propose it', 'info'); }
+  };
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
@@ -3134,6 +3150,40 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             ))}
           </div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Waiving adds the points back — use it when a miss wasn't on {first}</div>
+        </div>
+      )}
+      {clientUid && (
+        <div>
+          <Section eyebrow="ACCOUNTABILITY" title="Set a commitment" />
+          {!commitForm ? (
+            <button onClick={() => setCommitForm(true)} style={{ width: '100%', padding: '12px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Propose a weekly commitment</button>
+          ) : (
+            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+              {[['Workouts', 'workouts', 0, 14], ['Habit check-offs', 'habits', 0, 21]].map(([label, key, lo, hi], idx) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: idx ? 12 : 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button onClick={() => setCf(s => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>−</button>
+                    <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{cf[key]}</span>
+                    <button onClick={() => setCf(s => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>+</button>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>Weekly check-in</div>
+                <button onClick={() => setCf(s => ({ ...s, checkin: !s.checkin }))} style={{ padding: '7px 14px', borderRadius: 999, border: `1px solid ${cf.checkin ? teal : t.RULE}`, background: cf.checkin ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>{cf.checkin ? 'Yes' : 'No'}</button>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}><span>STAKE</span><span style={{ color: teal }}>{cf.stake} pts</span></div>
+                <input type="range" aria-label="Stake points" min={5} max={50} step={5} value={cf.stake} onChange={e => setCf(s => ({ ...s, stake: Number(e.target.value) }))} style={{ width: '100%', marginTop: 8, accentColor: teal }} />
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+                <button disabled={cfBusy} onClick={proposeCommit} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', opacity: cfBusy ? 0.6 : 1 }}>{cfBusy ? 'Proposing…' : 'Propose'}</button>
+                <button onClick={() => setCommitForm(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
         </div>
       )}
       {clientUid && (
