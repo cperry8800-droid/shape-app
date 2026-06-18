@@ -426,10 +426,8 @@ function ClientDashboardPage() {
             </div>
           )}
 
-          <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 16, alignItems: "start" }}>
-            {/* ── Left column ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-              {/* Hero — Shape Score ring + why it moved + streak */}
+          <DashGrid role="client" widgets={[
+            { key: "score", title: "Shape Score", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                   {/* The ring IS the link to the Score deep-dive */}
@@ -453,17 +451,16 @@ function ClientDashboardPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Tonight's workout */}
+            ) },
+            { key: "workout", title: "Tonight's Workout", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#c0533b"), paddingLeft: 24 }}>
 {(() => {
                   const w = workout ? { ...workout, meta: workout.meta } : null;
                   return <DashWorkoutCard workout={w} />;
                 })()}
               </div>
-
-              {/* Today's meals + live macro ledger (shared card — the meal
-                  builder's client preview renders this exact component) */}
+            ) },
+            { key: "meals", title: "Today's Meals", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <DashMealLedgerCard
                   meals={meals} targets={targets} ledger={ledger} logged={logged}
@@ -474,14 +471,8 @@ function ClientDashboardPage() {
                   <a href="ClientNutri.html" style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
                 </div>
               </div>
-            </div>
-
-            {/* ── Right column ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-              {/* Weekly consistency ring — framing rule: consistency reads as
-                  streaks and wins on the client side, never a bare adherence
-                  percentage. The ring fill keeps the visual; the number is
-                  this week's win count. */}
+            ) },
+            { key: "consistency", title: "This week", size: "half", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_GREEN), paddingLeft: 24 }}>
                 <div className="dash-eyebrow" style={{ color: DCL_GREEN }}>This week · consistency</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 12 }}>
@@ -501,9 +492,8 @@ function ClientDashboardPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Milestones — what you earned, what's next */}
-              {(msFeed.recent.length > 0 || msFeed.next.length > 0) && (
+            ) },
+            { key: "milestones", title: "Milestones", size: "half", render: () => ((msFeed.recent.length > 0 || msFeed.next.length > 0) ? (
                 <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#d8a23a"), paddingLeft: 24 }}>
                   <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>Milestones</div>
                   <div className="dash-ledger" style={{ "--dac": "#d8a23a", marginTop: 9 }} />
@@ -533,9 +523,8 @@ function ClientDashboardPage() {
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Messages from your pros */}
+              ) : null) },
+            { key: "team", title: "Your Team", size: "half", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div className="dash-eyebrow">Your team</div>
                 <div className="dash-ledger" style={{ marginTop: 9 }} />
@@ -561,8 +550,8 @@ function ClientDashboardPage() {
                   );
                 })}
               </div>
-
-              {/* Secondary — grocery / next session / membership */}
+            ) },
+            { key: "secondary", title: "Links", size: "half", render: () => (
               <div className="dash-plate dash-plate--bracket" style={{ ...plate("rgba(242,237,228,0.35)"), paddingLeft: 24 }}>
                 <a href="ClientGrocery.html" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", textDecoration: "none", color: INK }}>
                   <div>
@@ -582,8 +571,8 @@ function ClientDashboardPage() {
                   <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(242,237,228,0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
                 </div>
               </div>
-            </div>
-          </div>
+            ) },
+          ]} />
         </main>
       </div>
       <Footer />

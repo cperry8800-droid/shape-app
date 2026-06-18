@@ -68,6 +68,9 @@ function DashGrid({ role, widgets }) {
 
   const chrome = (k) => {
     const w = byKey[k];
+    if (!w) return null;
+    const content = w.render();
+    if (content == null || content === false) return null; // a conditional widget that rendered nothing — no empty cell/chrome
     const span = w.size === "full" ? "1 / -1" : "auto";
     const isOver = over === k && drag && drag !== k;
     return (
@@ -87,7 +90,7 @@ function DashGrid({ role, widgets }) {
           <button title="Move later" onClick={() => step(k, 1)} style={dgBtn()}>▼</button>
           <button title="Hide" onClick={() => hide(k)} style={dgBtn()}>×</button>
         </div>
-        {w.render()}
+        {content}
       </div>
     );
   };
