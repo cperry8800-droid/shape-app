@@ -102,8 +102,8 @@ function ScoreHero() {
               Every logged workout, tracked meal, kept session, and habit you hit adds up. Spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 34 }}>
-              <button style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 26px", borderRadius: 2, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Redeem points →</button>
-              <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.22)", padding: "16px 26px", borderRadius: 2, fontFamily: sans, fontSize: 14, cursor: "pointer" }}>How points work</button>
+              <button onClick={() => { window.location.href = "Store.html"; }} style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 26px", borderRadius: 2, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Redeem points →</button>
+              <button onClick={() => { const el = document.getElementById("how-points-work"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.22)", padding: "16px 26px", borderRadius: 2, fontFamily: sans, fontSize: 14, cursor: "pointer" }}>How points work</button>
             </div>
           </div>
           <div style={{ display: "grid", placeItems: "center" }}>
@@ -243,7 +243,7 @@ function ScoreActivity() {
     return TEAL;
   };
   return (
-    <section style={{ padding: "70px 72px" }}>
+    <section id="how-points-work" style={{ padding: "70px 72px", scrollMarginTop: 90 }}>
       <ScReveal>
         <div className="sc-act" style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 24 }}>
           <div style={{ background: "rgba(11,14,12,0.62)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 6, padding: 36, position: "relative", overflow: "hidden" }}>
