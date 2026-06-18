@@ -89,6 +89,7 @@ async function run(request: Request) {
   let evaluated = 0;
   let penalties = 0;
   let rewards = 0;
+  let commitments = 0;
 
   for (const uid of clientIds) {
     try {
@@ -152,6 +153,25 @@ async function run(request: Request) {
         await penalize('habit', h.id, yesterday, 'a broken habit streak');
       }
 
+      // (5) Settle last week's commitment (voluntary stake — separate from penalties).
+      {
+        const { data } = await admin.rpc('settle_commitment', { p_user: uid, p_week: lastMonday });
+        const s = data as { settled?: boolean; met?: boolean; amount?: number } | null;
+        if (s?.settled) {
+          commitments += 1;
+          await createNotification(admin, {
+            userId: uid,
+            type: 'score_commitment',
+            title: s.met ? 'Commitment kept 💪' : 'Commitment came up short',
+            body: s.met
+              ? `You hit your weekly commitment — +${Math.abs(s.amount || 0)} pts. Set the next one.`
+              : "Last week's commitment didn't land. No worries — set a fresh one and earn it back.",
+            route: 'score',
+            data: { commitment: true, met: !!s.met, amount: s.amount },
+          });
+        }
+      }
+
       // One gentle, never-shaming heads-up when something actually dipped.
       if (dipped.length) {
         const reasons =
@@ -173,7 +193,7 @@ async function run(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, evaluated, penalties, rewards });
+  return NextResponse.json({ ok: true, evaluated, penalties, rewards, commitments });
 }
 
 export async function GET(request: Request) {
