@@ -140,6 +140,28 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-17 — Fix: home "Log last night's sleep" directive now opens a real sleep logger
+- The home **"Today · your move"** sleep directive's **"Log sleep →"** button was
+  mis-wired: it opened the weekly check-in (`setCheckinPage(true)`,
+  `iosAppBroadsheetClient.jsx:2335`), which has no sleep field — and **no manual
+  sleep logger existed anywhere** (`daily_health_snapshot.sleep_hours` was only
+  ever written by device sync: HealthKit/Whoop/Oura/Garmin). So the button could
+  never satisfy its own request and the directive re-fired daily. The engine /
+  gating / copy were all correct (directive only fires on a real synced sleep
+  deficit; no demo-copy leak) — only the action + the missing capability were wrong.
+- **Built the real path** (no migration — `sleep_hours` already exists): new
+  **`POST /api/client/sleep-log`** (mirrors `/api/nutrition/meal-log`; **SETs**
+  `sleep_hours` on today's snapshot, merging with device metrics, not accumulating),
+  **`window.ShapeSleep.log({hours})`** in `shapeBackend.js` (invalidates the metrics
+  cache on save), and a focused one-tap **`BSSleepSheet`** (hours input + quick-pick
+  chips 6–8.5, modeled on `BSWeighInSheet`, portaled into `#bs-phone-surface`). The
+  CTA now opens the sheet; on save the recovery readiness + the directive refresh.
+- The recovery-ticker caption ("…or log sleep to see readiness", `:596`) is now
+  truthful. *Follow-up:* a no-data account can't reach the logger except via the
+  directive (which needs existing sleep data) — add a standalone entry point (e.g.
+  tap the recovery ticker) so first-time manual sleep logging is reachable.
+- Verified: `tsc --noEmit` · 232/232 tests · mobile build + `public/m` synced.
+
 ### 2026-06-17 — Auth CAPTCHA review fixes (single-use token resets + load-failure degrade) + mobile /m/ rebuild
 - **Mobile `/m/` blank-page fix (urgent, was live):** the prior Auth-CAPTCHA commit
   rebuilt `public/m` with root-absolute `/assets/...` paths instead of `/m/assets/...`,

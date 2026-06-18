@@ -2027,6 +2027,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const habitFlashTimer = React.useRef(null);
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
+  const [sleepSheet, setSleepSheet] = useStateBSC(false);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
@@ -2332,7 +2333,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
       goal:      { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
       score:     { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
-      sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setCheckinPage(true)], c: t.AMBER },
+      sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setSleepSheet(true)], c: t.AMBER },
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: engineFlag.reason, cta: engineMove.cta, c: engineMove.c, engine: true });
@@ -2347,6 +2348,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
 
   return (
     <BSPage>
+      {sleepSheet && <BSSleepSheet onClose={() => setSleepSheet(false)} onSave={(hours) => { setSleepSheet(false); window.ShapeSleep?.log({ hours }); window.__bsToast?.('Sleep logged', 'ok'); }} />}
       <BSMasthead
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
@@ -13920,6 +13922,45 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
           <button onClick={() => ok && onSave(val, Number.isFinite(bfVal) ? bfVal : null)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? teal : t.RULE, color: ok ? '#04201d' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save weigh-in</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
+// One-tap "last night's sleep" logger — the focused entry the home "Log sleep"
+// directive points at (NOT the weekly check-in). Writes sleep_hours onto today's
+// daily_health_snapshot via window.ShapeSleep.log so the recovery readiness +
+// the directive that asked for it refresh. Modeled on BSWeighInSheet.
+function BSSleepSheet({ onClose, onSave }) {
+  const t = useBS();
+  const accent = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
+  const [hrs, setHrs] = useStateBSC('');
+  const inputRef = React.useRef(null);
+  React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
+  const val = parseFloat(hrs);
+  const ok = Number.isFinite(val) && val > 0 && val <= 24;
+  const QUICK = [6, 6.5, 7, 7.5, 8, 8.5];
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Log · Sleep</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Last night's <span style={{ fontStyle: 'italic', color: accent }}>sleep.</span></div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '14px 16px' }}>
+          <input ref={inputRef} value={hrs} onChange={(e) => setHrs(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em' }} />
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>hrs</span>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {QUICK.map((q) => (
+            <button key={q} onClick={() => setHrs(String(q))} style={{ flex: '1 0 auto', padding: '9px 0', minWidth: 46, borderRadius: 10, border: `1px solid ${val === q ? accent : t.RULE}`, background: val === q ? `${accent}1f` : 'transparent', color: val === q ? accent : t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700 }}>{q}</button>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates today's recovery readiness</div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={() => ok && onSave(val)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? accent : t.RULE, color: ok ? '#fff' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save sleep</button>
         </div>
       </div>
     </div>
