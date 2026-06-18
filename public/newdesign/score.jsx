@@ -171,7 +171,7 @@ function ScoreTiers() {
           <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "0 0 28px", lineHeight: 1 }}>
             {aud === "coach"
               ? <>Coaches climb <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>their own</em> ladder.</>
-              : <>You're <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.</>}
+              : <>You're <em style={{ fontStyle: "italic", fontWeight: 600, color: tiers[reachedIdx].color }}>{TIER}</em>. {POINTS_TO_NEXT.toLocaleString()} to {NEXT_TIER}.</>}
           </h2>
           {/* Audience toggle — Members vs Coaches ladder */}
           <div style={{ display: "flex", gap: 8, marginBottom: 40 }}>
@@ -199,12 +199,12 @@ function ScoreTiers() {
               return (
                 <React.Fragment key={i}>
                   <div style={{ position: "absolute", left: `calc(${a}% + ${GAP}px)`, width: `calc(${b - a}% - ${2 * GAP}px)`, top: 58, height: 4, background: "rgba(242,237,228,0.12)", transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />
-                  {filled && <div style={{ position: "absolute", left: `calc(${a}% + ${GAP}px)`, width: fillW, top: 58, height: 4, background: `linear-gradient(90deg, ${TEAL}, ${TEAL_BRIGHT})`, transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />}
+                  {filled && <div style={{ position: "absolute", left: `calc(${a}% + ${GAP}px)`, width: fillW, top: 58, height: 4, background: `linear-gradient(90deg, ${tiers[i].color}, ${tiers[i + 1].color})`, transform: "translateY(-50%)", zIndex: 0, borderRadius: 2 }} />}
                 </React.Fragment>
               );
             })}
-            {/* current-position marker — sits in open space between orbs */}
-            <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: TEAL_BRIGHT, boxShadow: "0 0 0 5px rgba(10,197,168,0.2)", transform: "translate(-50%, -50%)", zIndex: 0 }} />
+            {/* current-position marker — sits in open space between orbs (current tier color) */}
+            <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: tiers[reachedIdx].color, boxShadow: `0 0 0 5px ${tiers[reachedIdx].color}33`, transform: "translate(-50%, -50%)", zIndex: 0 }} />
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative", zIndex: 1 }}>
               {tiers.map((t, i) => {
                 const reached = SCORE_TOTAL >= t.min;
@@ -213,12 +213,12 @@ function ScoreTiers() {
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                     <div style={{ height: 20, lineHeight: "20px", marginBottom: 12, fontFamily: mono, fontSize: 13, color: "rgba(242,237,228,0.55)" }}>{t.min.toLocaleString()}</div>
                     <div style={{ height: 52, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ width: current ? 42 : 26, height: current ? 42 : 26, borderRadius: 999, background: reached ? (current ? TEAL : t.color) : INK_DEEP, border: `2.5px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 9px rgba(10,197,168,0.18)` : "none" }} />
+                      <div style={{ width: current ? 42 : 26, height: current ? 42 : 26, borderRadius: 999, background: reached ? t.color : INK_DEEP, border: `2.5px solid ${reached ? t.color : "rgba(242,237,228,0.2)"}`, boxShadow: current ? `0 0 0 9px ${t.color}30` : "none" }} />
                     </div>
                     <div style={{ marginTop: 16, fontFamily: serif, fontSize: 30, letterSpacing: "-0.015em", color: reached ? INK : "rgba(242,237,228,0.45)" }}>{t.name}</div>
                     <div style={{ height: 22, marginTop: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {t.bonus > 0
-                        ? <span style={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", color: TEAL_BRIGHT, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", borderRadius: 999, padding: "4px 11px", whiteSpace: "nowrap" }}>+{t.bonus.toLocaleString()} pts bonus</span>
+                        ? <span style={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", color: t.color, background: `${t.color}1f`, border: `1px solid ${t.color}59`, borderRadius: 999, padding: "4px 11px", whiteSpace: "nowrap" }}>+{t.bonus.toLocaleString()} pts bonus</span>
                         : <span style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.3)" }}>Start</span>}
                     </div>
                     <div style={{ marginTop: 9, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 190 }}>{t.desc}</div>
