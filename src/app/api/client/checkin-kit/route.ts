@@ -77,6 +77,10 @@ export async function POST(request: Request) {
     const { error } = await supabase.from('client_checkins').upsert(row, { onConflict: 'user_id,week_of' });
     if (error) return dbError(error, 'checkin kit write', 500);
 
+    // Shape Score: +15 for the weekly check-in (idempotent — once per week).
+    // Fire-and-forget; no-ops until the awards migration is applied.
+    await supabase.rpc('award_checkin_points', { p_week_of: row.week_of });
+
     const today = localDay;
     const entries = (Array.isArray(body.measurements) ? body.measurements : [])
       .map((e) => (e && typeof e === 'object' ? (e as Record<string, unknown>) : {}))

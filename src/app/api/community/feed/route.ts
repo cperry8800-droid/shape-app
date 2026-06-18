@@ -90,5 +90,18 @@ export async function POST(request: Request) {
     .single();
 
   if (error) return dbError(error, 'community feed write', 400);
+
+  // Shape Score: +5 for a feed-visible community post (idempotent on the post id;
+  // not private/profile-only — those aren't shared engagement). Fire-and-forget;
+  // no-ops until the awards migration is applied.
+  if (data && (data.privacy === 'public' || data.privacy === 'community')) {
+    await client.rpc('insert_score', {
+      p_category: 'community',
+      p_source_kind: 'community_post',
+      p_source_id: data.id,
+      p_delta: 5,
+      p_note: 'Community post',
+    });
+  }
   return NextResponse.json({ post: data });
 }

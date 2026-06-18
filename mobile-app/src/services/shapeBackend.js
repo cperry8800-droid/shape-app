@@ -2409,6 +2409,13 @@ async function createCommunityPost({
     return { stored: 'local', data: saveLocalRecord('shape.communityPosts', payload, error), error };
   }
 
+  // Shape Score: +5 for a feed-visible community post (idempotent on the post id,
+  // via auth.uid() in the RPC; skip private/profile-only). Best-effort; no-ops
+  // until the awards migration runs.
+  if (data && (data.privacy === 'public' || data.privacy === 'community')) {
+    try { await supabase.rpc('insert_score', { p_category: 'community', p_source_kind: 'community_post', p_source_id: data.id, p_delta: 5, p_note: 'Community post' }); invalidateClientMetrics(); } catch (e) {}
+  }
+
   return { stored: 'supabase', data: communityPostFromRow(data) };
 }
 
@@ -3779,6 +3786,9 @@ async function checkinSubmit({ ratings = {}, wins = '', struggles = '', question
   const { data, error } = await supabase.from('client_checkins')
     .upsert(row, { onConflict: 'user_id,week_of' }).select().maybeSingle();
   if (error) throw error;
+  // Shape Score: +15 for the weekly check-in (idempotent — once per week, via
+  // auth.uid() in the RPC). Best-effort; no-ops until the awards migration runs.
+  try { await supabase.rpc('award_checkin_points', { p_week_of: row.week_of }); } catch (e) {}
   invalidateClientMetrics();
   return data;
 }
