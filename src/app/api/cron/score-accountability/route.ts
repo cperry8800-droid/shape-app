@@ -20,7 +20,10 @@ import { ACTIVE_SUB } from '@/lib/membership-core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // daily batch of per-user RPC round-trips
 
+// One page of members per run. Small userbase today; when it grows, paginate across
+// runs with a stored cursor (the RPCs are idempotent, so overlap is harmless).
 const BATCH = 500;
 
 function safeEqual(a: string, b: string): boolean {
@@ -74,6 +77,10 @@ async function run(request: Request) {
   const recent = new Date(now);
   recent.setUTCDate(recent.getUTCDate() - 3);
   const recentDate = isoDate(recent);
+  // Kept-session reward scans a wider window (matches award_session_kept's 21-day bound)
+  // so a session marked complete a few days late still earns its +12.
+  const sessionFloor = new Date(now);
+  sessionFloor.setUTCDate(sessionFloor.getUTCDate() - 21);
 
   const clientIds = Array.from(
     new Set((subs || []).map((s) => (s as { client_id?: string }).client_id).filter(Boolean) as string[]),
@@ -104,20 +111,18 @@ async function run(request: Request) {
         }
       };
 
-      // (1) Sessions in the recent window — penalize confirmed-but-missed, reward kept.
+      // (1) Kept sessions → +12. There is NO session PENALTY: a session's only "kept"
+      // signal is the coach marking it 'completed', so a lingering 'confirmed' is coach
+      // bookkeeping, not a client miss — penalizing it would be a false debit.
       const { data: sess } = await admin
         .from('sessions')
-        .select('id, scheduled_at, status')
+        .select('id')
         .eq('client_id', uid)
-        .in('status', ['confirmed', 'completed'])
-        .gte('scheduled_at', recent.toISOString());
-      for (const s of (sess || []) as Array<{ id: string; scheduled_at: string; status: string }>) {
-        if (s.status === 'completed') {
-          const { data } = await admin.rpc('award_session_kept', { p_uid: uid, p_session_id: s.id });
-          if ((data as AwardResult)?.awarded) rewards += 1;
-        } else {
-          await penalize('session', s.id, isoDate(new Date(s.scheduled_at)), 'a missed session');
-        }
+        .eq('status', 'completed')
+        .gte('scheduled_at', sessionFloor.toISOString());
+      for (const s of (sess || []) as Array<{ id: string }>) {
+        const { data } = await admin.rpc('award_session_kept', { p_uid: uid, p_session_id: s.id });
+        if ((data as AwardResult)?.awarded) rewards += 1;
       }
 
       // (2) Skipped assigned workouts (published, day past) in the recent window.

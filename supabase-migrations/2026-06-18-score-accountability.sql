@@ -60,17 +60,15 @@ begin
     return jsonb_build_object('applied', false, 'reason', 'paused');
   end if;
 
+  -- We ONLY penalize CLIENT-CONTROLLABLE obligations (check-in, assigned workout, habit).
+  -- Coach-session ATTENDANCE is intentionally NOT penalized: a session's only "kept"
+  -- signal is the COACH manually marking it 'completed' — a lingering 'confirmed' after
+  -- the scheduled time usually means the coach didn't do the bookkeeping (or the coach
+  -- no-showed), NOT a client miss, so debiting the client would be a false penalty. The
+  -- kept-session REWARD (+12, award_session_kept) is safe because 'completed' is explicit.
+  --
   -- Resolve amount/category/source + VERIFY the obligation was actually missed.
-  if p_kind = 'session' then
-    v_amount := -6; v_category := 'adherence'; v_skind := 'penalty_session'; v_srcid := p_ref_id; v_note := 'Missed session';
-    -- Only CONFIRMED (a real commitment) sessions whose scheduled day is fully past.
-    v_missed := exists (
-      select 1 from public.sessions s
-      where s.id = p_ref_id and s.client_id = p_uid
-        and s.status = 'confirmed'
-        and s.scheduled_at < date_trunc('day', now())
-    );
-  elsif p_kind = 'checkin' then
+  if p_kind = 'checkin' then
     v_amount := -7; v_category := 'adherence'; v_skind := 'penalty_checkin';
     v_srcid := md5('penalty_checkin:'||p_uid::text||':'||p_day::text)::uuid; v_note := 'Missed weekly check-in';
     -- p_day = the ISO-week Monday; penalize only once the whole week is over with no row.
@@ -80,15 +78,15 @@ begin
     );
   elsif p_kind = 'workout' then
     v_amount := -5; v_category := 'workouts'; v_skind := 'penalty_workout'; v_srcid := p_ref_id; v_note := 'Skipped assigned workout';
-    -- Published assigned workout, day past, AND no workout logged that day by ANY path.
+    -- Published assigned workout, day past, AND no workout logged near that day by ANY
+    -- path. Exonerate GENEROUSLY (bias to NOT penalize — logging can lag the workout):
+    -- a snapshot on the day or the next (local-aligned), or any activity within ±1 day.
     v_missed := (
       exists (select 1 from public.client_workouts w
               where w.id = p_ref_id and w.client_id = p_uid and w.status = 'published'
                 and w.scheduled_date = p_day and w.scheduled_date < current_date)
-      -- snapshot_date is local-aligned (same basis as scheduled_date): exact match.
       and not exists (select 1 from public.daily_health_snapshot d
-                      where d.user_id = p_uid and d.snapshot_date = p_day and coalesce(d.workout_minutes,0) > 0)
-      -- activities.started_at is UTC: allow ±1 day so tz never causes a false penalty.
+                      where d.user_id = p_uid and d.snapshot_date in (p_day, p_day + 1) and coalesce(d.workout_minutes,0) > 0)
       and not exists (select 1 from public.activities a
                       where a.user_id = p_uid and (a.started_at)::date in (p_day - 1, p_day, p_day + 1))
     );
@@ -115,6 +113,9 @@ begin
 
   -- Fairness guards (v_amount is negative): clamp to the least-negative of the requested
   -- amount, the 0-balance floor (−balance), and the weekly room (−30 − this-week's penalties).
+  -- The cap is bucketed by earned_at (the INSERT week), so a back-dated obligation counts
+  -- against the current week's room — conservative (it can only tighten the cap / skip a
+  -- charge, never over-charge), which matches the bias-to-not-penalize rule.
   select coalesce(sum(delta),0) into v_balance from public.score_ledger where user_id = p_uid;
   select coalesce(sum(delta),0) into v_weekpen from public.score_ledger
     where user_id = p_uid
