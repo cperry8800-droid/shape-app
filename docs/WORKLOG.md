@@ -140,6 +140,34 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-18 — Shape Score: two-number split + high-water tier + at-risk (Momentum/Accountability Phase A)
+- **Phase A of the Momentum + Accountability system** (spec
+  `docs/superpowers/specs/2026-06-18-shape-score-momentum-accountability-design.md`,
+  plan `…/plans/2026-06-18-shape-score-momentum-accountability.md`). Lays the scoring
+  foundation the penalties/momentum phases build on — **no migration, no behavior change
+  until points exist** (the ledger is still empty). Shipped in 4 commits:
+  - **A1 — `mobile-app/src/services/scoreDerive.mjs`** (+ `tests/score-derive.test.mjs`,
+    4 tests, registered in `package.json`): the ONE pure derivation of three numbers from
+    raw ledger rows — **shapeScore** (the RANK: Σ delta EXCLUDING `store_redeem`, so
+    spending never demotes; penalties DO count, so lapsing dents it), **spendableBalance**
+    (Σ ALL delta — what you redeem), **highWaterScore** (running max of the rank → the
+    DISPLAYED tier is high-water-marked, never demotes). Folds in `earned_at` order.
+  - **A2 — `src/lib/score-derive.ts`**: the TS twin (kept in sync with the mjs).
+  - **A3 — `/api/client/score`**: `points_total` is now the rank (excl. redemptions),
+    the breakdown excludes redemptions, the tier resolves from `highWaterScore`, and the
+    response adds **`spendable_balance`** + **`at_risk`** (`rank < current_tier.threshold`).
+  - **A4 — consumers (mobile + web):** mobile `_bsUseLiveScore` — `available` is now the
+    **spendable** balance (headline/tier keep the rank), adds `atRisk`; the Score-page hero
+    shows an at-risk line ("N below {tier} — earn it back to hold"); the Rewards-tab
+    affordability draws on the spendable balance, not the rank. Web `clientScore.jsx` —
+    tier resolves from the API's high-water `current_tier` (penalties don't demote it), the
+    subtitle surfaces the at-risk state; `?v=20260618` on ClientApp.html + ClientScore.html.
+- Verified: `tsc --noEmit` clean · 236/236 tests · mobile build + `public/m` synced
+  (PowerShell) · JSX parse-check. Shipped to `main` (4 commits, HEAD `53f3f1a1`).
+- **Next:** Phase B (Momentum meter — needs `2026-06-18-score-momentum.sql`), Phase C
+  (clawback penalties + daily cron + the deferred positive earns — needs
+  `2026-06-18-score-penalties.sql` + `CRON_SECRET`). Both no-op until their migrations run.
+
 ### 2026-06-18 — Shape Score buildout: dead categories wired · real composite · coach reconcile · color unify
 - **Wired the dead earning categories** (`prs`/`adherence`/`community` were
   schema-permitted but never written) to the amounts the score page advertises —
