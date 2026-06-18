@@ -12183,7 +12183,7 @@ const BS_TIER_COLORS = {
   raw: '#8a93a0', base: '#8a93a0',
   tempo: '#d8a23a',
   form: '#e0463c',
-  peak: '#8a5cf6',
+  peak: '#8fe3e6',
   legend: '#34d6c5',
   // Coach tiers (scheme J) — same 5-rung ladder, renamed, with teal (the logo
   // color) crowning the top. Diverges from the client ramp at Elite (crimson)
