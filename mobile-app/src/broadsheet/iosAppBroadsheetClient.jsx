@@ -15133,7 +15133,7 @@ function _bsUseLiveScore(profile) {
     return () => { cancelled = true; };
   }, [loggedIn]);
 
-  if (!loggedIn) return { ...profile, live: false }; // signed-out → demo preview
+  if (!loggedIn) return { ...profile, live: false, momentum: { value: 72, bonusThisWeek: false } }; // signed-out → demo preview (incl. a demo momentum bar)
   if (!data) {
     // Signed in but no score yet (a brand-new account, or the score endpoint
     // isn't available to a non-member). Show the REAL empty standing — Base,
@@ -15146,6 +15146,9 @@ function _bsUseLiveScore(profile) {
       total: 0, available: 0, lifetime: 0, redeemedCount: 0, streak: 0,
       goal: _goal, pointsToNext: _goal, week: '+0', month: 0,
       weekRatio: 0, streakRatio: 0, tierRatio: 0, spendRatio: 0,
+      // No demo here — a signed-in account (incl. a non-member 402 or still-loading)
+      // shows real-empty, never the demo bar (which would read 72 next to 0/Base).
+      momentum: null,
       ledger: [['—', '+0', 'Start earning — log a workout or check off a habit']],
     };
   }
@@ -15191,9 +15194,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const nextTier = profile.nextTier;
   const pointsToNext = profile.pointsToNext;
   const available = profile.available;
-  // Momentum meter — real { value, bonusThisWeek } when signed in (null = pre-migration,
-  // section hidden); a demo value drives the signed-out preview.
-  const momentum = profile.momentum || (profile.live ? null : { value: 72, bonusThisWeek: false });
+  // Momentum meter — decided in _bsUseLiveScore: real { value, bonusThisWeek } when
+  // signed in (null = pre-migration / no-data → section hidden); demo only signed-out.
+  const momentum = profile.momentum || null;
   const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
   const tiers = bsIsCoachRole(profile.roleLabel) ? SHAPE_SCORE_TIERS_COACH : SHAPE_SCORE_TIERS;
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;

@@ -37,6 +37,12 @@ declare
   r     record;
 begin
   if v_uid is null then return 0; end if;
+  -- The window is UTC-calendar-day-based (current_date / generate_series resolve in
+  -- the DB session tz = UTC on Supabase), matching the route's composite block. The
+  -- day-scoped WRITERS bucket on the user's LOCAL day, so a boundary day near local
+  -- midnight can read one notch off — this can only UNDERCOUNT (never farm: it can't
+  -- exceed +25/week, double-credit, or invent activity), and a single check-in marks
+  -- its whole Mon..Sun week active, masking most edge cases. Known + accepted.
   for r in
     select
       (
@@ -93,7 +99,11 @@ begin
       md5('momentum_bonus:' || v_uid::text || ':' || to_char(now(), 'IYYY-"W"IW'))::uuid,
       25, 'Momentum bonus'  -- BONUS_POINTS
     )
-    on conflict (user_id, source_kind, source_id) do nothing;
+    -- Spell out the partial-index predicate so the dedupe arbiter is unambiguous
+    -- (matches award_my_goal_milestones; source_kind/source_id are always non-null here).
+    on conflict (user_id, source_kind, source_id)
+      where source_kind is not null and source_id is not null
+      do nothing;
   get diagnostics v_ins = row_count;
   return jsonb_build_object(
     'awarded',  v_ins > 0,
