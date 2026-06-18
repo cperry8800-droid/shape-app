@@ -140,6 +140,37 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-18 — Shape Score v2: momentum streak escalation (D) + weekly commitments (E)
+- Two enhancements on the shipped Momentum/Accountability system (spec
+  `docs/superpowers/specs/2026-06-18-shape-score-streak-escalation-and-commitments-design.md`,
+  plan `…/plans/2026-06-18-shape-score-streak-escalation-and-commitments.md`).
+- **D — Momentum streak escalation (shipped to main):** the weekly bonus now **grows +15
+  per consecutive prior week** held ≥80, capped at **+100** — a six-rung ramp
+  `25 → 40 → 55 → 70 → 85 → 100`. `momentum.mjs` `momentumBonus(streakWeeks)` (tested) is the
+  single source of truth, mirrored by the replaced `award_momentum_bonus()`. The score route
+  returns `momentum.streakWeeks` + `points`; the Momentum bar shows "🔥 N-week streak ·
+  +X banked" (mobile + web). ⚠ **OWNER — run after the Phase B momentum migration:**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-18-score-momentum-escalation.sql`
+- **E — Weekly commitment + stake (built; pending owner migration):** a coach (for a client)
+  or a member (solo) sets a one-ISO-week commitment on auto-tracked counts (N workouts ·
+  check-in · K habits) and stakes **5–50 pts**, two-sided: hit ALL → **+stake**, miss →
+  **−stake** (floored at 0). Coach-set = a **proposal the client must accept** before points
+  are at risk. New `score_commitments` RLS table + `set_commitment` / `accept_commitment` /
+  `settle_commitment` (service-role) RPCs (`commitment_win`/`commitment_loss`, category
+  `adherence`, outside the −30 penalty cap). Settled by the daily accountability cron.
+  `commitments.mjs` `commitmentMet` (tested). UI: a "This week's commitment" card on the
+  Score page (mobile `BSCommitmentCard` + web via new **`/api/client/commitment`**) and a
+  coach "Set a commitment" affordance on the client Manage tab.
+  - **Adversarial review → anti-farm guardrails:** a self-set commitment now **locks once
+    active** (no mid-week target/stake swap to dodge a loss) and must be **set by end of
+    Wednesday** (a forward bet, not a retroactive grab). The signed-out card shows the honest
+    "Sign in to commit" empty state (no fake-live demo). *Residual:* the payout is symmetric
+    (+stake/−stake) per the approved design — an asymmetric win (e.g. +½ stake) is a 1-line
+    follow-up if reward-farming on easy self-set targets becomes a concern.
+  - ⚠ **OWNER — run:** `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-18-score-commitments.sql`
+- Verified per task: `tsc` · 251/251 tests · mobile build + `public/m` synced · JSX parse-check ·
+  migration logic validated read-only against prod. War Room: `/api/client/commitment` registered.
+
 ### 2026-06-18 — Shape Score: accountability clawback + cron + positive earns (Momentum/Accountability Phase C)
 - **The "stick" — lose points for not doing committed things** — plus the deferred
   positive earns. Built on Phase A/B's two-number ledger; the tier never demotes (only the
