@@ -3556,6 +3556,25 @@ async function openCoachCoachThread(clientId, counterpartUserId) {
 }
 window.ShapeCareTeam = { overview: getCareTeamOverview, openThread: openCoachCoachThread };
 
+// Coach: read + waive a client's recent accountability penalties. Both are gated
+// server-side on is_coach_on_client (get_client_penalties / waive_penalty RPCs);
+// a non-coach gets [] / { waived:false }. No-op until the migration is applied.
+async function listClientPenalties(clientUid) {
+  if (!supabase || !clientUid) return [];
+  try {
+    const { data, error } = await supabase.rpc('get_client_penalties', { p_uid: clientUid });
+    return (!error && Array.isArray(data)) ? data : [];
+  } catch (e) { return []; }
+}
+async function waiveClientPenalty(clientUid, sourceKind, sourceId) {
+  if (!supabase || !clientUid || !sourceId) return { waived: false };
+  try {
+    const { data, error } = await supabase.rpc('waive_penalty', { p_uid: clientUid, p_source_kind: sourceKind, p_source_id: sourceId });
+    return error ? { waived: false } : (data || { waived: false });
+  } catch (e) { return { waived: false }; }
+}
+window.ShapeCoachPenalties = { list: listClientPenalties, waive: waiveClientPenalty };
+
 // Coach plans — published programs / meal plans (coach_plans, owner-scoped),
 // shared with the website. The AI draft builder + Duplicate persist here.
 async function listCoachPlans(kind) {

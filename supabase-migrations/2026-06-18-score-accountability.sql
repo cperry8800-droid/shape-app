@@ -221,3 +221,30 @@ begin
 end $$;
 
 grant execute on function public.waive_penalty(uuid, text, uuid) to authenticated;
+
+-- ── get_client_penalties (coach reads a client's recent, un-waived penalties) ─
+-- score_ledger RLS is owner-only; this DEFINER read is gated on is_coach_on_client so a
+-- coach can surface + waive their client's penalties. Excludes already-waived rows.
+create or replace function public.get_client_penalties(p_uid uuid)
+returns table (source_kind text, source_id uuid, delta integer, note text, earned_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select sl.source_kind, sl.source_id, sl.delta, sl.note, sl.earned_at
+  from public.score_ledger sl
+  where sl.user_id = p_uid
+    and public.is_coach_on_client(p_uid)
+    and sl.source_kind like 'penalty_%' and sl.source_kind <> 'penalty_waive'
+    and sl.delta < 0
+    and sl.earned_at >= now() - interval '60 days'
+    and not exists (
+      select 1 from public.score_ledger w
+      where w.user_id = p_uid and w.source_kind = 'penalty_waive' and w.source_id = sl.source_id
+    )
+  order by sl.earned_at desc
+  limit 20;
+$$;
+
+grant execute on function public.get_client_penalties(uuid) to authenticated;

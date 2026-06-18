@@ -2665,6 +2665,19 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     ]).then(([checkins, health, meas]) => { if (on) setCKit({ checkins: checkins || [], health: health || null, meas: meas || [] }); }).catch(() => {});
     return () => { on = false; };
   }, [clientUid]);
+  // Accountability penalties (coach read) — recent, un-waived, for the Waive affordance.
+  const [pens, setPens] = useStateBSP([]);
+  const loadPens = () => {
+    if (!clientUid || !window.ShapeCoachPenalties?.list) return;
+    window.ShapeCoachPenalties.list(clientUid).then(d => setPens(Array.isArray(d) ? d : [])).catch(() => {});
+  };
+  useEffectBSP(() => { loadPens(); }, [clientUid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const waivePen = async (p) => {
+    if (!clientUid || !window.ShapeCoachPenalties?.waive) return;
+    const r = await window.ShapeCoachPenalties.waive(clientUid, p.source_kind, p.source_id);
+    if (r && r.waived) { window.__bsToast?.('Penalty waived', 'ok'); loadPens(); }
+    else { window.__bsToast?.('Couldn’t waive that', 'info'); }
+  };
   const setPhaseKey = (key, val) => {
     setPhase(prev => ({ ...prev, [key]: val }));
     if (clientUid) { try { window.ShapeProgramApi?.set?.({ userId: clientUid, [key]: val }); } catch (e) {} }
@@ -3103,6 +3116,24 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             })}
           </div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Coordinate {first}'s plan with the rest of the care team</div>
+        </div>
+      )}
+      {clientUid && pens.length > 0 && (
+        <div>
+          <Section eyebrow="ACCOUNTABILITY" title="Recent penalties" />
+          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pens.map((p, i) => (
+              <div key={p.source_id || i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 6px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: t.RUST, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{p.note || 'Penalty'}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{p.delta} pts · {p.earned_at ? new Date(p.earned_at).toLocaleDateString() : ''}</div>
+                </div>
+                <button onClick={() => waivePen(p)} style={{ borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1f`, color: t.INK, padding: '8px 14px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>WAIVE</button>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Waiving adds the points back — use it when a miss wasn't on {first}</div>
         </div>
       )}
       {clientUid && (

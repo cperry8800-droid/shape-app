@@ -2348,16 +2348,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // engineFlag is the engine's directive (lever + grounded reason). The lever
     // → move map preserves the existing heads/CTAs; the sub is the cross-domain
     // reason; the new `sleep` lever is the cross-discipline one.
+    // `stakes` = never-shaming upside copy on the levers that carry a real Shape Score
+    // commitment (kept = earns + momentum; lapsing dips the number). Framed as "keep /
+    // protect", never "or lose". Only the penalize-able levers carry it.
     const engineMove = engineFlag ? ({
-      checkin:   { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT },
-      training:  { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN },
-      nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal },
+      checkin:   { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT, stakes: 'keep your momentum + protect 15 pts' },
+      training:  { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN, stakes: 'hold your streak + momentum' },
+      nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal, stakes: 'keep your momentum going' },
       goal:      { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
       score:     { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
       sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setSleepSheet(true)], c: t.AMBER },
     }[engineFlag.lever]) : null;
     const todo = [];
-    if (engineMove) todo.push({ head: engineMove.head, sub: engineFlag.reason, cta: engineMove.cta, c: engineMove.c, engine: true });
+    if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
     if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
     selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
