@@ -141,6 +141,13 @@ changelog whenever something ships.
 ## Changelog
 
 ### 2026-06-18 — Shape Score v2: momentum streak escalation (D) + weekly commitments (E)
+- **✅ FULLY LIVE (end of session):** the owner ran ALL migrations (Phase C accountability,
+  D escalation, E commitments — Phase B momentum already applied), set **`CRON_SECRET`** in
+  Vercel env, and deployed. Verified live: all 9 RPCs + `score_commitments` exist; the daily
+  cron `/api/cron/score-accountability` authenticates + runs (`{ok:true, evaluated:0, …}`,
+  HTTP 200). The entire **A–E** Shape Score system (two-number model · momentum + escalating
+  bonus · accountability clawback + earns + waive · weekly commitments) is now active end to
+  end; it self-runs daily at 07:00 UTC as real members come on.
 - Two enhancements on the shipped Momentum/Accountability system (spec
   `docs/superpowers/specs/2026-06-18-shape-score-streak-escalation-and-commitments-design.md`,
   plan `…/plans/2026-06-18-shape-score-streak-escalation-and-commitments.md`).

@@ -942,6 +942,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Store catalogue role-correct (app + website): clients see Merch + Training + Nutrition + Perks; coaches see Merch + Coach Tools (Lead Boost). Was showing every product to every role. Mobile lead-boost redemption → /api/lead-boosts (ShapeStore.redeemLeadBoost)', status: 'done' },
       ],
     },
+    {
+      section: 'Shape Score · Momentum, Accountability & Commitments — LIVE',
+      items: [
+        { label: 'Two-number model: RANK (Σ delta excl. store_redeem, high-water-marked tier) vs SPENDABLE balance (Σ all). Spending never demotes; lapsing/penalties dent the number; "at-risk" line when rank < displayed tier. deriveScore (mobile mjs + src/lib ts) + /api/client/score', status: 'done' },
+        { label: 'Momentum meter (0–100: +7 per active day, −12 per miss) + escalating weekly bonus at ≥80 (+15 per consecutive week → +100 cap, 25→40→55→70→85→100). RPCs compute_momentum / award_momentum_bonus; momentum.mjs source of truth; bar on Score page (mobile + web)', status: 'done' },
+        { label: 'Accountability clawback (daily cron): missed check-in −7 · skipped assigned workout −5 · broken daily-habit streak −2. (Session-attendance penalty intentionally DROPPED — completion is coach-bookkeeping, would false-penalize.) Guards: recency (no launch back-charge), pause exemption, −30/week cap, 0 balance floor, advisory-locked, idempotent. apply_obligation_penalty (service-role only)', status: 'done' },
+        { label: 'Positive earns: kept coach session +12 (award_session_kept, cron) · completed workout +10/day (award_workout_session, un-farmable). Coach waive_penalty + get_client_penalties (coach-gated); "Recent penalties + WAIVE" on the client Manage tab; never-shaming directive stakes copy', status: 'done' },
+        { label: 'Weekly commitments + stake: score_commitments RLS table + set_commitment / accept_commitment / settle_commitment RPCs. Coach- or self-set targets (workouts/check-in/habits), 5–50 two-sided stake (hit +S / miss −S floored at 0). Coach proposals need client consent. Anti-farm: locks once active + must be set by Wednesday. Client card (mobile + web /api/client/commitment) + coach propose affordance. Settled by the cron', status: 'done' },
+        { label: 'Daily evaluator /api/cron/score-accountability (vercel.json 07:00 UTC, CRON_SECRET-gated, service-role, fail-open per user). ALL migrations applied; CRON_SECRET set + deployed; cron auth verified live (200). The full A–E system is active', status: 'done' },
+      ],
+    },
   ];
 }
 
