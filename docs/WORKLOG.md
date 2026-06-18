@@ -140,6 +140,43 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-18 — Shape Score: Momentum meter + weekly bonus (Momentum/Accountability Phase B)
+- **The consistency carrot.** A 0–100 **Momentum** meter — "don't break the streak" —
+  folded over the trailing 30 days: **+7** per active day, **−12** per miss (a notch,
+  not a reset), clamped. Hold **≥80** and bank a **+25** weekly bonus. Built on Phase A's
+  ledger. Shipped in 4 commits + a review-fix pass:
+  - **`mobile-app/src/services/momentum.mjs`** (+ `tests/momentum.test.mjs`, 5 tests):
+    the pure `computeMomentum(activeDays)` fold + constants (STEP_UP=7 · STEP_DOWN=12 ·
+    BONUS_THRESHOLD=80 · BONUS_POINTS=25) — the single source of truth the SQL mirrors.
+  - ⚠ **OWNER ACTION — run the migration:** `supabase-migrations/2026-06-18-score-momentum.sql`
+    — `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-18-score-momentum.sql`
+    — two SECURITY DEFINER, **auth.uid()-scoped** RPCs (no user_id param — a caller only
+    ever reads/earns for themselves): **`compute_momentum()`** (a day is active when the
+    caller logged a real `daily_health_snapshot` metric, a `user_habit_completions` row,
+    or has a `client_checkins` week covering it) and **`award_momentum_bonus()`** (+25 once
+    per ISO week at ≥80, idempotent via md5-uuid `source_id` on the dedupe index, reuses
+    category `'adherence'` / `source_kind 'momentum_bonus'` — **no CHECK change**).
+    Fire-and-forget: callers no-op until applied.
+  - **`/api/client/score`** returns `momentum:{value,bonusThisWeek}` (value via
+    `compute_momentum`; bonusThisWeek = a `momentum_bonus` row earned since this ISO-week
+    Monday). **`window.ShapeMomentum.check`** (shapeBackend) calls `award_momentum_bonus`
+    on session resolve (next to `award_tier_bonuses`, idempotent).
+  - **Momentum bar UI**: mobile `BSShapeScorePage` (teal `BSPlate`), web dashboard
+    `clientScore.jsx` (live), and an illustrative strip on the marketing `score.jsx`
+    consistency card. Signed-out = demo; signed-in = real (or hidden pre-migration).
+- **Adversarial review (3-dimension fan-out, each finding independently verified)** caught,
+  and this pass fixed: (HIGH) `clientScore.jsx` changed but its `?v=` wasn't bumped →
+  `?v=20260618b` on ClientApp/ClientScore; (MED) demo momentum (72) leaked onto a signed-in
+  no-data account → demo now signed-out only, signed-in-no-data shows nothing; (NIT)
+  `ON CONFLICT` now spells out the partial-index predicate; (LOW) documented the
+  UTC-day window basis (can only undercount, never farm).
+- Validated read-only against prod (schema refs resolve; the fold reproduces the `.mjs`
+  vectors 98/65/100/0). Verified per change: `tsc` · 241/241 tests · mobile build +
+  `public/m` synced (PowerShell) · JSX parse-check. Also fixed the dead marketing **Score
+  hero buttons** ("Redeem points →" → Store; "How points work" → scroll to the earn table).
+- **Next:** Phase C (clawback penalties + daily cron + the deferred positive earns —
+  `2026-06-18-score-penalties.sql` + `CRON_SECRET`).
+
 ### 2026-06-18 — Shape Score: two-number split + high-water tier + at-risk (Momentum/Accountability Phase A)
 - **Phase A of the Momentum + Accountability system** (spec
   `docs/superpowers/specs/2026-06-18-shape-score-momentum-accountability-design.md`,
