@@ -140,6 +140,53 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-18 — Shape Score buildout: dead categories wired · real composite · coach reconcile · color unify
+- **Wired the dead earning categories** (`prs`/`adherence`/`community` were
+  schema-permitted but never written) to the amounts the score page advertises —
+  **migration `2026-06-18-score-ledger-awards.sql`** (no CHECK change; categories
+  already allowed):
+  - PR Wall post → **+12 `prs`** (inside `post_my_pr_to_wall`'s DEFINER tx).
+  - Weekly check-in → **+15 `adherence`** (`award_checkin_points`, once/week),
+    called from the web checkin-kit route + mobile `checkinSubmit`.
+  - Community post → **+5 `community`** (`award_community_post`), web feed route +
+    mobile `createPost`.
+  - **Security-hardened** after the automated review: amounts/categories are
+    hard-coded in the RPCs (no generic "insert any delta" helper), `user_id` is
+    always `auth.uid()`, awards require the **real originating row to exist + be
+    caller-owned** (community post ownership + feed-visibility; a real
+    `client_checkins` row for the week), and PR awards bucket **per-lift-per-month**
+    so ratcheting can't farm. Likes earn nothing (un-farmable). All idempotent via
+    the `(user_id, source_kind, source_id)` dedupe index.
+  - *Pre-existing latent risk (not introduced here):* the `score_ledger` RLS INSERT
+    policy still lets a user self-insert arbitrary rows directly — worth tightening,
+    but it would require reworking `award_my_goal_milestones` (INVOKER).
+- **Real composite bars** (Train/Nutrition/Recovery/Consistency): were hardcoded
+  88/74/62/92 signed-out and flat 0/0/0/0 live. Now computed in
+  `/api/client/score` (`computeComposite`) from the user's own
+  `daily_health_snapshot` — Recovery = 7d avg sleep (8h=100), Nutrition = 14d
+  meal-logging days, Train = 14d training days (~8/2wk target), Consistency = 14d
+  active days — with **honest `—`** (null, never a fake 0) when sparse. Threaded
+  via `_bsUseLiveScore` into `BSScoreCardDark` + the Me-page Terrain inline bars.
+  Mobile-only (the website score pages render no composite bars).
+- **Reconciled the two coach scoring systems:** `/api/coach/score` was a 4-rung
+  `Raw/Tempo/Peak/Legend` (0/1000/5000/15000) ladder while every coach surface
+  shows the 5-rung `Certified/Pro/Elite/Master/Icon` (0/750/2000/5000/15000). The
+  API now uses the 5-rung ladder; mobile `_bsHydrateProScore` was fetching the
+  WRONG endpoint (`/api/client/score`) + reading `.name` off a string — now hits
+  `/api/coach/score?role=…` (dietitian→nutritionist). Website pages already carried
+  the 5-rung `STATIC_TIERS`.
+- **Unified the tier-color palettes:** new canonical `public/newdesign/tierColors.jsx`
+  (`window.SHAPE_TIER_COLORS` / `window.tierColor`, matching mobile `BS_TIER_COLORS`).
+  `chatWidget.jsx` + `marketplace.jsx` were already canonical; corrected the drift —
+  `score.jsx` member ladder (INTENTIONAL marketing change: Form amber `#e89740`→teal
+  `#34d6c5`, Peak→violet, Legend→rose) and `livingProfilePage`/`livingDesktop` Form
+  `#1ec0a8`→`#34d6c5`. `?v=` bumped on Score.html + the 7 profile pages.
+- ⚠ **OWNER ACTION — run the awards migration on Supabase** (raw link):
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-18-score-ledger-awards.sql`
+  — the award calls fire-and-forget and **no-op until it's applied**.
+- Verified per PR: `tsc --noEmit` · 232/232 tests · mobile build + `public/m` synced
+  · website JSX parse-check. Shipped to `main` (5 commits).
+
 ### 2026-06-17 — Fix: home "Log last night's sleep" directive now opens a real sleep logger
 - The home **"Today · your move"** sleep directive's **"Log sleep →"** button was
   mis-wired: it opened the weekly check-in (`setCheckinPage(true)`,
