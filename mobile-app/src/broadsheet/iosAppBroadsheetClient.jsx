@@ -17052,7 +17052,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => { on = false; };
   }, []);
   const [showLeaderboard, setShowLeaderboard] = useStateBSC(false);
-  const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
+  // Settings is shared by clients AND coaches — pick the Shape Score profile by
+  // the signed-in role so a coach sees the COACH tier ladder (Certified/Pro/…),
+  // not the client one. Dietitians ride the nutritionist rails.
+  const _viewerRole = String((typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client').toLowerCase();
+  const _scoreRoleKey = (_viewerRole === 'nutritionist' || _viewerRole === 'dietitian') ? 'nutritionist'
+    : bsIsCoachRole(_viewerRole) ? 'trainer'
+    : 'client';
+  const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES[_scoreRoleKey] || SHAPE_SCORE_PROFILES.client);
   // Nutrition + training preferences (merged in from the old Me page) — stored in
   // user_goals, edited through the same edit sheet.
   const [nutritionPrefs, setNutritionPrefs] = useStateBSC({});
