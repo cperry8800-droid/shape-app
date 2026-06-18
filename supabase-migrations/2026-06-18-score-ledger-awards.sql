@@ -3,42 +3,57 @@
 --
 -- Categories wired here (all already permitted by the score_ledger CHECK in
 -- 2026-05-28-shape-score-ledger.sql — no CHECK change needed):
---   prs       — posting a NEW PR to the PR Wall              (+12)
---   adherence — submitting the weekly check-in (once / week) (+15)
---   community — sharing a feed-visible community post         (+5)
+--   prs       — posting a NEW PR to the PR Wall                      (+12)
+--   adherence — submitting the weekly check-in (once / week)         (+15)
+--   community — sharing a feed-visible community post                 (+5)
 --
--- Abuse resistance: user_id is ALWAYS auth.uid() inside these functions (a caller
--- can only ever award THEMSELVES — never another account), and every insert
--- dedupes on the existing unique index (user_id, source_kind, source_id) via
--- ON CONFLICT DO NOTHING, so replays / re-submits / re-posts never double-credit.
+-- Abuse resistance (hardened after security review):
+--   • Each award function hard-codes its amount + category — callers can NEVER
+--     supply a delta or category (no "insert any points" helper exists).
+--   • user_id is ALWAYS auth.uid() — a caller can only ever award THEMSELVES.
+--   • The award is only written when the ORIGINATING ROW actually exists and is
+--     owned by the caller (verified inside the SECURITY DEFINER function), so a
+--     user can't mint points by passing a fabricated UUID.
+--   • Every insert dedupes on the unique (user_id, source_kind, source_id) index
+--     via ON CONFLICT DO NOTHING — replays / re-submits / re-posts never double-
+--     credit. PR awards bucket per-lift-per-month so ratcheting can't farm.
+--
+-- NOTE: an earlier draft shipped a generic insert_score(...) helper granted to
+-- `authenticated`; that is a score-inflation vector (caller-supplied delta), so
+-- it is dropped here.
 
--- ── Generic self-award helper (community posts + future award sites) ─────────
--- SECURITY DEFINER, but user_id is auth.uid() — NOT a caller-supplied id — so it
--- cannot be abused to credit another account.
-create or replace function public.insert_score(
-  p_category    text,
-  p_source_kind text,
-  p_source_id   uuid,
-  p_delta       integer,
-  p_note        text default null
-) returns void
+drop function if exists public.insert_score(text, text, uuid, integer, text);
+
+-- ── Community post → +5 'community' (feed-visible, caller-owned) ─────────────
+create or replace function public.award_community_post(p_post_id uuid)
+returns void
 language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid();
 begin
-  if v_uid is null or p_source_kind is null or p_source_id is null then return; end if;
+  if v_uid is null or p_post_id is null then return; end if;
+  -- Only a real, caller-owned, feed-visible post earns. Private/profile-only
+  -- posts and other users' posts award nothing.
+  if not exists (
+    select 1 from public.community_posts
+    where id = p_post_id and author_id = v_uid and privacy in ('public', 'community')
+  ) then return; end if;
   insert into public.score_ledger (user_id, category, source_kind, source_id, delta, note)
-    values (v_uid, p_category, p_source_kind, p_source_id, p_delta, p_note)
+    values (v_uid, 'community', 'community_post', p_post_id, 5, 'Community post')
     on conflict (user_id, source_kind, source_id) do nothing;
 end $$;
-grant execute on function public.insert_score(text, text, uuid, integer, text) to authenticated;
+grant execute on function public.award_community_post(uuid) to authenticated;
 
--- ── Weekly check-in → +15 adherence (once per ISO week) ─────────────────────
+-- ── Weekly check-in → +15 'adherence' (once per ISO week, real check-in only) ─
 create or replace function public.award_checkin_points(p_week_of date)
 returns void
 language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid();
 begin
   if v_uid is null or p_week_of is null then return; end if;
+  -- Require a genuine check-in for this week — a bare RPC call earns nothing.
+  if not exists (
+    select 1 from public.client_checkins where user_id = v_uid and week_of = p_week_of
+  ) then return; end if;
   insert into public.score_ledger (user_id, category, source_kind, source_id, delta, note)
     values (v_uid, 'adherence', 'checkin',
             md5('checkin:' || v_uid::text || ':' || p_week_of::text)::uuid,
@@ -50,8 +65,10 @@ grant execute on function public.award_checkin_points(date) to authenticated;
 -- ── PR Wall → +12 prs (re-defines post_my_pr_to_wall to add the award) ──────
 -- Identical to 2026-06-14-pr-wall.sql plus a score_ledger insert, so the points
 -- and the wall post commit (or roll back) together inside the one DEFINER
--- transaction. The award source_id includes the PR value, so each genuine new
--- best earns once; a re-post of the same value is rejected upstream (not_a_pr).
+-- transaction. The award is bucketed per-lift-per-CALENDAR-MONTH (source_id keyed
+-- on YYYY-MM, not the value), so a user can't ratchet +1 lb repeatedly to farm
+-- points; a genuine new PR in a later month earns again. The wall post itself is
+-- unthrottled (still requires a real new best + a public profile, as before).
 create or replace function public.post_my_pr_to_wall(
   p_lift  text,
   p_value numeric,
@@ -114,10 +131,10 @@ begin
   insert into public.channel_members (channel_id, user_id, role)
     values (v_ch, v_uid, 'member') on conflict do nothing;
 
-  -- Shape Score: +12 for a new PR (idempotent on this user+lift+value).
+  -- Shape Score: +12 for a new PR, at most once per lift per calendar month.
   insert into public.score_ledger (user_id, category, source_kind, source_id, delta, note)
     values (v_uid, 'prs', 'pr_wall_post',
-            md5('pr_wall:' || v_uid::text || ':' || lower(v_lift) || ':' || round(p_value)::text)::uuid,
+            md5('pr_wall:' || v_uid::text || ':' || lower(v_lift) || ':' || to_char(now(), 'YYYY-MM'))::uuid,
             12, 'PR: ' || v_body)
     on conflict (user_id, source_kind, source_id) do nothing;
 

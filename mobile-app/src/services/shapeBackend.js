@@ -2409,11 +2409,11 @@ async function createCommunityPost({
     return { stored: 'local', data: saveLocalRecord('shape.communityPosts', payload, error), error };
   }
 
-  // Shape Score: +5 for a feed-visible community post (idempotent on the post id,
-  // via auth.uid() in the RPC; skip private/profile-only). Best-effort; no-ops
-  // until the awards migration runs.
-  if (data && (data.privacy === 'public' || data.privacy === 'community')) {
-    try { await supabase.rpc('insert_score', { p_category: 'community', p_source_kind: 'community_post', p_source_id: data.id, p_delta: 5, p_note: 'Community post' }); invalidateClientMetrics(); } catch (e) {}
+  // Shape Score: +5 for a feed-visible community post. The RPC hard-codes the
+  // amount and re-verifies the post is caller-owned + feed-visible (idempotent on
+  // the post id), so it can't be abused. Best-effort; no-ops until the migration runs.
+  if (data?.id) {
+    try { await supabase.rpc('award_community_post', { p_post_id: data.id }); invalidateClientMetrics(); } catch (e) {}
   }
 
   return { stored: 'supabase', data: communityPostFromRow(data) };
