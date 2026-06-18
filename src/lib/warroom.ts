@@ -198,6 +198,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/ai/generate-plan', 'POST'],
   ['/api/ai/notify', 'POST'],
   ['/api/ai/notify/cron', 'GET,POST'],
+  ['/api/cron/score-accountability', 'GET,POST'],
   ['/api/ai/proposals', 'POST'],
   ['/api/ai/proposals/confirm', 'POST'],
   ['/api/ai/speak', 'POST'],

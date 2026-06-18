@@ -140,6 +140,40 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-18 — Shape Score: accountability clawback + cron + positive earns (Momentum/Accountability Phase C)
+- **The "stick" — lose points for not doing committed things** — plus the deferred
+  positive earns. Built on Phase A/B's two-number ledger; the tier never demotes (only the
+  NUMBER dips), and the tone stays never-shaming.
+- ⚠ **OWNER ACTION (1) — run the migration:** `supabase-migrations/2026-06-18-score-accountability.sql`
+  — `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-18-score-accountability.sql`
+  — five RPCs on `score_ledger` (no new table, no CHECK change):
+  - **`apply_obligation_penalty(uid,kind,ref,day)`** — SERVICE-ROLE ONLY (the cron). Bounded
+    −½ penalty for a MISSED **client-controllable** obligation: **check-in −7** (ISO week
+    fully over, no row), **assigned workout −5** (published, day past, no logged workout in
+    a ±1-day window), **habit-streak −2** (active daily DO-habit, clean ≥3-day streak then
+    missed). Guards: recency (no launch back-charge), pause (`user_goals('client_settings')
+    .paused_until`), **−30/week cap**, **0 balance floor**, per-user advisory lock, idempotent.
+  - **`award_session_kept` +12** (cron) · **`award_workout_session` +10** (client, once/day,
+    gated on a real `workout_minutes` snapshot — un-farmable) · **`waive_penalty`** (coach-gated)
+    · **`get_client_penalties`** (coach read).
+  - **Session ATTENDANCE is deliberately NOT penalized** (review finding): a session's only
+    "kept" signal is the coach manually marking it `completed`, so a stale `confirmed` is coach
+    bookkeeping, not a client miss — penalizing it would be a false debit. The +12 reward stays.
+- ⚠ **OWNER ACTION (2) — set `CRON_SECRET`** (Vercel env) so the daily evaluator authenticates.
+- **Daily cron** `/api/cron/score-accountability` (`vercel.json`, 07:00 UTC) — the authoritative
+  evaluator (fires for ghosters too): per active member, applies past-grace penalties, credits
+  kept sessions, sends ONE never-shaming heads-up summarizing any dip. Service-role, fail-open
+  per user. **Workout earn** wired into `saveWorkoutSessionLog`.
+- **Surfacing:** the home "Today · your move" directive's check-in/training/nutrition levers
+  gain never-shaming **stakes** copy ("keep your momentum + protect 15 pts"); the coach client
+  profile **Manage** tab gets a **Recent penalties + WAIVE** affordance.
+- **Adversarial review** (3-dimension fan-out; the cron/UI dimensions hit transient rate limits
+  and were self-reviewed) confirmed + fixed the session false-penalty (dropped), widened the
+  workout exoneration to ±1 day, widened the kept-session reward window, added cron
+  `maxDuration` + a per-insertion-week cap note. Every obligation predicate + guard validated
+  read-only against prod. tsc clean · mobile build + `public/m` synced.
+- War Room: `/api/cron/score-accountability` registered in `RAW_ROUTES`.
+
 ### 2026-06-18 — Shape Score: Momentum meter + weekly bonus (Momentum/Accountability Phase B)
 - **The consistency carrot.** A 0–100 **Momentum** meter — "don't break the streak" —
   folded over the trailing 30 days: **+7** per active day, **−12** per miss (a notch,
