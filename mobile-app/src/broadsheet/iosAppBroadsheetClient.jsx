@@ -79,6 +79,35 @@ function bsMyPhoto() {
   if (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.avatarMode === 'initials') return null;
   return bsMyPhotoRaw();
 }
+// Load THIS account's identity doc (custom initials / accent / name / photo /
+// avatarMode) into the global cache, REPLACING — never merging — so a fresh
+// account can't inherit a prior session's or the demo's override (empty doc →
+// reset to {}). Window-exposed so the coach bundles hydrate the same way (they
+// share these avatar helpers); fires shape:identity so on-screen avatars re-render.
+function bsHydrateIdentity() {
+  if (typeof window === 'undefined' || !(window.shapeDb && window.shapeDb.getUserGoals)) return Promise.resolve();
+  return window.shapeDb.getUserGoals('client_identity').then((d) => {
+    try { window.ShapeIdentity = (d && typeof d === 'object' && Object.keys(d).length) ? { ...d } : {}; } catch (e) {}
+    try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+  }).catch(() => {});
+}
+// Serialized identity writer — both the edit form and the photo picker call this,
+// so concurrent saves can't race: each merges its patch over the FRESHEST stored
+// doc (never dropping a sibling field like avatarMode or photo), persists, and
+// reconciles the cache. Chained so writes apply in order.
+let _bsIdentitySaveChain = Promise.resolve();
+function bsSaveIdentity(patch) {
+  _bsIdentitySaveChain = _bsIdentitySaveChain.then(async () => {
+    let existing = {};
+    try { const p = window.shapeDb?.getUserGoals?.('client_identity'); existing = (p && p.then ? await p : p) || {}; } catch (e) {}
+    const merged = { ...(existing || {}), ...(patch || {}) };
+    let res = null;
+    try { res = await window.shapeDb?.saveUserGoals?.('client_identity', merged); } catch (e) {}
+    try { window.ShapeIdentity = merged; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+    return res;
+  }).catch(() => null);
+  return _bsIdentitySaveChain;
+}
 // My current Shape Score tier (cached on window.ShapeScore from /api/client/score)
 // and its color. Avatars across the app fill with my tier color — Base/steel until
 // I earn points — so the avatar reflects standing, not a chosen accent.
@@ -356,18 +385,10 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // the Shape Score tier at startup, so every avatar — header + feed — reflects the
   // right initials + tier color before the Me page is ever opened.
   React.useEffect(() => {
-    if (window.shapeDb?.getUserGoals) {
-      window.shapeDb.getUserGoals('client_identity').then(d => {
-        // REPLACE (don't merge) with the account's own doc — a fresh account
-        // has no client_identity, and merging would keep a prior session's /
-        // the demo's stale initials/photo override, so the avatar showed the
-        // wrong initials. Empty doc → reset to {} so initials derive from the
-        // real name. Always bump so avatars re-render with the right initials.
-        try { window.ShapeIdentity = (d && typeof d === 'object' && Object.keys(d).length) ? { ...d } : {}; } catch (e) {}
-        setIdentityVersion(v => v + 1);
-        try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-      }).catch(() => {});
-    }
+    // Shared hydrator (also called by the coach shells) — loads this account's
+    // identity doc into window.ShapeIdentity and fires shape:identity, which the
+    // bump listener below turns into a re-render.
+    bsHydrateIdentity();
     fetch('/api/client/score', { credentials: 'same-origin' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d && typeof d.points_total === 'number') { try { window.ShapeScore = { points: d.points_total || 0, tier: d.current_tier ? d.current_tier.name : 'Base' }; } catch (e) {} setIdentityVersion(v => v + 1); } })
@@ -6876,16 +6897,13 @@ function bsPickProfilePhoto(cb) {
         img.onload = () => {
           let url = reader.result;
           try { const S = 256, cv = document.createElement('canvas'); cv.width = S; cv.height = S; const ctx = cv.getContext('2d'); const scale = Math.max(S / img.width, S / img.height), w = img.width * scale, h = img.height * scale; ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h); url = cv.toDataURL('image/jpeg', 0.82); } catch (e) {}
-          try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; } catch (e) {}
-          const save = async (d) => {
-            try {
-              const res = await window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url });
-              if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
-              else { window.__bsToast?.('Photo updated', 'ok'); }
-            } catch (e) { window.__bsToast?.("Couldn't save photo — try again", 'err'); }
-          };
-          try { const p = window.shapeDb?.getUserGoals?.('client_identity'); if (p && p.then) p.then(save).catch(() => save(null)); else save(null); } catch (e) {}
-          try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+          // Optimistic cache update (instant avatar refresh), then persist through
+          // the serialized writer (preserves avatarMode + any other fields).
+          try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+          bsSaveIdentity({ photo: url }).then((res) => {
+            if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
+            else { window.__bsToast?.('Photo updated', 'ok'); }
+          });
           if (cb) cb(url);
         };
         img.src = reader.result;
@@ -6922,19 +6940,13 @@ function useBSProfilePhoto(person, isSelf) {
           url = cv.toDataURL('image/jpeg', 0.82);
         } catch (e2) {}
         setPhoto(url);
-        try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; } catch (e2) {}
-        try {
-          const save = async (d) => {
-            try {
-              const res = await window.shapeDb?.saveUserGoals?.('client_identity', { ...(d || {}), photo: url });
-              if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
-              else { window.__bsToast?.('Photo updated', 'ok'); }
-            } catch (e3) { window.__bsToast?.("Couldn't save photo — try again", 'err'); }
-          };
-          const p = window.shapeDb?.getUserGoals?.('client_identity');
-          if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
-        } catch (e2) {}
-        try { window.dispatchEvent(new Event('shape:identity')); } catch (e2) {}
+        // Optimistic cache update (instant refresh), then persist through the
+        // serialized writer (preserves avatarMode + any other fields).
+        try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), photo: url }; window.dispatchEvent(new Event('shape:identity')); } catch (e2) {}
+        bsSaveIdentity({ photo: url }).then((res) => {
+          if (res && res.error) { window.__bsToast?.(/log/i.test(res.error.message || '') ? 'Sign in to save your photo' : "Couldn't save photo — try again", 'err'); }
+          else { window.__bsToast?.('Photo updated', 'ok'); }
+        });
       };
       img.src = reader.result;
     };
@@ -15682,6 +15694,7 @@ Object.assign(window, {
   bsMyInitials,
   bsMyTierColor,
   bsMyPhoto,
+  bsHydrateIdentity,
   bsMyActivity,
 });
 
@@ -17386,22 +17399,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const startEdit = () => { setDraft(identity); setEditing(true); };
   const saveEdit  = () => {
     setIdentity(draft); setEditing(false);
-    // Merge over the stored identity so the avatar photo (and any other fields
-    // saved separately, e.g. by the photo picker) are preserved, not clobbered.
-    try {
-      const photo = bsMyPhotoRaw() || null;
-      const save = (existing) => { try { window.shapeDb?.saveUserGoals?.('client_identity', { ...(existing || {}), ...draft, ...(photo ? { photo } : {}) }); } catch (e) {} };
-      const p = window.shapeDb?.getUserGoals?.('client_identity');
-      if (p && p.then) p.then(save).catch(() => save(null)); else save(null);
-    } catch (e) {}
-    // (Primary goal is owned by the Goal page now — the edit form no longer
-    // edits or writes it, so a profile save can't clobber the Goal page value.)
+    // Persist the whole edited identity through the serialized writer (merges over
+    // the freshest stored doc, so the photo picker's photo and our avatarMode can't
+    // clobber each other). Optimistically update the cache first so on-screen
+    // avatars refresh instantly without navigating. avatarMode is always defined
+    // so a merge can't blank a saved preference.
+    const photo = bsMyPhotoRaw() || null;
+    const patch = { ...draft, avatarMode: draft.avatarMode || 'photo', ...(photo ? { photo } : {}) };
+    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...patch }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+    bsSaveIdentity(patch);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
-    // Cache the custom initials globally so every avatar (header + feed) updates,
-    // then signal a re-render so the current screen reflects it without navigating.
-    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), initials: draft.initials || '', name: draft.name, avatarMode: draft.avatarMode || 'photo' }; } catch (e) {}
-    try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
   };
   const cancelEdit = () => setEditing(false);
 

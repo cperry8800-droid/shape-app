@@ -1001,7 +1001,16 @@ function BSTrainerApp({ onLogout, tweaks, setTweak }) {
 function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
   const sheet = useBSSheet();
-  React.useEffect(() => { _bsHydrateProScore(); }, []);
+  const [, _bumpIdentity] = useStateBSP(0);
+  React.useEffect(() => {
+    _bsHydrateProScore();
+    // Load the coach's identity (photo / initials / avatarMode) — the coach app
+    // never did this, so coach avatars never received their photo. Re-render when it lands.
+    try { window.bsHydrateIdentity && window.bsHydrateIdentity(); } catch (e) {}
+    const bump = () => _bumpIdentity((v) => v + 1);
+    window.addEventListener('shape:identity', bump);
+    return () => window.removeEventListener('shape:identity', bump);
+  }, []);
   const [tab, setTab] = useStateBSP('today');
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
@@ -1269,7 +1278,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
@@ -1620,7 +1629,7 @@ function BSProAvatarButton({ size = 38 }) {
   // Match the Today/Me headers: the coach's real photo (custom or signed-in),
   // tier-colored ring, falling back to initials — not a flat initial badge.
   const tier = (typeof window !== 'undefined' && window.ShapeScore && window.ShapeScore.tier) || 'Base';
-  const photo = (typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined;
+  const photo = (typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined;
   const live = (typeof window !== 'undefined' && typeof bsAmLive === 'function') ? bsAmLive() : false;
   const open = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
   return <BSFacetAvatar size={size} c={bsTierColor(tier)} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
@@ -3808,7 +3817,16 @@ function BSNutritionistApp({ onLogout, tweaks, setTweak }) {
 function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const t = useBS();
   const sheet = useBSSheet();
-  React.useEffect(() => { _bsHydrateProScore(); }, []);
+  const [, _bumpIdentity] = useStateBSP(0);
+  React.useEffect(() => {
+    _bsHydrateProScore();
+    // Load the coach's identity (photo / initials / avatarMode) — the coach app
+    // never did this, so coach avatars never received their photo. Re-render when it lands.
+    try { window.bsHydrateIdentity && window.bsHydrateIdentity(); } catch (e) {}
+    const bump = () => _bumpIdentity((v) => v + 1);
+    window.addEventListener('shape:identity', bump);
+    return () => window.removeEventListener('shape:identity', bump);
+  }, []);
   const [tab, setTab] = useStateBSP('today');
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
@@ -4057,7 +4075,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
@@ -4962,7 +4980,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
-            <BSFacetAvatar size={42} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onSettings} />
+            <BSFacetAvatar size={42} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onSettings} />
           </div>
         </div>
       </div>
