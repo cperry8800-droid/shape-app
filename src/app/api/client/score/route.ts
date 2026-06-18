@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { dbError } from '@/lib/request-utils';
 import { createClient } from '@/lib/supabase/server';
+import { deriveScore } from '@/lib/score-derive';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +97,7 @@ export async function GET() {
   // three windows plus the lifetime breakdown.
   const { data: allRows, error: allErr } = await supabase
     .from('score_ledger')
-    .select('category, delta, earned_at')
+    .select('category, delta, earned_at, source_kind')
     .eq('user_id', user.id);
 
   if (allErr) return dbError(allErr, 'score ledger read', 500);
@@ -120,15 +121,18 @@ export async function GET() {
     .gte('snapshot_date', since30.toISOString().slice(0, 10));
   const composite = computeComposite((snaps || []) as SnapRow[], now);
 
-  const rows = (allRows || []) as Array<{ category: string; delta: number; earned_at: string }>;
+  const rows = (allRows || []) as Array<{ category: string; delta: number; earned_at: string; source_kind: string | null }>;
+  // Two-number split + high-water rank (shared pure helper).
+  const derived = deriveScore(rows);
+  const points_total = derived.shapeScore; // the RANK number (excludes redemptions)
+
   const totals = new Map<string, number>();
-  let points_total = 0;
   let points_month = 0;
   let week_gain = 0;
   const monthIso = monthStart.toISOString();
   for (const r of rows) {
-    points_total += r.delta;
-    totals.set(r.category, (totals.get(r.category) || 0) + r.delta);
+    // Breakdown is rank-basis ("how I reached this tier") — exclude redemptions.
+    if (r.source_kind !== 'store_redeem') totals.set(r.category, (totals.get(r.category) || 0) + r.delta);
     if (r.earned_at >= monthIso) points_month += r.delta;
     if (new Date(r.earned_at) >= weekStart) week_gain += r.delta;
   }
@@ -140,19 +144,28 @@ export async function GET() {
     points: totals.get(cat) || 0,
   })).filter(r => r.points !== 0);
 
+  // The DISPLAYED tier is high-water-marked: it tracks the highest the rank has
+  // EVER reached, so penalties dent the number + push the next tier away but never
+  // demote the rank. at_risk = the current rank has slipped below that tier's line.
   let currentIdx = 0;
   for (let i = TIERS.length - 1; i >= 0; i--) {
-    if (points_total >= TIERS[i][1]) { currentIdx = i; break; }
+    if (derived.highWaterScore >= TIERS[i][1]) { currentIdx = i; break; }
   }
   const current_tier = TIERS[currentIdx];
   const next_tier = TIERS[currentIdx + 1] || null;
-  const points_to_next = next_tier ? next_tier[1] - points_total : 0;
+  const points_to_next = next_tier ? next_tier[1] - derived.highWaterScore : 0;
+  const at_risk = derived.shapeScore < current_tier[1];
 
   return NextResponse.json({
     // points_total drives the headline + tier; points_month kept for back-compat.
     points_total,
     points_month,
     week_gain,
+    // What you can REDEEM with (earns − penalties − redemptions); the rank
+    // (points_total) excludes redemptions so spending never demotes.
+    spendable_balance: derived.spendableBalance,
+    // True when the rank has slipped below the line of the (high-water) tier.
+    at_risk,
     breakdown_total: breakdown,
     breakdown_month: breakdown, // back-compat alias; both now reflect lifetime
     recent: (recent || []) as LedgerRow[],
