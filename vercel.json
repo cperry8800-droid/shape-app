@@ -3,6 +3,10 @@
     {
       "path": "/api/ai/notify/cron",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/score-accountability",
+      "schedule": "0 7 * * *"
     }
   ]
 }

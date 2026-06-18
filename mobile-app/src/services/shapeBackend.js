@@ -2226,7 +2226,13 @@ async function saveWorkoutSessionLog({
   // Announce any new PRs to the community PR Wall. The server RPC enforces that
   // the profile is PUBLIC and that it's a genuine new best, so non-public members
   // and non-PRs post nothing. Best-effort, fire-and-forget — never blocks save.
-  if (structured && structured.stored === 'supabase') { announcePRsFromSetLogs(setLogs); }
+  if (structured && structured.stored === 'supabase') {
+    announcePRsFromSetLogs(setLogs);
+    // +10 Shape Score once for the day's workout — gated server-side on the
+    // workout_minutes snapshot we just wrote (un-farmable: one per day), idempotent.
+    // No-op until the accountability migration is applied.
+    try { if (state.user?.id) supabase.rpc('award_workout_session', { p_day: _localDate() }).then(() => {}, () => {}); } catch (e) {}
+  }
   return {
     ...feedPost,
     workoutSession: structured,
