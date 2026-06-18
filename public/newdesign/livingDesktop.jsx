@@ -120,7 +120,7 @@ function SignalVisual({ d, reduced, owner }) {
 // Where a member stands toward the next level (tier) — drives the ascent hero.
 function memberLevel(d) {
   const TH = [0, 750, 2000, 5000, 15000], NM = ["Base", "Tempo", "Form", "Peak", "Legend"];
-  const COL = ["#8a93a0", "#d8a23a", "#34d6c5", "#8a5cf6", "#e0518a"];
+  const COL = ["#8a93a0", "#d8a23a", "#e0463c", "#8a5cf6", "#34d6c5"];
   const pts = Number(d.score) || 0;
   let i = 0; for (let j = 0; j < TH.length; j++) if (pts >= TH[j]) i = j;
   const top = i >= TH.length - 1;
