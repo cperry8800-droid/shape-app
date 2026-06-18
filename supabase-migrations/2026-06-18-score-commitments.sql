@@ -60,15 +60,22 @@ begin
         or coalesce((p_targets->>'habits')::int, 0) > 0 ) then
     return jsonb_build_object('ok', false, 'reason', 'no_targets');
   end if;
+  -- Anti-farm: a commitment must be set EARLY in its week (by end of Wednesday), so it's
+  -- a forward-looking bet — not a retroactive grab once the work is already banked.
+  if now() >= v_week + 3 then
+    return jsonb_build_object('ok', false, 'reason', 'too_late');
+  end if;
   insert into public.score_commitments (user_id, created_by, week_of, targets, stake, status)
     values (p_user, v_caller, v_week, coalesce(p_targets, '{}'::jsonb), v_stake, v_status)
     on conflict (user_id, week_of) do update
       set targets = excluded.targets, stake = excluded.stake,
           created_by = excluded.created_by, status = excluded.status
-      where score_commitments.status in ('proposed', 'active')   -- never overwrite a settled week
+      -- LOCK: only a still-PROPOSED row may be replaced. Once active (self-set or an
+      -- accepted proposal) the week is locked — no swapping targets/stake to dodge a loss.
+      where score_commitments.status = 'proposed'
     returning * into v_row;
   if v_row.id is null then
-    return jsonb_build_object('ok', false, 'reason', 'already_settled');
+    return jsonb_build_object('ok', false, 'reason', 'locked');
   end if;
   return jsonb_build_object('ok', true, 'id', v_row.id, 'status', v_row.status,
                             'stake', v_row.stake, 'week_of', v_row.week_of);

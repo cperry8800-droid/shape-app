@@ -15205,7 +15205,9 @@ function BSCommitmentCard() {
   const [busy, setBusy] = useStateBSC(false);
 
   const load = () => {
-    if (!signedIn || !window.ShapeCommit) { setCommit(signedIn ? null : 'demo'); return; }
+    // Signed-out shows the honest empty state ("Sign in to commit") — never a fake
+    // live commitment. Real data only when signed in.
+    if (!signedIn || !window.ShapeCommit) { setCommit(null); return; }
     window.ShapeCommit.get().then((c) => setCommit(c || null)).catch(() => setCommit(null));
     window.ShapeCommit.progress().then((p) => p && setProg(p)).catch(() => {});
   };
@@ -15230,14 +15232,13 @@ function BSCommitmentCard() {
   };
 
   if (commit === undefined) return null; // loading
-  const isDemo = commit === 'demo';
-  const c = isDemo ? { targets: { workouts: 4, checkin: true, habits: 5 }, stake: 20, status: 'active' } : commit;
+  const c = commit;
   const tg = (c && c.targets) || {};
   const targetLine = () => {
     const parts = [];
-    if (tg.workouts) parts.push(`${isDemo ? 2 : prog.workouts}/${tg.workouts} workouts`);
-    if (tg.checkin) parts.push(`check-in ${(isDemo ? true : prog.checkin) ? '✓' : '◦'}`);
-    if (tg.habits) parts.push(`${isDemo ? 4 : prog.habits}/${tg.habits} habits`);
+    if (tg.workouts) parts.push(`${prog.workouts}/${tg.workouts} workouts`);
+    if (tg.checkin) parts.push(`check-in ${prog.checkin ? '✓' : '◦'}`);
+    if (tg.habits) parts.push(`${prog.habits}/${tg.habits} habits`);
     return parts.join(' · ');
   };
 
@@ -15262,7 +15263,7 @@ function BSCommitmentCard() {
                 : c.status === 'proposed' ? 'Proposed by your coach'
                 : 'Active · settles at week’s end'}
             </div>
-            {c.status === 'proposed' && !isDemo && (
+            {c.status === 'proposed' && (
               <div style={{ marginTop: 9, display: 'flex', gap: 8 }}>
                 <button onClick={accept} style={{ flex: 1, padding: '9px', borderRadius: 8, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
                 <button onClick={() => setSheet(true)} style={{ flex: 1, padding: '9px', borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Change</button>
