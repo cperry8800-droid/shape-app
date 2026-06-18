@@ -156,6 +156,25 @@ export async function GET() {
   const points_to_next = next_tier ? next_tier[1] - derived.highWaterScore : 0;
   const at_risk = derived.shapeScore < current_tier[1];
 
+  // Momentum meter (0–100) — the caller's own "don't break the streak" value from
+  // compute_momentum (auth.uid()-scoped). null only when the RPC is absent
+  // (pre-migration); a real account shows 0..100 (0 is an honest "no streak yet").
+  let momentum: { value: number; bonusThisWeek: boolean } | null = null;
+  {
+    const { data: mv, error: mErr } = await supabase.rpc('compute_momentum');
+    if (!mErr && mv !== null && mv !== undefined) {
+      // Monday 00:00 UTC of the current ISO week — the bonus is keyed per ISO week,
+      // so "banked this week" means a momentum_bonus row earned since this Monday.
+      const isoMonday = new Date(now);
+      isoMonday.setUTCHours(0, 0, 0, 0);
+      isoMonday.setUTCDate(isoMonday.getUTCDate() - ((isoMonday.getUTCDay() + 6) % 7));
+      const bonusThisWeek = rows.some(
+        (r) => r.source_kind === 'momentum_bonus' && new Date(r.earned_at) >= isoMonday,
+      );
+      momentum = { value: Number(mv) || 0, bonusThisWeek };
+    }
+  }
+
   return NextResponse.json({
     // points_total drives the headline + tier; points_month kept for back-compat.
     points_total,
@@ -175,5 +194,7 @@ export async function GET() {
     points_to_next,
     // Train/Nutrition/Recovery/Consistency 0–100, or null (honest '—') when sparse.
     composite,
+    // { value 0–100, bonusThisWeek } — null until the momentum migration is applied.
+    momentum,
   });
 }

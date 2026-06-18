@@ -382,6 +382,7 @@ async function getCurrentSession() {
   if (user) { try { window.ShapeVoice?.load?.(); } catch (e) {} } // pull the account's saved Nora tone (syncs across devices)
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
+  if (user) { try { window.ShapeMomentum?.check?.().catch(() => {}); } catch (e) {} } // grant any earned weekly momentum bonus (idempotent; no-op pre-migration)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);
@@ -3759,6 +3760,21 @@ async function awardGoalMilestones() {
 }
 window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };
 window.ShapeGoalAwards = { check: awardGoalMilestones };
+
+// Momentum weekly bonus: the RPC grants +25 once per ISO week when the caller's
+// momentum is ≥ 80, derived server-side from real activity (idempotent — same
+// pattern as award_my_goal_milestones). Returns the jsonb result, or null on
+// no-op / pre-migration. Called on session resolve (next to award_tier_bonuses).
+async function awardMomentumBonus() {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const { data, error } = await supabase.rpc('award_momentum_bonus');
+    if (error || !data) return null;
+    if (data.awarded) invalidateClientMetrics();
+    return data;
+  } catch (e) { return null; }
+}
+window.ShapeMomentum = { check: awardMomentumBonus };
 
 // ── The check-in kit ─────────────────────────────────────────
 // Weekly check-ins, girth measurements, structured progress photos, and the

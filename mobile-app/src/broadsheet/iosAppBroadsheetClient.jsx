@@ -15176,6 +15176,8 @@ function _bsUseLiveScore(profile) {
     // Train/Nutrition/Recovery/Consistency 0–100, each null when too sparse to
     // score (rendered as an honest '—', never a fake 0).
     composite: data.composite || null,
+    // { value 0–100, bonusThisWeek } — null until the momentum migration is applied.
+    momentum: data.momentum || null,
   };
 }
 
@@ -15189,6 +15191,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   const nextTier = profile.nextTier;
   const pointsToNext = profile.pointsToNext;
   const available = profile.available;
+  // Momentum meter — real { value, bonusThisWeek } when signed in (null = pre-migration,
+  // section hidden); a demo value drives the signed-out preview.
+  const momentum = profile.momentum || (profile.live ? null : { value: 72, bonusThisWeek: false });
   const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
   const tiers = bsIsCoachRole(profile.roleLabel) ? SHAPE_SCORE_TIERS_COACH : SHAPE_SCORE_TIERS;
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
@@ -15298,6 +15303,35 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                   </div>
                 ))}
               </div>
+            </BSPlate>
+          </div>
+        );
+      })()}
+
+      {/* Momentum meter — the consistency carrot. 0–100, +7 per active day / −12 per
+          missed (a notch, not a reset); ≥80 banks a weekly +25. Hidden when signed-in
+          but pre-migration (momentum null); demo value drives the signed-out preview. */}
+      {momentum && (() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const val = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
+        const hit = val >= 80;
+        return (
+          <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
+            <BSPlate c={teal} tick bracket pad="12px 14px">
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Momentum</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: teal, letterSpacing: '-0.03em', lineHeight: 1 }}>{val}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>/100</span>
+                </div>
+              </div>
+              <div style={{ marginTop: 8, height: 7, borderRadius: 4, background: t.HAIR, overflow: 'hidden' }}>
+                <div style={{ width: `${val}%`, height: '100%', background: teal, borderRadius: 4 }} />
+              </div>
+              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700, color: momentum.bonusThisWeek ? teal : t.INK70 }}>
+                {momentum.bonusThisWeek ? '✓ +25 banked this week' : hit ? 'At the line · keep it for a weekly +25' : 'Reach 80 for a weekly +25'}
+              </div>
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
             </BSPlate>
           </div>
         );

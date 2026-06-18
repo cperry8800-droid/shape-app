@@ -88,6 +88,9 @@ function ClientScorePage() {
     : staticLedger;
 
   const ORANGE = "#c1641f";
+  // Momentum meter — real { value, bonusThisWeek } when signed in (null = pre-migration,
+  // card hidden); a demo value drives the signed-out marketing preview.
+  const momentum = live ? (live.momentum || null) : { value: 72, bonusThisWeek: false };
 
   return (
     <DashPage
@@ -103,6 +106,30 @@ function ClientScorePage() {
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
       </>}
     >
+      {/* Momentum meter — consistency carrot; ≥80 banks a weekly +25 */}
+      {momentum && (() => {
+        const mv = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
+        const hit = mv >= 80;
+        return (
+          <Card style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+              <div>
+                <span style={{ fontSize: 14, fontWeight: 500 }}>Momentum</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>DON'T BREAK THE STREAK</span>
+              </div>
+              <span style={{ fontFamily: serif, fontSize: 28, color: TEAL_BRIGHT, lineHeight: 1 }}>{mv}<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></span>
+            </div>
+            <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
+              <div style={{ height: "100%", width: `${mv}%`, background: TEAL, borderRadius: 999 }} />
+            </div>
+            <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>
+              {momentum.bonusThisWeek ? "✓ +25 banked this week" : hit ? "At the line · keep it for a weekly +25" : "Reach 80 for a weekly +25"}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
+          </Card>
+        );
+      })()}
+
       {/* Reward tiers — 5-tier ladder */}
       <Card style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>

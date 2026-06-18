@@ -270,6 +270,17 @@ function ScoreActivity() {
               {[0, 1, 2, 3, 4].map(v => <div key={v} style={{ width: 12, height: 12, background: shade(v), borderRadius: 2 }} />)}
               <span>More</span>
             </div>
+            {/* Momentum meter — the consistency carrot (illustrative on the marketing page) */}
+            <div style={{ marginTop: 24, paddingTop: 22, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+                <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL }}>Momentum</div>
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>78<span style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></div>
+              </div>
+              <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: "78%", background: TEAL, borderRadius: 999 }} />
+              </div>
+              <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)" }}>+7 for every active day, −12 for a miss — a notch, not a reset. Hold <span style={{ color: TEAL }}>80+</span> and bank a <span style={{ color: TEAL }}>+25</span> bonus every week.</div>
+            </div>
           </div>
           <div style={{ background: INK, color: PAPER, borderRadius: 6, padding: 36, display: "flex", flexDirection: "column" }}>
             <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL }}>How you earn</div>
