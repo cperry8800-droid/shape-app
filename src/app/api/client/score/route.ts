@@ -28,6 +28,45 @@ const TIERS: Array<[name: string, threshold: number, display: string, benefit: s
   ['Legend', 15000, '15,000+', 'Annual Shape merch + service credit'],
 ];
 
+type SnapRow = {
+  snapshot_date: string;
+  calories: number | null;
+  sleep_hours: number | null;
+  workout_minutes: number | null;
+};
+
+// The four composite pillars (0–100) — derived from the user's OWN
+// daily_health_snapshot over the trailing window. Each returns null (rendered as
+// an honest '—', never a fake 0) when its underlying data is too sparse to score.
+//   Recovery    = 7-day average sleep, normalized (8h+ = 100).
+//   Nutrition   = meal-logging adherence over 14 days (days with calories).
+//   Train       = training days over 14 days (target ~8 sessions / 2 weeks).
+//   Consistency = any-activity days over 14 days (showing up at all).
+function computeComposite(rows: SnapRow[], now: Date) {
+  const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+  const cut = (days: number) => { const d = new Date(now); d.setUTCDate(d.getUTCDate() - days); return isoDay(d); };
+  const d7 = cut(7), d14 = cut(14);
+  const last14 = rows.filter(r => r.snapshot_date >= d14);
+  const last7 = rows.filter(r => r.snapshot_date >= d7);
+  const basis14 = last14.length;
+  const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+  const num = (v: number | null) => (typeof v === 'number' && v > 0 ? v : 0);
+
+  const sleeps = last7.map(r => num(r.sleep_hours)).filter(v => v > 0);
+  const recovery = sleeps.length < 2 ? null : clamp((sleeps.reduce((a, b) => a + b, 0) / sleeps.length / 8) * 100);
+
+  const logged = last14.filter(r => num(r.calories) > 0).length;
+  const nutrition = logged < 3 ? null : clamp((logged / 14) * 100);
+
+  const trained = last14.filter(r => num(r.workout_minutes) > 0).length;
+  const train = basis14 < 3 ? null : clamp((trained / 8) * 100);
+
+  const active = last14.filter(r => num(r.calories) > 0 || num(r.workout_minutes) > 0 || num(r.sleep_hours) > 0).length;
+  const consistency = basis14 < 3 ? null : clamp((active / 14) * 100);
+
+  return { train, nutrition, recovery, consistency };
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   workouts: 'Workouts logged',
   adherence: 'Plan adherence',
@@ -71,6 +110,16 @@ export async function GET() {
 
   if (recentErr) return dbError(recentErr, 'recent score read', 500);
 
+  // Composite pillars from the trailing 30 days of the user's own snapshots.
+  const since30 = new Date(now);
+  since30.setUTCDate(since30.getUTCDate() - 30);
+  const { data: snaps } = await supabase
+    .from('daily_health_snapshot')
+    .select('snapshot_date, calories, sleep_hours, workout_minutes')
+    .eq('user_id', user.id)
+    .gte('snapshot_date', since30.toISOString().slice(0, 10));
+  const composite = computeComposite((snaps || []) as SnapRow[], now);
+
   const rows = (allRows || []) as Array<{ category: string; delta: number; earned_at: string }>;
   const totals = new Map<string, number>();
   let points_total = 0;
@@ -111,5 +160,7 @@ export async function GET() {
     current_tier: { name: current_tier[0], threshold: current_tier[1] },
     next_tier: next_tier ? { name: next_tier[0], threshold: next_tier[1] } : null,
     points_to_next,
+    // Train/Nutrition/Recovery/Consistency 0–100, or null (honest '—') when sparse.
+    composite,
   });
 }

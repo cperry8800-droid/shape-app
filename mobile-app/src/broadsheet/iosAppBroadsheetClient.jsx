@@ -8538,8 +8538,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               const nextT = TH[si + 1] || null;
               const toNextPts = nextT ? nextT[1] - pts : 0;
               // Composite bars are demo for the signed-out preview; a signed-in
-              // account with no scored activity shows zeroed bars.
-              const cats = signedInSelf ? [['Train', 0], ['Nutrition', 0], ['Recovery', 0], ['Consistency', 0]] : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+              // account shows REAL pillars (honest '—' when a pillar is too sparse
+              // to score), from the /api/client/score composite.
+              const _comp = (selfScore && selfScore.composite) || {};
+              const cats = signedInSelf
+                ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
+                : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
                 <div style={{ padding: '0 14px 14px' }}>
                   <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
@@ -8554,8 +8558,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                       {cats.map(([k, v]) => (
                         <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                           <div style={{ width: 70, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
-                          <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-                          <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
+                          <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v == null ? 0 : v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
+                          <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v == null ? '—' : v}</div>
                         </div>
                       ))}
                     </div>
@@ -14218,13 +14222,13 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
 // Shape Score card for the living profile (dark surface) — tier ring (% to next
 // tier), tier name, total points, and the 4 category strata. Public (everyone
 // sees their score); tap opens the full progress hub when self.
-function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
+function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = null }) {
   const t = useBS();
   // Follow the paper theme so the card reads on light papers too (was fixed cream).
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
-  // Signed in → real points (zeroed for a fresh account) + zeroed composite bars;
-  // the demo 1284 / 88·74·62·92 is the signed-out preview only.
+  // Signed in → real points + REAL composite bars (honest '—' when a pillar is
+  // too sparse to score); the demo 1284 / 88·74·62·92 is the signed-out preview only.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
   const pts = points != null ? points : (signedIn ? 0 : 1284);
@@ -14233,7 +14237,10 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
   const pct = next ? Math.max(0.03, Math.min(1, (pts - cur[1]) / (next[1] - cur[1]))) : 1;
   const toNext = next ? next[1] - pts : 0;
   const RAD = 30, CIRC = 2 * Math.PI * RAD;
-  const cats = signedIn ? [['Train', 0], ['Nutrition', 0], ['Recovery', 0], ['Consistency', 0]] : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+  const comp = composite || {};
+  const cats = signedIn
+    ? [['Train', comp.train ?? null], ['Nutrition', comp.nutrition ?? null], ['Recovery', comp.recovery ?? null], ['Consistency', comp.consistency ?? null]]
+    : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
   const _clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
     <div onClick={onOpen} style={{ position: 'relative', marginBottom: 12, cursor: onOpen ? 'pointer' : 'default' }}>
@@ -14261,8 +14268,8 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen }) {
         {cats.map(([k, v]) => (
           <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <div style={{ width: 70, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
-            <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-            <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v}</div>
+            <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v == null ? 0 : v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
+            <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v == null ? '—' : v}</div>
           </div>
         ))}
       </div>
@@ -15150,6 +15157,9 @@ function _bsUseLiveScore(profile) {
     month: data.points_month || 0,
     available: total,
     ledger: ledger.length ? ledger : [['—', '+0', 'Start earning — log a workout or check off a habit']],
+    // Train/Nutrition/Recovery/Consistency 0–100, each null when too sparse to
+    // score (rendered as an honest '—', never a fake 0).
+    composite: data.composite || null,
   };
 }
 
