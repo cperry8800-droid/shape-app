@@ -279,7 +279,7 @@ function ScoreActivity() {
               <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: "78%", background: TEAL, borderRadius: 999 }} />
               </div>
-              <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)" }}>+7 for every active day, −12 for a miss — a notch, not a reset. Hold <span style={{ color: TEAL }}>80+</span> and bank a <span style={{ color: TEAL }}>+25</span> bonus every week.</div>
+              <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)" }}>+7 for every active day, −12 for a miss — a notch, not a reset. Hold <span style={{ color: TEAL }}>80+</span> and bank a weekly bonus that grows with your streak — up to <span style={{ color: TEAL }}>+100</span>.</div>
             </div>
           </div>
           <div style={{ background: INK, color: PAPER, borderRadius: 6, padding: 36, display: "flex", flexDirection: "column" }}>

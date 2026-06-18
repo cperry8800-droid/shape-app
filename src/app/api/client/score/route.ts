@@ -158,20 +158,34 @@ export async function GET() {
 
   // Momentum meter (0–100) — the caller's own "don't break the streak" value from
   // compute_momentum (auth.uid()-scoped). null only when the RPC is absent
-  // (pre-migration); a real account shows 0..100 (0 is an honest "no streak yet").
-  let momentum: { value: number; bonusThisWeek: boolean } | null = null;
+  // (pre-migration). streakWeeks = consecutive ISO weeks (incl. this one when banked)
+  // that earned the bonus; points = the escalated amount banked this week.
+  let momentum: { value: number; bonusThisWeek: boolean; streakWeeks: number; points: number } | null = null;
   {
     const { data: mv, error: mErr } = await supabase.rpc('compute_momentum');
     if (!mErr && mv !== null && mv !== undefined) {
-      // Monday 00:00 UTC of the current ISO week — the bonus is keyed per ISO week,
-      // so "banked this week" means a momentum_bonus row earned since this Monday.
-      const isoMonday = new Date(now);
-      isoMonday.setUTCHours(0, 0, 0, 0);
-      isoMonday.setUTCDate(isoMonday.getUTCDate() - ((isoMonday.getUTCDay() + 6) % 7));
-      const bonusThisWeek = rows.some(
-        (r) => r.source_kind === 'momentum_bonus' && new Date(r.earned_at) >= isoMonday,
+      // Monday 00:00 UTC of a date's ISO week (ISO weeks start Monday).
+      const DAY = 86400000;
+      const weekMonday = (d: Date) => {
+        const m = new Date(d);
+        m.setUTCHours(0, 0, 0, 0);
+        m.setUTCDate(m.getUTCDate() - ((m.getUTCDay() + 6) % 7));
+        return m.getTime();
+      };
+      const bonusMondays = new Set(
+        rows.filter((r) => r.source_kind === 'momentum_bonus').map((r) => weekMonday(new Date(r.earned_at))),
       );
-      momentum = { value: Number(mv) || 0, bonusThisWeek };
+      const thisMonday = weekMonday(now);
+      const bonusThisWeek = bonusMondays.has(thisMonday);
+      // Count consecutive bonus weeks walking back from this week.
+      let streakWeeks = 0;
+      for (let k = 0; ; k++) {
+        if (bonusMondays.has(thisMonday - k * 7 * DAY)) streakWeeks += 1;
+        else break;
+      }
+      // Mirror of momentum.mjs momentumBonus(streakWeeks - 1) — the escalated amount.
+      const points = bonusThisWeek ? Math.min(100, 25 + 15 * Math.max(0, streakWeeks - 1)) : 0;
+      momentum = { value: Number(mv) || 0, bonusThisWeek, streakWeeks, points };
     }
   }
 

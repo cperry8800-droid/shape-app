@@ -15335,7 +15335,11 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                 <div style={{ width: `${val}%`, height: '100%', background: teal, borderRadius: 4 }} />
               </div>
               <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700, color: momentum.bonusThisWeek ? teal : t.INK70 }}>
-                {momentum.bonusThisWeek ? '✓ +25 banked this week' : hit ? 'At the line · keep it for a weekly +25' : 'Reach 80 for a weekly +25'}
+                {momentum.bonusThisWeek
+                  ? ((momentum.streakWeeks || 1) > 1
+                      ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
+                      : `✓ +${momentum.points || 25} banked this week`)
+                  : hit ? 'At the line · hold it to bank this week' : 'Reach 80 for a weekly bonus — grows to +100'}
               </div>
               <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
             </BSPlate>

@@ -123,7 +123,11 @@ function ClientScorePage() {
               <div style={{ height: "100%", width: `${mv}%`, background: TEAL, borderRadius: 999 }} />
             </div>
             <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>
-              {momentum.bonusThisWeek ? "✓ +25 banked this week" : hit ? "At the line · keep it for a weekly +25" : "Reach 80 for a weekly +25"}
+              {momentum.bonusThisWeek
+                ? ((momentum.streakWeeks || 1) > 1
+                    ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
+                    : `✓ +${momentum.points || 25} banked this week`)
+                : hit ? "At the line · hold it to bank this week" : "Reach 80 for a weekly bonus — grows to +100"}
             </div>
             <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
           </Card>
