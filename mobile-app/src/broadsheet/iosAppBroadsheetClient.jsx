@@ -15167,7 +15167,11 @@ function _bsUseLiveScore(profile) {
     pointsToNext: data.points_to_next || 0,
     week: `${(data.week_gain || 0) >= 0 ? '+' : ''}${data.week_gain || 0}`,
     month: data.points_month || 0,
-    available: total,
+    // Redeemable balance (earns − penalties − redemptions); the headline + tier use
+    // `total` (the RANK, which excludes redemptions so spending never demotes).
+    available: (typeof data.spendable_balance === 'number') ? data.spendable_balance : total,
+    // True when the rank has slipped below the line of the (high-water) tier.
+    atRisk: !!data.at_risk,
     ledger: ledger.length ? ledger : [['—', '+0', 'Start earning — log a workout or check off a habit']],
     // Train/Nutrition/Recovery/Consistency 0–100, each null when too sparse to
     // score (rendered as an honest '—', never a fake 0).
@@ -15254,6 +15258,13 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, fontStyle: 'italic', color: tc, letterSpacing: '-0.02em', lineHeight: 1 }}>{tier}.</div>
                   <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: teal }}>{scoreTotal.toLocaleString()} pts · {weekTxt} this week</div>
+                  {/* At-risk: the rank has slipped below this (high-water) tier's line.
+                      The tier itself never demotes — earn the gap back to be clear of it. */}
+                  {profile.atRisk ? (
+                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.isLight ? '#c0392b' : '#e0463c' }}>
+                      ⚠ {Math.max(0, curThr - scoreTotal).toLocaleString()} below {tier} — earn it back to hold
+                    </div>
+                  ) : null}
                   <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12, color: t.INK70, lineHeight: 1.3 }}>Your composite of training, nutrition, recovery, and consistency.</div>
                 </div>
               </div>
@@ -15326,7 +15337,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           {scoreTab === 'rewards' && (
             <React.Fragment>
               {rewards.map((r, i) => {
-                const affordable = Number(scoreTotal) >= r.cost;
+                // Affordability is the SPENDABLE balance (earns − penalties − redemptions),
+                // not the rank — redeeming draws down what you can spend, never the rank.
+                const affordable = Number(available) >= r.cost;
                 return (
                   <div key={r.id} onClick={onOpenStore} style={{
                     display: 'grid', gridTemplateColumns: '1fr 86px', gap: 12,
@@ -15339,7 +15352,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                     </div>
                     <div style={{ alignSelf: 'center', textAlign: 'right' }}>
                       <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: affordable ? t.ACCENT : t.INK50 }}>{r.cost.toLocaleString()} pts</div>
-                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: affordable ? t.ACCENT : t.INK50 }}>{affordable ? '✓ Redeemable' : `${Math.max(0, r.cost - Number(scoreTotal || 0)).toLocaleString()} to go`}</div>
+                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 700, color: affordable ? t.ACCENT : t.INK50 }}>{affordable ? '✓ Redeemable' : `${Math.max(0, r.cost - Number(available || 0)).toLocaleString()} to go`}</div>
                     </div>
                   </div>
                 );

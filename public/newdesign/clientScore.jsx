@@ -23,12 +23,22 @@ function ClientScorePage() {
   }, []);
 
   const myPoints = live ? live.points_total : 1284;
-  // Find current tier (highest threshold <= myPoints) and next tier.
+  const atRisk = !!(live && live.at_risk);
+  // Displayed tier is high-water-marked: prefer the API's current_tier (the
+  // highest the rank has ever reached) so penalties dent the number but never
+  // demote the tier. Fall back to deriving from the rank when signed out.
   let currentIdx = 0;
-  for (let i = tiers.length - 1; i >= 0; i--) { if (myPoints >= tiers[i][1]) { currentIdx = i; break; } }
+  const apiIdx = live && live.current_tier && live.current_tier.name
+    ? tiers.findIndex(t => t[0].toLowerCase() === String(live.current_tier.name).toLowerCase())
+    : -1;
+  if (apiIdx >= 0) {
+    currentIdx = apiIdx;
+  } else {
+    for (let i = tiers.length - 1; i >= 0; i--) { if (myPoints >= tiers[i][1]) { currentIdx = i; break; } }
+  }
   const currentTier = tiers[currentIdx];
   const nextTier = tiers[currentIdx + 1] || null;
-  const ptsToNext = nextTier ? nextTier[1] - myPoints : 0;
+  const ptsToNext = (live && typeof live.points_to_next === 'number') ? live.points_to_next : (nextTier ? nextTier[1] - myPoints : 0);
   const tierFloor = currentTier[1];
   const tierCeiling = nextTier ? nextTier[1] : tierFloor;
   const progressPct = nextTier ? Math.min(100, Math.max(0, ((myPoints - tierFloor) / (tierCeiling - tierFloor)) * 100)) : 100;
@@ -85,7 +95,9 @@ function ClientScorePage() {
       payoutCard={clientPayoutCard}
       eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
       title={myPoints.toLocaleString()}
-      subtitle={`You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
+      subtitle={atRisk
+        ? `You're in ${currentTier[0]} — but your score has slipped ${(tierFloor - myPoints).toLocaleString()} below the line. Earn it back to stay clear of the cutoff.`
+        : `You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
       actions={<>
         <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
