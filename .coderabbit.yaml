@@ -3,7 +3,7 @@
 # NOTE: this file configures CodeRabbit; it only takes effect once the CodeRabbit
 # GitHub App is installed on this repo (https://coderabbit.ai → add this repo).
 language: "en-US"
-tone_instructions: "Be concise and direct. Treat security, RLS, and committed-secret issues as blocking."
+tone_instructions: "Be concise and direct. Prioritize scalability and long-term maintainability. Treat security, RLS, and committed-secret issues as blocking."
 
 reviews:
   profile: assertive               # thorough; switch to "chill" if it feels nitpicky
@@ -83,6 +83,9 @@ reviews:
         where it should be live-or-"—" (honest-data principle); (3) a visual restyle
         where only a layout/hierarchy change was intended (keep the look — reuse
         existing components/tokens, no new motifs/colors/gradients).
+
+    - path: "src/**/*.ts"
+      instructions: "Focus on architecture and system design."
 
     - path: "src/app/api/**"
       instructions: >-
