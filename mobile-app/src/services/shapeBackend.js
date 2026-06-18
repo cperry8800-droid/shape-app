@@ -3801,6 +3801,59 @@ async function awardMomentumBonus() {
 }
 window.ShapeMomentum = { check: awardMomentumBonus };
 
+// Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
+// sees their own row); writes through set/accept RPCs. All no-op pre-migration.
+function _commitWeekMonday() {
+  const mon = new Date(); mon.setUTCHours(0, 0, 0, 0);
+  mon.setUTCDate(mon.getUTCDate() - ((mon.getUTCDay() + 6) % 7));
+  return mon;
+}
+async function getCommitment() {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const wk = _commitWeekMonday().toISOString().slice(0, 10);
+    const { data, error } = await supabase.from('score_commitments')
+      .select('id, targets, stake, status, week_of, created_by')
+      .eq('user_id', state.user.id).eq('week_of', wk).maybeSingle();
+    return error ? null : (data || null);
+  } catch (e) { return null; }
+}
+async function getCommitmentProgress() {
+  if (!supabase || !state.user?.id) return { workouts: 0, checkin: false, habits: 0 };
+  try {
+    const mon = _commitWeekMonday();
+    const wk = mon.toISOString().slice(0, 10);
+    const end = new Date(mon); end.setUTCDate(end.getUTCDate() + 6);
+    const wkEnd = end.toISOString().slice(0, 10);
+    const uid = state.user.id;
+    const [snaps, acts, chk, habs] = await Promise.all([
+      supabase.from('daily_health_snapshot').select('snapshot_date, workout_minutes').eq('user_id', uid).gte('snapshot_date', wk).lte('snapshot_date', wkEnd),
+      supabase.from('activities').select('started_at').eq('user_id', uid).gte('started_at', wk).lte('started_at', wkEnd + 'T23:59:59Z'),
+      supabase.from('client_checkins').select('week_of').eq('user_id', uid).eq('week_of', wk).maybeSingle(),
+      supabase.from('user_habit_completions').select('done_on').eq('user_id', uid).gte('done_on', wk).lte('done_on', wkEnd),
+    ]);
+    const days = new Set();
+    (snaps.data || []).forEach((s) => { if ((s.workout_minutes || 0) > 0) days.add(s.snapshot_date); });
+    (acts.data || []).forEach((a) => { days.add(String(a.started_at).slice(0, 10)); });
+    return { workouts: days.size, checkin: !!(chk && chk.data), habits: (habs.data || []).length };
+  } catch (e) { return { workouts: 0, checkin: false, habits: 0 }; }
+}
+async function setCommitment(targets, stake) {
+  if (!supabase || !state.user?.id) return { ok: false };
+  try {
+    const { data, error } = await supabase.rpc('set_commitment', { p_user: state.user.id, p_targets: targets, p_stake: stake });
+    return error ? { ok: false } : (data || { ok: false });
+  } catch (e) { return { ok: false }; }
+}
+async function acceptCommitment(id) {
+  if (!supabase || !state.user?.id || !id) return { accepted: false };
+  try {
+    const { data, error } = await supabase.rpc('accept_commitment', { p_id: id });
+    return error ? { accepted: false } : (data || { accepted: false });
+  } catch (e) { return { accepted: false }; }
+}
+window.ShapeCommit = { get: getCommitment, progress: getCommitmentProgress, set: setCommitment, accept: acceptCommitment };
+
 // ── The check-in kit ─────────────────────────────────────────
 // Weekly check-ins, girth measurements, structured progress photos, and the
 // required health profile (PAR-Q+ screening). Tables are owner-RLS'd with

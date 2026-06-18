@@ -15187,6 +15187,124 @@ function _bsUseLiveScore(profile) {
   };
 }
 
+// Weekly commitment + stake card — set a one-week target (workouts / check-in / habits),
+// stake 5–50 pts (two-sided: hit → +stake, miss → −stake floored at 0), see live
+// progress + the outcome. Coach proposals need accepting first. Signed-out = a demo.
+function BSCommitmentCard() {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const red = t.isLight ? '#c0392b' : '#e0463c';
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [commit, setCommit] = useStateBSC(undefined); // undefined=loading, null=none, 'demo', or row
+  const [prog, setProg] = useStateBSC({ workouts: 0, checkin: false, habits: 0 });
+  const [sheet, setSheet] = useStateBSC(false);
+  const [fWorkouts, setFWorkouts] = useStateBSC(4);
+  const [fCheckin, setFCheckin] = useStateBSC(true);
+  const [fHabits, setFHabits] = useStateBSC(5);
+  const [fStake, setFStake] = useStateBSC(20);
+  const [busy, setBusy] = useStateBSC(false);
+
+  const load = () => {
+    if (!signedIn || !window.ShapeCommit) { setCommit(signedIn ? null : 'demo'); return; }
+    window.ShapeCommit.get().then((c) => setCommit(c || null)).catch(() => setCommit(null));
+    window.ShapeCommit.progress().then((p) => p && setProg(p)).catch(() => {});
+  };
+  React.useEffect(() => { load(); }, [signedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async () => {
+    if (busy || !window.ShapeCommit) return;
+    setBusy(true);
+    const targets = {};
+    if (fWorkouts > 0) targets.workouts = fWorkouts;
+    if (fCheckin) targets.checkin = true;
+    if (fHabits > 0) targets.habits = fHabits;
+    const r = await window.ShapeCommit.set(targets, fStake);
+    setBusy(false);
+    if (r && r.ok) { window.__bsToast?.('Commitment set', 'ok'); setSheet(false); load(); }
+    else { window.__bsToast?.(r && r.reason === 'no_targets' ? 'Pick at least one target' : 'Couldn’t set it', 'info'); }
+  };
+  const accept = async () => {
+    if (!commit || !commit.id || !window.ShapeCommit) return;
+    const r = await window.ShapeCommit.accept(commit.id);
+    if (r && r.accepted) { window.__bsToast?.('Commitment accepted', 'ok'); load(); }
+  };
+
+  if (commit === undefined) return null; // loading
+  const isDemo = commit === 'demo';
+  const c = isDemo ? { targets: { workouts: 4, checkin: true, habits: 5 }, stake: 20, status: 'active' } : commit;
+  const tg = (c && c.targets) || {};
+  const targetLine = () => {
+    const parts = [];
+    if (tg.workouts) parts.push(`${isDemo ? 2 : prog.workouts}/${tg.workouts} workouts`);
+    if (tg.checkin) parts.push(`check-in ${(isDemo ? true : prog.checkin) ? '✓' : '◦'}`);
+    if (tg.habits) parts.push(`${isDemo ? 4 : prog.habits}/${tg.habits} habits`);
+    return parts.join(' · ');
+  };
+
+  return (
+    <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
+      <BSPlate c={teal} tick bracket pad="12px 14px">
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>This week&apos;s commitment</div>
+          {c && c.stake ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: teal }}>{c.stake} pts staked</div> : null}
+        </div>
+        {!c ? (
+          <React.Fragment>
+            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>Put points on a weekly target — hit it for a bonus, miss it and lose the stake.</div>
+            <button onClick={() => { if (signedIn) setSheet(true); }} style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment' : 'Sign in to commit'}</button>
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{targetLine() || '—'}</div>
+            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: c.status === 'met' ? teal : c.status === 'missed' ? red : t.INK50 }}>
+              {c.status === 'met' ? `✓ Kept · +${c.stake} earned`
+                : c.status === 'missed' ? `Missed · −${c.stake}`
+                : c.status === 'proposed' ? 'Proposed by your coach'
+                : 'Active · settles at week’s end'}
+            </div>
+            {c.status === 'proposed' && !isDemo && (
+              <div style={{ marginTop: 9, display: 'flex', gap: 8 }}>
+                <button onClick={accept} style={{ flex: 1, padding: '9px', borderRadius: 8, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Accept</button>
+                <button onClick={() => setSheet(true)} style={{ flex: 1, padding: '9px', borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Change</button>
+              </div>
+            )}
+          </React.Fragment>
+        )}
+      </BSPlate>
+      {sheet && signedIn && createPortal(
+        <div onClick={() => setSheet(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 90, display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: `16px ${t.padX}px 22px`, maxHeight: '82%', overflowY: 'auto' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Set this week&apos;s commitment</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK }}>What will you <span style={{ fontStyle: 'italic', color: teal }}>hit</span>?</div>
+            {[['Workouts', fWorkouts, setFWorkouts, 0, 14], ['Habit check-offs', fHabits, setFHabits, 0, 21]].map(([label, val, set, lo, hi]) => (
+              <div key={label} style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button onClick={() => set(Math.max(lo, val - 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 16, cursor: 'pointer' }}>−</button>
+                  <span style={{ minWidth: 22, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK }}>{val}</span>
+                  <button onClick={() => set(Math.min(hi, val + 1))} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 16, cursor: 'pointer' }}>+</button>
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>Weekly check-in</div>
+              <button onClick={() => setFCheckin(!fCheckin)} style={{ padding: '7px 14px', borderRadius: 999, border: `1px solid ${fCheckin ? teal : t.RULE}`, background: fCheckin ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>{fCheckin ? 'Yes' : 'No'}</button>
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700, letterSpacing: '0.06em' }}><span>STAKE</span><span style={{ color: teal }}>{fStake} pts</span></div>
+              <input type="range" min={5} max={50} step={5} value={fStake} onChange={(e) => setFStake(Number(e.target.value))} style={{ width: '100%', marginTop: 8, accentColor: teal }} />
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70 }}>Hit it → +{fStake} · miss → −{fStake} (never below 0).</div>
+            </div>
+            <button disabled={busy} onClick={save} style={{ marginTop: 18, width: '100%', padding: '12px', borderRadius: 10, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>{busy ? 'Setting…' : 'Lock it in'}</button>
+            <button onClick={() => setSheet(false)} style={{ marginTop: 8, width: '100%', padding: '10px', borderRadius: 10, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>,
+        document.getElementById('bs-phone-surface') || document.body,
+      )}
+    </div>
+  );
+}
+
 function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.client }) {
   const t = useBS();
   profile = _bsUseLiveScore(profile);
@@ -15346,6 +15464,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
           </div>
         );
       })()}
+
+      {/* Weekly commitment + stake (E4) */}
+      <BSCommitmentCard />
 
       {/* Tabs: Tiers (first) / Rewards / Points / Ledger — each renders in the box below. */}
       <div style={{ padding: `${t.sectGap}px ${t.padX}px 0`, display: 'flex', gap: 6 }}>

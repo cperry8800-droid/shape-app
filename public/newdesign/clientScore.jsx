@@ -1,3 +1,99 @@
+// Weekly commitment + stake (web parity of the mobile card). Reads/writes via
+// /api/client/commitment (cookie session). States: none / proposed / active / settled.
+function ClientCommitmentCard() {
+  const [data, setData] = React.useState(undefined); // undefined = loading
+  const [editing, setEditing] = React.useState(false);
+  const [f, setF] = React.useState({ workouts: 4, checkin: true, habits: 5, stake: 20 });
+  const [busy, setBusy] = React.useState(false);
+  const load = React.useCallback(() => {
+    fetch("/api/client/commitment", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setData(d || { commitment: null, progress: { workouts: 0, checkin: false, habits: 0 } }))
+      .catch(() => setData({ commitment: null, progress: { workouts: 0, checkin: false, habits: 0 } }));
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+  if (data === undefined) return null;
+  const c = data.commitment;
+  const prog = data.progress || { workouts: 0, checkin: false, habits: 0 };
+  const post = (payload, after) => {
+    fetch("/api/client/commitment", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => r.json()).then(() => { if (after) after(); load(); }).catch(() => setBusy(false));
+  };
+  const save = () => {
+    if (busy) return; setBusy(true);
+    const targets = {};
+    if (f.workouts > 0) targets.workouts = f.workouts;
+    if (f.checkin) targets.checkin = true;
+    if (f.habits > 0) targets.habits = f.habits;
+    post({ action: "set", targets, stake: f.stake }, () => { setBusy(false); setEditing(false); });
+  };
+  const tg = (c && c.targets) || {};
+  const targetLine = [
+    tg.workouts ? `${prog.workouts}/${tg.workouts} workouts` : null,
+    tg.checkin ? `check-in ${prog.checkin ? "✓" : "◦"}` : null,
+    tg.habits ? `${prog.habits}/${tg.habits} habits` : null,
+  ].filter(Boolean).join(" · ");
+  const btn = (bg, color, border) => ({ background: bg, color, border: border || 0, padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" });
+  return (
+    <Card style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+        <div>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>This week's commitment</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>PUT POINTS ON IT</span>
+        </div>
+        {c && c.stake ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT, fontWeight: 600 }}>{c.stake} pts staked</span> : null}
+      </div>
+      {!c && !editing && (
+        <React.Fragment>
+          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>Hit your target this week for a bonus; miss it and you forfeit the stake.</div>
+          <button onClick={() => setEditing(true)} style={{ marginTop: 12, ...btn(TEAL, "#04201d") }}>Set a commitment</button>
+        </React.Fragment>
+      )}
+      {c && !editing && (
+        <React.Fragment>
+          <div style={{ fontFamily: serif, fontSize: 22, color: INK, marginTop: 6 }}>{targetLine || "—"}</div>
+          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: c.status === "met" ? TEAL_BRIGHT : c.status === "missed" ? "#e0463c" : "rgba(242,237,228,0.55)" }}>
+            {c.status === "met" ? `✓ Kept · +${c.stake} earned` : c.status === "missed" ? `Missed · −${c.stake}` : c.status === "proposed" ? "Proposed by your coach" : "Active · settles at week's end"}
+          </div>
+          {c.status === "proposed" && (
+            <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+              <button onClick={() => post({ action: "accept", id: c.id })} style={btn(TEAL, "#04201d")}>Accept</button>
+              <button onClick={() => setEditing(true)} style={btn("transparent", INK, "1px solid rgba(242,237,228,0.25)")}>Change</button>
+            </div>
+          )}
+        </React.Fragment>
+      )}
+      {editing && (
+        <div style={{ marginTop: 10 }}>
+          {[["Workouts", "workouts", 0, 14], ["Habit check-offs", "habits", 0, 21]].map(([label, key, lo, hi]) => (
+            <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+              <span style={{ fontSize: 14 }}>{label}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button onClick={() => setF((s) => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, cursor: "pointer" }}>−</button>
+                <span style={{ minWidth: 20, textAlign: "center", fontFamily: serif, fontSize: 16 }}>{f[key]}</span>
+                <button onClick={() => setF((s) => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, cursor: "pointer" }}>+</button>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+            <span style={{ fontSize: 14 }}>Weekly check-in</span>
+            <button onClick={() => setF((s) => ({ ...s, checkin: !s.checkin }))} style={{ padding: "6px 14px", borderRadius: 999, border: `1px solid ${f.checkin ? TEAL : "rgba(242,237,228,0.25)"}`, background: f.checkin ? "rgba(10,197,168,0.12)" : "transparent", color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>{f.checkin ? "Yes" : "No"}</button>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}><span>STAKE</span><span style={{ color: TEAL_BRIGHT }}>{f.stake} pts</span></div>
+            <input type="range" aria-label="Stake points" min={5} max={50} step={5} value={f.stake} onChange={(e) => setF((s) => ({ ...s, stake: Number(e.target.value) }))} style={{ width: "100%", marginTop: 6, accentColor: TEAL }} />
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>Hit it → +{f.stake} · miss → −{f.stake} (never below 0).</div>
+          </div>
+          <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+            <button disabled={busy} onClick={save} style={{ ...btn(TEAL, "#04201d"), opacity: busy ? 0.6 : 1 }}>{busy ? "Setting…" : "Lock it in"}</button>
+            <button onClick={() => setEditing(false)} style={btn("transparent", INK, "1px solid rgba(242,237,228,0.25)")}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ClientScorePage() {
   // 5-tier monthly-points reward structure.
   // [name, threshold (number), display "PTS / N+", benefit copy]
@@ -133,6 +229,8 @@ function ClientScorePage() {
           </Card>
         );
       })()}
+
+      <ClientCommitmentCard />
 
       {/* Reward tiers — 5-tier ladder */}
       <Card style={{ marginBottom: 20 }}>
