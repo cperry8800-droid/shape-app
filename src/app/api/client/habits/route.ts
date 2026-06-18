@@ -137,14 +137,10 @@ export async function POST(req: Request) {
         .delete()
         .eq('id', existing.id);
       if (error) return dbError(error, 'habits write', 500);
-      // Roll back the score credit tied to this completion row. Log (don't
-      // swallow) a failure so a stuck ledger row is visible in server logs.
-      const { error: ledgerErr } = await supabase
-        .from('score_ledger')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('source_kind', 'habit_completion')
-        .eq('source_id', existing.id);
+      // Roll back the score credit tied to this completion row, via the DEFINER
+      // RPC (clients can no longer write score_ledger directly). It deletes only
+      // the caller's own habit-completion award row. Log a failure for visibility.
+      const { error: ledgerErr } = await supabase.rpc('revoke_habit', { p_completion_id: existing.id });
       if (ledgerErr) console.error('[habits] score_ledger rollback failed:', ledgerErr.message);
       return NextResponse.json({ done: false });
     }
@@ -154,21 +150,12 @@ export async function POST(req: Request) {
       .select('id')
       .single();
     if (error) return dbError(error, 'habits write', 500);
-    // Award 3 points to Shape Score under category 'habits'. The dedupe
-    // index on (user_id, source_kind, source_id) prevents double-credit
-    // if this is retried. Surface a failed award in logs rather than
-    // returning done:true while points silently never post.
+    // Award 3 points to Shape Score under category 'habits' via the DEFINER RPC
+    // (hard-codes +3, verifies the completion is caller-owned; the dedupe index
+    // prevents double-credit on retry). Surface a failed award in logs rather
+    // than returning done:true while points silently never post.
     if (ins) {
-      const { error: ledgerErr } = await supabase
-        .from('score_ledger')
-        .upsert({
-          user_id: user.id,
-          category: 'habits',
-          source_kind: 'habit_completion',
-          source_id: ins.id,
-          delta: 3,
-          note: date,
-        }, { onConflict: 'user_id,source_kind,source_id' });
+      const { error: ledgerErr } = await supabase.rpc('award_habit', { p_completion_id: ins.id });
       if (ledgerErr) console.error('[habits] score_ledger award failed:', ledgerErr.message);
     }
     return NextResponse.json({ done: true });

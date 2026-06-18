@@ -125,12 +125,12 @@ export async function POST(request: Request) {
     .single();
   if (error) return dbError(error, 'client activities write', 500);
 
-  // Award Shape Score — 1 pt per 5 min, 2–20 range. Idempotent on source_id.
+  // Award Shape Score — 1 pt per 5 min, 2–20 range. Written via the DEFINER RPC
+  // (clients can no longer write score_ledger directly); the RPC derives the same
+  // amount from the stored row, so it can't be forged. Idempotent on source_id.
+  // `pts` is recomputed here only for the response's pointsAwarded field.
   const pts = Math.max(2, Math.min(20, Math.round((durationMin || 10) / 5)));
-  await supabase.from('score_ledger').upsert({
-    user_id: user.id, category: 'workouts', source_kind: 'activity',
-    source_id: inserted.id, delta: pts, note: activityType,
-  }, { onConflict: 'user_id,source_kind,source_id' });
+  await supabase.rpc('award_activity', { p_activity_id: inserted.id });
 
   const r = inserted as ActivityRow;
   return NextResponse.json({
