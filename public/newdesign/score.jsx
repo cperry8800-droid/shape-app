@@ -43,22 +43,31 @@ const HEATMAP = Array.from({ length: 84 }, (_, i) => {
   return i > 80 ? 0 : Math.min(4, Math.round(v * 2));
 });
 
+// Tier colors come from the canonical palette (tierColors.jsx →
+// window.SHAPE_TIER_COLORS / window.tierColor); the literals below are the
+// fallback when this page loads before that script. Member ladder + coach ladder
+// match the mobile app (steel · gold · teal · violet · rose / teal crowns coach).
+const SC_TC = (typeof window !== "undefined" && window.tierColor) || ((t, c) => {
+  const M = { raw: "#8a93a0", tempo: "#d8a23a", form: "#34d6c5", peak: "#8a5cf6", legend: "#e0518a" };
+  const C = { certified: "#8a93a0", pro: "#d8a23a", elite: "#e0463c", master: "#8fe3e6", icon: "#34d6c5" };
+  return (c ? C : M)[String(t).toLowerCase()] || "#d8a23a";
+});
 const TIERS = [
-  { name: "Raw",    min: 0,     color: "rgba(242,237,228,0.35)", desc: "Starting level", bonus: 0 },
-  { name: "Tempo",  min: 750,   color: "rgba(242,237,228,0.85)", current: true, desc: "2× redemption value", bonus: 500 },
-  { name: "Form",   min: 2000,  color: "#e89740",                desc: "Early access drops + streak boosts", bonus: 1000 },
-  { name: "Peak",   min: 5000,  color: "#0a7463",                desc: "Priority booking + 1 free intro / mo", bonus: 2000 },
-  { name: "Legend", min: 15000, color: "#0ac5a8",                desc: "Annual Shape merch + service credit", bonus: 4000 },
+  { name: "Raw",    min: 0,     color: SC_TC("raw"),                  desc: "Starting level", bonus: 0 },
+  { name: "Tempo",  min: 750,   color: SC_TC("tempo"), current: true, desc: "2× redemption value", bonus: 500 },
+  { name: "Form",   min: 2000,  color: SC_TC("form"),                 desc: "Early access drops + streak boosts", bonus: 1000 },
+  { name: "Peak",   min: 5000,  color: SC_TC("peak"),                 desc: "Priority booking + 1 free intro / mo", bonus: 2000 },
+  { name: "Legend", min: 15000, color: SC_TC("legend"),               desc: "Annual Shape merch + service credit", bonus: 4000 },
 ];
 
 // Coaches climb the same 5 rungs under their own names (scheme J) with the
 // coach color ramp — teal (the logo color) crowns the ladder at Icon.
 const TIERS_COACH = [
-  { name: "Certified", min: 0,     color: "rgba(242,237,228,0.45)", desc: "Verified Shape coach", bonus: 0 },
-  { name: "Pro",       min: 750,   color: "#d8a23a", current: true, desc: "2× redemption value", bonus: 500 },
-  { name: "Elite",     min: 2000,  color: "#e0463c",                desc: "Featured placement + early drops", bonus: 1000 },
-  { name: "Master",    min: 5000,  color: "#8fe3e6",                desc: "Priority marketplace + perks", bonus: 2000 },
-  { name: "Icon",      min: 15000, color: "#0ac5a8",                desc: "Top 1% — annual credit + merch", bonus: 4000 },
+  { name: "Certified", min: 0,     color: SC_TC("certified", true),                  desc: "Verified Shape coach", bonus: 0 },
+  { name: "Pro",       min: 750,   color: SC_TC("pro", true), current: true,         desc: "2× redemption value", bonus: 500 },
+  { name: "Elite",     min: 2000,  color: SC_TC("elite", true),                      desc: "Featured placement + early drops", bonus: 1000 },
+  { name: "Master",    min: 5000,  color: SC_TC("master", true),                     desc: "Priority marketplace + perks", bonus: 2000 },
+  { name: "Icon",      min: 15000, color: SC_TC("icon", true),                       desc: "Top 1% — annual credit + merch", bonus: 4000 },
 ];
 
 const SC_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
