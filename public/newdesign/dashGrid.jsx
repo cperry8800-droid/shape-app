@@ -28,11 +28,11 @@ function dgInjectStyle() {
   s.textContent = `
 .dash-gridstack .grid-stack-item-content{inset:0;overflow:visible;display:flex;flex-direction:column}
 .dash-gridstack .grid-stack-item-content>*{flex:1;min-height:0}
-.dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.7);background:rgba(46,224,196,0.06);border-radius:8px}
-.dash-gridstack .ui-resizable-handle{filter:none}
-.dash-gridstack .ui-resizable-se{background-image:none;width:18px;height:18px;right:2px;bottom:2px;border-right:2px solid rgba(242,237,228,0.4);border-bottom:2px solid rgba(242,237,228,0.4);border-bottom-right-radius:4px}
-.dash-gridstack .ui-resizable-e{right:0}
-.dash-gridstack .ui-resizable-s{bottom:0}
+.dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.75);background:rgba(46,224,196,0.07);border-radius:8px}
+.dash-gridstack .ui-resizable-se{background-image:none;width:22px;height:22px;right:4px;bottom:4px;z-index:20;border-right:2.5px solid rgba(46,224,196,0.85);border-bottom:2.5px solid rgba(46,224,196,0.85);border-bottom-right-radius:6px;cursor:se-resize;opacity:.5;transition:opacity .12s}
+.dash-gridstack .grid-stack-item:hover .ui-resizable-se{opacity:1}
+.dash-wchrome{opacity:0;transition:opacity .12s}
+.dash-gridstack .grid-stack-item:hover .dash-wchrome{opacity:1}
 .dash-drag-handle{cursor:move}
 `;
   document.head.appendChild(s);
@@ -83,7 +83,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       if (destroyed || !elRef.current) return;
       const grid = window.GridStack.init({
         column: 12, cellHeight: 64, margin: 8, float: true,
-        handle: ".dash-drag-handle", resizable: { handles: "e" },
+        handle: ".dash-drag-handle", resizable: { handles: "se" }, alwaysShowResizeHandle: true,
         sizeToContent: true, animate: true, disableOneColumnMode: false,
       }, elRef.current);
       gridRef.current = grid;
@@ -155,9 +155,9 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (content == null || content === false) return null;
     return (
       <div style={{ position: "relative", height: "100%" }}>
-        <div className="dash-drag-handle" style={{ position: "absolute", top: 6, right: 8, zIndex: 4, display: "inline-flex", gap: 2, alignItems: "center", background: "rgba(11,14,12,0.6)", borderRadius: 8, padding: "2px 4px" }}>
-          <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 14, padding: "0 3px" }}>⠿</span>
-          <button title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 24, height: 22, borderRadius: 6, border: 0, background: "transparent", color: DG_MUTE, fontSize: 13, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>×</button>
+        <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "1px 2px" }}>
+          <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, padding: "0 2px", lineHeight: 1 }}>⠿</span>
+          <button title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         {content}
       </div>
