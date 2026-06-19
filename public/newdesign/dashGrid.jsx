@@ -26,8 +26,7 @@ function dgInjectStyle() {
   if (_dgStyled || typeof document === "undefined") return; _dgStyled = true;
   const s = document.createElement("style");
   s.textContent = `
-.dash-gridstack .grid-stack-item-content{inset:0;overflow:visible;display:flex;flex-direction:column}
-.dash-gridstack .grid-stack-item-content>*{flex:1;min-height:0}
+.dash-gridstack .grid-stack-item-content{overflow:visible}
 .dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.75);background:rgba(46,224,196,0.07);border-radius:8px}
 .dash-gridstack .ui-resizable-se{background-image:none;width:22px;height:22px;right:4px;bottom:4px;z-index:20;border-right:2.5px solid rgba(46,224,196,0.85);border-bottom:2.5px solid rgba(46,224,196,0.85);border-bottom-right-radius:6px;cursor:se-resize;opacity:.5;transition:opacity .12s}
 .dash-gridstack .grid-stack-item:hover .ui-resizable-se{opacity:1}
@@ -113,10 +112,12 @@ function DashGrid({ role, tab = "today", widgets }) {
   // After portals paint, fit each item's height to its real content.
   React.useEffect(() => {
     const grid = gridRef.current; if (!grid || !ready) return;
-    const id = setTimeout(() => {
+    const fit = () => {
       try { grid.batchUpdate(); Object.values(itemRef.current).forEach((el) => { if (el && grid.resizeToContent) grid.resizeToContent(el); }); grid.commit(); } catch (e) {}
-    }, 30);
-    return () => clearTimeout(id);
+    };
+    const t1 = setTimeout(fit, 40);
+    const t2 = setTimeout(fit, 280); // second pass catches any late layout settle (SVG rings, sparklines)
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [hosts, ready]);
 
   const hide = (key) => {
@@ -154,7 +155,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     const content = w.render();
     if (content == null || content === false) return null;
     return (
-      <div style={{ position: "relative", height: "100%" }}>
+      <div style={{ position: "relative" }}>
         <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "1px 2px" }}>
           <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, padding: "0 2px", lineHeight: 1 }}>⠿</span>
           <button title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
