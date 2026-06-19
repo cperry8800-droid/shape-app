@@ -372,14 +372,14 @@
     </div>
 
     <div class="radio-controls">
-      <button class="radio-btn-prev" id="prevBtn" onclick="prevTrack()" aria-label="Previous track" title="Previous" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+      <button class="radio-btn-prev" id="prevBtn" aria-label="Previous track" title="Previous" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="6,5 6,19 8,19 8,5"/><polygon points="20,5 9,12 20,19"/></svg>
       </button>
       <button class="radio-btn-play" id="playBtn" onclick="togglePlay()">
         <svg id="playIcon" viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
         <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
       </button>
-      <button class="radio-btn-next" id="nextBtn" onclick="nextTrack()" aria-label="Next track" title="Next" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+      <button class="radio-btn-next" id="nextBtn" aria-label="Next track" title="Next" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="4,5 15,12 4,19"/><polygon points="16,5 16,19 18,19 18,5"/></svg>
       </button>
     </div>
@@ -424,6 +424,12 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (np) { if (np) applyNowPlaying(np.title, np.artist); })
         .catch(function () { /* keep last shown; stream still plays */ });
+    }
+
+    function startNowPlayingPoll() {
+      if (nowPlayingTimer) return;
+      pollNowPlaying();
+      nowPlayingTimer = setInterval(pollNowPlaying, 15000);
     }
 
     function loadStation() {
@@ -560,7 +566,6 @@
     if (vizCanvas) startViz();
 
     // ===== HR / BPM sync indicator =====
-    var bpmValueEl = document.getElementById('bpmValue');
     var hrValueEl = document.getElementById('hrValue');
     var bpmRing = document.getElementById('bpmRing');
     var hrRing = document.getElementById('hrRing');
@@ -625,12 +630,12 @@
     }
 
     function togglePlay() {
-      if (!STREAM_URL) { loadStation().then(function (u) { if (u) audio.play().catch(function(){}); }); return; }
+      if (!STREAM_URL) { loadStation().then(function (u) { if (u) { audio.play().catch(function(){}); startNowPlayingPoll(); } }); return; }
       if (!audio.src) audio.src = STREAM_URL;
       if (audio.paused) {
         var p = audio.play();
         if (p && p.catch) p.catch(function (err) { console.warn('[shape-radio] play blocked:', err); syncPlayUI(false); });
-        if (!nowPlayingTimer) { pollNowPlaying(); nowPlayingTimer = setInterval(pollNowPlaying, 15000); }
+        startNowPlayingPoll();
       } else {
         audio.pause();
       }
@@ -645,7 +650,7 @@
       console.warn('[shape-radio] stream error');
       syncPlayUI(false);
       applyNowPlaying('Shape Radio', 'Off air — retrying…');
-      setTimeout(function () { if (STREAM_URL) { audio.src = STREAM_URL; audio.play().catch(function(){}); } }, 5000);
+      setTimeout(function () { if (STREAM_URL) { audio.src = STREAM_URL; audio.play().catch(function(){}); startNowPlayingPoll(); } }, 5000);
     });
 
     volumeSlider.addEventListener('input', function () {
@@ -679,12 +684,13 @@
     function openRadio(autoPlay) {
       document.getElementById('radioGate').style.display = 'none';
       document.getElementById('radioContent').classList.add('active');
-      if (!audio.src) { loadStation().then(function (u) { if (autoPlay && u) audio.play().catch(function(){}); }); return; }
+      if (!audio.src) { loadStation().then(function (u) { if (autoPlay && u) { audio.play().catch(function(){}); startNowPlayingPoll(); } }); return; }
       if (autoPlay) {
         var p = audio.play();
         if (p && typeof p.catch === 'function') {
           p.catch(function () { /* autoplay blocked; user will click play */ });
         }
+        startNowPlayingPoll();
       }
     }
 
