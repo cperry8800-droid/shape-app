@@ -195,7 +195,9 @@ function DashGrid({ role, tab = "today", widgets }) {
         const content = item.querySelector(".grid-stack-item-content");
         const card = content && content.firstElementChild; if (!card) return;
         const slop = Math.round(item.getBoundingClientRect().bottom - card.getBoundingClientRect().bottom);
-        se.style.setProperty("bottom", Math.max(6, slop + 4) + "px", "important");
+        // bottom is measured from the grid-item box, which sits ~9px below the card surface
+        // (the margin gap), so add a constant to land the triangle ~2px inside the card corner.
+        se.style.setProperty("bottom", Math.max(8, slop + 11) + "px", "important");
       });
     };
     // Fit heights, then (on a fresh/demo layout) re-apply the ordered pack. This must run on
