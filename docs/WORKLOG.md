@@ -140,10 +140,27 @@ changelog whenever something ships.
 
 ## Changelog
 
+> **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
+> `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
+> `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
+
+### 2026-06-19 — Security: sanitize the Music-tab playlist URL (stored XSS) + DB url guard
+- The new profile **Music tab** rendered the user-supplied `member_playlists.url`
+  straight into an anchor `href`, so a `javascript:`/`data:` URL would execute on click
+  (stored XSS — flagged by the automated commit security review). **Fixed:**
+  `livingDesktop.jsx` (`MusicBlock`) now only turns a URL into a link when it's `http(s)`
+  to a Spotify/Apple host (`safeMusicUrl`); anything else renders as a non-navigating row.
+  `livingDesktop.jsx?v=31`.
+- ✅ **Migration APPLIED (2026-06-19)** — defense-in-depth that covers the mobile open
+  path too:
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-member-playlists-url-guard.sql`
+  — a `NOT VALID` CHECK on `member_playlists.url` (`~* '^https?://'`) rejecting non-http(s)
+  schemes at the DB for all writers, without scanning existing rows.
+
 ### 2026-06-19 — Verified coaches show their REAL certs on the profile (closes illustrative sub-data)
 - The living coach profile's **Certifications** list now renders a verified coach's
   **actual submitted cert types** (from the credential-verification `cert_files`) instead
-  of demo certs. ⚠ **OWNER — run:**
+  of demo certs. ✅ **Migration APPLIED (2026-06-19):**
   `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-certs-public.sql`
   — SECURITY DEFINER `get_coach_certs(p_user_id)` exposes ONLY cert type + number (never
   the file paths), and ONLY for coaches whose credentials an admin approved + who carry the
@@ -168,7 +185,7 @@ changelog whenever something ships.
   check-in, water, progress photo, or a custom label — each with a time + days of week.
   Distinct from per-habit reminders (those stay on the Habits page). They ride the
   existing notifications→push spine, so once push is activated they hit the lock screen.
-- ⚠ **OWNER — run the migration:**
+- ✅ **Migration APPLIED (2026-06-19):**
   `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-user-reminders.sql`
   — `user_scheduled_reminders` (owner-RLS; `kind`, `label`, `at_time` HH:MM, `days int[]`
   0=Sun…6=Sat, `tz`, `enabled`, `last_fired_on` for dedupe). Idempotent. **Code no-ops
@@ -195,7 +212,7 @@ changelog whenever something ships.
   and a weekly cron nudges them before insurance/licenses expire. The badge concept was
   already designed into the app (Terms clause + hero render slot) — this builds the
   pipeline behind it.
-- ⚠ **OWNER — run the migration:**
+- ✅ **Migration APPLIED (2026-06-19):**
   `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-credential-verification.sql`
   — extends `provider_credentials` (NC1) with a document + review workflow
   (`insurance_coi_path`, `cert_files jsonb`, `review_status`, `submitted_at`,
