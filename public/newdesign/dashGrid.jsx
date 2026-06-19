@@ -81,9 +81,10 @@ function DashGrid({ role, tab = "today", widgets }) {
     const boot = () => {
       if (destroyed || !elRef.current) return;
       const grid = window.GridStack.init({
-        column: 12, cellHeight: 64, margin: 8, float: true,
+        column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
+        cellHeight: 64, margin: 8, float: true,
         handle: ".dash-drag-handle", resizable: { handles: "se" }, alwaysShowResizeHandle: true,
-        sizeToContent: true, animate: true, disableOneColumnMode: false,
+        sizeToContent: true, animate: true,
       }, elRef.current);
       gridRef.current = grid;
       const layout = dgResolveGridLayout(savedFor(), widgets);
@@ -109,16 +110,8 @@ function DashGrid({ role, tab = "today", widgets }) {
     // eslint-disable-next-line
   }, [role, tab]);
 
-  // After portals paint, fit each item's height to its real content.
-  React.useEffect(() => {
-    const grid = gridRef.current; if (!grid || !ready) return;
-    const fit = () => {
-      try { grid.batchUpdate(); Object.values(itemRef.current).forEach((el) => { if (el && grid.resizeToContent) grid.resizeToContent(el); }); grid.commit(); } catch (e) {}
-    };
-    const t1 = setTimeout(fit, 40);
-    const t2 = setTimeout(fit, 280); // second pass catches any late layout settle (SVG rings, sparklines)
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [hosts, ready]);
+  // Heights are handled by GridStack's sizeToContent (a ResizeObserver fires when the
+  // React portal renders each card) — no manual resizeToContent needed.
 
   const hide = (key) => {
     const grid = gridRef.current; const el = itemRef.current[key];
@@ -135,7 +128,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     setHosts((h) => ({ ...h, [key]: host }));
     const nextHidden = hidden.filter((x) => x !== key);
     setHidden(nextHidden);
-    setTimeout(() => { const grid = gridRef.current; try { if (grid.resizeToContent && itemRef.current[key]) grid.resizeToContent(itemRef.current[key]); } catch (e) {} persistFromGrid(); }, 30);
+    setTimeout(() => { persistFromGrid(); }, 60);
   };
   const reset = () => {
     const grid = gridRef.current; if (!grid) return;
