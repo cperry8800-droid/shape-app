@@ -161,7 +161,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
       { task: 'Activate system push — code + native plugins done; remaining: (1) set FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET env, (2) Supabase DB Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret), (3) Firebase config + APNs key + native build', status: 'in-progress', priority: 'P1' },
-      { task: 'User-set reminder notifications — let members schedule their OWN alerts for things to do & log, beyond habits/workouts/meals: per-type toggles in Settings → Notifications (e.g. "remind me to log a weigh-in", check-ins, water, photos, sleep log), with a time picker, written into the notifications table on schedule so the existing push spine delivers them', status: 'not-started', priority: 'P2' },
+      { task: 'User-set reminder notifications — BUILT: members add their own reminders (weigh-in / check-in / water / photo / custom) with time + days in Settings → Notifications (BSReminderManager); user_scheduled_reminders table + /api/client/reminders CRUD; hourly /api/cron/reminders fires due reminders (tz-aware, once/local-day) via the notifications→push spine. Owner runs the 2026-06-19-user-reminders migration. Remaining: desktop-website Settings parity', status: 'in-progress', priority: 'P2' },
       { task: 'Apple Pay / Google Pay on checkout — native opens Stripe Checkout in SFSafariViewController for the Apple Pay sheet; needs @capacitor/browser + Apple Pay enabled in Stripe', status: 'in-progress', priority: 'P2' },
       { task: 'Full in-app Stripe PaymentSheet (native Apple Pay / Google Pay sheet, NO browser hop) — wants @capacitor-community/stripe (or Stripe RN/iOS SDK), a PaymentIntent/SetupIntent + customer ephemeral-key endpoint for the $5/mo sub + coach/plan buys, and the native build', status: 'not-started', priority: 'P3' },
       { task: 'Per-endpoint paid-feature enforcement beyond the proxy gate', status: 'not-started', priority: 'P2' },
@@ -200,6 +200,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/ai/notify/cron', 'GET,POST'],
   ['/api/cron/score-accountability', 'GET,POST'],
   ['/api/cron/credential-expiry', 'GET,POST'],
+  ['/api/cron/reminders', 'GET,POST'],
+  ['/api/client/reminders', 'GET,POST,DELETE'],
   ['/api/ai/proposals', 'POST'],
   ['/api/ai/proposals/confirm', 'POST'],
   ['/api/ai/speak', 'POST'],
@@ -620,7 +622,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Device registers its push token at sign-in (registerPush wired into getCurrentSession)', status: 'done' },
         { label: 'Supabase Database Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret)', status: 'manual' },
         { label: 'Native build: npm i @capacitor/push-notifications + cap sync + Firebase config (google-services.json / GoogleService-Info.plist) + Push capability', status: 'manual' },
-        { label: 'TO BUILD — user-set reminder notifications: members schedule their own alerts for things to do & log (not just habits/workouts/meals). Per-type toggles + times in Settings → Notifications — e.g. a "remind me to log a weigh-in" toggle, check-ins, water, progress photos — scheduled rows written into notifications so the push spine delivers them', status: 'manual' },
+        { label: 'User-set reminder notifications — members add weigh-in/check-in/water/photo/custom reminders (time + days) in mobile Settings → Notifications; hourly tz-aware cron fires them via the notifications→push spine. Owner step: run supabase-migrations/2026-06-19-user-reminders.sql. Desktop-website Settings parity is a follow-up', status: 'done' },
       ],
     },
     {

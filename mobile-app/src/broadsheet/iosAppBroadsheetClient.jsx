@@ -12356,6 +12356,74 @@ const _NP_CAPS = [2, 3, 4, 6, 8];
 // person is notified about, per TYPE × per CHANNEL, plus master mute, quiet
 // hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
 // notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
+const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
+const _REM_DOW = [['S', 0], ['M', 1], ['T', 2], ['W', 3], ['T', 4], ['F', 5], ['S', 6]];
+// Member-set reminders — standalone nudges (weigh-in / check-in / water / photo /
+// custom) the hourly cron fires. Lives in Settings → Notifications (clients only).
+function BSReminderManager() {
+  const t = useBS();
+  const [list, setList] = useStateBSC(null);
+  const [draft, setDraft] = useStateBSC(null);
+  const load = () => Promise.resolve(window.ShapeReminders?.list?.() || { reminders: [] }).then((r) => setList((r && r.reminders) || []));
+  React.useEffect(() => { load(); }, []);
+  const kindLabel = (k) => (_REM_KINDS.find((x) => x[0] === k) || [, 'Reminder'])[1];
+  const daysLabel = (days) => (days && days.length === 7) ? 'Every day' : (days || []).map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(' ');
+  const save = async () => {
+    const d = draft; if (!d) return; setDraft(null);
+    await window.ShapeReminders?.save?.({ id: d.id, kind: d.kind, label: d.label, atTime: d.atTime, days: d.days, enabled: d.enabled !== false });
+    load();
+  };
+  const del = async (id) => { setList((l) => (l || []).filter((x) => x.id !== id)); await window.ShapeReminders?.remove?.(id); load(); };
+  const toggleEnabled = async (r) => { setList((l) => (l || []).map((x) => x.id === r.id ? { ...x, enabled: !x.enabled } : x)); await window.ShapeReminders?.save?.({ id: r.id, kind: r.kind, label: r.label, atTime: r.at_time, days: r.days, enabled: !r.enabled }); load(); };
+  const fld = { background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 9, padding: '8px 10px', fontFamily: t.MONO, fontSize: 12, outline: 'none' };
+
+  return (
+    <React.Fragment>
+      <div style={{ marginTop: 18, marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Your reminders</div>
+        {!draft && <button onClick={() => setDraft({ kind: 'weigh_in', label: '', atTime: '09:00', days: [1, 2, 3, 4, 5], enabled: true })} style={{ background: 'transparent', border: `1px solid ${t.ACCENT}`, color: t.ACCENT, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>＋ Add</button>}
+      </div>
+
+      {list === null ? (
+        <div style={{ padding: '8px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      ) : (
+        (list.length === 0 && !draft) ? (
+          <div style={{ padding: '10px 0', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>No reminders yet — add one to nudge yourself to weigh in, check in, hydrate, or anything else.</div>
+        ) : list.map((r, i) => (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 0', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 0, opacity: r.enabled ? 1 : 0.5 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{r.label || kindLabel(r.kind)}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{r.at_time} · {daysLabel(r.days)}</div>
+            </div>
+            <button onClick={() => toggleEnabled(r)} aria-pressed={r.enabled} style={{ width: 40, height: 24, borderRadius: 999, border: `1px solid ${r.enabled ? t.ACCENT : t.RULE}`, background: r.enabled ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: r.enabled ? 18 : 2, width: 18, height: 18, borderRadius: 999, background: r.enabled ? '#fff' : t.INK50 }} /></button>
+            <button onClick={() => setDraft({ id: r.id, kind: r.kind, label: r.label || '', atTime: r.at_time, days: r.days || [], enabled: r.enabled })} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>Edit</button>
+            <button onClick={() => del(r.id)} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          </div>
+        ))
+      )}
+
+      {draft && (
+        <div style={{ marginTop: 10, padding: '14px', border: `1px solid ${t.RULE}`, borderRadius: 12 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {_REM_KINDS.map(([k, l]) => <button key={k} onClick={() => setDraft((d) => ({ ...d, kind: k }))} style={{ padding: '6px 10px', borderRadius: 999, border: `1px solid ${draft.kind === k ? t.ACCENT : t.RULE}`, background: draft.kind === k ? `${t.ACCENT}22` : 'transparent', color: draft.kind === k ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>)}
+          </div>
+          {draft.kind === 'custom' && <input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} placeholder="What should we remind you?" maxLength={80} style={{ ...fld, width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Time</span>
+            <input type="time" value={draft.atTime} onChange={(e) => setDraft((d) => ({ ...d, atTime: e.target.value }))} style={{ ...fld, colorScheme: t.isLight ? 'light' : 'dark' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {_REM_DOW.map(([l, idx], i) => { const on = (draft.days || []).includes(idx); return (<button key={i} onClick={() => setDraft((d) => { const set = new Set(d.days || []); if (set.has(idx)) set.delete(idx); else set.add(idx); return { ...d, days: Array.from(set).sort((a, b) => a - b) }; })} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>{l}</button>); })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => setDraft(null)} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK70, borderRadius: 999, padding: '8px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={save} disabled={!(draft.days || []).length} style={{ background: (draft.days || []).length ? t.ACCENT : t.RULE, border: 0, color: '#fff', borderRadius: 999, padding: '8px 16px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -12437,6 +12505,7 @@ function BSNotifyPrefs({ onBack, role }) {
                   </div>
                 </div>
               ))}
+              {!isCoach && <BSReminderManager />}
               <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.</div>
             </React.Fragment>
           )}

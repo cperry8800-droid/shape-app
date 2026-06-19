@@ -140,6 +140,31 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — User-set reminders: members schedule their own nudges (push spine)
+- **Members can now set their own reminders** to DO & LOG things — weigh-in, weekly
+  check-in, water, progress photo, or a custom label — each with a time + days of week.
+  Distinct from per-habit reminders (those stay on the Habits page). They ride the
+  existing notifications→push spine, so once push is activated they hit the lock screen.
+- ⚠ **OWNER — run the migration:**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-user-reminders.sql`
+  — `user_scheduled_reminders` (owner-RLS; `kind`, `label`, `at_time` HH:MM, `days int[]`
+  0=Sun…6=Sat, `tz`, `enabled`, `last_fired_on` for dedupe). Idempotent. **Code no-ops
+  until applied.**
+- **Backend:** `GET/POST/DELETE /api/client/reminders` (owner-scoped CRUD; validates
+  kind/HH:MM/days). **Hourly cron** `/api/cron/reminders` (`vercel.json` `0 * * * *`,
+  `CRON_SECRET`): for each enabled reminder computes the member's LOCAL hour/weekday/date
+  in its tz (via `Intl`), and when the local hour matches `at_time` and today is in `days`,
+  fires ONE notification per local day (deduped via `last_fired_on`) through
+  `createNotification` → push webhook.
+- **UI:** a **"Your reminders"** manager in mobile Settings → Notifications (clients only,
+  `BSReminderManager` in `iosAppBroadsheetClient.jsx`) — add/edit/delete, kind chips,
+  `<input type=time>`, day toggles, per-reminder enable switch; `window.ShapeReminders`
+  (`shapeBackend.js`) CRUD helper (Bearer native / cookie `/m/` web, sends the device tz).
+- Verified: `tsc --noEmit` clean · mobile JSX + shapeBackend parse-check clean · mobile
+  build + `public/m` resynced. *Follow-up:* desktop-website Settings parity
+  (`clientMeSettings.jsx`); the per-reminder push still needs the global push activation
+  (FCM env + webhook) to leave the in-app bell.
+
 ### 2026-06-19 — Coach credential verification: COI + certs → admin review → ✓ Verified badge
 - **Makes "vetted coaches" literally true.** A coach uploads proof of certification +
   a Certificate of Insurance (COI), submits for review; an admin verifies in a queue;
