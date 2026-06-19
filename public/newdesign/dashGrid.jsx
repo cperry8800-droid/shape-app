@@ -37,6 +37,24 @@ function dgInjectStyle() {
   document.head.appendChild(s);
 }
 
+// Guard GridStack's sizeToContent so it silently skips an item that has no child to
+// measure yet (its ResizeObserver fires before React has portaled the card in, and the
+// stock method logs "firstElementChild is null"). The observer re-fires once the portal
+// renders, so the real content-fit measure still happens — this only suppresses the noise.
+function dgPatchGridStack() {
+  const GS = (typeof window !== "undefined") && window.GridStack;
+  if (!GS || GS._dashResizeGuard || !GS.prototype || typeof GS.prototype.resizeToContent !== "function") return;
+  const orig = GS.prototype.resizeToContent;
+  GS.prototype.resizeToContent = function (el) {
+    try {
+      const c = el && el.querySelector && el.querySelector(".grid-stack-item-content");
+      if (!c || !c.firstElementChild) return;   // nothing portaled in yet — skip quietly
+    } catch (e) { /* fall through to the original */ }
+    return orig.apply(this, arguments);
+  };
+  GS._dashResizeGuard = true;
+}
+
 function DashGrid({ role, tab = "today", widgets }) {
   const byKey = {}; widgets.forEach((w) => { byKey[w.key] = w; });
   const elRef = React.useRef(null);
@@ -68,26 +86,18 @@ function DashGrid({ role, tab = "today", widgets }) {
     const grid = gridRef.current; if (!grid) return null;
     const opts = { id: spec.key, w: spec.w, h: spec.h };
     if (spec.autoPosition) opts.autoPosition = true; else { opts.x = spec.x; opts.y = spec.y; }
-    const el = grid.addWidget(opts);   // addWidget wires up the sizeToContent observer
+    const el = grid.addWidget(opts);
     itemRef.current[spec.key] = el;
-    // Inject a host child synchronously so GridStack's sizeToContent always has a child
-    // to measure — its observer fires before the React portal renders and otherwise logs
-    // "firstElementChild is null". The host grows once the portal fills it, so heights
-    // still fit content. We portal the card INTO this host.
-    const contentEl = el.querySelector(".grid-stack-item-content");
-    let hostEl = contentEl ? contentEl.querySelector(".dash-host") : null;
-    if (contentEl && !hostEl) {
-      hostEl = document.createElement("div");
-      hostEl.className = "dash-host";
-      contentEl.appendChild(hostEl);
-    }
-    return hostEl || contentEl;
+    // Portal the card directly into the GridStack-managed item-content; sizeToContent
+    // (wired up by addWidget, guarded by dgPatchGridStack) fits the item to it.
+    return el.querySelector(".grid-stack-item-content");
   };
 
   // ── init GridStack once per role/tab; load saved → add widgets → set portal hosts.
   React.useEffect(() => {
     if (typeof window === "undefined" || !window.GridStack || !elRef.current) return undefined;
     dgInjectStyle();
+    dgPatchGridStack();
     let destroyed = false;
     const boot = () => {
       if (destroyed || !elRef.current) return;
