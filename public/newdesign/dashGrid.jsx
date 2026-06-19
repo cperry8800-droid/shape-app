@@ -117,7 +117,9 @@ function DashGrid({ role, tab = "today", widgets }) {
       setHosts(nextHosts);
       setReady(true);
       grid.on("change", persistFromGrid);
-      grid.on("resizestop dragstop", persistFromGrid);
+      grid.on("dragstop", persistFromGrid);
+      // On a width resize, snap the item's height back to its content (height auto-fits).
+      grid.on("resizestop", (ev, el) => { try { grid.resizeToContent(el); } catch (e) {} persistFromGrid(); });
     };
     // shapeDb may be async; load the saved doc first, then boot.
     if (window.shapeDb && window.shapeDb.getUserGoals) {
@@ -131,8 +133,25 @@ function DashGrid({ role, tab = "today", widgets }) {
     // eslint-disable-next-line
   }, [role, tab]);
 
-  // Heights are handled by GridStack's sizeToContent (a ResizeObserver fires when the
-  // React portal renders each card) — no manual resizeToContent needed.
+  // GridStack's sizeToContent observer can't catch React-portaled content: item-content
+  // is height-constrained, so growing its child never changes item-content's own size and
+  // the observer never re-fires. So fit each item to its card ourselves once the portals
+  // render (and on window resize, when cards reflow). resizeToContent reads scrollHeight,
+  // which only reports the true content height because item-content is overflow:hidden.
+  React.useEffect(() => {
+    if (!ready) return undefined;
+    const grid = gridRef.current; if (!grid) return undefined;
+    const fitAll = () => {
+      Object.keys(itemRef.current).forEach((key) => {
+        const item = itemRef.current[key];
+        if (item) { try { grid.resizeToContent(item); } catch (e) {} }
+      });
+    };
+    const t1 = setTimeout(fitAll, 0);
+    const t2 = setTimeout(fitAll, 160);
+    window.addEventListener("resize", fitAll);
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", fitAll); };
+  }, [hosts, ready]);
 
   const hide = (key) => {
     const grid = gridRef.current; const el = itemRef.current[key];
