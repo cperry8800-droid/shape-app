@@ -26,7 +26,7 @@ function dgInjectStyle() {
   if (_dgStyled || typeof document === "undefined") return; _dgStyled = true;
   const s = document.createElement("style");
   s.textContent = `
-.dash-gridstack .grid-stack-item-content{overflow:visible}
+.dash-gridstack .grid-stack-item-content{overflow:hidden}
 .dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.75);background:rgba(46,224,196,0.07);border-radius:8px}
 .dash-gridstack .ui-resizable-se{background-image:none;width:22px;height:22px;right:4px;bottom:4px;z-index:20;border-right:2.5px solid rgba(46,224,196,0.85);border-bottom:2.5px solid rgba(46,224,196,0.85);border-bottom-right-radius:6px;cursor:se-resize;opacity:.5;transition:opacity .12s}
 .dash-gridstack .grid-stack-item:hover .ui-resizable-se{opacity:1}
