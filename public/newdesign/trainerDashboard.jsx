@@ -190,6 +190,9 @@ function DashShell({
   pulseRender,  // optional () => node — replaces the default pulse rows (panel + title kept)
   extraSections, // optional [{ title, render }]
   calendarEvents, // optional [{date,time,kind,title,sub}] — enables "Open calendar →"
+  gridWidgets, // optional [{ key, title, size, render }] — when present, the body sections render
+               // through DashGrid (draggable/resizable, like the client tabs) instead of the fixed
+               // layout. Only the coach Today pages pass this; everything else keeps the old layout.
 }) {
   const cal = (typeof useCalendarOverlay === "function") ? useCalendarOverlay() : null;
   return (
@@ -224,6 +227,10 @@ function DashShell({
           </div>
         </div>
 
+        {gridWidgets ? (
+          <DashGrid role={role} tab="today" widgets={gridWidgets} />
+        ) : (
+        <React.Fragment>
         {/* KPI strip(s) — single card w/ dividers; coach Today shows two
             (financial summary + practice). */}
         {[kpis, kpis2].map((row, ri) => (Array.isArray(row) && row.length > 0) ? (
@@ -323,6 +330,8 @@ function DashShell({
             {x.render()}
           </div>
         ))}
+        </React.Fragment>
+        )}
       </main>
       </div>
       <Footer />
