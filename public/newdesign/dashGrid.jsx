@@ -138,7 +138,6 @@ function DashGrid({ role, tab = "today", widgets }) {
   // the observer never re-fires. So fit each item to its card ourselves once the portals
   // render (and on window resize, when cards reflow). resizeToContent reads scrollHeight,
   // which only reports the true content height because item-content is overflow:hidden.
-  const packedRef = React.useRef(false);
   React.useEffect(() => {
     if (!ready) return undefined;
     const grid = gridRef.current; if (!grid) return undefined;
@@ -147,10 +146,6 @@ function DashGrid({ role, tab = "today", widgets }) {
         const item = itemRef.current[key];
         if (item) { try { grid.resizeToContent(item); } catch (e) {} }
       });
-      // After the first fit on a fresh layout (nothing saved), pack the cards so the
-      // fine cellHeight + content-fit heights leave no vertical gaps. Skip when the user
-      // has a saved layout so their custom placement is never undone.
-      if (!packedRef.current && !savedFor()) { packedRef.current = true; try { grid.compact(); } catch (e) {} }
     };
     const t1 = setTimeout(fitAll, 0);
     const t2 = setTimeout(fitAll, 160);
