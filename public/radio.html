@@ -372,14 +372,14 @@
     </div>
 
     <div class="radio-controls">
-      <button class="radio-btn-prev" id="prevBtn" onclick="prevTrack()" aria-label="Previous track" title="Previous" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+      <button class="radio-btn-prev" id="prevBtn" onclick="prevTrack()" aria-label="Previous track" title="Previous" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="6,5 6,19 8,19 8,5"/><polygon points="20,5 9,12 20,19"/></svg>
       </button>
       <button class="radio-btn-play" id="playBtn" onclick="togglePlay()">
         <svg id="playIcon" viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
         <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
       </button>
-      <button class="radio-btn-next" id="nextBtn" onclick="nextTrack()" aria-label="Next track" title="Next" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+      <button class="radio-btn-next" id="nextBtn" onclick="nextTrack()" aria-label="Next track" title="Next" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="4,5 15,12 4,19"/><polygon points="16,5 16,19 18,19 18,5"/></svg>
       </button>
     </div>
@@ -401,19 +401,42 @@
   </footer>
 
   <script>
-    // ===== Shape Radio playlist =====
-    // Swap these entries with your licensed track URLs (Epidemic Sound,
-    // Artlist, Soundstripe exports, or your own hosted MP3/HLS files).
-    // Each track: { title, artist, src }. Tracks loop from the top.
-    // Placeholder tracks below are free demo MP3s from SoundHelix, meant
-    // only to prove the player works end-to-end.
-    var SHAPE_RADIO_PLAYLIST = [
-      { title: "Actin' Tough",  artist: 'Dean Turnley',  bpm: 96,  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-      { title: 'Tempo Lift',    artist: 'Shape Radio',   bpm: 112, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
-      { title: 'Main Set',      artist: 'Shape Radio',   bpm: 128, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
-      { title: 'Push',          artist: 'Shape Radio',   bpm: 142, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-      { title: 'Cool Down',     artist: 'Shape Radio',   bpm: 84,  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' }
-    ];
+    // ===== Shape Radio — live stream =====
+    // One continuous stream from the licensed provider (config from /api/radio/station).
+    // The provider controls playout; the client just plays the stream + polls now-playing.
+    var STREAM_URL = null;
+    var nowPlayingTimer = null;
+
+    function applyNowPlaying(title, artist) {
+      npTitle.textContent = title || 'Shape Radio';
+      npArtist.textContent = artist || 'Live';
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: title || 'Shape Radio', artist: artist || 'Live', album: 'Shape Radio'
+          });
+        } catch (e) {}
+      }
+    }
+
+    function pollNowPlaying() {
+      fetch('/api/radio/now-playing', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (np) { if (np) applyNowPlaying(np.title, np.artist); })
+        .catch(function () { /* keep last shown; stream still plays */ });
+    }
+
+    function loadStation() {
+      return fetch('/api/radio/station', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (cfg) {
+          STREAM_URL = cfg && cfg.configured ? cfg.streamUrl : null;
+          if (STREAM_URL) { audio.src = STREAM_URL; }
+          else { applyNowPlaying('Shape Radio', 'Coming soon'); }
+          return STREAM_URL;
+        })
+        .catch(function () { applyNowPlaying('Shape Radio', 'Off air'); return null; });
+    }
 
     var audio = document.getElementById('radioAudio');
     var nowPlaying = document.getElementById('nowPlaying');
@@ -422,7 +445,6 @@
     var npTitle = document.getElementById('npTitle');
     var npArtist = document.getElementById('npArtist');
     var volumeSlider = document.getElementById('volumeSlider');
-    var trackIndex = 0;
 
     audio.volume = (parseInt(volumeSlider.value, 10) || 75) / 100;
 
@@ -594,26 +616,6 @@
     }
     requestAnimationFrame(tickRings);
 
-    function loadTrack(idx) {
-      if (!SHAPE_RADIO_PLAYLIST.length) return;
-      trackIndex = ((idx % SHAPE_RADIO_PLAYLIST.length) + SHAPE_RADIO_PLAYLIST.length) % SHAPE_RADIO_PLAYLIST.length;
-      var t = SHAPE_RADIO_PLAYLIST[trackIndex];
-      audio.src = t.src;
-      npTitle.textContent = t.title || '—';
-      npArtist.textContent = t.artist || '—';
-      currentBpm = t.bpm || 120;
-      if (bpmValueEl) bpmValueEl.textContent = currentBpm;
-      refreshLock();
-      if ('mediaSession' in navigator) {
-        try {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: t.title || 'Shape Radio',
-            artist: t.artist || 'Shape Radio',
-            album: 'Shape Radio'
-          });
-        } catch (e) {}
-      }
-    }
 
     function syncPlayUI(playing) {
       playIcon.style.display = playing ? 'none' : 'block';
@@ -623,47 +625,27 @@
     }
 
     function togglePlay() {
-      if (!audio.src) loadTrack(trackIndex);
+      if (!STREAM_URL) { loadStation().then(function (u) { if (u) audio.play().catch(function(){}); }); return; }
+      if (!audio.src) audio.src = STREAM_URL;
       if (audio.paused) {
         var p = audio.play();
-        if (p && typeof p.catch === 'function') {
-          p.catch(function (err) {
-            console.warn('[shape-radio] play blocked:', err);
-            syncPlayUI(false);
-          });
-        }
+        if (p && p.catch) p.catch(function (err) { console.warn('[shape-radio] play blocked:', err); syncPlayUI(false); });
+        if (!nowPlayingTimer) { pollNowPlaying(); nowPlayingTimer = setInterval(pollNowPlaying, 15000); }
       } else {
         audio.pause();
       }
     }
-
-    function nextTrack() {
-      var wasPlaying = !audio.paused && !audio.ended;
-      loadTrack(trackIndex + 1);
-      if (wasPlaying) audio.play().catch(function () {});
-    }
-
-    function prevTrack() {
-      var wasPlaying = !audio.paused && !audio.ended;
-      // If we're >3s into the current track, restart it instead of going back.
-      if (audio.currentTime > 3) {
-        audio.currentTime = 0;
-        return;
-      }
-      loadTrack(trackIndex - 1);
-      if (wasPlaying) audio.play().catch(function () {});
-    }
+    // A live stream is not seekable/loopable — no loop, no prev/next.
+    audio.loop = false;
 
     audio.addEventListener('play', function () { syncPlayUI(true); });
     audio.addEventListener('playing', function () { syncPlayUI(true); });
     audio.addEventListener('pause', function () { syncPlayUI(false); });
-    // Loop the current track instead of auto-advancing the playlist —
-    // keeps "Now Playing" pinned to whatever the user picked. Manual
-    // prev/next buttons still work to switch tracks deliberately.
-    audio.loop = true;
     audio.addEventListener('error', function () {
-      console.warn('[shape-radio] track failed:', audio.src);
+      console.warn('[shape-radio] stream error');
       syncPlayUI(false);
+      applyNowPlaying('Shape Radio', 'Off air — retrying…');
+      setTimeout(function () { if (STREAM_URL) { audio.src = STREAM_URL; audio.play().catch(function(){}); } }, 5000);
     });
 
     volumeSlider.addEventListener('input', function () {
@@ -674,8 +656,6 @@
       try {
         navigator.mediaSession.setActionHandler('play', function () { audio.play(); });
         navigator.mediaSession.setActionHandler('pause', function () { audio.pause(); });
-        navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
-        navigator.mediaSession.setActionHandler('nexttrack', nextTrack);
       } catch (e) {}
     }
 
@@ -699,7 +679,7 @@
     function openRadio(autoPlay) {
       document.getElementById('radioGate').style.display = 'none';
       document.getElementById('radioContent').classList.add('active');
-      if (!audio.src) loadTrack(0);
+      if (!audio.src) { loadStation().then(function (u) { if (autoPlay && u) audio.play().catch(function(){}); }); return; }
       if (autoPlay) {
         var p = audio.play();
         if (p && typeof p.catch === 'function') {
