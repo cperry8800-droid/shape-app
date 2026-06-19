@@ -29,8 +29,9 @@ function dgInjectStyle() {
 .dash-gridstack .grid-stack-item-content{overflow:hidden!important}
 .dash-gridstack .dash-plate--bracket::after{display:none!important}
 .dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.75);background:rgba(46,224,196,0.07);border-radius:8px}
-.dash-gridstack .ui-resizable-se{background:rgba(46,224,196,0.85)!important;background-image:none!important;box-sizing:border-box!important;min-width:0!important;min-height:0!important;width:13px!important;height:13px!important;right:12px!important;bottom:12px!important;z-index:20;border:0!important;clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;cursor:se-resize;opacity:.5;transition:opacity .12s}
-.dash-gridstack .grid-stack-item:hover .ui-resizable-se{opacity:1}
+.dash-gridstack .ui-resizable-se{background:transparent!important;background-image:none!important;box-sizing:border-box!important;min-width:0!important;min-height:0!important;width:28px!important;height:28px!important;right:0!important;bottom:0!important;z-index:20;border:0!important;clip-path:none!important;border-radius:0!important;cursor:se-resize;opacity:1!important}
+.dash-rs{position:absolute;right:7px;bottom:7px;width:12px;height:12px;background:rgba(46,224,196,0.5);clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;pointer-events:none;transition:background .12s;z-index:4}
+.dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(46,224,196,0.95)}
 .dash-wchrome{opacity:0;transition:opacity .12s}
 .dash-gridstack .grid-stack-item:hover .dash-wchrome{opacity:1}
 .dash-drag-handle{cursor:move}
@@ -184,28 +185,12 @@ function DashGrid({ role, tab = "today", widgets }) {
       });
       try { grid.load(layout, false); } catch (e) {}
     };
-    // Seat each resize triangle flush in its card's bottom-right corner. The item can be a few
-    // px taller than its card (fit-slop, varies per card), so position the handle's bottom edge
-    // per-item: slop + a tiny inset. (right is constant — the card is inset a fixed 8px — so the
-    // CSS handles it.) Depends only on heights, so it's safe to run after fitAll.
-    const seatHandles = () => {
-      Object.keys(itemRef.current).forEach((key) => {
-        const item = itemRef.current[key]; if (!item) return;
-        const se = item.querySelector(".ui-resizable-se"); if (!se) return;
-        const content = item.querySelector(".grid-stack-item-content");
-        const card = content && content.firstElementChild; if (!card) return;
-        const slop = Math.round(item.getBoundingClientRect().bottom - card.getBoundingClientRect().bottom);
-        // bottom is measured from the grid-item box, which sits ~9px below the card surface
-        // (the margin gap), so add a constant to land the triangle ~2px inside the card corner.
-        se.style.setProperty("bottom", Math.max(8, slop + 11) + "px", "important");
-      });
-    };
     // Fit heights, then (on a fresh/demo layout) re-apply the ordered pack. This must run on
     // EVERY fit — including window resize — because a bare resizeToContent re-cascades with
     // float:true and would undo the ordered grid.load. relayoutInOrder is idempotent (grid.load
     // of the same computed layout), so re-running it just re-asserts the tidy layout. On a saved
     // layout we only fit heights and leave the user's placement alone.
-    const run = () => { fitAll(); if (!hadSavedRef.current) relayoutInOrder(); seatHandles(); };
+    const run = () => { fitAll(); if (!hadSavedRef.current) relayoutInOrder(); };
     const t1 = setTimeout(run, 0);
     const t2 = setTimeout(run, 200);
     window.addEventListener("resize", run);
@@ -253,6 +238,7 @@ function DashGrid({ role, tab = "today", widgets }) {
           <button title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         {content}
+        <div className="dash-rs" aria-hidden="true" />
       </div>
     );
   };
