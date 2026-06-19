@@ -65,23 +65,23 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   // Add one widget to the grid; return its content host element for the portal.
   const addOne = (spec) => {
-    const grid = gridRef.current; if (!grid || !elRef.current) return null;
-    // Pre-build the item WITH a host div inside, then adopt it via makeWidget — so
-    // GridStack's sizeToContent always finds a child to measure (it logs an error on an
-    // empty item-content before the React portal renders). We portal the card into the
-    // host; GridStack re-measures once it has real content.
-    const itemEl = document.createElement("div");
-    itemEl.className = "grid-stack-item";
-    itemEl.setAttribute("gs-id", spec.key);
-    itemEl.setAttribute("gs-w", spec.w);
-    if (spec.h) itemEl.setAttribute("gs-h", spec.h);
-    if (spec.autoPosition) itemEl.setAttribute("gs-auto-position", "true");
-    else { itemEl.setAttribute("gs-x", spec.x); itemEl.setAttribute("gs-y", spec.y); }
-    itemEl.innerHTML = '<div class="grid-stack-item-content"><div class="dash-host"></div></div>';
-    elRef.current.appendChild(itemEl);
-    try { grid.makeWidget(itemEl); } catch (e) {}
-    itemRef.current[spec.key] = itemEl;
-    return itemEl.querySelector(".dash-host");
+    const grid = gridRef.current; if (!grid) return null;
+    const opts = { id: spec.key, w: spec.w, h: spec.h };
+    if (spec.autoPosition) opts.autoPosition = true; else { opts.x = spec.x; opts.y = spec.y; }
+    const el = grid.addWidget(opts);   // addWidget wires up the sizeToContent observer
+    itemRef.current[spec.key] = el;
+    // Inject a host child synchronously so GridStack's sizeToContent always has a child
+    // to measure — its observer fires before the React portal renders and otherwise logs
+    // "firstElementChild is null". The host grows once the portal fills it, so heights
+    // still fit content. We portal the card INTO this host.
+    const contentEl = el.querySelector(".grid-stack-item-content");
+    let hostEl = contentEl ? contentEl.querySelector(".dash-host") : null;
+    if (contentEl && !hostEl) {
+      hostEl = document.createElement("div");
+      hostEl.className = "dash-host";
+      contentEl.appendChild(hostEl);
+    }
+    return hostEl || contentEl;
   };
 
   // ── init GridStack once per role/tab; load saved → add widgets → set portal hosts.
