@@ -161,26 +161,35 @@ function DashGrid({ role, tab = "today", widgets }) {
     // no vertical gaps. Runs only on a fresh layout (no saved), so a user's custom placement
     // is never reordered.
     const relayoutInOrder = () => {
-      // Compute the whole masonry layout from the fitted heights (full-width stacked,
-      // half-width paired) and apply it ATOMICALLY via grid.load — incremental grid.update
-      // calls get re-cascaded by the collision/animation engine, but load sets the complete
-      // layout in one pass. addRemove=false → it only repositions existing items (keeps the
-      // React portal nodes intact).
+      // Build the whole masonry layout and apply it ATOMICALLY via grid.load — incremental
+      // grid.update calls get re-cascaded by the collision/animation engine, but load sets the
+      // complete layout in one pass (addRemove=false keeps the React portal nodes intact).
+      // Heights are computed DIRECTLY from each card's measured content height (not from
+      // GridStack's resizeToContent, which doesn't refit reliably when the column count changes
+      // at the mobile breakpoint) — h*cellHeight just clears the card, so the box hugs the card
+      // (slop ~0) at every width. Column-aware: a card wider-or-equal to the current column count
+      // (full-width cards, or everything in the 1-column mobile layout) stacks; narrower cards pair.
+      const cols = grid.getColumn() || 12;
+      const cell = grid.getCellHeight() || 2;
       let y = 0, xCursor = 0, rowH = 0;
       const layout = [];
       widgets.forEach((w) => {
         const item = itemRef.current[w.key]; if (!item) return;
         const node = item.gridstackNode || {};
         const id = node.id || w.key;
-        const h = node.h || 1;
-        const wW = node.w || dgWidgetW(w.size);
-        if (wW >= 12) {
-          if (xCursor !== 0) { y += rowH; xCursor = 0; rowH = 0; }   // close an open half-row
+        const content = item.querySelector(".grid-stack-item-content");
+        const card = content && content.firstElementChild;
+        const cardH = card ? card.getBoundingClientRect().height : 0;
+        const h = Math.max(1, Math.ceil((cardH + 2) / cell));   // ceil → box always clears the card
+        let wW = dgWidgetW(w.size);
+        if (wW > cols) wW = cols;                                // narrow: clamp to available columns
+        if (wW >= cols) {                                        // full-width (or single-column) → stack
+          if (xCursor !== 0) { y += rowH; xCursor = 0; rowH = 0; }
           layout.push({ id, x: 0, y, w: wW, h }); y += h;
         } else if (xCursor === 0) {
-          layout.push({ id, x: 0, y, w: wW, h }); xCursor = 6; rowH = h;
+          layout.push({ id, x: 0, y, w: wW, h }); xCursor = wW; rowH = h;
         } else {
-          layout.push({ id, x: 6, y, w: wW, h }); y += Math.max(rowH, h); xCursor = 0; rowH = 0;
+          layout.push({ id, x: xCursor, y, w: wW, h }); y += Math.max(rowH, h); xCursor = 0; rowH = 0;
         }
       });
       try { grid.load(layout, false); } catch (e) {}
