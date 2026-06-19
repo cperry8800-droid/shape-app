@@ -144,7 +144,6 @@ function DashGrid({ role, tab = "today", widgets }) {
   // the observer never re-fires. So fit each item to its card ourselves once the portals
   // render (and on window resize, when cards reflow). resizeToContent reads scrollHeight,
   // which only reports the true content height because item-content is overflow:hidden.
-  const relaidRef = React.useRef(false);
   React.useEffect(() => {
     if (!ready) return undefined;
     const grid = gridRef.current; if (!grid) return undefined;
@@ -155,10 +154,10 @@ function DashGrid({ role, tab = "today", widgets }) {
       });
     };
     // The fine cellHeight makes new items bunch at the top, so the auto-position grow
-    // cascade resolves their order ambiguously. Re-lay-them-out ONCE in widget order
-    // (full-width stacked, half-width paired) after heights are fit — a deterministic
-    // masonry pack that keeps the intended order with no vertical gaps. Skipped when a
-    // saved layout exists, so a user's custom placement is never reordered.
+    // cascade resolves their order ambiguously. Re-lay-them-out in widget order (full-width
+    // stacked, half-width paired) from the fitted heights — a deterministic masonry pack with
+    // no vertical gaps. Runs only on a fresh layout (no saved), so a user's custom placement
+    // is never reordered.
     const relayoutInOrder = () => {
       // Compute the whole masonry layout from the fitted heights (full-width stacked,
       // half-width paired) and apply it ATOMICALLY via grid.load — incremental grid.update
@@ -184,13 +183,16 @@ function DashGrid({ role, tab = "today", widgets }) {
       });
       try { grid.load(layout, false); } catch (e) {}
     };
-    const t1 = setTimeout(fitAll, 0);
-    const t2 = setTimeout(() => {
-      fitAll();
-      if (!relaidRef.current && !hadSavedRef.current) { relaidRef.current = true; relayoutInOrder(); }
-    }, 200);
-    window.addEventListener("resize", fitAll);
-    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", fitAll); };
+    // Fit heights, then (on a fresh/demo layout) re-apply the ordered pack. This must run on
+    // EVERY fit — including window resize — because a bare resizeToContent re-cascades with
+    // float:true and would undo the ordered grid.load. relayoutInOrder is idempotent (grid.load
+    // of the same computed layout), so re-running it just re-asserts the tidy layout. On a saved
+    // layout we only fit heights and leave the user's placement alone.
+    const run = () => { fitAll(); if (!hadSavedRef.current) relayoutInOrder(); };
+    const t1 = setTimeout(run, 0);
+    const t2 = setTimeout(run, 200);
+    window.addEventListener("resize", run);
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", run); };
   }, [hosts, ready]);
 
   const hide = (key) => {
