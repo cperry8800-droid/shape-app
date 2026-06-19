@@ -202,10 +202,32 @@ function DashGrid({ role, tab = "today", widgets }) {
     // of the same computed layout), so re-running it just re-asserts the tidy layout. On a saved
     // layout we only fit heights and leave the user's placement alone.
     const run = () => { fitAll(); if (!hadSavedRef.current) relayoutInOrder(); };
+    // Debounced re-run for content that loads/changes AFTER the initial fit (async card data,
+    // text reflow, the user resizing a card). We observe each card (the item-content's first
+    // child) — its height only changes on real content changes, NOT when GridStack resizes the
+    // item (the card is content-sized, not height:100%), so this never loops on grid animation.
+    let debounce = null;
+    const refit = () => { if (debounce) return; debounce = setTimeout(() => { debounce = null; run(); }, 130); };
+    let ro = null;
+    const observeCards = () => {
+      if (typeof ResizeObserver === "undefined") return;
+      if (!ro) ro = new ResizeObserver(refit);
+      else ro.disconnect();
+      Object.keys(itemRef.current).forEach((key) => {
+        const item = itemRef.current[key];
+        const content = item && item.querySelector(".grid-stack-item-content");
+        const card = content && content.firstElementChild;
+        if (card) ro.observe(card);
+      });
+    };
     const t1 = setTimeout(run, 0);
-    const t2 = setTimeout(run, 200);
+    const t2 = setTimeout(() => { run(); observeCards(); }, 200);
     window.addEventListener("resize", run);
-    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", run); };
+    return () => {
+      clearTimeout(t1); clearTimeout(t2); if (debounce) clearTimeout(debounce);
+      if (ro) { try { ro.disconnect(); } catch (e) {} }
+      window.removeEventListener("resize", run);
+    };
   }, [hosts, ready]);
 
   const hide = (key) => {
