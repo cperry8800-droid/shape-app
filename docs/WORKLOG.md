@@ -140,6 +140,16 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — Shape Radio Phase 1: real licensed player + provider foundation
+- `radio_station` singleton config table (public-read RLS; `provider`, `stream_url`, `now_playing_url`). ⚠ **OWNER — apply migration:** `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-radio-station.sql` — then set `provider='http'`, `stream_url`, and `now_playing_url` on the row. Until applied, the station defaults to `provider='mock'` and the player shows "coming soon."
+- `GET /api/radio/station` — public; returns `{name, streamUrl, provider, configured}`.
+- `GET /api/radio/now-playing` — public; returns `{title, artist, isNora}`. Degrades to nulls on any provider error so the stream never breaks.
+- `src/lib/radio/` — swappable `RadioProvider` adapter: `provider.ts` (interface + `NowPlaying` type), `now-playing.mjs` (pure normalizer, unit-tested in `tests/radio-now-playing.test.mjs`), `mock.ts`, `http.ts` (generic fetch + normalize), `index.ts` (`getProvider` selector). Provider chosen: **Radio.co** (handles royalties + broadcast); owner signup deferred (Task 0).
+- `public/radio.html` — web player streams the live URL from `/api/radio/station` + polls `/api/radio/now-playing` every 15s. No client playlist; off-air / coming-soon / retry states. Stream-error auto-retries in 5s.
+- `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx` + `shapeBackend.js` (`window.ShapeRadioLive`) — mobile player streams + polls; pause actually stops the stream.
+- Native background-audio config: iOS `Info.plist` `UIBackgroundModes:[audio]`, Android `FOREGROUND_SERVICE` prep. ⚠ **OWNER — native build required** for background playback (`npx cap sync` + Xcode/Android Studio build). See `mobile-app/RADIO-BACKGROUND-AUDIO.md` for activation steps.
+- Phase 1 only. Phases 2 (Nora clips) and 3 (Nora DJ Sets) are separate plans.
+
 ### 2026-06-18 — Shape Score v2: momentum streak escalation (D) + weekly commitments (E)
 - **✅ FULLY LIVE (end of session):** the owner ran ALL migrations (Phase C accountability,
   D escalation, E commitments — Phase B momentum already applied), set **`CRON_SECRET`** in
