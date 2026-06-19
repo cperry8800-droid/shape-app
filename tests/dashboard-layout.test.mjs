@@ -1,41 +1,52 @@
-// Pure dashboard-layout logic: resolve a saved widget layout against the current
-// widget set (robust to added/removed widgets) + reorder helpers. Run: node --test
+// Pure GridStack dashboard-layout reconciliation: keep saved geometry, append new
+// widgets (auto-positioned), drop stale ones, filter hidden. Run: node --test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLayout, moveKey, stepKey } from '../public/newdesign/dashboardLayout.mjs';
+import { resolveGridLayout, widgetW } from '../public/newdesign/dashboardLayout.mjs';
 
-const ALL = ['a', 'b', 'c', 'd'];
-const DEF = ['a', 'b', 'c', 'd'];
+const WIDGETS = [
+  { key: 'a', size: 'full' },
+  { key: 'b', size: 'half' },
+  { key: 'c', size: 'half' },
+];
 
-test('null saved → default order, nothing hidden', () => {
-  assert.deepEqual(resolveLayout(null, ALL, DEF), { order: ['a', 'b', 'c', 'd'], hidden: [] });
+test('widgetW maps size to a 12-col span', () => {
+  assert.equal(widgetW('full'), 12);
+  assert.equal(widgetW('half'), 6);
 });
 
-test('respects saved order; appends a newly-added widget in default position', () => {
-  const r = resolveLayout({ order: ['c', 'a', 'b'], hidden: [] }, ALL, DEF);
-  assert.deepEqual(r.order, ['c', 'a', 'b', 'd']); // 'd' is new → appended
+test('null saved → every widget visible, auto-positioned, width from size', () => {
+  const r = resolveGridLayout(null, WIDGETS);
+  assert.deepEqual(r.hidden, []);
+  assert.deepEqual(r.visible, [
+    { key: 'a', w: 12, autoPosition: true },
+    { key: 'b', w: 6, autoPosition: true },
+    { key: 'c', w: 6, autoPosition: true },
+  ]);
 });
 
-test('drops a removed widget from a stale saved order', () => {
-  const r = resolveLayout({ order: ['b', 'z', 'a'], hidden: ['z'] }, ALL, DEF);
-  assert.deepEqual(r.order, ['b', 'a', 'c', 'd']); // 'z' gone; c,d appended
-  assert.deepEqual(r.hidden, []);                  // 'z' filtered from hidden too
+test('saved geometry is preserved for known widgets', () => {
+  const saved = { items: [{ id: 'b', x: 6, y: 0, w: 6, h: 4 }, { id: 'a', x: 0, y: 0, w: 6, h: 5 }], hidden: [] };
+  const r = resolveGridLayout(saved, WIDGETS);
+  // saved 'b' and 'a' keep their geometry; 'c' is new → appended auto-positioned
+  assert.deepEqual(r.visible, [
+    { key: 'b', x: 6, y: 0, w: 6, h: 4 },
+    { key: 'a', x: 0, y: 0, w: 6, h: 5 },
+    { key: 'c', w: 6, autoPosition: true },
+  ]);
 });
 
-test('hidden is intersected with existing keys', () => {
-  const r = resolveLayout({ order: ['a', 'b', 'c', 'd'], hidden: ['c'] }, ALL, DEF);
-  assert.deepEqual(r.hidden, ['c']);
+test('stale saved items (widget no longer exists) are dropped', () => {
+  const saved = { items: [{ id: 'z', x: 0, y: 0, w: 12, h: 3 }, { id: 'a', x: 0, y: 0, w: 12, h: 4 }], hidden: ['z'] };
+  const r = resolveGridLayout(saved, WIDGETS);
+  assert.deepEqual(r.visible.map((v) => v.key), ['a', 'b', 'c']); // z gone; b,c appended
+  assert.deepEqual(r.hidden, []); // z filtered from hidden too
 });
 
-test('moveKey inserts before the target; end when target absent; self is no-op', () => {
-  assert.deepEqual(moveKey(['a', 'b', 'c', 'd'], 'd', 'b'), ['a', 'd', 'b', 'c']);
-  assert.deepEqual(moveKey(['a', 'b', 'c', 'd'], 'a', null), ['b', 'c', 'd', 'a']);
-  assert.deepEqual(moveKey(['a', 'b', 'c'], 'b', 'b'), ['a', 'b', 'c']);
-});
-
-test('stepKey moves one slot and clamps at the ends', () => {
-  assert.deepEqual(stepKey(['a', 'b', 'c'], 'b', -1), ['b', 'a', 'c']);
-  assert.deepEqual(stepKey(['a', 'b', 'c'], 'b', 1), ['a', 'c', 'b']);
-  assert.deepEqual(stepKey(['a', 'b', 'c'], 'a', -1), ['a', 'b', 'c']); // clamp
-  assert.deepEqual(stepKey(['a', 'b', 'c'], 'c', 1), ['a', 'b', 'c']);  // clamp
+test('hidden keys are filtered to existing + never appear in visible', () => {
+  const saved = { items: [{ id: 'a', x: 0, y: 0, w: 12, h: 4 }], hidden: ['c', 'q'] };
+  const r = resolveGridLayout(saved, WIDGETS);
+  assert.deepEqual(r.hidden, ['c']);            // 'q' doesn't exist → dropped
+  assert.ok(!r.visible.some((v) => v.key === 'c')); // hidden 'c' not visible
+  assert.ok(r.visible.some((v) => v.key === 'b')); // 'b' new + not hidden → visible
 });

@@ -1,94 +1,163 @@
-// DashGrid — reorderable / hideable dashboard widgets. Generalizes ShapeHomeCards
-// (pageShell.jsx) to arbitrary widget content + a full/half responsive grid, persisted
-// per-role to user_goals('dashboard_layout'). Pure helpers are inlined here as a mirror
-// of public/newdesign/dashboardLayout.mjs (babel-standalone can't import) — keep identical.
-// Website only.
-const DG_INK = "#f2ede4";
+// DashGrid — freely draggable + RESIZABLE dashboard widgets, powered by GridStack
+// (window.GridStack, vendored at /vendor/gridstack/). GridStack owns the layout
+// (drag / resize / x,y,w,h); React owns each card's CONTENT, portaled into the
+// GridStack-managed item node so live data keeps rendering. Layout persists per
+// role + tab to user_goals('dashboard_layout'). Pure helpers are inlined here as a
+// mirror of public/newdesign/dashboardLayout.mjs — keep identical. Website only.
 const DG_MUTE = "rgba(242,237,228,0.5)";
 
-function dgResolveLayout(saved, allKeys, defaultOrder) {
-  const all = new Set(allKeys);
-  const savedOrder = (saved && Array.isArray(saved.order)) ? saved.order.filter((k) => all.has(k)) : [];
-  const seen = new Set(savedOrder);
-  const order = savedOrder.slice();
-  for (const k of defaultOrder) if (all.has(k) && !seen.has(k)) { order.push(k); seen.add(k); }
-  const hidden = (saved && Array.isArray(saved.hidden)) ? saved.hidden.filter((k) => all.has(k)) : [];
-  return { order, hidden };
+function dgWidgetW(size) { return size === "full" ? 12 : 6; }
+function dgResolveGridLayout(saved, widgets) {
+  const bySize = {}; widgets.forEach((w) => { bySize[w.key] = w.size; });
+  const existing = new Set(widgets.map((w) => w.key));
+  const hidden = (saved && Array.isArray(saved.hidden)) ? saved.hidden.filter((k) => existing.has(k)) : [];
+  const hiddenSet = new Set(hidden);
+  const savedItems = (saved && Array.isArray(saved.items)) ? saved.items.filter((i) => i && existing.has(i.id)) : [];
+  const placed = new Set(savedItems.map((i) => i.id));
+  const visible = [];
+  for (const i of savedItems) { if (hiddenSet.has(i.id)) continue; visible.push({ key: i.id, x: i.x, y: i.y, w: i.w || dgWidgetW(bySize[i.id]), h: i.h }); }
+  for (const w of widgets) { if (placed.has(w.key) || hiddenSet.has(w.key)) continue; visible.push({ key: w.key, w: dgWidgetW(w.size), autoPosition: true }); }
+  return { visible, hidden };
 }
-function dgMoveKey(order, key, beforeKey) {
-  if (key === beforeKey) return order.slice();
-  const next = order.filter((k) => k !== key);
-  const idx = beforeKey == null ? -1 : next.indexOf(beforeKey);
-  if (idx < 0) next.push(key); else next.splice(idx, 0, key);
-  return next;
-}
-function dgStepKey(order, key, dir) {
-  const i = order.indexOf(key); if (i < 0) return order.slice();
-  const j = i + (dir < 0 ? -1 : 1); if (j < 0 || j >= order.length) return order.slice();
-  const next = order.slice(); next.splice(i, 1); next.splice(j, 0, key); return next;
-}
-function dgBtn(extra) { return { width: 26, height: 26, borderRadius: 7, border: 0, background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 800, cursor: "pointer", lineHeight: 1, ...(extra || {}) }; }
 
-function DashGrid({ role, widgets }) {
-  const defaultOrder = widgets.map((w) => w.key);
+// Inject the dark-theme overrides for GridStack chrome once.
+let _dgStyled = false;
+function dgInjectStyle() {
+  if (_dgStyled || typeof document === "undefined") return; _dgStyled = true;
+  const s = document.createElement("style");
+  s.textContent = `
+.dash-gridstack .grid-stack-item-content{inset:0;overflow:visible;display:flex;flex-direction:column}
+.dash-gridstack .grid-stack-item-content>*{flex:1;min-height:0}
+.dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.7);background:rgba(46,224,196,0.06);border-radius:8px}
+.dash-gridstack .ui-resizable-handle{filter:none}
+.dash-gridstack .ui-resizable-se{background-image:none;width:18px;height:18px;right:2px;bottom:2px;border-right:2px solid rgba(242,237,228,0.4);border-bottom:2px solid rgba(242,237,228,0.4);border-bottom-right-radius:4px}
+.dash-gridstack .ui-resizable-e{right:0}
+.dash-gridstack .ui-resizable-s{bottom:0}
+.dash-drag-handle{cursor:move}
+`;
+  document.head.appendChild(s);
+}
+
+function DashGrid({ role, tab = "today", widgets }) {
   const byKey = {}; widgets.forEach((w) => { byKey[w.key] = w; });
-  const allKeys = defaultOrder;
+  const elRef = React.useRef(null);
+  const gridRef = React.useRef(null);
+  const docRef = React.useRef({});
+  const itemRef = React.useRef({});   // key -> grid-item DOM element (for removeWidget)
+  const [hosts, setHosts] = React.useState({}); // key -> .grid-stack-item-content (portal target)
+  const [hidden, setHidden] = React.useState([]);
+  const [ready, setReady] = React.useState(false);
 
-  const [layout, setLayout] = React.useState(() => ({ order: defaultOrder.slice(), hidden: [] }));
-  const [drag, setDrag] = React.useState(null);
-  const [over, setOver] = React.useState(null);
-  const docRef = React.useRef({}); // the whole multi-role doc, for merge-on-save
-
-  React.useEffect(() => {
-    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return;
-    window.shapeDb.getUserGoals("dashboard_layout").then((doc) => {
-      docRef.current = doc && typeof doc === "object" ? doc : {};
-      setLayout(dgResolveLayout(docRef.current[role], allKeys, defaultOrder));
-    }).catch(() => {});
-    // eslint-disable-next-line
-  }, [role]);
-
+  // saved layout for THIS role+tab from the merged doc.
+  const savedFor = () => { try { return ((docRef.current[role] || {})[tab]) || null; } catch (e) { return null; } };
   const persist = (next) => {
-    setLayout(next);
     try {
-      docRef.current = { ...docRef.current, [role]: { order: next.order, hidden: next.hidden } };
+      const r = { ...(docRef.current[role] || {}), [tab]: next };
+      docRef.current = { ...docRef.current, [role]: r };
       if (window.shapeDb && window.shapeDb.saveUserGoals) window.shapeDb.saveUserGoals("dashboard_layout", docRef.current);
     } catch (e) {}
   };
-
-  const visible = layout.order.filter((k) => !layout.hidden.includes(k));
-  const hide = (k) => persist({ order: layout.order, hidden: [...layout.hidden, k] });
-  const restore = (k) => persist({ order: layout.order, hidden: layout.hidden.filter((x) => x !== k) });
-  const reset = () => persist({ order: defaultOrder.slice(), hidden: [] });
-  const step = (k, dir) => persist({ ...layout, order: dgStepKey(layout.order, k, dir) });
-  const onDrop = (target) => {
-    if (drag && drag !== target) persist({ ...layout, order: dgMoveKey(layout.order, drag, target) });
-    setDrag(null); setOver(null);
+  const persistFromGrid = () => {
+    const grid = gridRef.current; if (!grid) return;
+    let items = [];
+    try { items = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {}
+    persist({ items, hidden });
   };
 
-  const chrome = (k) => {
-    const w = byKey[k];
-    if (!w) return null;
+  // Add one widget to the grid; return its content host element for the portal.
+  const addOne = (spec) => {
+    const grid = gridRef.current; if (!grid) return null;
+    const opts = { id: spec.key, w: spec.w, h: spec.h };
+    if (spec.autoPosition) opts.autoPosition = true; else { opts.x = spec.x; opts.y = spec.y; }
+    const el = grid.addWidget(opts);
+    itemRef.current[spec.key] = el;
+    return el.querySelector(".grid-stack-item-content");
+  };
+
+  // ── init GridStack once per role/tab; load saved → add widgets → set portal hosts.
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.GridStack || !elRef.current) return undefined;
+    dgInjectStyle();
+    let destroyed = false;
+    const boot = () => {
+      if (destroyed || !elRef.current) return;
+      const grid = window.GridStack.init({
+        column: 12, cellHeight: 64, margin: 8, float: true,
+        handle: ".dash-drag-handle", resizable: { handles: "e" },
+        sizeToContent: true, animate: true, disableOneColumnMode: false,
+      }, elRef.current);
+      gridRef.current = grid;
+      const layout = dgResolveGridLayout(savedFor(), widgets);
+      const nextHosts = {};
+      grid.batchUpdate();
+      for (const spec of layout.visible) { const host = addOne(spec); if (host) nextHosts[spec.key] = host; }
+      grid.commit();
+      setHidden(layout.hidden);
+      setHosts(nextHosts);
+      setReady(true);
+      grid.on("change", persistFromGrid);
+      grid.on("resizestop dragstop", persistFromGrid);
+    };
+    // shapeDb may be async; load the saved doc first, then boot.
+    if (window.shapeDb && window.shapeDb.getUserGoals) {
+      window.shapeDb.getUserGoals("dashboard_layout").then((doc) => { docRef.current = (doc && typeof doc === "object") ? doc : {}; boot(); }).catch(boot);
+    } else { boot(); }
+    return () => {
+      destroyed = true;
+      try { if (gridRef.current) gridRef.current.destroy(false); } catch (e) {}
+      gridRef.current = null; itemRef.current = {};
+    };
+    // eslint-disable-next-line
+  }, [role, tab]);
+
+  // After portals paint, fit each item's height to its real content.
+  React.useEffect(() => {
+    const grid = gridRef.current; if (!grid || !ready) return;
+    const id = setTimeout(() => {
+      try { grid.batchUpdate(); Object.values(itemRef.current).forEach((el) => { if (el && grid.resizeToContent) grid.resizeToContent(el); }); grid.commit(); } catch (e) {}
+    }, 30);
+    return () => clearTimeout(id);
+  }, [hosts, ready]);
+
+  const hide = (key) => {
+    const grid = gridRef.current; const el = itemRef.current[key];
+    if (grid && el) { try { grid.removeWidget(el, true); } catch (e) {} }
+    delete itemRef.current[key];
+    setHosts((h) => { const n = { ...h }; delete n[key]; return n; });
+    const nextHidden = hidden.includes(key) ? hidden : [...hidden, key];
+    setHidden(nextHidden);
+    setTimeout(() => { let items = []; try { items = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {} persist({ items, hidden: nextHidden }); }, 0);
+  };
+  const restore = (key) => {
+    const w = byKey[key]; if (!w) return;
+    const host = addOne({ key, w: dgWidgetW(w.size), autoPosition: true });
+    setHosts((h) => ({ ...h, [key]: host }));
+    const nextHidden = hidden.filter((x) => x !== key);
+    setHidden(nextHidden);
+    setTimeout(() => { const grid = gridRef.current; try { if (grid.resizeToContent && itemRef.current[key]) grid.resizeToContent(itemRef.current[key]); } catch (e) {} persistFromGrid(); }, 30);
+  };
+  const reset = () => {
+    const grid = gridRef.current; if (!grid) return;
+    try { grid.removeAll(true); } catch (e) {}
+    itemRef.current = {};
+    const layout = dgResolveGridLayout(null, widgets);
+    const nextHosts = {};
+    grid.batchUpdate();
+    for (const spec of layout.visible) { const host = addOne(spec); if (host) nextHosts[spec.key] = host; }
+    grid.commit();
+    setHosts(nextHosts); setHidden([]);
+    setTimeout(() => persist({ items: [], hidden: [] }), 0);
+  };
+
+  const chrome = (key) => {
+    const w = byKey[key]; if (!w) return null;
     const content = w.render();
-    if (content == null || content === false) return null; // a conditional widget that rendered nothing — no empty cell/chrome
-    const span = w.size === "full" ? "1 / -1" : "auto";
-    const isOver = over === k && drag && drag !== k;
+    if (content == null || content === false) return null;
     return (
-      <div key={k}
-        draggable
-        onDragStart={() => setDrag(k)}
-        onDragEnd={() => { setDrag(null); setOver(null); }}
-        onDragOver={(e) => { e.preventDefault(); if (over !== k) setOver(k); }}
-        onDrop={(e) => { e.preventDefault(); onDrop(k); }}
-        style={{ gridColumn: span, position: "relative", opacity: drag === k ? 0.45 : 1,
-          outline: isOver ? "1.5px dashed " + DG_INK : "none", outlineOffset: 3, borderRadius: 6 }}>
-        {/* drag / move / hide chrome — top-right, over the card corner */}
-        <div style={{ position: "absolute", top: 6, right: 8, zIndex: 3, display: "inline-flex", gap: 2, alignItems: "center",
-          background: "rgba(11,14,12,0.55)", borderRadius: 8, padding: "1px 3px" }}>
-          <span title="Drag to move" style={{ cursor: "grab", color: DG_MUTE, fontSize: 14, padding: "0 3px" }}>⠿</span>
-          <button title="Move earlier" onClick={() => step(k, -1)} style={dgBtn()}>▲</button>
-          <button title="Move later" onClick={() => step(k, 1)} style={dgBtn()}>▼</button>
-          <button title="Hide" onClick={() => hide(k)} style={dgBtn()}>×</button>
+      <div style={{ position: "relative", height: "100%" }}>
+        <div className="dash-drag-handle" style={{ position: "absolute", top: 6, right: 8, zIndex: 4, display: "inline-flex", gap: 2, alignItems: "center", background: "rgba(11,14,12,0.6)", borderRadius: 8, padding: "2px 4px" }}>
+          <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 14, padding: "0 3px" }}>⠿</span>
+          <button title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 24, height: 22, borderRadius: 6, border: 0, background: "transparent", color: DG_MUTE, fontSize: 13, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
         {content}
       </div>
@@ -97,15 +166,14 @@ function DashGrid({ role, widgets }) {
 
   return (
     <div>
-      <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
-        {visible.map(chrome)}
-      </div>
-      {(layout.hidden.length > 0) && (
+      <div ref={elRef} className="grid-stack dash-gridstack"></div>
+      {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key]) : null))}
+      {hidden.length > 0 && (
         <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: DG_MUTE }}>Hidden ·</span>
-          {layout.hidden.map((k) => (
-            <button key={k} onClick={() => restore(k)} title="Restore" style={{ padding: "5px 11px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, cursor: "pointer" }}>
-              + {byKey[k] ? (byKey[k].title || k) : k}
+          {hidden.map((key) => (
+            <button key={key} onClick={() => restore(key)} title="Restore" style={{ padding: "5px 11px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, cursor: "pointer" }}>
+              + {byKey[key] ? (byKey[key].title || key) : key}
             </button>
           ))}
           <a href="#" onClick={(e) => { e.preventDefault(); reset(); }} style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(242,237,228,0.25)" }}>Reset layout</a>

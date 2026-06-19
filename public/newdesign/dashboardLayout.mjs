@@ -1,40 +1,31 @@
-// Pure dashboard-layout logic — the single source of truth for resolving a saved
-// widget layout against the current widget set, and for reordering. Mirrored inline
-// in dashGrid.jsx (window.DashGrid, as dg*); keep the two identical.
+// Pure dashboard GRID-layout logic for the GridStack-based DashGrid. Reconciles a
+// saved layout against the current widget set: keep saved x/y/w/h, add new widgets
+// (auto-positioned), drop stale ones, filter hidden to existing keys. Mirrored inline
+// in dashGrid.jsx (as dg*) — keep the two identical.
 
-// saved: { order:string[], hidden:string[] } | null. allKeys: the widget keys that
-// exist NOW. defaultOrder: the default ordering of allKeys. Returns a layout that
-// keeps the saved order (filtered to existing keys), appends any new keys (in
-// defaultOrder sequence) so a future widget shows up, drops stale keys, and
-// intersects hidden with existing keys.
-export function resolveLayout(saved, allKeys, defaultOrder) {
-  const all = new Set(allKeys);
-  const savedOrder = (saved && Array.isArray(saved.order)) ? saved.order.filter((k) => all.has(k)) : [];
-  const seen = new Set(savedOrder);
-  const order = savedOrder.slice();
-  for (const k of defaultOrder) if (all.has(k) && !seen.has(k)) { order.push(k); seen.add(k); }
-  const hidden = (saved && Array.isArray(saved.hidden)) ? saved.hidden.filter((k) => all.has(k)) : [];
-  return { order, hidden };
-}
+// size → GridStack column span on the 12-col grid (full row vs half).
+export function widgetW(size) { return size === 'full' ? 12 : 6; }
 
-// Remove `key`, insert it immediately before `beforeKey` (or push to the end when
-// `beforeKey` is null/absent). Moving a key onto itself is a no-op.
-export function moveKey(order, key, beforeKey) {
-  if (key === beforeKey) return order.slice();
-  const next = order.filter((k) => k !== key);
-  const idx = beforeKey == null ? -1 : next.indexOf(beforeKey);
-  if (idx < 0) next.push(key); else next.splice(idx, 0, key);
-  return next;
-}
-
-// Move `key` one slot earlier (dir < 0) or later (dir > 0); clamps at the ends.
-export function stepKey(order, key, dir) {
-  const i = order.indexOf(key);
-  if (i < 0) return order.slice();
-  const j = i + (dir < 0 ? -1 : 1);
-  if (j < 0 || j >= order.length) return order.slice();
-  const next = order.slice();
-  next.splice(i, 1);
-  next.splice(j, 0, key);
-  return next;
+// saved: { items:[{id,x,y,w,h}], hidden:[id] } | null. widgets: [{ key, size }].
+// Returns { visible:[{ key, x?, y?, w, h?, autoPosition? }], hidden:[key] }.
+// Saved items keep their geometry; widgets with no saved entry are appended with
+// autoPosition (GridStack packs them); a hidden key never appears in visible.
+export function resolveGridLayout(saved, widgets) {
+  const bySize = {};
+  widgets.forEach((w) => { bySize[w.key] = w.size; });
+  const existing = new Set(widgets.map((w) => w.key));
+  const hidden = (saved && Array.isArray(saved.hidden)) ? saved.hidden.filter((k) => existing.has(k)) : [];
+  const hiddenSet = new Set(hidden);
+  const savedItems = (saved && Array.isArray(saved.items)) ? saved.items.filter((i) => i && existing.has(i.id)) : [];
+  const placed = new Set(savedItems.map((i) => i.id));
+  const visible = [];
+  for (const i of savedItems) {
+    if (hiddenSet.has(i.id)) continue;
+    visible.push({ key: i.id, x: i.x, y: i.y, w: i.w || widgetW(bySize[i.id]), h: i.h });
+  }
+  for (const w of widgets) {
+    if (placed.has(w.key) || hiddenSet.has(w.key)) continue;
+    visible.push({ key: w.key, w: widgetW(w.size), autoPosition: true });
+  }
+  return { visible, hidden };
 }
