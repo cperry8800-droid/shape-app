@@ -140,6 +140,44 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — Draggable + resizable dashboard widgets (GridStack) across all card tabs, all profiles
+- **The dashboard is now a movable, resizable grid.** Every card-style dashboard tab
+  renders its cards as GridStack widgets the user can **drag to reorder** (via a ⠿
+  handle in each card's chrome) and **resize** (via a flush corner triangle), with the
+  layout **persisted per role+tab** to `user_goals('dashboard_layout')`. Applies to all
+  three profiles (client · trainer · nutritionist); single-purpose pages (meal-plan
+  builders, workout lists, calendars, feeds, rosters, profiles) are deliberately left
+  alone.
+- **Engine — `public/newdesign/dashGrid.jsx`** (the `DashGrid` interop, vendored
+  GridStack 11.x at `/vendor/gridstack/`): GridStack owns layout (x/y/w/h); React
+  `createPortal`s each card's content into the grid-item node. Config `cellHeight:2 ·
+  margin:8 · float:true · handle:'.dash-drag-handle' · resizable se · column:12` with a
+  `breakpoints:[{w:768,c:1}]` 1-column mobile breakpoint. API:
+  `<DashGrid role tab widgets={[{key,title,size:'full'|'half',render}]} />`.
+  - **Tight content-fit:** GridStack's auto `sizeToContent` can't see React portals, so
+    heights are computed directly from the measured card height
+    (`h = ceil((cardH + 18) / cell)`, +18 = 16px item-content inset + 2px buffer) and the
+    whole ordered layout is applied atomically via `grid.load(layout, false)` (incremental
+    `grid.update` got re-cascaded by the float engine and scrambled card order). A
+    debounced **ResizeObserver** per card refits async content (fetch-rendered cards that
+    start null).
+  - **Flush resize triangle:** the card renders its own `.dash-rs` filled triangle inset
+    7px in the corner, while GridStack's `.ui-resizable-se` is made a transparent 28px
+    hit-area — so the affordance is pixel-flush and consistent on every card (the
+    decorative `.dash-plate--bracket::after` corner is hidden), with no scrollbars
+    (`overflow:hidden`).
+- **Tabs gridded** (each refactored to build a `widgets` list + render through `DashGrid`):
+  client **Today · Score · Habits · Progress · Workouts · Nutrition · Goal**; trainer &
+  nutritionist **Today · Score · Goal**. The two coach apps also gained the GridStack
+  vendor `<link>`/`<script>` (they loaded `dashGrid.jsx` but not the engine → empty grid).
+- **Verified on the preview** (Playwright, both 1280px desktop + 430px mobile) across all
+  9 newly-gridded tabs: correct widget count + order, no collapsed cards, resize triangle
+  flush (7px inset), and clean 1-column stacking (maxGap 0) at mobile width. Conditional
+  widgets (e.g. Progress check-in/photo-timeline, Workouts tonight) correctly hide when
+  signed-out. Console errors limited to benign demo-mode 401s.
+- All touched `.jsx` bumped to `?v=20260619a` across referencing HTML; on branch
+  `claude/dashboard-widgets` (PR #1353), ready to squash-merge to production.
+
 ### 2026-06-18 — Shape Score v2: momentum streak escalation (D) + weekly commitments (E)
 - **✅ FULLY LIVE (end of session):** the owner ran ALL migrations (Phase C accountability,
   D escalation, E commitments — Phase B momentum already applied), set **`CRON_SECRET`** in
