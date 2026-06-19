@@ -633,6 +633,17 @@ function MusicBlock({ d }) {
   }, [d.uid]);
   const provColor = (p) => p === "apple" ? "#fc3c44" : p === "spotify" ? "#1db954" : dHexA(LV_INK, 0.4);
   const provLabel = (p) => p === "apple" ? "Apple Music" : p === "spotify" ? "Spotify" : "Playlist";
+  // The playlist URL is user-supplied (member_playlists.url) — only allow http(s)
+  // to the music hosts the parser advertises, so a javascript:/data: link can't ride
+  // into the href (stored XSS).
+  const safeMusicUrl = (u) => {
+    try {
+      const x = new URL(String(u || ""));
+      if (x.protocol !== "http:" && x.protocol !== "https:") return null;
+      const h = x.hostname.toLowerCase();
+      return (h === "spotify.com" || h.endsWith(".spotify.com") || h === "apple.com" || h.endsWith(".apple.com")) ? x.toString() : null;
+    } catch (e) { return null; }
+  };
   return (
     <section style={{ maxWidth: 1000, margin: "0 auto", padding: "14px 40px 0" }}>
       <div style={dCard({ padding: "22px 24px" })}>
@@ -643,16 +654,21 @@ function MusicBlock({ d }) {
           <div style={{ fontFamily: dSans, fontSize: 14, color: dHexA(LV_INK, 0.55) }}>No public playlists yet.</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
-            {items.map((p) => (
-              <a key={p.id} href={p.url || "#"} target="_blank" rel="noreferrer" style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderRadius: 12, border: `1px solid ${dHexA(LV_INK, 0.1)}`, background: dHexA(LV_INK, 0.03), textDecoration: "none", color: "inherit" }}>
+            {items.map((p) => {
+              const href = safeMusicUrl(p.url);
+              const inner = (<React.Fragment>
                 <span style={{ width: 42, height: 42, borderRadius: 8, background: dHexA(provColor(p.provider), 0.16), border: `1px solid ${dHexA(provColor(p.provider), 0.4)}`, display: "flex", alignItems: "center", justifyContent: "center", color: provColor(p.provider), fontSize: 18, flexShrink: 0 }}>♪</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontFamily: dSerif, fontSize: 16, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name || "Playlist"}</div>
                   <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", color: dHexA(LV_INK, 0.45), marginTop: 3 }}>{provLabel(p.provider)}{p.track_count ? ` · ${p.track_count} tracks` : ""}{p.is_public === false ? " · Private" : ""}</div>
                 </div>
-                <span style={{ color: provColor(p.provider), fontFamily: dMono, fontSize: 11 }}>▶</span>
-              </a>
-            ))}
+                {href && <span style={{ color: provColor(p.provider), fontFamily: dMono, fontSize: 11 }}>▶</span>}
+              </React.Fragment>);
+              const box = { display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderRadius: 12, border: `1px solid ${dHexA(LV_INK, 0.1)}`, background: dHexA(LV_INK, 0.03), textDecoration: "none", color: "inherit" };
+              return href
+                ? <a key={p.id} href={href} target="_blank" rel="noreferrer" style={box}>{inner}</a>
+                : <div key={p.id} style={box}>{inner}</div>;
+            })}
           </div>
         )}
       </div>
