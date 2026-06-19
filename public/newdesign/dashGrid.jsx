@@ -138,6 +138,7 @@ function DashGrid({ role, tab = "today", widgets }) {
   // the observer never re-fires. So fit each item to its card ourselves once the portals
   // render (and on window resize, when cards reflow). resizeToContent reads scrollHeight,
   // which only reports the true content height because item-content is overflow:hidden.
+  const relaidRef = React.useRef(false);
   React.useEffect(() => {
     if (!ready) return undefined;
     const grid = gridRef.current; if (!grid) return undefined;
@@ -147,8 +148,35 @@ function DashGrid({ role, tab = "today", widgets }) {
         if (item) { try { grid.resizeToContent(item); } catch (e) {} }
       });
     };
+    // The fine cellHeight makes new items bunch at the top, so the auto-position grow
+    // cascade resolves their order ambiguously. Re-lay-them-out ONCE in widget order
+    // (full-width stacked, half-width paired) after heights are fit — a deterministic
+    // masonry pack that keeps the intended order with no vertical gaps. Skipped when a
+    // saved layout exists, so a user's custom placement is never reordered.
+    const relayoutInOrder = () => {
+      let y = 0, xCursor = 0, rowH = 0;
+      grid.batchUpdate();
+      widgets.forEach((w) => {
+        const item = itemRef.current[w.key]; if (!item) return;
+        const node = item.gridstackNode || {};
+        const h = node.h || 1;
+        const wW = node.w || dgWidgetW(w.size);
+        if (wW >= 12) {
+          if (xCursor !== 0) { y += rowH; xCursor = 0; rowH = 0; }   // close an open half-row
+          grid.update(item, { x: 0, y, w: wW, h }); y += h;
+        } else if (xCursor === 0) {
+          grid.update(item, { x: 0, y, w: wW, h }); xCursor = 6; rowH = h;
+        } else {
+          grid.update(item, { x: 6, y, w: wW, h }); y += Math.max(rowH, h); xCursor = 0; rowH = 0;
+        }
+      });
+      grid.commit();
+    };
     const t1 = setTimeout(fitAll, 0);
-    const t2 = setTimeout(fitAll, 160);
+    const t2 = setTimeout(() => {
+      fitAll();
+      if (!relaidRef.current && !savedFor()) { relaidRef.current = true; relayoutInOrder(); }
+    }, 200);
     window.addEventListener("resize", fitAll);
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", fitAll); };
   }, [hosts, ready]);
