@@ -106,8 +106,10 @@ function BSRadioProvider({ children }) {
   const [askedPrompt, setAsked]     = useStateBR(_radioPref ? !!_radioPref.asked : false);
   const [showPrompt, setShowPrompt] = useStateBR(false);
   const [paused, setPaused]         = useStateBR(_radioPref ? !_radioPref.on : true);
-  // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW")
+  // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
+  // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
   const [trackIdx, setTrackIdx]     = useStateBR(0);
+  const [nowPlaying, setNowPlaying] = useStateBR(null);
   const [activeChannel, setChannel] = useStateBR('live');
   // Light-effects intensity: 'off' | 'subtle' | 'immersive' | 'hologram'
   const [fxMode, setFxMode]         = useStateBR('off');
@@ -122,14 +124,14 @@ function BSRadioProvider({ children }) {
     }
   }, [askedPrompt]);
 
-  // "Advance" the live station every 18s while radio is on (for demo motion)
+  // Poll the live now-playing endpoint while radio is on; stop when turned off.
+  // Replaces the old 18s demo carousel advance.
   useEffectBR(() => {
-    if (!radioOn || paused) return;
-    const id = setInterval(() => {
-      setTrackIdx(i => (i + 1) % BS_LIVE_STATION.tracks.length);
-    }, 18000);
-    return () => clearInterval(id);
-  }, [radioOn, paused]);
+    if (!radioOn) { window.ShapeRadioLive?.stopPolling?.(); return; }
+    window.ShapeRadioLive?.play?.();
+    window.ShapeRadioLive?.startPolling?.((np) => setNowPlaying(np));
+    return () => window.ShapeRadioLive?.stopPolling?.();
+  }, [radioOn]);
 
   function persistRadioPref(asked, on) {
     try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
@@ -201,7 +203,7 @@ function BSRadioProvider({ children }) {
 
   const value = {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused,
-    trackIdx, setTrackIdx, activeChannel, setChannel,
+    trackIdx, setTrackIdx, nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, reopenPrompt, requestRadioPrompt,
     fxMode, setFxMode,
     trackFeedback, setTrackFeedback, addTrackComment,
@@ -493,8 +495,8 @@ function BSNowPlaying({ onOpen }) {
   const r = useBSRadio();
   if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onPrompt={r.reopenPrompt} onOpen={onOpen} />;
 
-  const tr = r.LIVE.tracks[r.trackIdx];
-  const homeFeedback = r.trackFeedback[makeRadioTrackKey(tr)] || { vote: null, comments: [] };
+  const tr = r.nowPlaying || { title: 'Shape Radio', artist: 'Live' };
+  const homeFeedback = r.trackFeedback[makeRadioTrackKey({ a: tr.title, b: tr.artist })] || { vote: null, comments: [] };
 
   const _npClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
@@ -542,12 +544,12 @@ function BSNowPlaying({ onOpen }) {
               fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 900, letterSpacing: '-0.025em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.a}</div>
+            }}>{tr.title}</div>
             <div style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK70, marginTop: 2, fontWeight: 900,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.b} · {tr.bpm} BPM</div>
+            }}>{tr.artist}</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
@@ -560,7 +562,7 @@ function BSNowPlaying({ onOpen }) {
                 <button
                   key={item.key}
                   aria-label={item.key === 'like' ? 'Like song' : 'Dislike song'}
-                  onClick={(e) => { e.stopPropagation(); r.setTrackFeedback(tr, item.key); }}
+                  onClick={(e) => { e.stopPropagation(); r.setTrackFeedback({ a: tr.title, b: tr.artist }, item.key); }}
                   style={{
                     width: 24,
                     height: 26,
@@ -606,7 +608,7 @@ function BSNowPlaying({ onOpen }) {
 function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
   const t = useBS();
   const r = useBSRadio();
-  const tr = r.LIVE.tracks[r.trackIdx];
+  const tr = r.nowPlaying || { title: 'Shape Radio', artist: 'Live' };
 
   return (
     <div onClick={onOpen} style={{
@@ -643,12 +645,12 @@ function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
               fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em',
               color: t.INK, lineHeight: 1.1,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.a}</div>
+            }}>{tr.title}</div>
             <div style={{
               fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
               color: t.INK50, marginTop: 2, fontWeight: 600,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>{tr.b} · {tr.bpm} BPM</div>
+            }}>{tr.artist}</div>
           </div>
 
           {/* Tune in — replaces the pause/play button */}
@@ -672,13 +674,14 @@ function BSRadioScreen({ onBack }) {
   const r = useBSRadio();
   const onLive = true;
   const playlist = null;
-  const tr = r.LIVE.tracks[r.trackIdx];
+  const tr = r.nowPlaying || { title: 'Shape Radio', artist: 'Live' };
+  const trackBpmFallback = r.LIVE.bpm;
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [demoHr, setDemoHr] = useStateBR(114);
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
   const [showSets, setShowSets] = useStateBR(false);
-  const trackBpm = tr.bpm;
+  const trackBpm = trackBpmFallback;
   const youHr = liveHr != null ? liveHr : demoHr;
   const signedDelta = youHr - trackBpm;
   const syncDelta = Math.abs(signedDelta);
@@ -830,10 +833,10 @@ function BSRadioScreen({ onBack }) {
               Now Playing
             </div>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>
-              {onLive ? tr.a : playlist.name}
+              {onLive ? tr.title : playlist.name}
             </div>
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
-              {onLive ? `${tr.b} · ${tr.bpm} BPM · ${tr.len}` : `From ${playlist.by} · ${playlist.bpm} BPM`}
+              {onLive ? tr.artist : `From ${playlist.by} · ${playlist.bpm} BPM`}
             </div>
           </div>
 

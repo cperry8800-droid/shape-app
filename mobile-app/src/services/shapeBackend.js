@@ -4867,3 +4867,37 @@ async function postProConsole(role, body) {
 }
 
 window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
+
+// ===== Shape Radio (live licensed stream) =====
+(function () {
+  let el = null, pollId = null;
+  function api(path) {
+    // Use the file's existing apiBaseUrl resolution: VITE_API_BASE_URL wins for
+    // the native app (which has no same origin); the /m/ web build is served from
+    // the same origin, so apiBaseUrl is '' and same-origin requests just work.
+    return (apiBaseUrl || '') + path;
+  }
+  function audio() {
+    if (!el) { el = new Audio(); el.preload = 'none'; }
+    return el;
+  }
+  async function station() {
+    try { const r = await fetch(api('/api/radio/station'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+  async function nowPlaying() {
+    try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+  async function play() {
+    const cfg = await station();
+    if (!cfg || !cfg.configured) return false;
+    const a = audio();
+    if (a.src !== cfg.streamUrl) a.src = cfg.streamUrl;
+    try { await a.play(); return true; } catch { return false; }
+  }
+  function pause() { if (el) el.pause(); }
+  function startPolling(cb) { stopPolling(); const tick = async () => cb(await nowPlaying()); tick(); pollId = setInterval(tick, 15000); }
+  function stopPolling() { if (pollId) { clearInterval(pollId); pollId = null; } }
+  window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling };
+})();
