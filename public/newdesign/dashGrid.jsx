@@ -157,20 +157,27 @@ function DashGrid({ role, tab = "today", widgets }) {
     // masonry pack that keeps the intended order with no vertical gaps. Skipped when a
     // saved layout exists, so a user's custom placement is never reordered.
     const relayoutInOrder = () => {
-      let y = 0, xCursor = 0, rowH = 0;
+      const ordered = widgets.map((w) => itemRef.current[w.key]).filter(Boolean);
+      // Pass 1: spread the items out at x=0 in widget order with huge spacing, so the
+      // pack in pass 2 never hits a transient collision (which is what scrambled the order
+      // — moving an item onto a row another item hasn't vacated yet bumps it away).
       grid.batchUpdate();
-      widgets.forEach((w) => {
-        const item = itemRef.current[w.key]; if (!item) return;
+      ordered.forEach((item, i) => { grid.update(item, { x: 0, y: i * 500 }); });
+      grid.commit();
+      // Pass 2: pack — full-width stacked, half-width paired into rows.
+      grid.batchUpdate();
+      let y = 0, xCursor = 0, rowH = 0;
+      ordered.forEach((item) => {
         const node = item.gridstackNode || {};
         const h = node.h || 1;
-        const wW = node.w || dgWidgetW(w.size);
+        const wW = node.w || 6;
         if (wW >= 12) {
           if (xCursor !== 0) { y += rowH; xCursor = 0; rowH = 0; }   // close an open half-row
-          grid.update(item, { x: 0, y, w: wW, h }); y += h;
+          grid.update(item, { x: 0, y, h }); y += h;
         } else if (xCursor === 0) {
-          grid.update(item, { x: 0, y, w: wW, h }); xCursor = 6; rowH = h;
+          grid.update(item, { x: 0, y, h }); xCursor = 6; rowH = h;
         } else {
-          grid.update(item, { x: 6, y, w: wW, h }); y += Math.max(rowH, h); xCursor = 0; rowH = 0;
+          grid.update(item, { x: 6, y, h }); y += Math.max(rowH, h); xCursor = 0; rowH = 0;
         }
       });
       grid.commit();
