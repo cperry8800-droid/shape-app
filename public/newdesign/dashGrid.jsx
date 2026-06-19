@@ -180,7 +180,9 @@ function DashGrid({ role, tab = "today", widgets }) {
         const content = item.querySelector(".grid-stack-item-content");
         const card = content && content.firstElementChild;
         const cardH = card ? card.getBoundingClientRect().height : 0;
-        const h = Math.max(1, Math.ceil((cardH + 2) / cell));   // ceil → box always clears the card
+        // item-content is inset 8px top+bottom (16px) inside the item, so the item must be
+        // cardH + 16 tall for the card to fit without clipping; +2 keeps a hair of slop.
+        const h = Math.max(1, Math.ceil((cardH + 18) / cell));
         let wW = dgWidgetW(w.size);
         if (wW > cols) wW = cols;                                // narrow: clamp to available columns
         if (wW >= cols) {                                        // full-width (or single-column) → stack
