@@ -930,7 +930,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Profile "Log activity" composer (Substack-style) on BOTH member (Terrain) + coach (Signal) profiles: publish Note / Photo / Video (upload via coach-media OR paste a watch link) / Workout (type + stat fields) / Link (website/article card). Rich payload rides in community_posts.metrics (kind/video_url/link/workoutStats) — no migration; shared BSActivityBody renders every type. Profile feed loads the author\'s real posts', status: 'done' },
         { label: 'Post visibility is 3-state on the composer (all profile types): Public (profile + feed) · Profile (visible to everyone on the profile, kept OUT of the feed) · Just me (private). Feed reads exclude profile/private (mobile listCommunityPosts + website /api/community/feed). Migration 2026-06-09-community-profile-visibility.sql (privacy CHECK + RLS so profile reads like public)', status: 'done' },
         { label: 'Profile reads on every paper: avatar gem inner + initials, Shape Score card, goal card, Me KPIs no longer hardcode cream/black — all follow the paper theme (light papers fixed)', status: 'done' },
-        { label: 'Wire remaining illustrative sub-data (some sigil-ring inputs, certs, field-notes) to fully real rollups', status: 'pending' },
+        { label: 'Illustrative profile sub-data, resolved (2026-06-19): a verified coach\'s Certifications now render their REAL submitted cert types via get_coach_certs (2026-06-19-coach-certs-public.sql, paths withheld, verified-only). The Signal sigil rings stay illustrative by design (practice focus, not a workout/PR metric); field-notes already load the author\'s real community posts', status: 'done' },
       ],
     },
     {

@@ -140,6 +140,20 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — Verified coaches show their REAL certs on the profile (closes illustrative sub-data)
+- The living coach profile's **Certifications** list now renders a verified coach's
+  **actual submitted cert types** (from the credential-verification `cert_files`) instead
+  of demo certs. ⚠ **OWNER — run:**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-certs-public.sql`
+  — SECURITY DEFINER `get_coach_certs(p_user_id)` exposes ONLY cert type + number (never
+  the file paths), and ONLY for coaches whose credentials an admin approved + who carry the
+  public verified flag. `livingProfilePage.jsx` fetches it for verified coaches → `person.certs`
+  (`?v=20260619b`). Self-reported certs stay the profile default until verification (per Terms).
+- **Assessed the rest of the "illustrative sub-data" item:** the Signal **sigil competency
+  rings** are intentionally illustrative (practice focus, not a workout/PR metric — no real
+  source by design) and the **field-notes** feed already loads the author's real community
+  posts. So certs were the remaining wireable piece — now done.
+
 ### 2026-06-19 — Website profile Music tab (parity with the mobile Music tab)
 - The desktop living profile (member Terrain + coach Signal, `livingDesktop.jsx`) gains a
   **Music** tab — the profile owner's playlist library, fed by the existing

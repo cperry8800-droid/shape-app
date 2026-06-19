@@ -66,12 +66,21 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       // Coach credential-verified badge — read the public `verified` flag the admin
       // review queue mirrors onto the marketplace coach row.
       let verified = false;
+      let coachCerts = [];
       if (row && (row.role === "trainer" || row.role === "nutritionist")) {
         const vtable = row.role === "nutritionist" ? "nutritionists" : "trainers";
         try { const vr = await c.from(vtable).select("verified").eq("owner_id", uid).maybeSingle(); verified = !!(vr && vr.data && vr.data.verified); } catch (e) {}
+        // A verified coach's REAL submitted cert types (paths withheld; verified-only).
+        if (verified) {
+          try {
+            const cr = await c.rpc("get_coach_certs", { p_user_id: uid });
+            const rows = (cr && !cr.error && Array.isArray(cr.data)) ? cr.data : [];
+            coachCerts = rows.map((x) => ({ abbr: x.cert_type, body: x.cert_type, year: x.cert_number ? ("ID " + x.cert_number) : "Shape-verified", verified: true }));
+          } catch (e) {}
+        }
       }
       if (!on) return;
-      setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid, verified });
+      setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid, verified, coachCerts });
       c.rpc("get_follow_stats", { p_user_id: uid }).then((r) => { if (!on || !r || r.error) return; applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
       // Posts stat — visible activity-post count (RLS-scoped to the viewer).
@@ -249,6 +258,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     name, first, initials, tier: "__live", score: points,
     roleLabel: coach ? (role === "nutritionist" ? "Nutritionist" : "Trainer") : "Member",
     role, verified: !!(coach && st.verified),
+    certs: (coach && st.coachCerts && st.coachCerts.length) ? st.coachCerts : base.certs,
     handle: row.handle || ("@" + first.toLowerCase().replace(/[^a-z0-9]/g, "")),
     pronouns: (!isPrivate && row.pronouns) || base.pronouns,
     goal: (!isPrivate && row.goal) || base.goal,
