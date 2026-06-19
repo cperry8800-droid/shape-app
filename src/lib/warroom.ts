@@ -791,7 +791,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Music tab on both profiles: own library (add / public-private toggle / ✉ send / ↗ share / remove) + others\' public playlists (▶ open / ＋ save-to-library)', status: 'done' },
         { label: 'Add flow imports straight from the connected Spotify library (reuses /api/integrations/spotify/playlists); paste-a-link fallback covers Apple Music + unconnected', status: 'done' },
         { label: 'Migration applied on Supabase: 2026-06-09-member-playlists.sql (member_playlists + get_member_playlists)', status: 'manual' },
-        { label: 'Website profile Music-tab parity', status: 'pending' },
+        { label: 'Website profile Music tab — the desktop living profile (member + coach) renders the owner\'s playlist library via get_member_playlists (own → all, others → public). Display on web; owner adds/manages from the app (web add is a follow-up)', status: 'done' },
       ],
     },
     {
@@ -896,7 +896,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach media: trainers/nutritionists upload demo PHOTOS & VIDEOS for each plan/program/workout in the draft editor (BSCoachDraftEditor) → public coach-media bucket (own <uid>/ folder, 200MB/img+video) → detail.media. Migration 2026-06-09-coach-media.sql + 2026-06-09-coach-sale-plans-detail.sql (sale-plan RPCs return detail). Clients preview the media strip on the coach profile sale-plan rows (mobile + website)', status: 'done' },
         { label: 'Real coach accounts resolve on BOTH surfaces: app fetches live trainers/nutritionists + each real saved photo (get_public_profile.avatar); website marketplace now does the same — merges live coaches ahead of the demo directory (deduped), real cards link to the live profile (?u=<owner>), demo links pass &avatar= so derived profiles show the card photo. marketplace.jsx ?v=5', status: 'done' },
         { label: 'Website signed-out marketing: real face photos on the spotlight + grid; coach-customizable COVER image band behind the avatar (darkened/tinted; demo covers + real profile_custom.cover.image); facet gem avatars; filter dropdowns', status: 'done' },
-        { label: 'Sweep now-dead marketplace constants + BSCoachDetailPublic/publicProfile.jsx (superseded by the living profile as the coach destination)', status: 'pending' },
+        { label: 'Dead-code sweep re-audited (2026-06-19): nothing safe to remove — BSCoachDetailPublic is still the mobile marketplace coach-detail page, the BSM_MARKETPLACE_* constants are each referenced, ListingRow was already removed, and publicProfile.jsx is actively loaded by TrainerPublic/NutritionistPublic.html + coachDirectory.js. No action.', status: 'done' },
         { label: 'Coach credential verification (web) — coach uploads COI + certs + submits (coach dashboard profile card); admin verifies at /dashboard/credentials; ✓ Verified badge on marketplace + living profile; weekly expiry-reminder cron. Owner step: run supabase-migrations/2026-06-19-coach-credential-verification.sql (private coach-credentials bucket + review columns + public verified flag). Mobile badge is a follow-up', status: 'done' },
       ],
     },

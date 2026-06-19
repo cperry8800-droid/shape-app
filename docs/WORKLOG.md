@@ -140,6 +140,15 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — Website profile Music tab (parity with the mobile Music tab)
+- The desktop living profile (member Terrain + coach Signal, `livingDesktop.jsx`) gains a
+  **Music** tab — the profile owner's playlist library, fed by the existing
+  `get_member_playlists(p_user_id)` RPC (own → all incl. private with a lock label; others →
+  public only). Cards are provider-tinted (Spotify green / Apple red) with a ▶ Open link +
+  track count. Closes the "Website profile Music-tab parity" follow-up from the 2026-06-09
+  mobile Music tab. Display on web; the owner adds/manages from the app (web add is a
+  follow-up). `livingDesktop.jsx?v=30`; parse-check clean.
+
 ### 2026-06-19 — User-set reminders: members schedule their own nudges (push spine)
 - **Members can now set their own reminders** to DO & LOG things — weigh-in, weekly
   check-in, water, progress photo, or a custom label — each with a time + days of week.
