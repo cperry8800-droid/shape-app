@@ -105,7 +105,10 @@ function DashGrid({ role, tab = "today", widgets }) {
         column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
         cellHeight: 2, margin: 8, float: true,
         handle: ".dash-drag-handle", resizable: { handles: "se" }, alwaysShowResizeHandle: true,
-        sizeToContent: true, animate: true,
+        // sizeToContent stays OFF: its auto-cascade overrode our explicit ordered layout,
+        // and its observer can't see React-portaled content anyway. We fit heights via
+        // manual grid.resizeToContent() calls (see the fit effect) instead.
+        sizeToContent: false, animate: true,
       }, elRef.current);
       gridRef.current = grid;
       const layout = dgResolveGridLayout(savedFor(), widgets);
