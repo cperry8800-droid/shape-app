@@ -4897,7 +4897,7 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     try { await a.play(); return true; } catch { return false; }
   }
   function pause() { if (el) el.pause(); }
-  function startPolling(cb) { stopPolling(); const tick = async () => cb(await nowPlaying()); tick(); pollId = setInterval(tick, 15000); }
+  function startPolling(cb) { stopPolling(); const tick = async () => { const np = await nowPlaying(); if (np) cb(np); }; tick(); pollId = setInterval(tick, 15000); }
   function stopPolling() { if (pollId) { clearInterval(pollId); pollId = null; } }
   window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling };
 })();

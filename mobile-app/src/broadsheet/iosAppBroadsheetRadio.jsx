@@ -124,14 +124,25 @@ function BSRadioProvider({ children }) {
     }
   }, [askedPrompt]);
 
-  // Poll the live now-playing endpoint while radio is on; stop when turned off.
-  // Replaces the old 18s demo carousel advance.
+  // Drive the live stream and now-playing poll.
+  // - radioOn=false  → stop audio + stop poll.
+  // - radioOn=true, paused=true  → pause audio; keep poll running (harmless).
+  // - radioOn=true, paused=false → play audio + ensure poll is running.
   useEffectBR(() => {
-    if (!radioOn) { window.ShapeRadioLive?.stopPolling?.(); return; }
-    window.ShapeRadioLive?.play?.();
+    if (!radioOn) {
+      window.ShapeRadioLive?.pause?.();
+      window.ShapeRadioLive?.stopPolling?.();
+      return () => {};
+    }
+    // Start poll once (covers both paused and playing states so now-playing stays fresh).
     window.ShapeRadioLive?.startPolling?.((np) => setNowPlaying(np));
+    if (paused) {
+      window.ShapeRadioLive?.pause?.();
+    } else {
+      window.ShapeRadioLive?.play?.();
+    }
     return () => window.ShapeRadioLive?.stopPolling?.();
-  }, [radioOn]);
+  }, [radioOn, paused]);
 
   function persistRadioPref(asked, on) {
     try { window.localStorage && window.localStorage.setItem('shape.radio.pref', JSON.stringify({ asked: !!asked, on: !!on })); } catch {}
