@@ -266,7 +266,7 @@ function ClientScorePage() {
       </Card>
     ) },
 
-    { key: "breakdown", title: "Score breakdown", size: "half", render: () => (
+    { key: "breakdown", title: "Score breakdown", size: "full", render: () => (
       <Card>
         <SectionTitle right={`TOTAL ${total.toLocaleString()}`}>Score breakdown</SectionTitle>
         {breakdown.map(([l, v, sub], i) => {
@@ -300,7 +300,7 @@ function ClientScorePage() {
       </Card>
     ) },
 
-    { key: "path", title: "Shortest path", size: "full", render: () => (
+    { key: "path", title: "Shortest path", size: "half", render: () => (
       <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH TO {nextTier ? nextTier[0].toUpperCase() : "—"}</div>
         <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>{nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.` : "You're at the top tier. Keep the streak alive."}</div>
