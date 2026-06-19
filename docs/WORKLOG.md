@@ -140,6 +140,49 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — Coach credential verification: COI + certs → admin review → ✓ Verified badge
+- **Makes "vetted coaches" literally true.** A coach uploads proof of certification +
+  a Certificate of Insurance (COI), submits for review; an admin verifies in a queue;
+  on approval a **✓ Verified** badge shows on their marketplace card + living profile,
+  and a weekly cron nudges them before insurance/licenses expire. The badge concept was
+  already designed into the app (Terms clause + hero render slot) — this builds the
+  pipeline behind it.
+- ⚠ **OWNER — run the migration:**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-credential-verification.sql`
+  — extends `provider_credentials` (NC1) with a document + review workflow
+  (`insurance_coi_path`, `cert_files jsonb`, `review_status`, `submitted_at`,
+  `reviewed_by/at`, `review_notes`); a PRIVATE **`coach-credentials`** bucket (PDF/DOC/
+  image, 10 MB, service-role upload + signed-URL read); a PUBLIC **`verified` + `verified_at`**
+  flag on `trainers`/`nutritionists` (the marketplace rows already public-read, so the
+  badge renders without exposing the private credential row); and a
+  `coach_credential_expiry_reminders` dedupe ledger. Idempotent. **All code no-ops until
+  applied.**
+- **Backend:** `POST /api/coach/credentials/document` (multipart COI/cert upload → bucket,
+  path recorded on the owner's credential row); extended `POST /api/coach/credentials`
+  with an `action:'submit'` branch (→ `review_status:'pending'`) and `GET` now returns
+  the review + verified state. **Admin queue** `/dashboard/credentials` (+ `actions.ts`,
+  mirrors the applications queue, `requireAdminUser` + service-role): pending/approved/
+  rejected/changes tabs, signed COI + cert links, license expiry flags; **Approve →**
+  sets `verified=true` on the coach's marketplace row(s) (a coach can hold both) + notifies
+  them; Reject revokes; Request-changes notifies with the note. **Weekly cron**
+  `/api/cron/credential-expiry` (Mon 08:00 UTC, `CRON_SECRET`): scans insurance + license
+  expirations inside 60 days, writes ONE never-shaming reminder per coach per credential
+  per month (deduped), riding the existing notifications→push spine.
+- **Verified flag is intentionally SEPARATE from application approval** (approval makes a
+  coach live; credential review grants the badge) — `publishProviderRow`'s update doesn't
+  touch `verified`/`verified_at`, so re-publishing preserves it.
+- **Coach-facing UI:** a new **Credentials & verification** card on the coach dashboard
+  profile (`dashProfileExtras.jsx`, rendered below the living profile on Trainer/
+  Nutritionist Profile) — status chip, COI upload, add-certification (type/number/file),
+  and Submit-for-review (gated on a COI being on file). **Badge render:** marketplace coach
+  cards (`marketplace.jsx`, reads `row.verified`) + the living coach-profile hero
+  (`livingProfilePage.jsx` fetches the coach's `verified` flag → `person.verified`; the
+  `livingDesktop.jsx` hero already had the `d.verified && <SpVerifiedDot/> Verified` slot).
+- Verified per change: `tsc --noEmit` clean · all 4 edited JSX parse-check clean · `?v=`
+  bumped (`dashProfileExtras 20260619`, `marketplace 6`, `livingProfilePage 20260619`,
+  `livingDesktop 29`). *Follow-up:* mobile marketplace/profile verified badge (web is the
+  primary discovery surface); a richer apply-time COI capture.
+
 ### 2026-06-19 — Draggable + resizable dashboard widgets (GridStack) across all card tabs, all profiles
 - **The dashboard is now a movable, resizable grid.** Every card-style dashboard tab
   renders its cards as GridStack widgets the user can **drag to reorder** (via a ⠿

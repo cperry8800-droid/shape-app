@@ -63,7 +63,15 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       let row = null; try { const res = await c.rpc("get_public_profile", { p_user_id: uid }); row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data); } catch (e) {}
       if (!on) return;
       const isSelf = !!(me && me.id === uid);
-      setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid });
+      // Coach credential-verified badge — read the public `verified` flag the admin
+      // review queue mirrors onto the marketplace coach row.
+      let verified = false;
+      if (row && (row.role === "trainer" || row.role === "nutritionist")) {
+        const vtable = row.role === "nutritionist" ? "nutritionists" : "trainers";
+        try { const vr = await c.from(vtable).select("verified").eq("owner_id", uid).maybeSingle(); verified = !!(vr && vr.data && vr.data.verified); } catch (e) {}
+      }
+      if (!on) return;
+      setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid, verified });
       c.rpc("get_follow_stats", { p_user_id: uid }).then((r) => { if (!on || !r || r.error) return; applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
       // Posts stat — visible activity-post count (RLS-scoped to the viewer).
@@ -240,7 +248,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     uid: st.uid || null,
     name, first, initials, tier: "__live", score: points,
     roleLabel: coach ? (role === "nutritionist" ? "Nutritionist" : "Trainer") : "Member",
-    role,
+    role, verified: !!(coach && st.verified),
     handle: row.handle || ("@" + first.toLowerCase().replace(/[^a-z0-9]/g, "")),
     pronouns: (!isPrivate && row.pronouns) || base.pronouns,
     goal: (!isPrivate && row.goal) || base.goal,
