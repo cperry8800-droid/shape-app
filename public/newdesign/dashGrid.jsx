@@ -61,6 +61,7 @@ function DashGrid({ role, tab = "today", widgets }) {
   const gridRef = React.useRef(null);
   const docRef = React.useRef({});
   const itemRef = React.useRef({});   // key -> grid-item DOM element (for removeWidget)
+  const hadSavedRef = React.useRef(false);  // was there a saved layout at boot (before change events)?
   const [hosts, setHosts] = React.useState({}); // key -> .grid-stack-item-content (portal target)
   const [hidden, setHidden] = React.useState([]);
   const [ready, setReady] = React.useState(false);
@@ -111,7 +112,9 @@ function DashGrid({ role, tab = "today", widgets }) {
         sizeToContent: false, animate: true,
       }, elRef.current);
       gridRef.current = grid;
-      const layout = dgResolveGridLayout(savedFor(), widgets);
+      const savedAtBoot = savedFor();
+      hadSavedRef.current = !!savedAtBoot;   // capture BEFORE change events repopulate docRef
+      const layout = dgResolveGridLayout(savedAtBoot, widgets);
       const nextHosts = {};
       grid.batchUpdate();
       for (const spec of layout.visible) { const host = addOne(spec); if (host) nextHosts[spec.key] = host; }
@@ -185,7 +188,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     const t1 = setTimeout(fitAll, 0);
     const t2 = setTimeout(() => {
       fitAll();
-      if (!relaidRef.current && !savedFor()) { relaidRef.current = true; relayoutInOrder(); }
+      if (!relaidRef.current && !hadSavedRef.current) { relaidRef.current = true; relayoutInOrder(); }
     }, 200);
     window.addEventListener("resize", fitAll);
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", fitAll); };
