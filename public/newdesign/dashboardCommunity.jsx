@@ -784,7 +784,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         <button onClick={() => setComposerOpen(true)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>New post</button>
       </>}
     >
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
+      <div data-tour="hero-community" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {(() => {
             const filters = [

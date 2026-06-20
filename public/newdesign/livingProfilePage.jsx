@@ -221,7 +221,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
             <span>Preview · demo profile — an example of a live account</span>
             <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "5px 13px", textDecoration: "none" }}>Sign in →</a>
           </div>
-          <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
+          <div data-tour="hero-profile"><DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} /></div>
         </React.Fragment>
       );
     }
@@ -309,7 +309,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
 
   return wrapShell(
     <React.Fragment>
+      <div data-tour="hero-profile">
       <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
+      </div>
       {sheet && (
         <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", maxHeight: "76vh", overflowY: "auto", background: "#1b1714", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 22, fontFamily: "'Space Grotesk',sans-serif" }}>

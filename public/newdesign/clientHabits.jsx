@@ -279,6 +279,7 @@ function ClientHabitsPage() {
     ) },
 
     { key: "scorecard", title: "Shape Score · from habits", size: "half", render: () => (
+      <div data-tour="hero-habits">
       <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHAPE SCORE · FROM HABITS</div>
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, color: TEAL_BRIGHT }}>+{weekPoints}</div>
@@ -289,6 +290,7 @@ function ClientHabitsPage() {
           SEE FULL BREAKDOWN <span>→</span>
         </a>
       </Card>
+      </div>
     ) },
 
     { key: "trend", title: "Two-week trend", size: "half", render: () => (

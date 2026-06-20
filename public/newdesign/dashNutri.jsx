@@ -252,7 +252,7 @@ function ClientNutritionPage() {
 
         // Today (or the picked day) — meals + swaps + ledger
         { key: "meals", title: "Today's meals", size: "full", render: () => (
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_TEAL, paddingLeft: 24 }}>
+          <div data-tour="hero-nutrition" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_TEAL, paddingLeft: 24 }}>
             <DashMealLedgerCard
               meals={meals} targets={targets} ledger={ledger} logged={{}}
               onLog={() => { window.location.href = "ClientDashboard.html"; }}
@@ -266,7 +266,7 @@ function ClientNutritionPage() {
 
         // Grocery — auto-built from the plan's ingredients
         { key: "grocery", title: "Grocery", size: "half", render: () => (
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#8a5cf6", paddingLeft: 24 }}>
+          <div data-tour="hero-grocery" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#8a5cf6", paddingLeft: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
               <span className="dash-eyebrow" style={{ color: "#8a5cf6" }}>Grocery · auto-built from your plan</span>
               <a href="ClientGrocery.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Full list →</a>

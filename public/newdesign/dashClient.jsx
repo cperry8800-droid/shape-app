@@ -404,7 +404,7 @@ function ClientDashboardPage() {
           : clientPayoutCard} />
         <main style={{ padding: "0 44px 80px", minWidth: 0 }}>
           {/* Greeting — real date, not a hardcoded one */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
+          <div data-tour="hero-today" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
             <div>
               <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_INK50 }}>{dclRealDate()}</div>
               <h1 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.025em", fontWeight: 400, margin: "8px 0 0", lineHeight: 1.02 }}>Welcome back, {firstName}.</h1>

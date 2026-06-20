@@ -223,6 +223,7 @@ function ClientScorePage() {
     { key: "commitment", title: "This week's commitment", size: "full", render: () => <ClientCommitmentCard /> },
 
     { key: "tiers", title: "Reward tiers", size: "full", render: () => (
+      <div data-tour="hero-score">
       <Card>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
           <div>
@@ -264,6 +265,7 @@ function ClientScorePage() {
           <div style={{ height: "100%", width: `${progressPct}%`, background: TEAL, borderRadius: 999 }} />
         </div>
       </Card>
+      </div>
     ) },
 
     { key: "breakdown", title: "Score breakdown", size: "full", render: () => (

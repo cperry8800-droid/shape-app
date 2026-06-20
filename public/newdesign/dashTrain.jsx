@@ -352,7 +352,7 @@ function ClientWorkoutsPage() {
   // the program by week is one cohesive full widget; consistency + session history pair as halves.
   const widgets = [
     tonight ? { key: "tonight", title: "Tonight's session", size: "full", render: () => (
-      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
+      <div data-tour="hero-workouts" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
         <DashWorkoutCard workout={{ ...dtrToCard(tonight.day.workout, coach), time: tonight.when === "Tonight" ? dtrToCard(tonight.day.workout, coach).time : tonight.when }} interactive={false} maxRows={99} />
       </div>
     ) } : null,
