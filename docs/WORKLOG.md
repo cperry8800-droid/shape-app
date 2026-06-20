@@ -144,6 +144,27 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-20 — Interactive spotlight tour (mobile, Phase A): engine + mobile rework
+- The mobile onboarding tour is now an **interactive guided spotlight walkthrough** — the
+  screen dims, a cutout spotlights the real UI element, and a coachmark with Back/Next/Skip +
+  progress dots walks the user through the app.
+- **Engine:** `public/newdesign/spotlightGeom.mjs` (pure geometry — `cutoutRect`, `coachmarkPos`,
+  `stepBounds`; unit-tested in `tests/spotlight-geom.test.mjs`) +
+  `public/newdesign/spotlightTour.js` (`startTour(steps, opts)` → dim overlay + spotlight cutout
+  + coachmark + controls; configurable `root` container; degrades to a centered card when an
+  anchor is missing). Registered as `window.SpotlightTour`. No new dependency.
+- **Client tour** (`BSOnboardingTour` in `iosAppBroadsheetClient.jsx`): replaces the old
+  float-a-card implementation. Steps: Welcome → Home → Train → Eat → Grocery → Habits → Chat
+  → Me → **Shape Radio finale** (opens `/m/Radio.html` via `onCta`). Adds grocery + habits
+  steps that the original tour lacked. `data-tour` hooks on the shared tab bar (`BSTabBar`) +
+  one hero element per screen anchor the spotlight to real UI.
+- **Coach tour** (`BSProOnboardingTour` in `iosAppBroadsheetPros.jsx`): same engine, role-aware
+  accent (trainer teal / nutritionist gold). Steps: Welcome → Today → Clients → Plans → Chat → Me.
+  `data-tour` hooks on the coach tab bars + one hero per screen.
+- Reuses the existing trigger + persistence: new-account auto-show (<24h), `shape:startTour`
+  replay, `user_goals('client_onboarding'|'coach_onboarding')`, Me → App tour entry.
+- **Phase B** (website dashboard tours) is a separate later plan.
+
 ### 2026-06-20 — Landing-page coach cards show real face photos (not initials)
 - The `index.html` coach grid (first 8 trainers, rendered from `coachDirectory.js`) showed
   **initials gradient circles** instead of faces. Added a `photo: face(unsplashId)` to each
