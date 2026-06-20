@@ -42,8 +42,9 @@ exists today). One shared vanilla engine drives both.
 For each step it: runs `step.navigate()` (switch tab/route), waits for `step.anchor()` to
 resolve to an element, draws a **dim overlay with a cutout** around that element's rect, and
 positions a **coachmark** (eyebrow/title/body + Back / Next / Skip + progress dots) beside
-it. It repositions on resize, handles a missing anchor (skip → fallback to the nav
-item), tears down cleanly on finish/skip, and respects `prefers-reduced-motion`. Pure DOM, so
+it. It repositions on resize, handles a missing anchor (falls back to the step's nav
+item, then to a centered cutout-less card — the step still shows, it isn't skipped),
+tears down cleanly on finish/skip, and respects `prefers-reduced-motion`. Pure DOM, so
 it runs identically in the mobile WebView and the website.
 
 **Per-surface adapters** supply two things — a **step list** and a **navigate** function:
