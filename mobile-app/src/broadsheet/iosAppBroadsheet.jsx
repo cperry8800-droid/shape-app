@@ -1072,7 +1072,7 @@ function BSTabBar({ tabs, active, onChange }) {
       {tabs.map((tab, i) => {
         const on = tab.key === active;
         return (
-          <button key={tab.key} onClick={() => onChange(tab.key)} style={{
+          <button key={tab.key} data-tour={'tab-' + tab.key} onClick={() => onChange(tab.key)} style={{
             border: 0, background: 'transparent',
             cursor: 'pointer', padding: '3px 0',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
