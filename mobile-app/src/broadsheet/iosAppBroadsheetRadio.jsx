@@ -744,21 +744,24 @@ function BSRadioScreen({ onBack }) {
 
   // ── Nora watch (preview) ─────────────────────────────────────────────────────
   const [noraOn, setNoraOn] = useStateBR(false);
+  const [noraFailed, setNoraFailed] = useStateBR(false);
   const noraCanvasRef = useRefBR(null);
   const noraStageRef = useRefBR(null);
   const toggleNora = () => setNoraOn(v => !v);
   useEffectBR(() => {
     if (!noraOn) return;
+    setNoraFailed(false);
     let disposed = false;
     (async () => {
       try {
+        if (!window.WebGLRenderingContext) { setNoraFailed(true); return; }
         const an = window.ShapeRadioLive?.analyser?.();
         const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: '/m/nora/placeholder.vrm' });
         await st.load();
         if (disposed) { st.dispose(); return; }
         st.start();
         noraStageRef.current = st;
-      } catch (e) { console.warn('[nora] stage failed', e); }
+      } catch (e) { console.warn('[nora] stage failed', e); setNoraFailed(true); }
     })();
     return () => { disposed = true; if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; } };
   }, [noraOn]);
@@ -1012,6 +1015,9 @@ function BSRadioScreen({ onBack }) {
           {noraOn && (
             <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', maxHeight: '56vh', borderRadius: 14, overflow: 'hidden', background: '#0b0d10', marginBottom: 12 }}>
               <canvas ref={noraCanvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+              {noraFailed && (
+                <img src="/m/nora-avatar.png" alt="Nora" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              )}
               <div aria-hidden style={{ position: 'absolute', top: 10, left: 10, fontFamily: t.MONO, fontWeight: 600, fontSize: 11, letterSpacing: '0.12em', color: '#2ee0c4' }}>
                 ● LIVE · NORA <span style={{ opacity: 0.6 }}>(preview)</span>
               </div>

@@ -793,38 +793,45 @@
     const noraToggle   = document.getElementById('noraToggle');
     const noraFallback = document.getElementById('noraFallback');
     let noraStage = null;
+    let noraBusy = false;
 
     async function openNora() {
-      noraWrap.style.display = 'block';
-      noraToggle.textContent  = 'Hide Nora';
-
-      // Ensure the Phase-1 audio graph is set up (creates audioCtx + analyser
-      // once, guarded internally — safe to call multiple times).
-      const g = window.__radioAudioGraph;
-      if (g) g.ensureAudioGraph();
-      const audioCtx = g ? g.getAudioCtx() : null;
-      if (audioCtx && audioCtx.state === 'suspended') {
-        try { await audioCtx.resume(); } catch (e) {}
-      }
-
-      if (!window.WebGLRenderingContext) {
-        noraFallback.style.display = 'block';
-        return;
-      }
-
+      if (noraBusy) return;
+      noraBusy = true;
       try {
-        const analyser = g ? g.getAnalyser() : null;
-        noraStage = new NoraStage({
-          canvas:   document.getElementById('noraStage'),
-          analyser,
-          modelUrl: '/nora/placeholder.vrm'
-        });
-        await noraStage.load();
-        noraStage.start();
-      } catch (e) {
-        console.warn('[nora] stage failed, showing fallback', e);
-        if (noraStage) { noraStage.dispose(); noraStage = null; }
-        noraFallback.style.display = 'block';
+        noraWrap.style.display = 'block';
+        noraToggle.textContent  = 'Hide Nora';
+
+        // Ensure the Phase-1 audio graph is set up (creates audioCtx + analyser
+        // once, guarded internally — safe to call multiple times).
+        const g = window.__radioAudioGraph;
+        if (g) g.ensureAudioGraph();
+        const audioCtx = g ? g.getAudioCtx() : null;
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { await audioCtx.resume(); } catch (e) {}
+        }
+
+        if (!window.WebGLRenderingContext) {
+          noraFallback.style.display = 'block';
+          return;
+        }
+
+        try {
+          const analyser = g ? g.getAnalyser() : null;
+          noraStage = new NoraStage({
+            canvas:   document.getElementById('noraStage'),
+            analyser,
+            modelUrl: '/nora/placeholder.vrm'
+          });
+          await noraStage.load();
+          noraStage.start();
+        } catch (e) {
+          console.warn('[nora] stage failed, showing fallback', e);
+          if (noraStage) { noraStage.dispose(); noraStage = null; }
+          noraFallback.style.display = 'block';
+        }
+      } finally {
+        noraBusy = false;
       }
     }
 
