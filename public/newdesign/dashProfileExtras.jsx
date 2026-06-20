@@ -109,8 +109,8 @@ function CoachCredentialsCard() {
               <div style={{ fontFamily: sans, fontSize: 12, color: review.certCount ? teal : "rgba(242,237,228,0.45)" }}>{review.certCount ? `${review.certCount} on file ✓` : "None yet"}</div>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-              <input style={{ ...input, flex: "1 1 120px" }} placeholder="Cert (e.g. NASM-CPT)" value={cert.type} onChange={(e) => setCert((c) => ({ ...c, type: e.target.value }))} />
-              <input style={{ ...input, flex: "1 1 120px" }} placeholder="Cert # (optional)" value={cert.number} onChange={(e) => setCert((c) => ({ ...c, number: e.target.value }))} />
+              <input aria-label="Certification type" style={{ ...input, flex: "1 1 120px" }} placeholder="Cert (e.g. NASM-CPT)" value={cert.type} onChange={(e) => setCert((c) => ({ ...c, type: e.target.value }))} />
+              <input aria-label="Certification number" style={{ ...input, flex: "1 1 120px" }} placeholder="Cert # (optional)" value={cert.number} onChange={(e) => setCert((c) => ({ ...c, number: e.target.value }))} />
               <label style={fileBtn}>
                 {busy === "cert" ? "Uploading…" : "Add file"}
                 <input type="file" accept="application/pdf,image/*,.doc,.docx" style={{ display: "none" }} disabled={busy === "cert"} onChange={(e) => upload("cert", e.target.files && e.target.files[0], cert)} />

@@ -119,10 +119,12 @@ export default async function CredentialsPage({
       if (r.insurance_coi_path) paths.add(r.insurance_coi_path);
       for (const c of r.cert_files ?? []) if (c.path) paths.add(c.path);
     }
-    for (const path of paths) {
-      const { data: s, error: sErr } = await admin.storage.from('coach-credentials').createSignedUrl(path, 60 * 15);
-      signed.set(path, sErr ? null : s.signedUrl);
-    }
+    await Promise.all(
+      [...paths].map(async (path) => {
+        const { data: s, error: sErr } = await admin.storage.from('coach-credentials').createSignedUrl(path, 60 * 15);
+        signed.set(path, sErr ? null : s.signedUrl);
+      }),
+    );
   }
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {

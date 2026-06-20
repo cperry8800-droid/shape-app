@@ -297,7 +297,7 @@ function ClientHabitsPage() {
       <Card>
         <SectionTitle>Two-week trend</SectionTitle>
         <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{weekPct}%</div>
-        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Adherence · vs 71% last week</div>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Adherence · vs — last week</div>
       </Card>
     ) },
 

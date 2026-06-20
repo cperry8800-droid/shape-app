@@ -367,8 +367,8 @@ function ClientWorkoutsPage() {
             </div>
           </div>
         )}
-        {weeks.map((w, i) => (
-          <DtrWeekPlate key={i} w={w} coach={coach} defaultOpen={w.status === "current"} />
+        {weeks.map((w) => (
+          <DtrWeekPlate key={w.label} w={w} coach={coach} defaultOpen={w.status === "current"} />
         ))}
         {/* The unwritten NEXT block — always after the assigned weeks (the
             program is never "fully written"; the next one is earned at

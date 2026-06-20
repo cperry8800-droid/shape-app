@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
   if (kind !== 'coi' && kind !== 'cert') return NextResponse.json({ error: 'Invalid document kind.' }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: 'File is larger than 10MB.' }, { status: 413 });
-  if (file.type && !ALLOWED.has(file.type)) {
+  if (!file.type || !ALLOWED.has(file.type)) {
     return NextResponse.json({ error: 'File must be a PDF, DOC, DOCX, or image.' }, { status: 400 });
   }
 

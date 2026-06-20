@@ -47,8 +47,11 @@
 
   function stepsFor(role) { return role === 'client' ? clientSteps() : coachSteps(role); }
 
+  // Per-role seen flag: a client walkthrough must not suppress a coach's onboarding
+  // (or vice-versa) in the same browser profile.
+  function seenKey(role) { return 'shape.webTourSeen.' + role; }
   function markSeen(role) {
-    try { localStorage.setItem('shape.webTourSeen', '1'); } catch (e) {}
+    try { localStorage.setItem(seenKey(role), '1'); } catch (e) {}
     try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals(GOAL_KEY[role], { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
   }
 
@@ -57,18 +60,30 @@
     window.SpotlightTour.start(stepsFor(role), { root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: false, onDone: function () { markSeen(role); } });
   }
 
+  // The engine (spotlightTour.js) loads as a module and may not be ready when the
+  // auto-show timer fires; wait for window.SpotlightTour so a new-account auto-show
+  // doesn't silently no-op. (The replay path is user-initiated, so it's always ready.)
+  function startWhenReady(role) {
+    var tries = 0;
+    (function tick() {
+      if (window.SpotlightTour) { start(role); return; }
+      if (tries++ > 60) return;   // ~6s ceiling, then give up rather than spin
+      setTimeout(tick, 100);
+    })();
+  }
+
   function init(role) {
     window.addEventListener('shape:startTour', function () { start(role); });
     // Auto-show once for new accounts.
     (function () {
       try {
-        if (localStorage.getItem('shape.webTourSeen') === '1') return;
+        if (localStorage.getItem(seenKey(role)) === '1') return;
       } catch (e) {}
       Promise.resolve(window.shapeDb && window.shapeDb.getUser && window.shapeDb.getUser()).then(function (u) {
         if (!u || !u.created_at) return;
         if (shouldAutoShow(u.created_at, false, Date.now(), 24)) {
           markSeen(role);            // mark first so a reload can't re-trigger
-          setTimeout(function () { start(role); }, 900); // let the first route render
+          setTimeout(function () { startWhenReady(role); }, 900); // let the first route render
         }
       }).catch(function () {});
     })();

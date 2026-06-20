@@ -42,7 +42,7 @@ exists today). One shared vanilla engine drives both.
 For each step it: runs `step.navigate()` (switch tab/route), waits for `step.anchor()` to
 resolve to an element, draws a **dim overlay with a cutout** around that element's rect, and
 positions a **coachmark** (eyebrow/title/body + Back / Next / Skip + progress dots) beside
-it. It repositions on scroll/resize, handles a missing anchor (skip → fallback to the nav
+it. It repositions on resize, handles a missing anchor (skip → fallback to the nav
 item), tears down cleanly on finish/skip, and respects `prefers-reduced-motion`. Pure DOM, so
 it runs identically in the mobile WebView and the website.
 
@@ -114,7 +114,7 @@ navigation. (When the Nora-avatar Radio ships, the URL is unchanged, so the step
 - **Route/tab not switchable** (an error in `navigate`) → skip the step, continue.
 - **Reduced-motion** → no dim animation/transitions, instant cutout moves.
 - **Empty/new account** → heroes may be absent; the nav-item fallback keeps every step valid.
-- **Resize/scroll** → recompute the cutout + coachmark position.
+- **Resize** → recompute the cutout + coachmark position.
 
 ## 9. Testing
 

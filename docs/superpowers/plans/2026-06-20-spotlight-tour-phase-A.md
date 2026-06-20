@@ -14,7 +14,7 @@
 - **One engine, configurable root:** `spotlightTour.js` overlays into `opts.root` — **mobile passes `#bs-phone-surface`** (already `position:absolute`), website (Phase B) passes `document.body`. Never assume the viewport.
 - **No new dependency**; house-styled (follow the `ui-ux-pro-max` skill for the dim/cutout/coachmark visuals — accent teal, mono eyebrow, serif title).
 - **Guided spotlight, not action-gated:** the tour advances on Next; it never waits for the user to perform the action.
-- **Degrade, never stall:** if a step's anchor is missing, fall back to the step's nav-tab element; if even that is missing, center the coachmark with no cutout. A `navigate()` error skips the step.
+- **Degrade, never stall:** if a step's anchor is missing, fall back to the step's nav-tab element; if even that is missing, center the coachmark with no cutout. A `navigate()` error is swallowed — the step still resolves its anchor/fallback rather than being skipped.
 - **Reuse trigger + persistence:** keep `bsMarkTourSeen` / `bsMarkCoachTourSeen`, `user_goals('client_onboarding'|'coach_onboarding')`, the `<24h` new-account auto-show, the `shape:startTour` replay, and the "Me → App tour" entry — only the *presentation* changes.
 - **Pure logic in `.mjs`** imported by both the engine and the test; register new test files in `package.json`'s `test` script.
 - **Mobile build is PowerShell-only:** `Set-Location …\mobile-app; $env:VITE_BASE='/m/'; npm run build`, then republish `public/m` from the repo root (Git Bash mangles `VITE_BASE`).

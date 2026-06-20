@@ -120,8 +120,13 @@ function MomentumEditModal({ momentum, onClose, onSave }) {
   );
 }
 
+let _goalSeq = 0;
+function ensureGoalIds(goals) {
+  return (goals || []).map(g => (g && g.id) ? g : { ...g, id: "g" + (Date.now().toString(36)) + "-" + (_goalSeq++) });
+}
+
 function TrainerGoalPage() {
-  const [state, setState] = React.useState(DEFAULT_GOALS_STATE);
+  const [state, setState] = React.useState(() => ({ ...DEFAULT_GOALS_STATE, goals: ensureGoalIds(DEFAULT_GOALS_STATE.goals) }));
   const [signedIn, setSignedIn] = React.useState(false);
   const [toast, setToast] = React.useState(null);
   const [editGoalIdx, setEditGoalIdx] = React.useState(null); // number | 'new' | null
@@ -136,7 +141,7 @@ function TrainerGoalPage() {
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("trainer");
       if (remote && Object.keys(remote).length > 0) {
-        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) } }));
+        setState(s => ({ ...s, ...remote, goals: ensureGoalIds(remote.goals || s.goals), calc: { ...s.calc, ...(remote.calc || {}) } }));
       }
     })();
   }, []);
@@ -155,8 +160,8 @@ function TrainerGoalPage() {
 
   function saveGoal(g) {
     const goals = [...state.goals];
-    if (editGoalIdx === "new") goals.push(g);
-    else goals[editGoalIdx] = g;
+    if (editGoalIdx === "new") goals.push(ensureGoalIds([g])[0]);
+    else goals[editGoalIdx] = { ...goals[editGoalIdx], ...g };
     setEditGoalIdx(null);
     persist({ ...state, goals });
   }
@@ -181,7 +186,7 @@ function TrainerGoalPage() {
   // Each card below becomes a draggable/resizable DashGrid widget (role=trainer, tab=goal),
   // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
   // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
-  const widgets = goals.map((g, i) => ({ key: "goal-" + i, title: g.t || "Goal", size: "half", render: () => {
+  const widgets = goals.map((g, i) => ({ key: "goal-" + (g.id || i), title: g.t || "Goal", size: "half", render: () => {
     const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
     const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
     const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;

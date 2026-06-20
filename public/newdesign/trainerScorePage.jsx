@@ -57,8 +57,8 @@ function TrainerScorePage() {
     { key: "breakdown", title: "Score breakdown", size: "half", render: () => (
       <Card>
         <SectionTitle right={`TOTAL ${breakdown.reduce((a, b) => a + b[1], 0).toLocaleString()}`}>Score breakdown</SectionTitle>
-        {breakdown.map(([l,v,sub],i)=>{
-          const w = (v / Math.max(...breakdown.map(b=>b[1]))) * 100;
+        {(() => { const maxV = Math.max(...breakdown.map(b=>b[1])); return breakdown.map(([l,v,sub],i)=>{
+          const w = maxV > 0 ? (v / maxV) * 100 : 0;
           return (
             <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
@@ -71,7 +71,7 @@ function TrainerScorePage() {
               </div>
             </div>
           );
-        })}
+        }); })()}
       </Card>
     ) },
 

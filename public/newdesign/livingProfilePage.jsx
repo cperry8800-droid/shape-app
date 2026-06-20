@@ -253,12 +253,16 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const initials = String(name).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   const isPrivate = row.is_public === false || row.can_view === false;
   const base = LV_PEOPLE[role] || LV_PEOPLE.client;
+  const isDerived = st.status === "derived";
   const person = Object.assign({}, base, {
     uid: st.uid || null,
     name, first, initials, tier: "__live", score: points,
     roleLabel: coach ? (role === "nutritionist" ? "Nutritionist" : "Trainer") : "Member",
     role, verified: !!(coach && st.verified),
-    certs: (coach && st.coachCerts && st.coachCerts.length) ? st.coachCerts : base.certs,
+    // Live coach profiles show only verified, real submitted certs (else none) —
+    // never the demo persona's fabricated credentials. The demo certs stay only
+    // for a derived (no-account, example) profile.
+    certs: (coach && st.coachCerts && st.coachCerts.length) ? st.coachCerts : (isDerived ? base.certs : []),
     handle: row.handle || ("@" + first.toLowerCase().replace(/[^a-z0-9]/g, "")),
     pronouns: (!isPrivate && row.pronouns) || base.pronouns,
     goal: (!isPrivate && row.goal) || base.goal,

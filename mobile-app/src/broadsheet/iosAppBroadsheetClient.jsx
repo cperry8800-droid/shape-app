@@ -5931,7 +5931,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           <>
             <BSTrackHeader kicker="For the week" title="Grocery list" actionLabel="Open" onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
-              <button data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
+              <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>From {who} · this week</div>
@@ -8523,7 +8523,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
                 <div style={{ padding: '0 14px 14px' }}>
-                  <div data-tour="hero-me" onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
+                  <div data-tour="hero-me" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
                         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
@@ -12343,7 +12343,7 @@ function BSReminderManager() {
     <React.Fragment>
       <div style={{ marginTop: 18, marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Your reminders</div>
-        {!draft && <button onClick={() => setDraft({ kind: 'weigh_in', label: '', atTime: '09:00', days: [1, 2, 3, 4, 5], enabled: true })} style={{ background: 'transparent', border: `1px solid ${t.ACCENT}`, color: t.ACCENT, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>＋ Add</button>}
+        {!draft && <button type="button" onClick={() => setDraft({ kind: 'weigh_in', label: '', atTime: '09:00', days: [1, 2, 3, 4, 5], enabled: true })} style={{ background: 'transparent', border: `1px solid ${t.ACCENT}`, color: t.ACCENT, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>＋ Add</button>}
       </div>
 
       {list === null ? (
@@ -12357,9 +12357,9 @@ function BSReminderManager() {
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{r.label || kindLabel(r.kind)}</div>
               <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{r.at_time} · {daysLabel(r.days)}</div>
             </div>
-            <button onClick={() => toggleEnabled(r)} aria-pressed={r.enabled} style={{ width: 40, height: 24, borderRadius: 999, border: `1px solid ${r.enabled ? t.ACCENT : t.RULE}`, background: r.enabled ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: r.enabled ? 18 : 2, width: 18, height: 18, borderRadius: 999, background: r.enabled ? '#fff' : t.INK50 }} /></button>
-            <button onClick={() => setDraft({ id: r.id, kind: r.kind, label: r.label || '', atTime: r.at_time, days: r.days || [], enabled: r.enabled })} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>Edit</button>
-            <button onClick={() => del(r.id)} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            <button type="button" onClick={() => toggleEnabled(r)} aria-pressed={r.enabled} aria-label={`${r.enabled ? 'Disable' : 'Enable'} reminder: ${r.label || kindLabel(r.kind)}`} style={{ width: 40, height: 24, borderRadius: 999, border: `1px solid ${r.enabled ? t.ACCENT : t.RULE}`, background: r.enabled ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: r.enabled ? 18 : 2, width: 18, height: 18, borderRadius: 999, background: r.enabled ? '#fff' : t.INK50 }} /></button>
+            <button type="button" onClick={() => setDraft({ id: r.id, kind: r.kind, label: r.label || '', atTime: r.at_time, days: r.days || [], enabled: r.enabled })} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>Edit</button>
+            <button type="button" onClick={() => del(r.id)} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
           </div>
         ))
       )}
@@ -12367,19 +12367,19 @@ function BSReminderManager() {
       {draft && (
         <div style={{ marginTop: 10, padding: '14px', border: `1px solid ${t.RULE}`, borderRadius: 12 }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-            {_REM_KINDS.map(([k, l]) => <button key={k} onClick={() => setDraft((d) => ({ ...d, kind: k }))} style={{ padding: '6px 10px', borderRadius: 999, border: `1px solid ${draft.kind === k ? t.ACCENT : t.RULE}`, background: draft.kind === k ? `${t.ACCENT}22` : 'transparent', color: draft.kind === k ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>)}
+            {_REM_KINDS.map(([k, l]) => <button type="button" key={k} onClick={() => setDraft((d) => ({ ...d, kind: k }))} style={{ padding: '6px 10px', borderRadius: 999, border: `1px solid ${draft.kind === k ? t.ACCENT : t.RULE}`, background: draft.kind === k ? `${t.ACCENT}22` : 'transparent', color: draft.kind === k ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>)}
           </div>
-          {draft.kind === 'custom' && <input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} placeholder="What should we remind you?" maxLength={80} style={{ ...fld, width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />}
+          {draft.kind === 'custom' && <input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} placeholder="What should we remind you?" aria-label="Custom reminder label" maxLength={80} style={{ ...fld, width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Time</span>
-            <input type="time" value={draft.atTime} onChange={(e) => setDraft((d) => ({ ...d, atTime: e.target.value }))} style={{ ...fld, colorScheme: t.isLight ? 'light' : 'dark' }} />
+            <input type="time" value={draft.atTime} onChange={(e) => setDraft((d) => ({ ...d, atTime: e.target.value }))} aria-label="Reminder time" style={{ ...fld, colorScheme: t.isLight ? 'light' : 'dark' }} />
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {_REM_DOW.map(([l, idx], i) => { const on = (draft.days || []).includes(idx); return (<button key={i} onClick={() => setDraft((d) => { const set = new Set(d.days || []); if (set.has(idx)) set.delete(idx); else set.add(idx); return { ...d, days: Array.from(set).sort((a, b) => a - b) }; })} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>{l}</button>); })}
+            {_REM_DOW.map(([l, idx], i) => { const on = (draft.days || []).includes(idx); return (<button type="button" key={i} onClick={() => setDraft((d) => { const set = new Set(d.days || []); if (set.has(idx)) set.delete(idx); else set.add(idx); return { ...d, days: Array.from(set).sort((a, b) => a - b) }; })} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>{l}</button>); })}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => setDraft(null)} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK70, borderRadius: 999, padding: '8px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={save} disabled={!(draft.days || []).length} style={{ background: (draft.days || []).length ? t.ACCENT : t.RULE, border: 0, color: '#fff', borderRadius: 999, padding: '8px 16px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+            <button type="button" onClick={() => setDraft(null)} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK70, borderRadius: 999, padding: '8px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>Cancel</button>
+            <button type="button" onClick={save} disabled={!(draft.days || []).length} style={{ background: (draft.days || []).length ? t.ACCENT : t.RULE, border: 0, color: '#fff', borderRadius: 999, padding: '8px 16px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Save</button>
           </div>
         </div>
       )}

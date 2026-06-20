@@ -6,6 +6,11 @@ import { cutoutRect, coachmarkPos, stepBounds } from './spotlightGeom.mjs';
 
 const PAD = 8;
 
+// Escape dynamic step text before it goes into the coachmark innerHTML. Step copy is
+// authored by us today, but this keeps the rendering injection-safe if a step field
+// ever carries user-influenced content.
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
 function el(tag, css, html) { const n = document.createElement(tag); if (css) n.style.cssText = css; if (html != null) n.innerHTML = html; return n; }
 function waitFor(getter, ms = 1200) {
   return new Promise((res) => {
@@ -19,6 +24,7 @@ export function startTour(steps, opts = {}) {
   const accent = opts.accent || '#2ee0c4';
   const ink = opts.isLight ? '#14110d' : '#f4eedf';
   const paper = opts.isLight ? '#f4eedf' : '#1a1714';
+  const rootPos0 = root.style.position;
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -33,7 +39,7 @@ export function startTour(steps, opts = {}) {
   let i = 0, destroyed = false;
   const cardSize = () => ({ w: card.offsetWidth || 280, h: card.offsetHeight || 150 });
 
-  function teardown() { if (destroyed) return; destroyed = true; layer.remove(); }
+  function teardown() { if (destroyed) return; destroyed = true; layer.remove(); try { root.style.position = rootPos0; } catch (_) {} }
   function finish() { teardown(); if (opts.onDone) opts.onDone(); }
 
   async function show() {
@@ -68,14 +74,14 @@ export function startTour(steps, opts = {}) {
     const dots = steps.map((_, k) => `<span style="width:${k === i ? 18 : 6}px;height:6px;border-radius:3px;background:${k === i ? accent : ink + '40'};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
     const nextLabel = step.final ? (step.ctaLabel || 'Open →') : (b.isLast ? 'Done' : 'Next →');
     card.innerHTML =
-      `${step.eyebrow ? `<div style="font:600 10px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:${accent};margin-bottom:8px">${step.eyebrow}</div>` : ''}` +
-      `<div style="font:600 19px/1.2 Georgia,serif;margin-bottom:7px">${step.title}</div>` +
-      `<div style="font-size:13.5px;line-height:1.5;opacity:.82;margin-bottom:14px">${step.body}</div>` +
+      `${step.eyebrow ? `<div style="font:600 10px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:${accent};margin-bottom:8px">${esc(step.eyebrow)}</div>` : ''}` +
+      `<div style="font:600 19px/1.2 Georgia,serif;margin-bottom:7px">${esc(step.title)}</div>` +
+      `<div style="font-size:13.5px;line-height:1.5;opacity:.82;margin-bottom:14px">${esc(step.body)}</div>` +
       `<div style="display:flex;align-items:center;justify-content:space-between">` +
         `<div>${dots}</div>` +
         `<div style="display:flex;gap:8px">` +
           `${b.canBack ? `<button data-st="back" style="background:none;border:1px solid ${ink}33;color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Back</button>` : ''}` +
-          `<button data-st="next" style="background:${accent};border:none;color:#06231f;border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">${nextLabel}</button>` +
+          `<button data-st="next" style="background:${accent};border:none;color:#06231f;border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">${esc(nextLabel)}</button>` +
         `</div>` +
       `</div>` +
       `<button data-st="skip" aria-label="Skip" style="position:absolute;top:10px;right:12px;background:none;border:none;color:${ink};opacity:.5;font-size:18px;line-height:1;cursor:pointer">×</button>`;

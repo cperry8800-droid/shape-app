@@ -113,9 +113,15 @@ export async function requestCredentialChanges(formData: FormData): Promise<void
       reviewed_by: adminUser.id,
       reviewed_at: new Date().toISOString(),
       review_notes: notes || 'More information is needed.',
+      // Requesting changes revokes the verified state until re-approved
+      // (matches reject; provider_credentials has no separate `verified` column).
+      verified_at: null,
     })
     .eq('owner_id', ownerId);
   if (error) throw error;
+
+  // Drop the marketplace badge too so the coach isn't shown as verified.
+  await setMarketplaceVerified(admin, ownerId, false);
 
   await createNotification(admin, {
     userId: ownerId,
@@ -127,5 +133,7 @@ export async function requestCredentialChanges(formData: FormData): Promise<void
   });
 
   revalidatePath('/dashboard/credentials');
+  revalidatePath('/trainers');
+  revalidatePath('/nutritionists');
   redirect('/dashboard/credentials?updated=changes_requested');
 }

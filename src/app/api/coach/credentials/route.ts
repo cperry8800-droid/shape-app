@@ -42,8 +42,19 @@ export async function GET(request: Request) {
   const trRow = (tr.data || null) as { verified?: boolean; verified_at?: string } | null;
   const nuRow = (nu.data || null) as { verified?: boolean; verified_at?: string } | null;
   const verified = !!(trRow?.verified || nuRow?.verified);
+  // Only expose coach-facing credential fields — never admin-only columns
+  // (reviewed_by, review_notes, *_path, etc.); the review state is surfaced
+  // through the derived `review` object below.
+  const credential = c ? {
+    credentialType: (c.credential_type as string) || null,
+    cdrId: (c.cdr_id as string) || null,
+    insuranceCarrier: (c.insurance_carrier as string) || null,
+    insurancePolicy: (c.insurance_policy as string) || null,
+    insuranceExpires: (c.insurance_expires as string) || null,
+    attestations: (c.attestations as Record<string, boolean>) || {},
+  } : null;
   return NextResponse.json({
-    credential: c,
+    credential,
     licenses,
     status: credentialStatus(provider),
     requiredAttestations: REQUIRED_ATTESTATIONS,

@@ -4727,7 +4727,7 @@ async function remindersSave(r) {
   if (!apiBaseUrl) return { ok: false };
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
-  const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } })();
+  const tz = _deviceTz();
   try {
     const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ tz, ...r }) });
     return await res.json().catch(() => ({ ok: false }));
