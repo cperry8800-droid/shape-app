@@ -17,6 +17,8 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/supabase.js"></script>
+<script type="module" src="/newdesign/spotlightTour.js?v=20260620"></script>
+<script src="/newdesign/dashTour.js?v=20260620"></script>
 <script src="/vendor/gridstack/gridstack-all.js"></script>
 
 <!-- Single-page nutritionist dashboard: every tab module loaded + compiled ONCE,
@@ -87,6 +89,7 @@ function NutritionistApp() {
   return (NA_ROUTES[route] || NA_ROUTES.today)();
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistApp />);
+window.ShapeDashTour && window.ShapeDashTour.init('nutritionist');
 </script>
 <script src="globalChatButton.js?v=20260613" defer></script>
 </body>
