@@ -144,6 +144,17 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-19 — Landing-page phone screenshots fit the frame (no crop, no gap)
+- The `index.html` "beat" phone mockups (`.vis`) used `aspect-ratio:320/716` on the frame
+  with `object-fit:cover`, so the screen aspect didn't match the screenshots — the
+  Community/chat shot (a 408×861 outlier vs the others' 600×1387) got its left/right edges
+  cropped ("Deadlift" → "eadlift"). **Fixed:** pinned the screen (`.vis .scr`) to the
+  screenshots' real `aspect-ratio:600/1387` (frame height now content-driven), and
+  normalized the odd chat capture to that aspect by padding it to **408×943** with a
+  background-matched off-white (`getapp-chat-v3.png`). All five phones now render their
+  screenshot edge-to-edge with **0% crop** (verified via headless geometry: every screen
+  aspect == its image's natural aspect).
+
 ### 2026-06-19 — Security: sanitize the Music-tab playlist URL (stored XSS) + DB url guard
 - The new profile **Music tab** rendered the user-supplied `member_playlists.url`
   straight into an anchor `href`, so a `javascript:`/`data:` URL would execute on click
