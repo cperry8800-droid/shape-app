@@ -1,4 +1,5 @@
 import React from 'react';
+import { NoraStage } from '../../../public/newdesign/noraStage.mjs';
 // iosAppBroadsheetRadio.jsx — Shape Radio in the Broadsheet visual language.
 // Provides:
 //   • BSRadioPrompt    — full-screen overlay asking "Listen to Shape Radio while in the app?"
@@ -13,7 +14,7 @@ import React from 'react';
 //   - Pulsing accent radial that breathes with BPM.
 //   - Optional "stage lights" — diagonal cream/dark sweep at edges.
 
-const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, createContext: createContextBR, useContext: useContextBR } = React;
+const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, createContext: createContextBR, useContext: useContextBR } = React;
 const { BSPage, BSMasthead, BSPageHeader, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSAvatar, BSFooter, BSLogo, useBS } = window;
 
 // ═══════════════════════════════════════════════════════════
@@ -741,6 +742,27 @@ function BSRadioScreen({ onBack }) {
     setMatching(false); setHrmConnected(false); setLiveHr(null); setDemoHr(114);
   };
 
+  // ── Nora watch (preview) ─────────────────────────────────────────────────────
+  const [noraOn, setNoraOn] = useStateBR(false);
+  const noraCanvasRef = useRefBR(null);
+  const noraStageRef = useRefBR(null);
+  const toggleNora = async () => {
+    if (noraOn) {
+      if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; }
+      setNoraOn(false);
+      return;
+    }
+    setNoraOn(true);
+    try {
+      const an = window.ShapeRadioLive?.analyser?.();
+      const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: '/m/nora/placeholder.vrm' });
+      await st.load();
+      st.start();
+      noraStageRef.current = st;
+    } catch (e) { console.warn('[nora] stage failed', e); }
+  };
+  useEffectBR(() => () => { if (noraStageRef.current) noraStageRef.current.dispose(); }, []);
+
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
   // NEW pills, channel rules) recolor with the rest of the app.
@@ -979,6 +1001,39 @@ function BSRadioScreen({ onBack }) {
       {/* Below-fold panel — tracks paper mode. Carries the page's bottom padding so
           its background fills all the way down (no color step / "border" above the nav). */}
       <div style={{ background: isLight ? t.PAPER : 'rgba(5,7,7,0.92)', paddingBottom: 80 + 28 }}>
+
+        {/* ── NORA WATCH (preview) ──────────────────────────────────────────── */}
+        <div style={{ padding: `14px ${t.padX}px 18px`, borderBottom: `1px solid ${RULE_DK}` }}>
+          {/* Section eyebrow */}
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700, marginBottom: 12 }}>
+            Nora · DJ preview
+          </div>
+          {/* Canvas — shown when Nora is on */}
+          {noraOn && (
+            <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', maxHeight: '56vh', borderRadius: 14, overflow: 'hidden', background: '#0b0d10', marginBottom: 12 }}>
+              <canvas ref={noraCanvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+              <div aria-hidden style={{ position: 'absolute', top: 10, left: 10, fontFamily: t.MONO, fontWeight: 600, fontSize: 11, letterSpacing: '0.12em', color: '#2ee0c4' }}>
+                ● LIVE · NORA <span style={{ opacity: 0.6 }}>(preview)</span>
+              </div>
+            </div>
+          )}
+          {/* Toggle button — instrument-plate style with accent spine */}
+          <button onClick={toggleNora} style={{
+            display: 'flex', alignItems: 'center', gap: 9,
+            width: '100%', boxSizing: 'border-box',
+            padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
+            background: noraOn ? `${TEAL}1a` : 'transparent',
+            color: noraOn ? TEAL : CREAM,
+            border: `1px solid ${noraOn ? TEAL : CREAM25}`,
+            borderLeft: `3px solid ${TEAL}`,
+            borderRadius: 10,
+            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
+          }}>
+            <span style={{ fontSize: 13 }}>{noraOn ? '◉' : '○'}</span>
+            {noraOn ? 'Hide Nora' : 'Watch Nora (preview)'}
+          </button>
+        </div>
+
         {/* CHANNEL */}
         <DarkSection title="Channel" meta="Live channel" cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         {false && (

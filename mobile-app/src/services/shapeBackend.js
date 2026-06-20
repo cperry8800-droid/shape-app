@@ -4899,5 +4899,18 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   function pause() { if (el) el.pause(); }
   function startPolling(cb) { stopPolling(); const tick = async () => { const np = await nowPlaying(); if (np) cb(np); }; tick(); pollId = setInterval(tick, 15000); }
   function stopPolling() { if (pollId) { clearInterval(pollId); pollId = null; } }
-  window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling };
+  // Cached analyser — built ONCE from the radio <audio> element because a second
+  // createMediaElementSource on the same element throws. Cache the AudioContext,
+  // AnalyserNode, and a wired flag so every caller (including NoraStage) shares
+  // the same graph node without risk of duplicate source creation.
+  let _ac = null, _analyser = null, _srcWired = false;
+  function analyser() {
+    const a = audio();                       // the existing cached <audio> element
+    if (!_ac) { const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return null; _ac = new Ctx(); }
+    if (_ac.state === 'suspended') { _ac.resume().catch(() => {}); }
+    if (!_analyser) { _analyser = _ac.createAnalyser(); _analyser.fftSize = 512; }
+    if (!_srcWired) { try { const s = _ac.createMediaElementSource(a); s.connect(_analyser); _analyser.connect(_ac.destination); _srcWired = true; } catch (e) {} }
+    return _analyser;
+  }
+  window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser };
 })();
