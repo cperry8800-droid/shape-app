@@ -142,6 +142,10 @@ function DashProfileExtras() {
   return (
     <section style={{ maxWidth: 900, margin: "0 auto", padding: "26px 40px 34px" }}>
       <CoachCredentialsCard />
+      <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 18 }}>
+        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>App tour</div>
+        <button style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take a tour — walk through your dashboard</button>
+      </div>
       <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px" }}>
         <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>Account · Danger zone</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }} className="dk-3up">
