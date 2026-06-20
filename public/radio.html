@@ -301,6 +301,13 @@
       .radio-logo img { width: 84vw; height: auto; }
     }
   </style>
+  <script type="importmap">
+  { "imports": {
+    "three": "https://esm.sh/three@0.169.0",
+    "three/addons/": "https://esm.sh/three@0.169.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://esm.sh/@pixiv/three-vrm@3.1.6?deps=three@0.169.0"
+  } }
+  </script>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -341,6 +348,15 @@
   </div>
 
   <div class="radio-player">
+
+    <!-- Nora avatar watch screen (hidden until toggle is clicked) -->
+    <div id="noraWrap" style="display:none;position:relative;width:100%;aspect-ratio:3/4;max-height:60vh;border-radius:14px;overflow:hidden;background:#0b0d10;margin-bottom:20px;">
+      <canvas id="noraStage" style="width:100%;height:100%;display:block;"></canvas>
+      <div style="position:absolute;top:10px;left:10px;font:600 11px/1 system-ui;letter-spacing:.12em;color:#2ee0c4;text-transform:uppercase;">● LIVE · NORA <span style="opacity:.6">(preview)</span></div>
+      <img id="noraFallback" src="/nora-avatar.png" alt="Nora" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />
+    </div>
+    <button id="noraToggle" type="button" style="margin:0 auto 20px;display:block;background:transparent;border:1px solid rgba(45,212,191,0.35);color:#2DD4BF;font:600 0.78rem/1 'Inter',system-ui;letter-spacing:.08em;text-transform:uppercase;padding:11px 22px;border-radius:8px;cursor:pointer;transition:all 0.3s;">Watch Nora live (preview)</button>
+
     <div class="now-playing paused" id="nowPlaying">
       <canvas id="vizCanvas" class="np-canvas" width="560" height="560" aria-hidden="true"></canvas>
       <div class="np-label">NOW PLAYING</div>
@@ -756,6 +772,73 @@
       } catch (e) {}
       startPreview();
     })();
+
+    // Expose the audio graph to the ESM Nora module below (option b: classic
+    // script keeps the graph; the module reads it via window accessors so we
+    // never create a second MediaElementSource on the same <audio> element).
+    window.__radioAudioGraph = {
+      ensureAudioGraph: function () { return ensureAudioGraph(); },
+      getAnalyser:      function () { return analyser; },
+      getAudioCtx:      function () { return audioCtx; }
+    };
+  </script>
+  <script type="module">
+    // Nora avatar watch-screen toggle.
+    // Uses option (b): the classic script above owns the audio graph and exposes
+    // it via window.__radioAudioGraph so this ESM module never creates a second
+    // MediaElementSource on the same <audio> element.
+    import { NoraStage } from '/newdesign/noraStage.mjs';
+
+    const noraWrap     = document.getElementById('noraWrap');
+    const noraToggle   = document.getElementById('noraToggle');
+    const noraFallback = document.getElementById('noraFallback');
+    let noraStage = null;
+
+    async function openNora() {
+      noraWrap.style.display = 'block';
+      noraToggle.textContent  = 'Hide Nora';
+
+      // Ensure the Phase-1 audio graph is set up (creates audioCtx + analyser
+      // once, guarded internally — safe to call multiple times).
+      const g = window.__radioAudioGraph;
+      if (g) g.ensureAudioGraph();
+      const audioCtx = g ? g.getAudioCtx() : null;
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch (e) {}
+      }
+
+      if (!window.WebGLRenderingContext) {
+        noraFallback.style.display = 'block';
+        return;
+      }
+
+      try {
+        const analyser = g ? g.getAnalyser() : null;
+        noraStage = new NoraStage({
+          canvas:   document.getElementById('noraStage'),
+          analyser,
+          modelUrl: '/nora/placeholder.vrm'
+        });
+        await noraStage.load();
+        noraStage.start();
+      } catch (e) {
+        console.warn('[nora] stage failed, showing fallback', e);
+        if (noraStage) { noraStage.dispose(); noraStage = null; }
+        noraFallback.style.display = 'block';
+      }
+    }
+
+    function closeNora() {
+      noraToggle.textContent       = 'Watch Nora live (preview)';
+      noraWrap.style.display       = 'none';
+      noraFallback.style.display   = 'none';
+      if (noraStage) { noraStage.dispose(); noraStage = null; }
+    }
+
+    noraToggle.addEventListener('click', () => {
+      const isOpen = noraStage !== null || noraFallback.style.display === 'block';
+      isOpen ? closeNora() : openNora();
+    });
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
