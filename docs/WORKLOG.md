@@ -144,6 +144,41 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-20 — Interactive spotlight tour (website dashboards, Phase B)
+- The **website dashboards now have the same guided spotlight walkthrough** as the mobile
+  app (Phase A), reusing the identical engine — the page dims, a cutout spotlights a real
+  element, and a coachmark with Back/Next/Skip + progress dots walks the user through.
+- **Engine reuse, no new dependency:** `spotlightTour.js` (`window.SpotlightTour`) +
+  `spotlightGeom.mjs` are loaded as-is on the three dashboard SPAs
+  (`ClientApp.html` / `TrainerApp.html` / `NutritionistApp.html`); the website root is
+  `document.body`. The engine file is untouched from Phase A.
+- **Adapter — `public/newdesign/dashTour.js`** (`window.ShapeDashTour.{init,start}`): supplies
+  the website step lists and wiring. `navigate` sets the hash route (`#today` … `#profile`),
+  `anchor` queries `[data-tour="hero-<slug>"]`, and each step **falls back** to its nav item
+  `[data-tour="webtab-<slug>"]` so a missing/unmounted hero never stalls the tour. Role accents:
+  client `#2ee0c4`, trainer `#0a8f87`, nutritionist `#a07a2e`.
+- **Client tour:** Welcome → Today → Workouts → Nutrition → Grocery → Habits → Score →
+  Community → Profile → **Shape Radio finale** (CTA → `/newdesign/Radio.html`).
+  **Coach tours** (trainer/nutritionist): Welcome → Today → Clients → Programs/Plans →
+  Business → Community → Profile (no Radio finale; ends on Profile).
+- **`data-tour` hooks:** the shared sidebar nav items carry `webtab-<slug>`; one hero per
+  route. Client heroes sit on each page's lead element; coach heroes thread an optional
+  `tourHero` prop into the shared `DashPage`/`DashShell` mastheads so each coach route
+  anchors a **tight spotlight on its page title** (not a whole-page cutout). The community +
+  profile pages are shared components, so one hook covers both client and coach.
+- **Trigger & persistence (net-new on the website):** the pure predicate
+  `tourTrigger.mjs` `shouldAutoShowTour(createdAt, seen, now, maxAgeHours=24)` (TDD'd in
+  `tests/tour-trigger.test.mjs`) drives a **new-account auto-show** (<24h, once), mirrored in
+  `dashTour.js`. Persists `seen` to `localStorage('shape.webTourSeen')` +
+  `saveUserGoals('client_onboarding'|'coach_onboarding')`. **"Take a tour" replay** entries
+  added to the client Me settings (`clientMeSettings.jsx`) and coach profile extras
+  (`dashProfileExtras.jsx`) — both dispatch the `shape:startTour` event the adapter listens for.
+- Verified headlessly (Playwright, all three SPAs): the engine + adapter load, `shape:startTour`
+  fires the overlay, Next advances, the hash navigates per step, the cutout repositions, role
+  accents are correct (client teal / trainer teal / nutritionist gold), coach tours end on
+  Profile (no Radio). Phase A's known limitation stands: the engine doesn't auto-`scrollIntoView`
+  — fine here since the orientation anchors are top-of-route (post `scrollTo(0,0)`) or always-in-view nav.
+
 ### 2026-06-20 — Interactive spotlight tour (mobile, Phase A): engine + mobile rework
 - The mobile onboarding tour is now an **interactive guided spotlight walkthrough** — the
   screen dims, a cutout spotlights the real UI element, and a coachmark with Back/Next/Skip +

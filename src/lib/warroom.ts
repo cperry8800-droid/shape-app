@@ -811,7 +811,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'First-run app tour (skippable, replayable from Me → App tour): 7-step guided walkthrough that switches the underlying tab; persists to localStorage + user_goals(client_onboarding)', status: 'done' },
         { label: 'App tour coach variant (trainer + nutritionist) + new-accounts-only trigger (auto-shows only for accounts <24h old; existing users replay from Me → App tour)', status: 'done' },
         { label: 'Interactive spotlight tour (mobile, Phase A): client + coach guided spotlight walkthroughs (engine + data-tour hooks), Radio finale on the client tour — spotlightGeom.mjs (TDD) + spotlightTour.js engine, BSOnboardingTour + BSProOnboardingTour replaced to call engine; reuses existing trigger/persistence', status: 'done' },
-        { label: 'Spotlight tour — website dashboard tours (Phase B)', status: 'pending' },
+        { label: 'Spotlight tour — website dashboard tours (Phase B): shared engine loaded on the 3 dashboard SPAs (Client/Trainer/Nutritionist) + dashTour.js adapter (hash-route navigation, shapeDb persistence, new-account auto-show + "Take a tour" replay); data-tour hooks on the web nav + per-route mastheads; client tour ends on the Shape Radio finale, coach tours end on Profile', status: 'done' },
         { label: 'Home ticker editor in Settings (client picks which metrics show)', status: 'done' },
         { label: 'Grocery coach-note split from the home Op-ed (two separate coach-editable messages)', status: 'done' },
         { label: 'Nutritionist Live Console pre-fills the existing grocery note per client', status: 'done' },
