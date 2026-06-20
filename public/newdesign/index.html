@@ -678,7 +678,7 @@
   var gal=document.getElementById('gal');
   TRAINERS.forEach(function(c,i){
     var ini=c.name.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
-    var el=document.createElement('a');el.href='TrainerPublic.html?coach='+slugify(c.name);el.className='c';
+    var el=document.createElement('a');el.href=c.photo?('MemberProfile.html?name='+encodeURIComponent(c.name)+'&role=trainer&avatar='+encodeURIComponent(c.photo)):('TrainerPublic.html?coach='+slugify(c.name));el.className='c';
     el.innerHTML='<div class="av" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')">'+ini+(c.photo?'<img src="'+c.photo+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div>'+
       '<h4>'+c.name+'</h4><div class="role">'+c.role+'</div><div class="bio">'+(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
       '<div class="st"><span><b>'+c.years+'y</b>Coaching</span><span><b>'+c.sessions.toLocaleString()+'</b>Sessions</span></div>'+

@@ -155,7 +155,7 @@ changelog whenever something ships.
   anchor is missing). Registered as `window.SpotlightTour`. No new dependency.
 - **Client tour** (`BSOnboardingTour` in `iosAppBroadsheetClient.jsx`): replaces the old
   float-a-card implementation. Steps: Welcome → Home → Train → Eat → Grocery → Habits → Chat
-  → Me → **Shape Radio finale** (opens `/m/Radio.html` via `onCta`). Adds grocery + habits
+  → Me → **Shape Radio finale** (opens the in-app radio tab via `onNavigate('radio')`). Adds grocery + habits
   steps that the original tour lacked. `data-tour` hooks on the shared tab bar (`BSTabBar`) +
   one hero element per screen anchor the spotlight to real UI.
 - **Coach tour** (`BSProOnboardingTour` in `iosAppBroadsheetPros.jsx`): same engine, role-aware
@@ -175,6 +175,12 @@ changelog whenever something ships.
   `.c .av img` rule (circle, `object-fit:cover`). **Cache-bust:** the `coachDirectory.js`
   script tag had no `?v=` (so returning visitors would keep the old, photo-less version) —
   now `?v=20260620`. Verified headless: all 8 avatars load (natW 200), none error-removed.
+- **Coach profile avatar too:** the index coach cards linked to `TrainerPublic.html?coach=…`,
+  which redirects to `MemberProfile.html?name=…&role=trainer` — **dropping the photo**, so the
+  Signal sigil derived initials ("JP"). The cards now link straight to
+  `MemberProfile.html?name=…&role=trainer&avatar=<photo>` (the same `&avatar=` the marketplace
+  passes), so a clicked coach's profile shows the real photo in the `LvPortrait` sigil. Verified
+  on the live preview (the photo loads in the sigil, not initials).
 
 ### 2026-06-19 — Landing-page phone screenshots fit the frame (no crop, no gap)
 - The `index.html` "beat" phone mockups (`.vis`) used `aspect-ratio:320/716` on the frame
