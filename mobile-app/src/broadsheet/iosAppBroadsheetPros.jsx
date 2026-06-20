@@ -907,17 +907,6 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
 // walkthrough of the coaching tools. Auto-shows once for newly-created coach
 // accounts (persisted to localStorage 'shape.coachTourSeen' + cloud user_goals
 // 'coach_onboarding'); replayable anytime via the `shape:startTour` event.
-function bsProTourSteps(plansKey) {
-  return [
-    { key: 'welcome', tab: 'today', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'A quick tour of your coaching tools. Take it or skip — and replay anytime from Me → App tour.' },
-    { key: 'today', tab: 'today', emoji: '📊', eyebrow: 'TODAY TAB', title: 'Your dashboard.', body: 'Today’s sessions, client activity, and quick widgets — your daily home base.' },
-    { key: 'clients', tab: 'clients', emoji: '👥', eyebrow: 'CLIENTS TAB', title: 'Your roster.', body: 'Every client as a card. Tap one to open their full profile, adjust their program/plan, schedule a session, or message them.' },
-    { key: 'plans', tab: plansKey, emoji: '📋', eyebrow: 'PLANS TAB', title: 'Build & sell.', body: 'Create training programs and meal plans, save Spotify soundtracks, and publish plans your clients can buy.' },
-    { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Stay in touch.', body: 'Direct messages with your clients, plus the community feed and channels.' },
-    { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your public coach profile, rates, payouts, Shape Score, and settings. Tip: tap your avatar anywhere to come back here.' },
-    { key: 'done', tab: 'today', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — go coach.' },
-  ];
-}
 function bsMarkCoachTourSeen() {
   try { localStorage.setItem('shape.coachTourSeen', '1'); } catch (e) {}
   try { window.shapeDb?.saveUserGoals?.('coach_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}

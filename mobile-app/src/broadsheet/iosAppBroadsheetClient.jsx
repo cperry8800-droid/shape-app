@@ -231,20 +231,6 @@ function BSRadioFx() {
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
-// ── First-run app tour ──────────────────────────────────────────────────────
-// A skippable ~60-second walkthrough that appears once when you first land in
-// the app (persisted to localStorage + user_goals 'client_onboarding'), and can
-// be replayed anytime from Me → App tour. Each step switches the underlying tab
-// (via onNavigate) so the real screen shows behind the card.
-const BS_TOUR_STEPS = [
-  { key: 'welcome', tab: 'home', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'Here’s a quick tour of how to get around. You can skip it and dive straight in — and replay it anytime from the Me tab.' },
-  { key: 'home', tab: 'home', emoji: '🏠', eyebrow: 'HOME TAB', title: 'Your day, at a glance.', body: 'Your week strip, today’s workout and meals, plus quick chips to log, check habits, and see your Shape Score.' },
-  { key: 'train', tab: 'train', emoji: '🏋️', eyebrow: 'TRAIN TAB', title: 'Train.', body: 'Your program for each day. Preview a session, start a guided workout, or swap an exercise for a coach-approved alternative.' },
-  { key: 'eat', tab: 'eat', emoji: '🍎', eyebrow: 'EAT TAB', title: 'Eat.', body: 'Your meals and macros for the day. Log what you ate, swap meals, browse recipes, and build a grocery list.' },
-  { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Coaches & community.', body: 'Message your coaches, join the community feed and channels, and DM friends — all in one place.' },
-  { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your profile and Shape Score, goals, saved library, and settings. Tip: tap your avatar on any screen to come back here.' },
-  { key: 'done', tab: 'home', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — let’s get to work.' },
-];
 
 function bsMarkTourSeen() {
   try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {}
@@ -9098,7 +9084,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </div>
 
         {/* hero stat */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
+        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
