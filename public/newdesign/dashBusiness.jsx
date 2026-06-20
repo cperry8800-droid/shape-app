@@ -316,6 +316,7 @@ function CoachBusinessPage({ role }) {
     <React.Fragment>
       {source === "demo" && !extra && <DashDemoBand />}
       <DashPage
+        tourHero="hero-business"
         navItems={cfg.nav("business")}
         payoutCard={payoutCard}
         eyebrow="REVENUE · PAYOUTS · FUNNEL · CHURN"

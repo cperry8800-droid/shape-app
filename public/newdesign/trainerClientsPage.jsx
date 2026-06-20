@@ -20,6 +20,7 @@ function TrainerClientsPage() {
     <React.Fragment>
     {source === "demo" && <DashDemoBand />}
     <DashPage
+      tourHero="hero-clients"
       navItems={trainerNavItems("clients")}
       payoutCard={liveToday
         ? { label: "MONTHLY · MRR", amount: dashMoney(mrrCents), sub: activeCount + " active subs · payouts connect soon" }

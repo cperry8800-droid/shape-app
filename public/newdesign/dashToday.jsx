@@ -784,6 +784,7 @@ function CoachDashboardPage({ role }) {
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
     <DashShell
+      tourHero="hero-today"
       role={role}
       gridWidgets={gridWidgets}
       userName={firstName}

@@ -39,7 +39,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
 // Inner-page shell: sidebar + main w/ title bar + freeform children.
 // Header (the marketing top nav from pageShell.jsx) renders above the
 // dashboard grid so dashboards share the index.html nav formatting.
-function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children }) {
+function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children, tourHero }) {
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
       <Header />
@@ -47,7 +47,7 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
       <main style={{ padding: "0 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
-          <div>
+          <div data-tour={tourHero}>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 14 }}>{eyebrow}</div>}
             <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1 }}>{title}</h1>
             {subtitle && <div style={{ fontSize: 15, color: "rgba(242,237,228,0.6)", marginTop: 14, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
@@ -170,6 +170,7 @@ function DashTodayItemRow({ t }) {
 }
 
 function DashShell({
+  tourHero,     // optional data-tour key for the spotlight tour masthead anchor
   role,         // "trainer" | "client" | "nutritionist"
   userName,
   date,         // "WEDNESDAY APR 18"
@@ -207,7 +208,7 @@ function DashShell({
       <main style={{ padding: "0 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
-          <div style={{ minWidth: 0 }}>
+          <div data-tour={tourHero} style={{ minWidth: 0 }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 12 }}>{date}</div>
             <h1 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>{greeting}</h1>
           </div>
