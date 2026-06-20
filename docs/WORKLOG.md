@@ -144,6 +144,17 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-20 — Landing-page coach cards show real face photos (not initials)
+- The `index.html` coach grid (first 8 trainers, rendered from `coachDirectory.js`) showed
+  **initials gradient circles** instead of faces. Added a `photo: face(unsplashId)` to each
+  of the 8 directory entries — reusing the **same curated Unsplash portraits the marketplace
+  uses** (Maya/Leo/Diego/Jordan/Priya) plus three verified, visually-checked additions
+  (Anya/Kenji/Hana, which had no marketplace photo). The card render overlays the photo on the
+  initials (`<img onerror="this.remove()">` → graceful initials fallback) with a new
+  `.c .av img` rule (circle, `object-fit:cover`). **Cache-bust:** the `coachDirectory.js`
+  script tag had no `?v=` (so returning visitors would keep the old, photo-less version) —
+  now `?v=20260620`. Verified headless: all 8 avatars load (natW 200), none error-removed.
+
 ### 2026-06-19 — Landing-page phone screenshots fit the frame (no crop, no gap)
 - The `index.html` "beat" phone mockups (`.vis`) used `aspect-ratio:320/716` on the frame
   with `object-fit:cover`, so the screen aspect didn't match the screenshots — the

@@ -253,6 +253,7 @@
   .c:hover .corner-bl{border-color:rgba(46,224,196,0.95)}
   .c .av{position:relative;width:60px;height:60px;border-radius:50%;display:grid;place-items:center;color:var(--cream);font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.06em;box-shadow:0 0 0 1px rgba(245,239,225,0.1),0 0 0 4px rgba(11,14,12,0.5),0 0 24px -4px rgba(46,224,196,0.45);transform:translateZ(40px)}
   .c .av::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1px solid rgba(46,224,196,0.18);pointer-events:none}
+  .c .av img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:center top}
   .c h4{font-family:var(--serif);font-size:24px;font-weight:500;letter-spacing:-.01em;margin:22px 0 6px;transform:translateZ(28px)}
   .c .role{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-b);transform:translateZ(28px)}
   .c .bio{margin-top:14px;color:var(--cream-2);font-size:13.5px;line-height:1.55;min-height:48px;transform:translateZ(16px)}
@@ -666,7 +667,7 @@
   </div>
 </footer>
 
-<script src="/newdesign/coachDirectory.js"></script>
+<script src="/newdesign/coachDirectory.js?v=20260620"></script>
 <script>
 (function(){
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -678,7 +679,7 @@
   TRAINERS.forEach(function(c,i){
     var ini=c.name.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
     var el=document.createElement('a');el.href='TrainerPublic.html?coach='+slugify(c.name);el.className='c';
-    el.innerHTML='<div class="av" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')">'+ini+'</div>'+
+    el.innerHTML='<div class="av" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')">'+ini+(c.photo?'<img src="'+c.photo+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div>'+
       '<h4>'+c.name+'</h4><div class="role">'+c.role+'</div><div class="bio">'+(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
       '<div class="st"><span><b>'+c.years+'y</b>Coaching</span><span><b>'+c.sessions.toLocaleString()+'</b>Sessions</span></div>'+
       '<span class="corner-bl" aria-hidden="true"></span>';
