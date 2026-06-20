@@ -50,3 +50,19 @@ test('hidden keys are filtered to existing + never appear in visible', () => {
   assert.ok(!r.visible.some((v) => v.key === 'c')); // hidden 'c' not visible
   assert.ok(r.visible.some((v) => v.key === 'b')); // 'b' new + not hidden → visible
 });
+
+test('duplicate keys in saved data are deduplicated (canonical arrays)', () => {
+  const saved = {
+    items: [
+      { id: 'a', x: 0, y: 0, w: 12, h: 4 },
+      { id: 'a', x: 6, y: 0, w: 6, h: 3 },   // duplicate id — first occurrence wins
+    ],
+    hidden: ['b', 'b', 'c'],                  // duplicate keys
+  };
+  const r = resolveGridLayout(saved, WIDGETS);
+  const visibleKeys = r.visible.map((v) => v.key);
+  assert.equal(visibleKeys.length, new Set(visibleKeys).size, 'visible has duplicate keys');
+  assert.equal(r.hidden.length, new Set(r.hidden).size, 'hidden has duplicate keys');
+  assert.deepEqual(r.hidden, ['b', 'c']);                 // deduped, order preserved
+  assert.deepEqual(r.visible.find((v) => v.key === 'a'), { key: 'a', x: 0, y: 0, w: 12, h: 4 }); // first 'a' kept
+});

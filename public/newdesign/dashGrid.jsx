@@ -10,10 +10,12 @@ function dgWidgetW(size) { return size === "full" ? 12 : 6; }
 function dgResolveGridLayout(saved, widgets) {
   const bySize = {}; widgets.forEach((w) => { bySize[w.key] = w.size; });
   const existing = new Set(widgets.map((w) => w.key));
-  const hidden = (saved && Array.isArray(saved.hidden)) ? saved.hidden.filter((k) => existing.has(k)) : [];
-  const hiddenSet = new Set(hidden);
-  const savedItems = (saved && Array.isArray(saved.items)) ? saved.items.filter((i) => i && existing.has(i.id)) : [];
-  const placed = new Set(savedItems.map((i) => i.id));
+  // hidden: keep only existing keys, deduped (first occurrence wins).
+  const hiddenSet = new Set(); const hidden = [];
+  if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (existing.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
+  // saved items: keep only existing ids, deduped (first occurrence wins).
+  const placed = new Set(); const savedItems = [];
+  if (saved && Array.isArray(saved.items)) for (const i of saved.items) if (i && existing.has(i.id) && !placed.has(i.id)) { savedItems.push(i); placed.add(i.id); }
   const visible = [];
   for (const i of savedItems) { if (hiddenSet.has(i.id)) continue; visible.push({ key: i.id, x: i.x, y: i.y, w: i.w || dgWidgetW(bySize[i.id]), h: i.h }); }
   for (const w of widgets) { if (placed.has(w.key) || hiddenSet.has(w.key)) continue; visible.push({ key: w.key, w: dgWidgetW(w.size), autoPosition: true }); }
@@ -33,7 +35,8 @@ function dgInjectStyle() {
 .dash-rs{position:absolute;right:7px;bottom:7px;width:12px;height:12px;background:rgba(46,224,196,0.5);clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;pointer-events:none;transition:background .12s;z-index:4}
 .dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(46,224,196,0.95)}
 .dash-wchrome{opacity:0;transition:opacity .12s}
-.dash-gridstack .grid-stack-item:hover .dash-wchrome{opacity:1}
+.dash-gridstack .grid-stack-item:hover .dash-wchrome,.dash-gridstack .grid-stack-item:focus-within .dash-wchrome{opacity:1}
+@media (hover:none){.dash-wchrome{opacity:1}}
 .dash-drag-handle{cursor:move}
 `;
   document.head.appendChild(s);
@@ -74,7 +77,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     try {
       const r = { ...(docRef.current[role] || {}), [tab]: next };
       docRef.current = { ...docRef.current, [role]: r };
-      if (window.shapeDb && window.shapeDb.saveUserGoals) window.shapeDb.saveUserGoals("dashboard_layout", docRef.current);
+      if (window.shapeDb && window.shapeDb.saveUserGoals) Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current)).catch(() => {});
     } catch (e) {}
   };
   const persistFromGrid = () => {
@@ -268,7 +271,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       <div style={{ position: "relative" }}>
         <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "1px 2px" }}>
           <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, padding: "0 2px", lineHeight: 1 }}>⠿</span>
-          <button title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+          <button type="button" title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         {content}
         <div className="dash-rs" aria-hidden="true" />
@@ -284,7 +287,7 @@ function DashGrid({ role, tab = "today", widgets }) {
         <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: DG_MUTE }}>Hidden ·</span>
           {hidden.map((key) => (
-            <button key={key} onClick={() => restore(key)} title="Restore" style={{ padding: "5px 11px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, cursor: "pointer" }}>
+            <button type="button" key={key} onClick={() => restore(key)} title="Restore" style={{ padding: "5px 11px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, cursor: "pointer" }}>
               + {byKey[key] ? (byKey[key].title || key) : key}
             </button>
           ))}
