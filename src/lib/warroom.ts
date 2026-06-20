@@ -957,6 +957,10 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'OWNER — apply migration + set station row: UPDATE public.radio_station SET provider=\'http\', stream_url=\'<Radio.co stream URL>\', now_playing_url=\'<Radio.co now-playing URL>\' WHERE id=1; (station defaults to mock until applied)', status: 'manual' },
         { label: 'OWNER — Radio.co account signup + station creation (royalties + broadcast managed by provider)', status: 'manual' },
         { label: 'OWNER — native build required for background audio: npx cap sync in mobile-app/ + Xcode/Android Studio build (see mobile-app/RADIO-BACKGROUND-AUDIO.md)', status: 'manual' },
+        { label: 'Shape Radio — Nora avatar engine (Phase A): real-time audio-reactive VRM stage + watch-screen preview (web + mobile), placeholder model, manual toggle', status: 'done' },
+        { label: 'Procure the real Nora VRM and swap out the placeholder (Phase C)', status: 'manual' },
+        { label: 'nora_sets schedule + watch-screen auto-show wiring (Phase B)', status: 'pending' },
+        { label: 'On-device WebGL verification (iOS/Android native build)', status: 'pending' },
       ],
     },
     {

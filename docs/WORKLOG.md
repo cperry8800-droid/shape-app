@@ -140,6 +140,19 @@ changelog whenever something ships.
 
 ## Changelog
 
+### 2026-06-19 — Shape Radio Nora avatar — Phase A: audio-reactive VRM engine + watch-screen preview
+
+Real-time audio-reactive 3D Nora avatar engine shipping as a MANUAL preview toggle on both web and mobile. On a PLACEHOLDER VRM model; on-device WebGL render unverified. Phases B + C are next.
+
+- `three@0.169.0` + `@pixiv/three-vrm@3.1.6` added to `mobile-app/package.json` (Vite bundles them); web loads via `esm.sh` import map.
+- `public/nora/placeholder.vrm` + `/m/nora/placeholder.vrm` — CC0 placeholder model (stands in until Phase C swaps the real Nora VRM).
+- `public/newdesign/noraReactive.mjs` — pure audio-reactive driver: `computeBands` + `computeRigParams`. Unit-tested (`tests/nora-reactive.test.mjs`; 261 tests, registered in `package.json`).
+- `public/newdesign/noraStage.mjs` — `NoraStage` Three.js + three-vrm renderer: loads a VRM, attaches to an existing `AnalyserNode`, 30fps audio-reactive render loop, `start` / `stop` / `dispose`.
+- `public/radio.html` — web watch screen: "Watch Nora live (preview)" toggle mounts `NoraStage` reusing the page's existing Web Audio analyser (no second source); three + three-vrm via import map; falls back to the featured image on no-WebGL or error.
+- `mobile-app/.../iosAppBroadsheetRadio.jsx` — mobile watch screen: same preview toggle mounts `NoraStage` off the radio analyser; `shapeBackend.js` (`ShapeRadioLive.analyser()`) + `vite.config.ts` alias wire the shared analyser; Vite bundles three + three-vrm + `noraStage.mjs`.
+- Design spec: `docs/superpowers/specs/2026-06-19-shape-radio-nora-avatar-dj-design.md`.
+- Phase B (nora_sets schedule + auto-show wiring) and Phase C (real Nora VRM procurement + swap) are tracked follow-ups.
+
 ### 2026-06-19 — Shape Radio Phase 1: real licensed player + provider foundation
 - `radio_station` singleton config table (public-read RLS; `provider`, `stream_url`, `now_playing_url`). ⚠ **OWNER — apply migration:** `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-radio-station.sql` — then set `provider='http'`, `stream_url`, and `now_playing_url` on the row. Until applied, the station defaults to `provider='mock'` and the player shows "coming soon."
 - `GET /api/radio/station` — public; returns `{name, streamUrl, provider, configured}`.
