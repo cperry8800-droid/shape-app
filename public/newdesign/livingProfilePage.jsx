@@ -63,7 +63,24 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       let row = null; try { const res = await c.rpc("get_public_profile", { p_user_id: uid }); row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data); } catch (e) {}
       if (!on) return;
       const isSelf = !!(me && me.id === uid);
-      setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid });
+      // Coach credential-verified badge — read the public `verified` flag the admin
+      // review queue mirrors onto the marketplace coach row.
+      let verified = false;
+      let coachCerts = [];
+      if (row && (row.role === "trainer" || row.role === "nutritionist")) {
+        const vtable = row.role === "nutritionist" ? "nutritionists" : "trainers";
+        try { const vr = await c.from(vtable).select("verified").eq("owner_id", uid).maybeSingle(); verified = !!(vr && vr.data && vr.data.verified); } catch (e) {}
+        // A verified coach's REAL submitted cert types (paths withheld; verified-only).
+        if (verified) {
+          try {
+            const cr = await c.rpc("get_coach_certs", { p_user_id: uid });
+            const rows = (cr && !cr.error && Array.isArray(cr.data)) ? cr.data : [];
+            coachCerts = rows.map((x) => ({ abbr: x.cert_type, body: x.cert_type, year: x.cert_number ? ("ID " + x.cert_number) : "Shape-verified", verified: true }));
+          } catch (e) {}
+        }
+      }
+      if (!on) return;
+      setSt({ loading: false, status: row ? "ok" : "notfound", row: row || null, isSelf, uid, verified, coachCerts });
       c.rpc("get_follow_stats", { p_user_id: uid }).then((r) => { if (!on || !r || r.error) return; applyStats(Array.isArray(r.data) ? r.data[0] : r.data); }).catch(() => {});
       if (isSelf) c.rpc("list_follow_requests").then((r) => { if (on && r && !r.error) setReqCount((r.data || []).length); }).catch(() => {});
       // Posts stat — visible activity-post count (RLS-scoped to the viewer).
@@ -204,7 +221,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
             <span>Preview · demo profile — an example of a live account</span>
             <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "5px 13px", textDecoration: "none" }}>Sign in →</a>
           </div>
-          <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
+          <div data-tour="hero-profile"><DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={() => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); }} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} /></div>
         </React.Fragment>
       );
     }
@@ -236,11 +253,16 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const initials = String(name).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
   const isPrivate = row.is_public === false || row.can_view === false;
   const base = LV_PEOPLE[role] || LV_PEOPLE.client;
+  const isDerived = st.status === "derived";
   const person = Object.assign({}, base, {
     uid: st.uid || null,
     name, first, initials, tier: "__live", score: points,
     roleLabel: coach ? (role === "nutritionist" ? "Nutritionist" : "Trainer") : "Member",
-    role,
+    role, verified: !!(coach && st.verified),
+    // Live coach profiles show only verified, real submitted certs (else none) —
+    // never the demo persona's fabricated credentials. The demo certs stay only
+    // for a derived (no-account, example) profile.
+    certs: (coach && st.coachCerts && st.coachCerts.length) ? st.coachCerts : (isDerived ? base.certs : []),
     handle: row.handle || ("@" + first.toLowerCase().replace(/[^a-z0-9]/g, "")),
     pronouns: (!isPrivate && row.pronouns) || base.pronouns,
     goal: (!isPrivate && row.goal) || base.goal,
@@ -291,7 +313,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
 
   return wrapShell(
     <React.Fragment>
+      <div data-tour="hero-profile">
       <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
+      </div>
       {sheet && (
         <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "min(440px,100%)", maxHeight: "76vh", overflowY: "auto", background: "#1b1714", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 22, fontFamily: "'Space Grotesk',sans-serif" }}>

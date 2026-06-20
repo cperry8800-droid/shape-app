@@ -4712,6 +4712,38 @@ async function snoozeHabitReminder(habitId, minutes) {
 }
 window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
 
+// ─── User-set reminders (standalone nudges: weigh-in / check-in / water / photo /
+// custom) — CRUD over /api/client/reminders; the hourly cron fires them. ────────
+async function remindersList() {
+  if (!apiBaseUrl) return { reminders: [] };
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { headers, credentials: 'include', cache: 'no-store' });
+    return await res.json().catch(() => ({ reminders: [] }));
+  } catch (e) { return { reminders: [] }; }
+}
+async function remindersSave(r) {
+  if (!apiBaseUrl) return { ok: false };
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const tz = _deviceTz();
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ tz, ...r }) });
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false }; }
+}
+async function remindersRemove(id) {
+  if (!apiBaseUrl || !id) return { ok: false };
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers, credentials: 'include' });
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false }; }
+}
+window.ShapeReminders = { list: remindersList, save: remindersSave, remove: remindersRemove };
+
 // ─── Source reconciliation (INT2) — "which source do you trust?" ─────────────
 // On-demand data-quality view. clientId optional (a coach reconciling a client).
 async function reconcileGet(clientId, days) {

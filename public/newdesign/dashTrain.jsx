@@ -346,6 +346,78 @@ function ClientWorkoutsPage() {
     ? programName.toUpperCase() + (currentWeek && currentWeek.week != null ? " · WEEK " + currentWeek.week + (weeksTotal ? " OF " + weeksTotal : "") : "")
     : "YOUR ASSIGNED PROGRAM";
 
+  // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=workouts),
+  // mirroring the client Score rollout. The DashPage hero (title/subtitle) stays as the page
+  // header; only the card stack is gridded. The Tonight session hero is its own full widget;
+  // the program by week is one cohesive full widget; consistency + session history pair as halves.
+  const widgets = [
+    tonight ? { key: "tonight", title: "Tonight's session", size: "full", render: () => (
+      <div data-tour="hero-workouts" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
+        <DashWorkoutCard workout={{ ...dtrToCard(tonight.day.workout, coach), time: tonight.when === "Tonight" ? dtrToCard(tonight.day.workout, coach).time : tonight.when }} interactive={false} maxRows={99} />
+      </div>
+    ) } : null,
+
+    { key: "program", title: "The program, by week", size: "full", render: () => (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+        {weeks.length === 0 && anytime.length === 0 && (
+          <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
+            <div className="dash-eyebrow" style={{ color: DTR_RUST }}>No program assigned yet</div>
+            <div style={{ fontSize: 13, color: DTR_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
+              Your trainer assigns the block and it lands here, week by week — ask in chat, or browse the marketplace for a coach.
+            </div>
+          </div>
+        )}
+        {weeks.map((w) => (
+          <DtrWeekPlate key={w.label} w={w} coach={coach} defaultOpen={w.status === "current"} />
+        ))}
+        {/* The unwritten NEXT block — always after the assigned weeks (the
+            program is never "fully written"; the next one is earned at
+            check-in). This is the human-loop sell, kept always-visible. */}
+        {weeks.length > 0 && (
+          <DtrNextWeekLocked coach={coach} weekN={lastWeekN != null ? lastWeekN + 1 : null} />
+        )}
+        {anytime.length > 0 && (
+          <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
+            <div className="dash-eyebrow">Anytime · unscheduled assignments</div>
+            <div style={{ marginTop: 6 }}>
+              {anytime.map((w, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)", alignItems: "center" }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
+                  <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    ) },
+
+    { key: "consistency", title: "Consistency", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_GREEN, paddingLeft: 24 }}>
+        <div className="dash-eyebrow" style={{ color: DTR_GREEN }}>Consistency · streaks &amp; wins</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12 }}>
+          {[[stats.thisWeekCount ?? "—", "This week"], [stats.completedCount ?? "—", "All-time sessions"], [stats.volume7dLb != null ? Math.round(stats.volume7dLb / 1000) + "k lb" : "—", "7-day volume"]].map(([k, l], i) => (
+            <div key={i}>
+              <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{k}</div>
+              <div style={{ fontFamily: DTR_MONO, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginTop: 5 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) },
+
+    { key: "history", title: "Session history", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span className="dash-eyebrow" style={{ color: DTR_RUST }}>Session history · logged vs prescribed</span>
+          <a href="ClientProgress.html" style={{ fontFamily: DTR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DTR_INK50, textDecoration: "none" }}>PR history →</a>
+        </div>
+        <div className="dash-ledger" style={{ "--dac": DTR_RUST, marginTop: 9 }} />
+        <DtrHistory sessions={history} prDates={prDates} />
+      </div>
+    ) },
+  ].filter(Boolean);
+
   return (
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
@@ -356,71 +428,7 @@ function ClientWorkoutsPage() {
         title="Workouts"
         subtitle={"The whole program, week by week — what's done, what's tonight, and what " + coach + " writes next. Log sessions in the app; sets sync here."}
       >
-        {/* Tonight — what the Today card deep-links to */}
-        {tonight && (
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24, marginBottom: 16 }}>
-            <DashWorkoutCard workout={{ ...dtrToCard(tonight.day.workout, coach), time: tonight.when === "Tonight" ? dtrToCard(tonight.day.workout, coach).time : tonight.when }} interactive={false} maxRows={99} />
-          </div>
-        )}
-
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 16, alignItems: "start" }}>
-          {/* ── The program, by week ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-            {weeks.length === 0 && anytime.length === 0 && (
-              <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
-                <div className="dash-eyebrow" style={{ color: DTR_RUST }}>No program assigned yet</div>
-                <div style={{ fontSize: 13, color: DTR_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
-                  Your trainer assigns the block and it lands here, week by week — ask in chat, or browse the marketplace for a coach.
-                </div>
-              </div>
-            )}
-            {weeks.map((w, i) => (
-              <DtrWeekPlate key={i} w={w} coach={coach} defaultOpen={w.status === "current"} />
-            ))}
-            {/* The unwritten NEXT block — always after the assigned weeks (the
-                program is never "fully written"; the next one is earned at
-                check-in). This is the human-loop sell, kept always-visible. */}
-            {weeks.length > 0 && (
-              <DtrNextWeekLocked coach={coach} weekN={lastWeekN != null ? lastWeekN + 1 : null} />
-            )}
-            {anytime.length > 0 && (
-              <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
-                <div className="dash-eyebrow">Anytime · unscheduled assignments</div>
-                <div style={{ marginTop: 6 }}>
-                  {anytime.map((w, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)", alignItems: "center" }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
-                      <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── History + consistency ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-            <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_GREEN, paddingLeft: 24 }}>
-              <div className="dash-eyebrow" style={{ color: DTR_GREEN }}>Consistency · streaks &amp; wins</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12 }}>
-                {[[stats.thisWeekCount ?? "—", "This week"], [stats.completedCount ?? "—", "All-time sessions"], [stats.volume7dLb != null ? Math.round(stats.volume7dLb / 1000) + "k lb" : "—", "7-day volume"]].map(([k, l], i) => (
-                  <div key={i}>
-                    <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{k}</div>
-                    <div style={{ fontFamily: DTR_MONO, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginTop: 5 }}>{l}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DTR_RUST, paddingLeft: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                <span className="dash-eyebrow" style={{ color: DTR_RUST }}>Session history · logged vs prescribed</span>
-                <a href="ClientProgress.html" style={{ fontFamily: DTR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DTR_INK50, textDecoration: "none" }}>PR history →</a>
-              </div>
-              <div className="dash-ledger" style={{ "--dac": DTR_RUST, marginTop: 9 }} />
-              <DtrHistory sessions={history} prDates={prDates} />
-            </div>
-          </div>
-        </div>
+        <DashGrid role="client" tab="workouts" widgets={widgets} />
       </DashPage>
     </React.Fragment>
   );

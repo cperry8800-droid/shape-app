@@ -20,6 +20,7 @@ function NutritionistClientsPage() {
     <React.Fragment>
     {source === "demo" && <DashDemoBand />}
     <DashPage
+      tourHero="hero-clients"
       navItems={nutriNavItems("clients")}
       payoutCard={liveToday
         ? { label: "MONTHLY · MRR", amount: dashMoney(mrrCents), sub: activeCount + " active subs · payouts connect soon" }

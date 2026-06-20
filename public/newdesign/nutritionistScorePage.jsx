@@ -17,6 +17,7 @@ function NutritionistScorePage() {
   const [tiers, setTiers] = React.useState(STATIC_TIERS);
   const [breakdown, setBreakdown] = React.useState(STATIC_BREAKDOWN);
   const [headline, setHeadline] = React.useState({ title: "5,340", eyebrow: "COACH SCORE · MASTER" });
+  const [tierLabel, setTierLabel] = React.useState("MASTER");
 
   React.useEffect(() => {
     let alive = true;
@@ -30,25 +31,19 @@ function NutritionistScorePage() {
           title: d.total.toLocaleString(),
           eyebrow: `COACH SCORE · ${String(cn(d.current_tier)).toUpperCase()}`,
         });
+        setTierLabel(String(cn(d.current_tier)).toUpperCase());
         setTiers(STATIC_TIERS.map(([t,r,desc]) => [t, r, desc, t === cn(d.current_tier)]));
       })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
-  return (
-    <DashPage
-      navItems={nutriNavItems("score")}
-      payoutCard={nutriPayoutCard}
-      eyebrow={headline.eyebrow}
-      title={headline.title}
-      subtitle="Top 7% of nutritionists on Shape. Score drives marketplace ranking, verified badge, and payout tier."
-      actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
-      </>}
-    >
-      <Card style={{ marginBottom: 20 }}>
-        <SectionTitle right="MASTER · TOP 7%">Tiers</SectionTitle>
+
+  // Each top-level card becomes a draggable/resizable DashGrid widget (role=nutritionist,
+  // tab=score), mirroring the client Score tab. The DashPage hero stays the page header.
+  const widgets = [
+    { key: "tiers", title: "Tiers", size: "full", render: () => (
+      <Card>
+        <SectionTitle right={tierLabel}>Tiers</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", marginTop: 8 }}>
           {tiers.map(([t,r,d,cur],i)=>(
             <div key={t} style={{ padding: "18px 16px", borderLeft: i === 0 ? "none" : "1px solid rgba(242,237,228,0.08)", background: cur ? "rgba(10,197,168,0.08)" : "transparent" }}>
@@ -59,44 +54,51 @@ function NutritionistScorePage() {
           ))}
         </div>
       </Card>
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
-        <Card>
-          <SectionTitle right={`TOTAL ${breakdown.reduce((a, b) => a + b[1], 0).toLocaleString()}`}>Score breakdown</SectionTitle>
-          {breakdown.map(([l,v,sub],i)=>{
-            const w = (v / Math.max(...breakdown.map(b=>b[1]))) * 100;
-            return (
-              <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
-                </div>
-                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
-                <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Card>
-            <SectionTitle>What Master unlocks</SectionTitle>
-            <div style={{ display: "grid", gap: 12, fontSize: 13, color: "rgba(242,237,228,0.75)" }}>
-              <div>• Verified badge on marketplace</div>
-              <div>• Top-3 rank in Nutrition category</div>
-              <div>• Higher payout tier</div>
-              <div>• Host Shape Radio rooms</div>
-              <div>• Early access to new features</div>
-            </div>
-          </Card>
-          <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>PATH TO ICON</div>
-            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>9,660 more points. Top levers: add 10 clients (+500), hit 95% log adherence (+330), publish 2 plans (+390).</div>
-          </Card>
-        </div>
-      </div>
+    ) },
 
-      <Card style={{ marginTop: 20 }}>
+    { key: "breakdown", title: "Score breakdown", size: "half", render: () => (
+      <Card>
+        <SectionTitle right={`TOTAL ${breakdown.reduce((a, b) => a + b[1], 0).toLocaleString()}`}>Score breakdown</SectionTitle>
+        {(() => { const bdMax = Math.max(...breakdown.map(b=>b[1])); return breakdown.map(([l,v,sub],i)=>{
+          const w = bdMax > 0 ? (v / bdMax) * 100 : 0;
+          return (
+            <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
+              </div>
+              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
+              <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
+              </div>
+            </div>
+          );
+        }); })()}
+      </Card>
+    ) },
+
+    { key: "unlocks", title: "What Master unlocks", size: "half", render: () => (
+      <Card>
+        <SectionTitle>What Master unlocks</SectionTitle>
+        <div style={{ display: "grid", gap: 12, fontSize: 13, color: "rgba(242,237,228,0.75)" }}>
+          <div>• Verified badge on marketplace</div>
+          <div>• Top-3 rank in Nutrition category</div>
+          <div>• Higher payout tier</div>
+          <div>• Host Shape Radio rooms</div>
+          <div>• Early access to new features</div>
+        </div>
+      </Card>
+    ) },
+
+    { key: "path", title: "Path to Icon", size: "half", render: () => (
+      <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>PATH TO ICON</div>
+        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>9,660 more points. Top levers: add 10 clients (+500), hit 95% log adherence (+330), publish 2 plans (+390).</div>
+      </Card>
+    ) },
+
+    { key: "earn", title: "How you earn", size: "full", render: () => (
+      <Card>
         <SectionTitle right="12 WAYS">How you earn · points by action</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 36px" }}>
           {[
@@ -123,6 +125,22 @@ function NutritionistScorePage() {
           ))}
         </div>
       </Card>
+    ) },
+  ].filter(Boolean);
+
+  return (
+    <DashPage
+      navItems={nutriNavItems("score")}
+      payoutCard={nutriPayoutCard}
+      eyebrow={headline.eyebrow}
+      title={headline.title}
+      subtitle="Your coach score drives marketplace ranking, verified badge, and payout tier."
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
+      </>}
+    >
+      <DashGrid role="nutritionist" tab="score" widgets={widgets} />
     </DashPage>
   );
 }

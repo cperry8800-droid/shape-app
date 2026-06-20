@@ -416,6 +416,11 @@ function ClientMeSettings() {
         </div>
       </Card>
 
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>App tour</SectionTitle>
+        <Row label="Take a tour" value="Walk through your dashboard" action="START" onAction={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }} />
+      </Card>
+
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>
         <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>

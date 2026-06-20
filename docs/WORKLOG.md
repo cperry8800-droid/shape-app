@@ -140,6 +140,242 @@ changelog whenever something ships.
 
 ## Changelog
 
+> **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
+> `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
+> `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
+
+### 2026-06-20 — Interactive spotlight tour (website dashboards, Phase B)
+- The **website dashboards now have the same guided spotlight walkthrough** as the mobile
+  app (Phase A), reusing the identical engine — the page dims, a cutout spotlights a real
+  element, and a coachmark with Back/Next/Skip + progress dots walks the user through.
+- **Engine reuse, no new dependency:** `spotlightTour.js` (`window.SpotlightTour`) +
+  `spotlightGeom.mjs` are loaded as-is on the three dashboard SPAs
+  (`ClientApp.html` / `TrainerApp.html` / `NutritionistApp.html`); the website root is
+  `document.body`. The engine file is untouched from Phase A.
+- **Adapter — `public/newdesign/dashTour.js`** (`window.ShapeDashTour.{init,start}`): supplies
+  the website step lists and wiring. `navigate` sets the hash route (`#today` … `#profile`),
+  `anchor` queries `[data-tour="hero-<slug>"]`, and each step **falls back** to its nav item
+  `[data-tour="webtab-<slug>"]` so a missing/unmounted hero never stalls the tour. Role accents:
+  client `#2ee0c4`, trainer `#0a8f87`, nutritionist `#a07a2e`.
+- **Client tour:** Welcome → Today → Workouts → Nutrition → Grocery → Habits → Score →
+  Community → Profile → **Shape Radio finale** (CTA → `/newdesign/Radio.html`).
+  **Coach tours** (trainer/nutritionist): Welcome → Today → Clients → Programs/Plans →
+  Business → Community → Profile (no Radio finale; ends on Profile).
+- **`data-tour` hooks:** the shared sidebar nav items carry `webtab-<slug>`; one hero per
+  route. Client heroes sit on each page's lead element; coach heroes thread an optional
+  `tourHero` prop into the shared `DashPage`/`DashShell` mastheads so each coach route
+  anchors a **tight spotlight on its page title** (not a whole-page cutout). The community +
+  profile pages are shared components, so one hook covers both client and coach.
+- **Trigger & persistence (net-new on the website):** the pure predicate
+  `tourTrigger.mjs` `shouldAutoShowTour(createdAt, seen, now, maxAgeHours=24)` (TDD'd in
+  `tests/tour-trigger.test.mjs`) drives a **new-account auto-show** (<24h, once), mirrored in
+  `dashTour.js`. Persists `seen` to `localStorage('shape.webTourSeen')` +
+  `saveUserGoals('client_onboarding'|'coach_onboarding')`. **"Take a tour" replay** entries
+  added to the client Me settings (`clientMeSettings.jsx`) and coach profile extras
+  (`dashProfileExtras.jsx`) — both dispatch the `shape:startTour` event the adapter listens for.
+- Verified headlessly (Playwright, all three SPAs): the engine + adapter load, `shape:startTour`
+  fires the overlay, Next advances, the hash navigates per step, the cutout repositions, role
+  accents are correct (client teal / trainer teal / nutritionist gold), coach tours end on
+  Profile (no Radio). Phase A's known limitation stands: the engine doesn't auto-`scrollIntoView`
+  — fine here since the orientation anchors are top-of-route (post `scrollTo(0,0)`) or always-in-view nav.
+
+### 2026-06-20 — Interactive spotlight tour (mobile, Phase A): engine + mobile rework
+- The mobile onboarding tour is now an **interactive guided spotlight walkthrough** — the
+  screen dims, a cutout spotlights the real UI element, and a coachmark with Back/Next/Skip +
+  progress dots walks the user through the app.
+- **Engine:** `public/newdesign/spotlightGeom.mjs` (pure geometry — `cutoutRect`, `coachmarkPos`,
+  `stepBounds`; unit-tested in `tests/spotlight-geom.test.mjs`) +
+  `public/newdesign/spotlightTour.js` (`startTour(steps, opts)` → dim overlay + spotlight cutout
+  + coachmark + controls; configurable `root` container; degrades to a centered card when an
+  anchor is missing). Registered as `window.SpotlightTour`. No new dependency.
+- **Client tour** (`BSOnboardingTour` in `iosAppBroadsheetClient.jsx`): replaces the old
+  float-a-card implementation. Steps: Welcome → Home → Train → Eat → Grocery → Habits → Chat
+  → Me → **Shape Radio finale** (opens the in-app radio tab via `onNavigate('radio')`). Adds grocery + habits
+  steps that the original tour lacked. `data-tour` hooks on the shared tab bar (`BSTabBar`) +
+  one hero element per screen anchor the spotlight to real UI.
+- **Coach tour** (`BSProOnboardingTour` in `iosAppBroadsheetPros.jsx`): same engine, role-aware
+  accent (trainer teal / nutritionist gold). Steps: Welcome → Today → Clients → Plans → Chat → Me.
+  `data-tour` hooks on the coach tab bars + one hero per screen.
+- Reuses the existing trigger + persistence: new-account auto-show (<24h), `shape:startTour`
+  replay, `user_goals('client_onboarding'|'coach_onboarding')`, Me → App tour entry.
+- **Phase B** (website dashboard tours) is a separate later plan.
+
+### 2026-06-20 — Landing-page coach cards show real face photos (not initials)
+- The `index.html` coach grid (first 8 trainers, rendered from `coachDirectory.js`) showed
+  **initials gradient circles** instead of faces. Added a `photo: face(unsplashId)` to each
+  of the 8 directory entries — reusing the **same curated Unsplash portraits the marketplace
+  uses** (Maya/Leo/Diego/Jordan/Priya) plus three verified, visually-checked additions
+  (Anya/Kenji/Hana, which had no marketplace photo). The card render overlays the photo on the
+  initials (`<img onerror="this.remove()">` → graceful initials fallback) with a new
+  `.c .av img` rule (circle, `object-fit:cover`). **Cache-bust:** the `coachDirectory.js`
+  script tag had no `?v=` (so returning visitors would keep the old, photo-less version) —
+  now `?v=20260620`. Verified headless: all 8 avatars load (natW 200), none error-removed.
+- **Coach profile avatar too:** the index coach cards linked to `TrainerPublic.html?coach=…`,
+  which redirects to `MemberProfile.html?name=…&role=trainer` — **dropping the photo**, so the
+  Signal sigil derived initials ("JP"). The cards now link straight to
+  `MemberProfile.html?name=…&role=trainer&avatar=<photo>` (the same `&avatar=` the marketplace
+  passes), so a clicked coach's profile shows the real photo in the `LvPortrait` sigil. Verified
+  on the live preview (the photo loads in the sigil, not initials).
+- **Facet (gem) avatar shape:** the directory card avatars were plain **circles**; rebuilt them
+  as the app's **rounded-diamond facet gem** (matching `LvPortrait`) — a 45°-rotated rounded
+  square (`border-radius:27%`) with a per-card gradient frame + highlight, and an inset window
+  (`inset:4px`, `border-radius:23%`, `overflow:hidden`) holding the photo at 152% counter-rotated
+  (`rotate(-45deg)`) so the face is upright. Initials fall back inside the gem. Verified headless
+  (8 gems, `rotate(45deg)`, photo upright).
+
+### 2026-06-19 — Landing-page phone screenshots fit the frame (no crop, no gap)
+- The `index.html` "beat" phone mockups (`.vis`) used `aspect-ratio:320/716` on the frame
+  with `object-fit:cover`, so the screen aspect didn't match the screenshots — the
+  Community/chat shot (a 408×861 outlier vs the others' 600×1387) got its left/right edges
+  cropped ("Deadlift" → "eadlift"). **Fixed:** pinned the screen (`.vis .scr`) to the
+  screenshots' real `aspect-ratio:600/1387` (frame height now content-driven), and
+  normalized the odd chat capture to that aspect by padding it to **408×943** with a
+  background-matched off-white (`getapp-chat-v3.png`). All five phones now render their
+  screenshot edge-to-edge with **0% crop** (verified via headless geometry: every screen
+  aspect == its image's natural aspect).
+
+### 2026-06-19 — Security: sanitize the Music-tab playlist URL (stored XSS) + DB url guard
+- The new profile **Music tab** rendered the user-supplied `member_playlists.url`
+  straight into an anchor `href`, so a `javascript:`/`data:` URL would execute on click
+  (stored XSS — flagged by the automated commit security review). **Fixed:**
+  `livingDesktop.jsx` (`MusicBlock`) now only turns a URL into a link when it's `http(s)`
+  to a Spotify/Apple host (`safeMusicUrl`); anything else renders as a non-navigating row.
+  `livingDesktop.jsx?v=31`.
+- ✅ **Migration APPLIED (2026-06-19)** — defense-in-depth that covers the mobile open
+  path too:
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-member-playlists-url-guard.sql`
+  — a `NOT VALID` CHECK on `member_playlists.url` (`~* '^https?://'`) rejecting non-http(s)
+  schemes at the DB for all writers, without scanning existing rows.
+
+### 2026-06-19 — Verified coaches show their REAL certs on the profile (closes illustrative sub-data)
+- The living coach profile's **Certifications** list now renders a verified coach's
+  **actual submitted cert types** (from the credential-verification `cert_files`) instead
+  of demo certs. ✅ **Migration APPLIED (2026-06-19):**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-certs-public.sql`
+  — SECURITY DEFINER `get_coach_certs(p_user_id)` exposes ONLY cert type + number (never
+  the file paths), and ONLY for coaches whose credentials an admin approved + who carry the
+  public verified flag. `livingProfilePage.jsx` fetches it for verified coaches → `person.certs`
+  (`?v=20260619b`). Self-reported certs stay the profile default until verification (per Terms).
+- **Assessed the rest of the "illustrative sub-data" item:** the Signal **sigil competency
+  rings** are intentionally illustrative (practice focus, not a workout/PR metric — no real
+  source by design) and the **field-notes** feed already loads the author's real community
+  posts. So certs were the remaining wireable piece — now done.
+
+### 2026-06-19 — Website profile Music tab (parity with the mobile Music tab)
+- The desktop living profile (member Terrain + coach Signal, `livingDesktop.jsx`) gains a
+  **Music** tab — the profile owner's playlist library, fed by the existing
+  `get_member_playlists(p_user_id)` RPC (own → all incl. private with a lock label; others →
+  public only). Cards are provider-tinted (Spotify green / Apple red) with a ▶ Open link +
+  track count. Closes the "Website profile Music-tab parity" follow-up from the 2026-06-09
+  mobile Music tab. Display on web; the owner adds/manages from the app (web add is a
+  follow-up). `livingDesktop.jsx?v=30`; parse-check clean.
+
+### 2026-06-19 — User-set reminders: members schedule their own nudges (push spine)
+- **Members can now set their own reminders** to DO & LOG things — weigh-in, weekly
+  check-in, water, progress photo, or a custom label — each with a time + days of week.
+  Distinct from per-habit reminders (those stay on the Habits page). They ride the
+  existing notifications→push spine, so once push is activated they hit the lock screen.
+- ✅ **Migration APPLIED (2026-06-19):**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-user-reminders.sql`
+  — `user_scheduled_reminders` (owner-RLS; `kind`, `label`, `at_time` HH:MM, `days int[]`
+  0=Sun…6=Sat, `tz`, `enabled`, `last_fired_on` for dedupe). Idempotent. **Code no-ops
+  until applied.**
+- **Backend:** `GET/POST/DELETE /api/client/reminders` (owner-scoped CRUD; validates
+  kind/HH:MM/days). **Hourly cron** `/api/cron/reminders` (`vercel.json` `0 * * * *`,
+  `CRON_SECRET`): for each enabled reminder computes the member's LOCAL hour/weekday/date
+  in its tz (via `Intl`), and when the local hour matches `at_time` and today is in `days`,
+  fires ONE notification per local day (deduped via `last_fired_on`) through
+  `createNotification` → push webhook.
+- **UI:** a **"Your reminders"** manager in mobile Settings → Notifications (clients only,
+  `BSReminderManager` in `iosAppBroadsheetClient.jsx`) — add/edit/delete, kind chips,
+  `<input type=time>`, day toggles, per-reminder enable switch; `window.ShapeReminders`
+  (`shapeBackend.js`) CRUD helper (Bearer native / cookie `/m/` web, sends the device tz).
+- Verified: `tsc --noEmit` clean · mobile JSX + shapeBackend parse-check clean · mobile
+  build + `public/m` resynced. *Follow-up:* desktop-website Settings parity
+  (`clientMeSettings.jsx`); the per-reminder push still needs the global push activation
+  (FCM env + webhook) to leave the in-app bell.
+
+### 2026-06-19 — Coach credential verification: COI + certs → admin review → ✓ Verified badge
+- **Makes "vetted coaches" literally true.** A coach uploads proof of certification +
+  a Certificate of Insurance (COI), submits for review; an admin verifies in a queue;
+  on approval a **✓ Verified** badge shows on their marketplace card + living profile,
+  and a weekly cron nudges them before insurance/licenses expire. The badge concept was
+  already designed into the app (Terms clause + hero render slot) — this builds the
+  pipeline behind it.
+- ✅ **Migration APPLIED (2026-06-19):**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-credential-verification.sql`
+  — extends `provider_credentials` (NC1) with a document + review workflow
+  (`insurance_coi_path`, `cert_files jsonb`, `review_status`, `submitted_at`,
+  `reviewed_by/at`, `review_notes`); a PRIVATE **`coach-credentials`** bucket (PDF/DOC/
+  image, 10 MB, service-role upload + signed-URL read); a PUBLIC **`verified` + `verified_at`**
+  flag on `trainers`/`nutritionists` (the marketplace rows already public-read, so the
+  badge renders without exposing the private credential row); and a
+  `coach_credential_expiry_reminders` dedupe ledger. Idempotent. **All code no-ops until
+  applied.**
+- **Backend:** `POST /api/coach/credentials/document` (multipart COI/cert upload → bucket,
+  path recorded on the owner's credential row); extended `POST /api/coach/credentials`
+  with an `action:'submit'` branch (→ `review_status:'pending'`) and `GET` now returns
+  the review + verified state. **Admin queue** `/dashboard/credentials` (+ `actions.ts`,
+  mirrors the applications queue, `requireAdminUser` + service-role): pending/approved/
+  rejected/changes tabs, signed COI + cert links, license expiry flags; **Approve →**
+  sets `verified=true` on the coach's marketplace row(s) (a coach can hold both) + notifies
+  them; Reject revokes; Request-changes notifies with the note. **Weekly cron**
+  `/api/cron/credential-expiry` (Mon 08:00 UTC, `CRON_SECRET`): scans insurance + license
+  expirations inside 60 days, writes ONE never-shaming reminder per coach per credential
+  per month (deduped), riding the existing notifications→push spine.
+- **Verified flag is intentionally SEPARATE from application approval** (approval makes a
+  coach live; credential review grants the badge) — `publishProviderRow`'s update doesn't
+  touch `verified`/`verified_at`, so re-publishing preserves it.
+- **Coach-facing UI:** a new **Credentials & verification** card on the coach dashboard
+  profile (`dashProfileExtras.jsx`, rendered below the living profile on Trainer/
+  Nutritionist Profile) — status chip, COI upload, add-certification (type/number/file),
+  and Submit-for-review (gated on a COI being on file). **Badge render:** marketplace coach
+  cards (`marketplace.jsx`, reads `row.verified`) + the living coach-profile hero
+  (`livingProfilePage.jsx` fetches the coach's `verified` flag → `person.verified`; the
+  `livingDesktop.jsx` hero already had the `d.verified && <SpVerifiedDot/> Verified` slot).
+- Verified per change: `tsc --noEmit` clean · all 4 edited JSX parse-check clean · `?v=`
+  bumped (`dashProfileExtras 20260619`, `marketplace 6`, `livingProfilePage 20260619`,
+  `livingDesktop 29`). *Follow-up:* mobile marketplace/profile verified badge (web is the
+  primary discovery surface); a richer apply-time COI capture.
+
+### 2026-06-19 — Draggable + resizable dashboard widgets (GridStack) across all card tabs, all profiles
+- **The dashboard is now a movable, resizable grid.** Every card-style dashboard tab
+  renders its cards as GridStack widgets the user can **drag to reorder** (via a ⠿
+  handle in each card's chrome) and **resize** (via a flush corner triangle), with the
+  layout **persisted per role+tab** to `user_goals('dashboard_layout')`. Applies to all
+  three profiles (client · trainer · nutritionist); single-purpose pages (meal-plan
+  builders, workout lists, calendars, feeds, rosters, profiles) are deliberately left
+  alone.
+- **Engine — `public/newdesign/dashGrid.jsx`** (the `DashGrid` interop, vendored
+  GridStack 11.x at `/vendor/gridstack/`): GridStack owns layout (x/y/w/h); React
+  `createPortal`s each card's content into the grid-item node. Config `cellHeight:2 ·
+  margin:8 · float:true · handle:'.dash-drag-handle' · resizable se · column:12` with a
+  `breakpoints:[{w:768,c:1}]` 1-column mobile breakpoint. API:
+  `<DashGrid role tab widgets={[{key,title,size:'full'|'half',render}]} />`.
+  - **Tight content-fit:** GridStack's auto `sizeToContent` can't see React portals, so
+    heights are computed directly from the measured card height
+    (`h = ceil((cardH + 18) / cell)`, +18 = 16px item-content inset + 2px buffer) and the
+    whole ordered layout is applied atomically via `grid.load(layout, false)` (incremental
+    `grid.update` got re-cascaded by the float engine and scrambled card order). A
+    debounced **ResizeObserver** per card refits async content (fetch-rendered cards that
+    start null).
+  - **Flush resize triangle:** the card renders its own `.dash-rs` filled triangle inset
+    7px in the corner, while GridStack's `.ui-resizable-se` is made a transparent 28px
+    hit-area — so the affordance is pixel-flush and consistent on every card (the
+    decorative `.dash-plate--bracket::after` corner is hidden), with no scrollbars
+    (`overflow:hidden`).
+- **Tabs gridded** (each refactored to build a `widgets` list + render through `DashGrid`):
+  client **Today · Score · Habits · Progress · Workouts · Nutrition · Goal**; trainer &
+  nutritionist **Today · Score · Goal**. The two coach apps also gained the GridStack
+  vendor `<link>`/`<script>` (they loaded `dashGrid.jsx` but not the engine → empty grid).
+- **Verified on the preview** (Playwright, both 1280px desktop + 430px mobile) across all
+  9 newly-gridded tabs: correct widget count + order, no collapsed cards, resize triangle
+  flush (7px inset), and clean 1-column stacking (maxGap 0) at mobile width. Conditional
+  widgets (e.g. Progress check-in/photo-timeline, Workouts tonight) correctly hide when
+  signed-out. Console errors limited to benign demo-mode 401s.
+- All touched `.jsx` bumped to `?v=20260619a` across referencing HTML; on branch
+  `claude/dashboard-widgets` (PR #1353), ready to squash-merge to production.
+
 ### 2026-06-18 — Shape Score v2: momentum streak escalation (D) + weekly commitments (E)
 - **✅ FULLY LIVE (end of session):** the owner ran ALL migrations (Phase C accountability,
   D escalation, E commitments — Phase B momentum already applied), set **`CRON_SECRET`** in

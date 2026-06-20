@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
+import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
@@ -230,20 +231,6 @@ function BSRadioFx() {
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
-// ── First-run app tour ──────────────────────────────────────────────────────
-// A skippable ~60-second walkthrough that appears once when you first land in
-// the app (persisted to localStorage + user_goals 'client_onboarding'), and can
-// be replayed anytime from Me → App tour. Each step switches the underlying tab
-// (via onNavigate) so the real screen shows behind the card.
-const BS_TOUR_STEPS = [
-  { key: 'welcome', tab: 'home', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'Here’s a quick tour of how to get around. You can skip it and dive straight in — and replay it anytime from the Me tab.' },
-  { key: 'home', tab: 'home', emoji: '🏠', eyebrow: 'HOME TAB', title: 'Your day, at a glance.', body: 'Your week strip, today’s workout and meals, plus quick chips to log, check habits, and see your Shape Score.' },
-  { key: 'train', tab: 'train', emoji: '🏋️', eyebrow: 'TRAIN TAB', title: 'Train.', body: 'Your program for each day. Preview a session, start a guided workout, or swap an exercise for a coach-approved alternative.' },
-  { key: 'eat', tab: 'eat', emoji: '🍎', eyebrow: 'EAT TAB', title: 'Eat.', body: 'Your meals and macros for the day. Log what you ate, swap meals, browse recipes, and build a grocery list.' },
-  { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Coaches & community.', body: 'Message your coaches, join the community feed and channels, and DM friends — all in one place.' },
-  { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your profile and Shape Score, goals, saved library, and settings. Tip: tap your avatar on any screen to come back here.' },
-  { key: 'done', tab: 'home', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — let’s get to work.' },
-];
 
 function bsMarkTourSeen() {
   try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {}
@@ -252,50 +239,25 @@ function bsMarkTourSeen() {
 
 function BSOnboardingTour({ onClose, onNavigate }) {
   const t = useBS();
-  const accent = t.ACCENT;
-  const [i, setI] = useStateBSC(0);
-  const step = BS_TOUR_STEPS[i];
-  const last = i === BS_TOUR_STEPS.length - 1;
-  const isWelcome = step.key === 'welcome';
-
-  React.useEffect(() => { if (step.tab) onNavigate?.(step.tab); }, [i]);
-
-  const finish = () => { bsMarkTourSeen(); onClose?.(); };
-  const next = () => { if (last) finish(); else setI(v => v + 1); };
-  const back = () => setI(v => Math.max(0, v - 1));
-
-  const ctaStyle = { width: '100%', borderRadius: 13, border: 0, background: accent, color: '#06231f', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghostStyle = { width: '100%', borderRadius: 13, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-
-  const overlay = (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
-      <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
-        <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
-        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {BS_TOUR_STEPS.map((s, k) => (
-            <span key={s.key} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 999, background: k === i ? accent : t.HAIR }} />
-          ))}
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50 }}>{i + 1} / {BS_TOUR_STEPS.length}</span>
-        </div>
-        {isWelcome ? (
-          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <button onClick={next} style={ctaStyle}>Take a quick tour →</button>
-            <button onClick={finish} style={ghostStyle}>Skip for now</button>
-          </div>
-        ) : (
-          <div style={{ marginTop: 18, display: 'flex', gap: 9 }}>
-            <button onClick={back} style={{ ...ghostStyle, width: 92, flex: '0 0 auto' }}>Back</button>
-            <button onClick={next} style={{ ...ctaStyle, flex: 1 }}>{last ? 'Start exploring →' : 'Next →'}</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
-  return target ? createPortal(overlay, target) : overlay;
+  React.useEffect(() => {
+    const root = document.getElementById('bs-phone-surface') || document.body;
+    const q = (k) => () => root.querySelector('[data-tour="' + k + '"]');
+    const go = (tab) => () => onNavigate && onNavigate(tab);
+    const steps = [
+      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Welcome', title: 'Welcome to Shape.', body: "A quick tour of where everything lives — about 30 seconds." },
+      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Home', title: 'Your day, at a glance.', body: "Your next move, meals and habits — all on the home screen." },
+      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: 'Train', title: "Today’s session.", body: "Your workout, ready to start — coach-built, with the moves and loads." },
+      { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: 'Eat', title: 'Meals & logging.', body: "Your plan for the day. Tap a meal to log it in one tap." },
+      { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: 'Grocery', title: 'Grocery lists.', body: "Your week’s meals become a shopping list, sorted by aisle — auto-built for you." },
+      { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: 'Habits', title: 'Daily habits.', body: "Check off the small things that add up — every one feeds your Shape Score." },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Coaches & community.', body: "Message your coaches and see the community feed." },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your Shape Score.', body: "Your profile, progress and the one number that tells the truth." },
+      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: '🎵 Shape Radio.', body: "Ad-free workout mixes, curated by BPM. Free with your membership.", onCta: () => onNavigate && onNavigate('radio') },
+    ];
+    const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
+    return () => tour.destroy();
+  }, []);
+  return null;
 }
 
 function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
@@ -2519,7 +2481,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           the signal engine's top flag when it has one, else the plan's next move.
           Everything below steps down a level (this is the only glowing plate). */}
       {todayDirective && (
-        <BSPlate c={todayDirective.c} tick bracket pad="17px 18px 17px 24px" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
+        <BSPlate c={todayDirective.c} tick bracket pad="17px 18px 17px 24px" data-tour="hero-home" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
@@ -2715,7 +2677,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
         const openHabits = selDayHabits.filter(h => !h.done); // completed habits leave the card
         return (
-          <BSPlate c={t.GREEN} tick bracket pad="14px 16px 14px 22px" role="button" ariaLabel="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
+          <BSPlate c={t.GREEN} tick bracket pad="14px 16px 14px 22px" data-tour="hero-habits" role="button" ariaLabel="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {done}/{selDayHabits.length} done</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
@@ -3381,7 +3343,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
       {/* Today hero — the session at a glance, on the instrument plate. */}
-      <BSPlate c={t.ACCENT} tick bracket pad="11px 12px 11px 17px" style={{ margin: `12px ${t.padX}px 0` }}>
+      <BSPlate c={t.ACCENT} tick bracket pad="11px 12px 11px 17px" data-tour="hero-train" style={{ margin: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
@@ -5873,7 +5835,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         const done = !nextMeal;
         const c = done ? t.GREEN : _teal;
         return (
-          <BSPlate c={c} tick bracket pad="11px 14px 11px 20px" style={{ margin: `13px ${t.padX}px 0`, textAlign: 'left' }}>
+          <BSPlate c={c} tick bracket pad="11px 14px 11px 20px" data-tour="hero-eat" style={{ margin: `13px ${t.padX}px 0`, textAlign: 'left' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>{done ? 'Today · eaten' : 'Today · your move'}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{loggedN}/{total} meals</span>
@@ -5969,7 +5931,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           <>
             <BSTrackHeader kicker="For the week" title="Grocery list" actionLabel="Open" onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
-              <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
+              <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>From {who} · this week</div>
@@ -8561,7 +8523,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
                 <div style={{ padding: '0 14px 14px' }}>
-                  <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
+                  <div data-tour="hero-me" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
                         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
@@ -9122,7 +9084,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </div>
 
         {/* hero stat */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
+        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
@@ -12356,6 +12318,74 @@ const _NP_CAPS = [2, 3, 4, 6, 8];
 // person is notified about, per TYPE × per CHANNEL, plus master mute, quiet
 // hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
 // notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
+const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
+const _REM_DOW = [['S', 0], ['M', 1], ['T', 2], ['W', 3], ['T', 4], ['F', 5], ['S', 6]];
+// Member-set reminders — standalone nudges (weigh-in / check-in / water / photo /
+// custom) the hourly cron fires. Lives in Settings → Notifications (clients only).
+function BSReminderManager() {
+  const t = useBS();
+  const [list, setList] = useStateBSC(null);
+  const [draft, setDraft] = useStateBSC(null);
+  const load = () => Promise.resolve(window.ShapeReminders?.list?.() || { reminders: [] }).then((r) => setList((r && r.reminders) || []));
+  React.useEffect(() => { load(); }, []);
+  const kindLabel = (k) => (_REM_KINDS.find((x) => x[0] === k) || [, 'Reminder'])[1];
+  const daysLabel = (days) => (days && days.length === 7) ? 'Every day' : (days || []).map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(' ');
+  const save = async () => {
+    const d = draft; if (!d) return; setDraft(null);
+    await window.ShapeReminders?.save?.({ id: d.id, kind: d.kind, label: d.label, atTime: d.atTime, days: d.days, enabled: d.enabled !== false });
+    load();
+  };
+  const del = async (id) => { setList((l) => (l || []).filter((x) => x.id !== id)); await window.ShapeReminders?.remove?.(id); load(); };
+  const toggleEnabled = async (r) => { setList((l) => (l || []).map((x) => x.id === r.id ? { ...x, enabled: !x.enabled } : x)); await window.ShapeReminders?.save?.({ id: r.id, kind: r.kind, label: r.label, atTime: r.at_time, days: r.days, enabled: !r.enabled }); load(); };
+  const fld = { background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 9, padding: '8px 10px', fontFamily: t.MONO, fontSize: 12, outline: 'none' };
+
+  return (
+    <React.Fragment>
+      <div style={{ marginTop: 18, marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Your reminders</div>
+        {!draft && <button type="button" onClick={() => setDraft({ kind: 'weigh_in', label: '', atTime: '09:00', days: [1, 2, 3, 4, 5], enabled: true })} style={{ background: 'transparent', border: `1px solid ${t.ACCENT}`, color: t.ACCENT, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>＋ Add</button>}
+      </div>
+
+      {list === null ? (
+        <div style={{ padding: '8px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      ) : (
+        (list.length === 0 && !draft) ? (
+          <div style={{ padding: '10px 0', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>No reminders yet — add one to nudge yourself to weigh in, check in, hydrate, or anything else.</div>
+        ) : list.map((r, i) => (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 0', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 0, opacity: r.enabled ? 1 : 0.5 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{r.label || kindLabel(r.kind)}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{r.at_time} · {daysLabel(r.days)}</div>
+            </div>
+            <button type="button" onClick={() => toggleEnabled(r)} aria-pressed={r.enabled} aria-label={`${r.enabled ? 'Disable' : 'Enable'} reminder: ${r.label || kindLabel(r.kind)}`} style={{ width: 40, height: 24, borderRadius: 999, border: `1px solid ${r.enabled ? t.ACCENT : t.RULE}`, background: r.enabled ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: r.enabled ? 18 : 2, width: 18, height: 18, borderRadius: 999, background: r.enabled ? '#fff' : t.INK50 }} /></button>
+            <button type="button" onClick={() => setDraft({ id: r.id, kind: r.kind, label: r.label || '', atTime: r.at_time, days: r.days || [], enabled: r.enabled })} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>Edit</button>
+            <button type="button" onClick={() => del(r.id)} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          </div>
+        ))
+      )}
+
+      {draft && (
+        <div style={{ marginTop: 10, padding: '14px', border: `1px solid ${t.RULE}`, borderRadius: 12 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {_REM_KINDS.map(([k, l]) => <button type="button" key={k} onClick={() => setDraft((d) => ({ ...d, kind: k }))} style={{ padding: '6px 10px', borderRadius: 999, border: `1px solid ${draft.kind === k ? t.ACCENT : t.RULE}`, background: draft.kind === k ? `${t.ACCENT}22` : 'transparent', color: draft.kind === k ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>)}
+          </div>
+          {draft.kind === 'custom' && <input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} placeholder="What should we remind you?" aria-label="Custom reminder label" maxLength={80} style={{ ...fld, width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Time</span>
+            <input type="time" value={draft.atTime} onChange={(e) => setDraft((d) => ({ ...d, atTime: e.target.value }))} aria-label="Reminder time" style={{ ...fld, colorScheme: t.isLight ? 'light' : 'dark' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {_REM_DOW.map(([l, idx], i) => { const on = (draft.days || []).includes(idx); return (<button type="button" key={i} onClick={() => setDraft((d) => { const set = new Set(d.days || []); if (set.has(idx)) set.delete(idx); else set.add(idx); return { ...d, days: Array.from(set).sort((a, b) => a - b) }; })} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>{l}</button>); })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => setDraft(null)} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK70, borderRadius: 999, padding: '8px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>Cancel</button>
+            <button type="button" onClick={save} disabled={!(draft.days || []).length} style={{ background: (draft.days || []).length ? t.ACCENT : t.RULE, border: 0, color: '#fff', borderRadius: 999, padding: '8px 16px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -12437,6 +12467,7 @@ function BSNotifyPrefs({ onBack, role }) {
                   </div>
                 </div>
               ))}
+              {!isCoach && <BSReminderManager />}
               <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.</div>
             </React.Fragment>
           )}

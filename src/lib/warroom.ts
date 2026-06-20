@@ -150,7 +150,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Assign to client (catalogue → client Train/Eat)', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
       { task: 'Trainer "sell a plan" paid-checkout path — built on the Connect checkout: coach publishes a priced plan → "Plans for sale" + Buy on the coach profile → plan_id rides through checkout/webhook → unlocks in the buyer\'s Library. Needs live Stripe to verify the charge', status: 'in-progress', priority: 'P1' },
-      { task: 'Coach credential verification (makes "vetted coaches" literally true + backs the liability story): the coach application requires (1) proof of a recognized certification (NASM/ACE/ISSA/NSCA; state-appropriate credentials for nutritionists — licensure applies in some states) and (2) proof of their own professional liability insurance (COI upload). Store doc uploads + expiry dates on the provider row, surface a "Verified" badge on marketplace/profile, admin review queue, and expiry re-verification reminders through the notifications spine', status: 'not-started', priority: 'P2' },
+      { task: 'Coach credential verification — BUILT (web): coach uploads COI + certs (dashProfileExtras card → /api/coach/credentials/document) → submit → admin review queue (/dashboard/credentials) → Approve mirrors verified onto the trainers/nutritionists row → ✓ Verified badge on marketplace + living profile; weekly /api/cron/credential-expiry nudges 60-day insurance/license expirations via the notifications spine. Migration APPLIED 2026-06-19. Remaining: mobile marketplace/profile badge + richer apply-time COI capture', status: 'in-progress', priority: 'P2' },
       { task: 'Adjust → full program/plan regeneration', status: 'not-started', priority: 'P2' },
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
@@ -161,7 +161,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
       { task: 'Activate system push — code + native plugins done; remaining: (1) set FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET env, (2) Supabase DB Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret), (3) Firebase config + APNs key + native build', status: 'in-progress', priority: 'P1' },
-      { task: 'User-set reminder notifications — let members schedule their OWN alerts for things to do & log, beyond habits/workouts/meals: per-type toggles in Settings → Notifications (e.g. "remind me to log a weigh-in", check-ins, water, photos, sleep log), with a time picker, written into the notifications table on schedule so the existing push spine delivers them', status: 'not-started', priority: 'P2' },
+      { task: 'User-set reminder notifications — BUILT: members add their own reminders (weigh-in / check-in / water / photo / custom) with time + days in Settings → Notifications (BSReminderManager); user_scheduled_reminders table + /api/client/reminders CRUD; hourly /api/cron/reminders fires due reminders (tz-aware, once/local-day) via the notifications→push spine. Migration APPLIED 2026-06-19 (user-reminders). Remaining: desktop-website Settings parity', status: 'in-progress', priority: 'P2' },
       { task: 'Apple Pay / Google Pay on checkout — native opens Stripe Checkout in SFSafariViewController for the Apple Pay sheet; needs @capacitor/browser + Apple Pay enabled in Stripe', status: 'in-progress', priority: 'P2' },
       { task: 'Full in-app Stripe PaymentSheet (native Apple Pay / Google Pay sheet, NO browser hop) — wants @capacitor-community/stripe (or Stripe RN/iOS SDK), a PaymentIntent/SetupIntent + customer ephemeral-key endpoint for the $5/mo sub + coach/plan buys, and the native build', status: 'not-started', priority: 'P3' },
       { task: 'Per-endpoint paid-feature enforcement beyond the proxy gate', status: 'not-started', priority: 'P2' },
@@ -199,6 +199,9 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/ai/notify', 'POST'],
   ['/api/ai/notify/cron', 'GET,POST'],
   ['/api/cron/score-accountability', 'GET,POST'],
+  ['/api/cron/credential-expiry', 'GET,POST'],
+  ['/api/cron/reminders', 'GET,POST'],
+  ['/api/client/reminders', 'GET,POST,DELETE'],
   ['/api/ai/proposals', 'POST'],
   ['/api/ai/proposals/confirm', 'POST'],
   ['/api/ai/speak', 'POST'],
@@ -231,6 +234,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/coach/grocery-lists', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/plans', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/credentials', 'GET,POST'],
+  ['/api/coach/credentials/document', 'POST'],
   ['/api/coach/review-note', 'POST'],
   ['/api/coach/rings', 'GET'],
   ['/api/coach/score', 'GET'],
@@ -618,7 +622,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Device registers its push token at sign-in (registerPush wired into getCurrentSession)', status: 'done' },
         { label: 'Supabase Database Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret)', status: 'manual' },
         { label: 'Native build: npm i @capacitor/push-notifications + cap sync + Firebase config (google-services.json / GoogleService-Info.plist) + Push capability', status: 'manual' },
-        { label: 'TO BUILD — user-set reminder notifications: members schedule their own alerts for things to do & log (not just habits/workouts/meals). Per-type toggles + times in Settings → Notifications — e.g. a "remind me to log a weigh-in" toggle, check-ins, water, progress photos — scheduled rows written into notifications so the push spine delivers them', status: 'manual' },
+        { label: 'User-set reminder notifications — members add weigh-in/check-in/water/photo/custom reminders (time + days) in mobile Settings → Notifications; hourly tz-aware cron fires them via the notifications→push spine. Migration APPLIED (2026-06-19-user-reminders.sql). Desktop-website Settings parity is a follow-up', status: 'done' },
       ],
     },
     {
@@ -787,7 +791,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Music tab on both profiles: own library (add / public-private toggle / ✉ send / ↗ share / remove) + others\' public playlists (▶ open / ＋ save-to-library)', status: 'done' },
         { label: 'Add flow imports straight from the connected Spotify library (reuses /api/integrations/spotify/playlists); paste-a-link fallback covers Apple Music + unconnected', status: 'done' },
         { label: 'Migration applied on Supabase: 2026-06-09-member-playlists.sql (member_playlists + get_member_playlists)', status: 'manual' },
-        { label: 'Website profile Music-tab parity', status: 'pending' },
+        { label: 'Website profile Music tab — the desktop living profile (member + coach) renders the owner\'s playlist library via get_member_playlists (own → all, others → public). Display on web; owner adds/manages from the app (web add is a follow-up)', status: 'done' },
       ],
     },
     {
@@ -806,6 +810,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       items: [
         { label: 'First-run app tour (skippable, replayable from Me → App tour): 7-step guided walkthrough that switches the underlying tab; persists to localStorage + user_goals(client_onboarding)', status: 'done' },
         { label: 'App tour coach variant (trainer + nutritionist) + new-accounts-only trigger (auto-shows only for accounts <24h old; existing users replay from Me → App tour)', status: 'done' },
+        { label: 'Interactive spotlight tour (mobile, Phase A): client + coach guided spotlight walkthroughs (engine + data-tour hooks), Radio finale on the client tour — spotlightGeom.mjs (TDD) + spotlightTour.js engine, BSOnboardingTour + BSProOnboardingTour replaced to call engine; reuses existing trigger/persistence', status: 'done' },
+        { label: 'Spotlight tour — website dashboard tours (Phase B): shared engine loaded on the 3 dashboard SPAs (Client/Trainer/Nutritionist) + dashTour.js adapter (hash-route navigation, shapeDb persistence, new-account auto-show + "Take a tour" replay); data-tour hooks on the web nav + per-route mastheads; client tour ends on the Shape Radio finale, coach tours end on Profile', status: 'done' },
         { label: 'Home ticker editor in Settings (client picks which metrics show)', status: 'done' },
         { label: 'Grocery coach-note split from the home Op-ed (two separate coach-editable messages)', status: 'done' },
         { label: 'Nutritionist Live Console pre-fills the existing grocery note per client', status: 'done' },
@@ -817,6 +823,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Find-a-coach bars (Train/Eat) filled in role color (trainer rust / nutritionist gold), compact, thicker border; tier name removed from the Settings identity avatar', status: 'done' },
         { label: 'Me tab is PROFILE-FIRST: opens as your living Terrain profile (masthead = logo + Vol·No + ME / Profile.) with the Shape Score card + tappable goal card in the header; Stats tab embeds the FULL progress page (Overall/Training/Nutrition, live ShapeProgress, forced-dark via BSContext); Signals + Climb wired live (streak, trajectory, momentum, disciplines, lifts, score). Tier unified across avatars/profile/score/Settings (one client-score source — live signed-in, Tempo/1284 preview)', status: 'done' },
         { label: 'Settings consolidated into ONE screen (BSSettings): merged the old Me-page hub in — Account · Preferences · Nutrition · Training · Health integrations · Notifications · Privacy · Membership & billing · More (Goals/Habits/Library/Progress/Score/Store/Leaderboard/Sessions) · Appearance/Radio/Light-fx/Ticker · About · Account actions. Cards are divider rows (no boxes); identity card kept as the summary', status: 'done' },
+        { label: 'Web dashboard widgets are draggable + resizable (GridStack 11.x, vendored): every card-style tab renders cards as grid widgets — drag to reorder (⠿ handle), resize (flush corner triangle), layout persisted per role+tab to user_goals(dashboard_layout). Engine = public/newdesign/dashGrid.jsx (React createPortal into grid items; direct height-fit + ResizeObserver for async cards; atomic grid.load order; 1-col mobile breakpoint). Live across all 3 profiles: client Today/Score/Habits/Progress/Workouts/Nutrition/Goal + trainer & nutritionist Today/Score/Goal. Single-purpose pages (builders, calendars, feeds, rosters, profiles) deliberately excluded. No new API route (front-end + user_goals key). Verified on preview at desktop + 430px mobile', status: 'done' },
       ],
     },
     {
@@ -891,8 +898,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach media: trainers/nutritionists upload demo PHOTOS & VIDEOS for each plan/program/workout in the draft editor (BSCoachDraftEditor) → public coach-media bucket (own <uid>/ folder, 200MB/img+video) → detail.media. Migration 2026-06-09-coach-media.sql + 2026-06-09-coach-sale-plans-detail.sql (sale-plan RPCs return detail). Clients preview the media strip on the coach profile sale-plan rows (mobile + website)', status: 'done' },
         { label: 'Real coach accounts resolve on BOTH surfaces: app fetches live trainers/nutritionists + each real saved photo (get_public_profile.avatar); website marketplace now does the same — merges live coaches ahead of the demo directory (deduped), real cards link to the live profile (?u=<owner>), demo links pass &avatar= so derived profiles show the card photo. marketplace.jsx ?v=5', status: 'done' },
         { label: 'Website signed-out marketing: real face photos on the spotlight + grid; coach-customizable COVER image band behind the avatar (darkened/tinted; demo covers + real profile_custom.cover.image); facet gem avatars; filter dropdowns', status: 'done' },
-        { label: 'Sweep now-dead marketplace constants + BSCoachDetailPublic/publicProfile.jsx (superseded by the living profile as the coach destination)', status: 'pending' },
-        { label: 'TO BUILD — coach credential verification: application requires proof of certification (NASM/ACE/ISSA/NSCA; state-appropriate for nutritionists — licensure applies in some states) + proof of professional liability insurance (COI upload). Private doc storage + expiry dates on the provider row, admin review queue, "Verified" badge on marketplace/profile, expiry re-verification reminders via the notifications spine. Backs the liability story; makes "vetted coaches" literally true', status: 'manual' },
+        { label: 'Dead-code sweep re-audited (2026-06-19): nothing safe to remove — BSCoachDetailPublic is still the mobile marketplace coach-detail page, the BSM_MARKETPLACE_* constants are each referenced, ListingRow was already removed, and publicProfile.jsx is actively loaded by TrainerPublic/NutritionistPublic.html + coachDirectory.js. No action.', status: 'done' },
+        { label: 'Stored-XSS fix (2026-06-19): the profile Music tab rendered the user-supplied member_playlists.url into an anchor href — a javascript:/data: URL would execute on click. Fixed in livingDesktop.jsx (safeMusicUrl: http(s) + Spotify/Apple hosts only) + a NOT VALID CHECK on member_playlists.url (2026-06-19-member-playlists-url-guard.sql APPLIED) as DB-level defense-in-depth covering the mobile open path', status: 'done' },
+        { label: 'Coach credential verification (web) — coach uploads COI + certs + submits (coach dashboard profile card); admin verifies at /dashboard/credentials; ✓ Verified badge on marketplace + living profile; weekly expiry-reminder cron. Migration APPLIED (2026-06-19-coach-credential-verification.sql: private coach-credentials bucket + review columns + public verified flag). Mobile badge is a follow-up', status: 'done' },
       ],
     },
     {
@@ -925,7 +933,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Profile "Log activity" composer (Substack-style) on BOTH member (Terrain) + coach (Signal) profiles: publish Note / Photo / Video (upload via coach-media OR paste a watch link) / Workout (type + stat fields) / Link (website/article card). Rich payload rides in community_posts.metrics (kind/video_url/link/workoutStats) — no migration; shared BSActivityBody renders every type. Profile feed loads the author\'s real posts', status: 'done' },
         { label: 'Post visibility is 3-state on the composer (all profile types): Public (profile + feed) · Profile (visible to everyone on the profile, kept OUT of the feed) · Just me (private). Feed reads exclude profile/private (mobile listCommunityPosts + website /api/community/feed). Migration 2026-06-09-community-profile-visibility.sql (privacy CHECK + RLS so profile reads like public)', status: 'done' },
         { label: 'Profile reads on every paper: avatar gem inner + initials, Shape Score card, goal card, Me KPIs no longer hardcode cream/black — all follow the paper theme (light papers fixed)', status: 'done' },
-        { label: 'Wire remaining illustrative sub-data (some sigil-ring inputs, certs, field-notes) to fully real rollups', status: 'pending' },
+        { label: 'Illustrative profile sub-data, resolved (2026-06-19): a verified coach\'s Certifications now render their REAL submitted cert types via get_coach_certs (2026-06-19-coach-certs-public.sql APPLIED, paths withheld, verified-only). The Signal sigil rings stay illustrative by design (practice focus, not a workout/PR metric); field-notes already load the author\'s real community posts', status: 'done' },
       ],
     },
     {
