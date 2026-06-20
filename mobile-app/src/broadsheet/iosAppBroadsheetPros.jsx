@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // Phase 2 — "Needs you today." Two coach surfaces share ONE engine
 // (bsRowSeverity — prefers the live getTriageFeed `_sig`, else the local status
 // scorer) reading ONE roster (useBSProRoster). They are never two ranked lists:
@@ -948,51 +949,23 @@ function bsCoachTourAutoShow(setShow) {
 
 function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey = 'plans' }) {
   const t = useBS();
-  const accent = bsProAccent(t, role);
-  const steps = React.useMemo(() => bsProTourSteps(plansKey), [plansKey]);
-  const [i, setI] = useStateBSP(0);
-  const step = steps[i];
-  const last = i === steps.length - 1;
-  const isWelcome = step.key === 'welcome';
-
-  useEffectBSP(() => { if (step.tab) onNavigate?.(step.tab); }, [i]);
-
-  const finish = () => { bsMarkCoachTourSeen(); onClose?.(); };
-  const next = () => { if (last) finish(); else setI(v => v + 1); };
-  const back = () => setI(v => Math.max(0, v - 1));
-
-  const ctaStyle = { width: '100%', borderRadius: 13, border: 0, background: accent, color: '#06231f', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghostStyle = { width: '100%', borderRadius: 13, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-
-  const overlay = (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
-      <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
-        <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
-        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {steps.map((s, k) => (
-            <span key={s.key} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 999, background: k === i ? accent : t.HAIR }} />
-          ))}
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50 }}>{i + 1} / {steps.length}</span>
-        </div>
-        {isWelcome ? (
-          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <button onClick={next} style={ctaStyle}>Take a quick tour →</button>
-            <button onClick={finish} style={ghostStyle}>Skip for now</button>
-          </div>
-        ) : (
-          <div style={{ marginTop: 18, display: 'flex', gap: 9 }}>
-            <button onClick={back} style={{ ...ghostStyle, width: 92, flex: '0 0 auto' }}>Back</button>
-            <button onClick={next} style={{ ...ctaStyle, flex: 1 }}>{last ? 'Start coaching →' : 'Next →'}</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
-  return target ? createPortal(overlay, target) : overlay;
+  useEffectBSP(() => {
+    const root = document.getElementById('bs-phone-surface') || document.body;
+    const q = (k) => () => root.querySelector('[data-tour="' + k + '"]');
+    const go = (tab) => () => onNavigate && onNavigate(tab);
+    const plansLabel = plansKey === 'programs' ? 'Programs' : 'Plans';
+    const steps = [
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: 'Welcome', title: 'Your coaching tools.', body: "A quick tour of your dashboard — about 30 seconds." },
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: 'Today', title: 'Who needs you.', body: "Your day leads with the clients who need attention first." },
+      { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('tab-clients'), eyebrow: 'Clients', title: 'Your roster.', body: "Every client, sorted by who's on track and who's slipping." },
+      { navigate: go(plansKey), anchor: q('hero-plans'), fallback: q('tab-' + plansKey), eyebrow: plansLabel, title: 'Build & sell.', body: "Create " + plansLabel.toLowerCase() + ", assign them to clients, and sell them in the marketplace." },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Stay in touch.', body: "Message clients and co-coaches; see the community." },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your standing.', body: "Your coach profile, payouts and Shape Score." },
+    ];
+    const tour = startTour(steps, { root, accent: bsProAccent(t, role), isLight: t.isLight, onDone: () => { bsMarkCoachTourSeen(); onClose && onClose(); } });
+    return () => tour.destroy();
+  }, [role, plansKey]);
+  return null;
 }
 
 function BSTrainerApp({ onLogout, tweaks, setTweak }) {
@@ -1283,7 +1256,7 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
       />
 
       {/* TODAY = the clock: lead with the day-shape hero. */}
-      <div style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div data-tour="hero-today" style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
           <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
           <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
@@ -1687,7 +1660,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             <>
               {/* Verdict — the page's lead directive (who needs you, at a glance) */}
               {rows.length > 0 && (
-                <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <div data-tour="hero-clients" style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', color: needsYou ? SEVCOL.red : SEVCOL.green }}>
                     {needsYou ? `${needsYou} ${needsYou === 1 ? 'needs' : 'need'} you` : 'All clear'}
                   </span>
@@ -3561,7 +3534,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {tab === 'library' && (<>
         {/* Generate with AI — builds the active library type */}
-        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        <button data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
@@ -4161,7 +4134,7 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
       />
 
       {/* TODAY = the clock: lead with the day-shape hero. */}
-      <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div data-tour="hero-today" style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.RUST}>{leadKicker}</BSEyebrow>
           <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
@@ -4515,7 +4488,7 @@ function BSNutriPlans() {
 
         {tab === 'library' && (<>
         {/* Generate with AI — builds the active library type */}
-        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        <button data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
@@ -5080,7 +5053,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
         ];
         return (
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
-            <button onClick={() => setShowScore(true)} style={{
+            <button data-tour="hero-me" onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
               border: `1px solid ${accent}33`, borderRadius: 16,
               background: `linear-gradient(155deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`,
