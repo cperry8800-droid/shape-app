@@ -251,9 +251,13 @@
   .c:hover::before{opacity:1}
   .c:hover::after{border-color:rgba(46,224,196,0.95);width:18px;height:18px}
   .c:hover .corner-bl{border-color:rgba(46,224,196,0.95)}
-  .c .av{position:relative;width:60px;height:60px;border-radius:50%;display:grid;place-items:center;color:var(--cream);font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:.06em;box-shadow:0 0 0 1px rgba(245,239,225,0.1),0 0 0 4px rgba(11,14,12,0.5),0 0 24px -4px rgba(46,224,196,0.45);transform:translateZ(40px)}
-  .c .av::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:1px solid rgba(46,224,196,0.18);pointer-events:none}
-  .c .av img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:center top}
+  /* Facet avatar — a rounded-diamond gem (matches the app's LvPortrait), not a circle */
+  .c .av{position:relative;width:60px;height:60px;display:grid;place-items:center;transform:translateZ(40px)}
+  .c .av .gem{position:absolute;inset:0;transform:rotate(45deg);border-radius:27%;box-shadow:0 6px 16px rgba(0,0,0,0.45),0 0 18px -5px rgba(46,224,196,0.5),inset 1px 1px 2px rgba(255,255,255,0.28)}
+  .c .av .gem-hl{position:absolute;inset:0;border-radius:27%;background:linear-gradient(135deg,rgba(255,255,255,0.28),transparent 42%);pointer-events:none}
+  .c .av .gem-win{position:absolute;inset:4px;border-radius:23%;overflow:hidden;background:#14110d;display:grid;place-items:center}
+  .c .av .gem-ini{transform:rotate(-45deg);font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.04em;color:var(--cream)}
+  .c .av .gem-win img{position:absolute;width:152%;height:152%;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-45deg);object-fit:cover}
   .c h4{font-family:var(--serif);font-size:24px;font-weight:500;letter-spacing:-.01em;margin:22px 0 6px;transform:translateZ(28px)}
   .c .role{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-b);transform:translateZ(28px)}
   .c .bio{margin-top:14px;color:var(--cream-2);font-size:13.5px;line-height:1.55;min-height:48px;transform:translateZ(16px)}
@@ -679,7 +683,7 @@
   TRAINERS.forEach(function(c,i){
     var ini=c.name.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
     var el=document.createElement('a');el.href=c.photo?('MemberProfile.html?name='+encodeURIComponent(c.name)+'&role=trainer&avatar='+encodeURIComponent(c.photo)):('TrainerPublic.html?coach='+slugify(c.name));el.className='c';
-    el.innerHTML='<div class="av" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')">'+ini+(c.photo?'<img src="'+c.photo+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div>'+
+    el.innerHTML='<div class="av"><div class="gem" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')"><i class="gem-hl"></i><div class="gem-win"><span class="gem-ini">'+ini+'</span>'+(c.photo?'<img src="'+c.photo+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div></div></div>'+
       '<h4>'+c.name+'</h4><div class="role">'+c.role+'</div><div class="bio">'+(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
       '<div class="st"><span><b>'+c.years+'y</b>Coaching</span><span><b>'+c.sessions.toLocaleString()+'</b>Sessions</span></div>'+
       '<span class="corner-bl" aria-hidden="true"></span>';

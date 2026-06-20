@@ -181,6 +181,12 @@ changelog whenever something ships.
   `MemberProfile.html?name=…&role=trainer&avatar=<photo>` (the same `&avatar=` the marketplace
   passes), so a clicked coach's profile shows the real photo in the `LvPortrait` sigil. Verified
   on the live preview (the photo loads in the sigil, not initials).
+- **Facet (gem) avatar shape:** the directory card avatars were plain **circles**; rebuilt them
+  as the app's **rounded-diamond facet gem** (matching `LvPortrait`) — a 45°-rotated rounded
+  square (`border-radius:27%`) with a per-card gradient frame + highlight, and an inset window
+  (`inset:4px`, `border-radius:23%`, `overflow:hidden`) holding the photo at 152% counter-rotated
+  (`rotate(-45deg)`) so the face is upright. Initials fall back inside the gem. Verified headless
+  (8 gems, `rotate(45deg)`, photo upright).
 
 ### 2026-06-19 — Landing-page phone screenshots fit the frame (no crop, no gap)
 - The `index.html` "beat" phone mockups (`.vis`) used `aspect-ratio:320/716` on the frame
