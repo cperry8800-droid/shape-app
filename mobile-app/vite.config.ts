@@ -13,9 +13,6 @@ export default defineConfig({
     // so we pin both to this mobile-app's own node_modules copies (same versions as
     // the web import-map — three@0.169.0 + @pixiv/three-vrm@3.1.6).
     alias: [
-      // noraStage.mjs (cross-root, in ../public/newdesign/) uses bare 'three',
-      // 'three/addons/*', and '@pixiv/three-vrm'. Pin them to this mobile-app's
-      // node_modules so Vite/rolldown can bundle them even from outside the app root.
       {
         find: /^three\/addons\/(.*)/,
         replacement: path.resolve(__dirname, 'node_modules/three/examples/jsm/$1'),

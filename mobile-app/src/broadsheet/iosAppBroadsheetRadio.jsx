@@ -746,22 +746,22 @@ function BSRadioScreen({ onBack }) {
   const [noraOn, setNoraOn] = useStateBR(false);
   const noraCanvasRef = useRefBR(null);
   const noraStageRef = useRefBR(null);
-  const toggleNora = async () => {
-    if (noraOn) {
-      if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; }
-      setNoraOn(false);
-      return;
-    }
-    setNoraOn(true);
-    try {
-      const an = window.ShapeRadioLive?.analyser?.();
-      const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: '/m/nora/placeholder.vrm' });
-      await st.load();
-      st.start();
-      noraStageRef.current = st;
-    } catch (e) { console.warn('[nora] stage failed', e); }
-  };
-  useEffectBR(() => () => { if (noraStageRef.current) noraStageRef.current.dispose(); }, []);
+  const toggleNora = () => setNoraOn(v => !v);
+  useEffectBR(() => {
+    if (!noraOn) return;
+    let disposed = false;
+    (async () => {
+      try {
+        const an = window.ShapeRadioLive?.analyser?.();
+        const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: '/m/nora/placeholder.vrm' });
+        await st.load();
+        if (disposed) { st.dispose(); return; }
+        st.start();
+        noraStageRef.current = st;
+      } catch (e) { console.warn('[nora] stage failed', e); }
+    })();
+    return () => { disposed = true; if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; } };
+  }, [noraOn]);
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
