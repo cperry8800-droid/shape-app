@@ -233,6 +233,54 @@
   .vis.dark .scr{background:#14110d}
   .vis .scr img.on{opacity:1}
 
+  /* The Member Journey — pinned scroll-scrubbed sequence over a morphing point-cloud */
+  .journey{position:relative;background:linear-gradient(180deg,#02030a 0%,#060c1e 16%,#081127 50%,#050b1a 84%,#02030a 100%)}
+  .jtrack{height:1000vh}
+  .jpin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
+  .jvignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 92% 78% at 52% 47%,transparent 36%,rgba(2,3,10,0.66) 100%)}
+  .jhead{position:relative;z-index:3;text-align:center;padding:62px 24px 0}
+  .jeyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.34em;text-transform:uppercase;color:var(--teal-b)}
+  .jhead h2{font-family:var(--serif);font-weight:300;font-size:clamp(30px,4.8vw,60px);line-height:1.03;letter-spacing:-.03em;margin-top:15px;color:var(--cream)}
+  .jhead h2 b{font-weight:500;font-style:italic;color:var(--teal-b)}
+  .jstages{position:relative;z-index:3;flex:1;width:100%;max-width:1240px;margin:0 auto}
+  .jstage{position:absolute;left:40px;right:40px;bottom:104px;max-width:530px;opacity:0;transform:translateY(26px);transition:opacity .6s cubic-bezier(.2,.7,.2,1),transform .6s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+  .jstage.on{opacity:1;transform:none;pointer-events:auto}
+  .jstage .jx{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal-b)}
+  .jstage h3{font-family:var(--serif);font-weight:300;font-size:clamp(28px,4.2vw,50px);line-height:1.0;letter-spacing:-.03em;margin:13px 0 0;color:var(--cream)}
+  .jstage h3 b{font-weight:500;font-style:italic;color:var(--teal-b)}
+  .jstage p{margin-top:17px;max-width:44ch;color:var(--cream-2);font-size:16px;line-height:1.62}
+  .jchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:21px}
+  .jchip{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-2);border:1px solid var(--line);border-radius:999px;padding:7px 13px;background:rgba(245,239,225,0.035)}
+  .jrail{position:absolute;z-index:3;right:48px;top:50%;transform:translateY(-50%);list-style:none;display:flex;flex-direction:column;gap:21px;text-align:right}
+  .jrail li{display:flex;align-items:center;justify-content:flex-end;gap:13px;font-family:var(--sans);font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-3);transition:color .45s ease}
+  .jrail li .jdot{width:9px;height:9px;border-radius:50%;border:1px solid var(--cream-3);background:transparent;transition:all .45s ease;flex:none}
+  .jrail li.done{color:var(--cream-2)}
+  .jrail li.done .jdot{border-color:var(--teal);background:var(--teal)}
+  .jrail li.active{color:var(--cream)}
+  .jrail li.active .jdot{border-color:var(--teal-b);background:var(--teal-b);box-shadow:0 0 14px 2px rgba(46,224,196,.55)}
+  .jcount{position:absolute;z-index:3;left:40px;top:58px;font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--cream-3);display:flex;align-items:baseline;gap:8px}
+  .jcount b{color:var(--teal-b);font-weight:500;font-size:30px;letter-spacing:0;line-height:1}
+  .jcue{position:absolute;z-index:3;bottom:22px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--cream-3)}
+  .jcue:after{content:"";display:block;width:1px;height:28px;margin:9px auto 0;background:linear-gradient(var(--teal-b),transparent)}
+  @media(max-width:860px){
+    .jrail{right:18px;gap:15px}
+    .jrail li{font-size:11px;gap:9px}
+    .jstage{left:22px;right:22px;bottom:92px;max-width:none}
+    .jcount{left:20px;top:50px}
+    .jcount b{font-size:24px}
+    .jhead{padding-top:46px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .jtrack{height:auto}
+    .jpin{position:relative;height:auto;display:block;padding:64px 0 44px}
+    .jcanvas,.jvignette,.jcue,.jcount{display:none}
+    .jstages{max-width:760px;padding:0 28px}
+    .jstage{position:relative;left:auto;right:auto;bottom:auto;opacity:1;transform:none;max-width:none;margin:0 0 44px;pointer-events:auto}
+    .jrail{position:relative;right:auto;top:auto;transform:none;flex-direction:row;justify-content:center;flex-wrap:wrap;gap:14px 22px;margin:8px auto 0}
+    .jrail li{justify-content:center}
+  }
+
   .sec{padding:130px 0;position:relative}
   .shead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:18px;border-bottom:1px solid var(--line);padding-bottom:24px}
   .shead h2{font-family:var(--serif);font-weight:300;font-size:clamp(36px,6vw,76px);letter-spacing:-.035em}
@@ -578,6 +626,66 @@
   <div class="cue">Scroll</div>
 </header>
 
+<section class="journey" id="journey" aria-label="Follow a member through Shape">
+  <div class="jtrack" id="jtrack">
+    <div class="jpin">
+      <canvas class="jcanvas" id="jcanvas" aria-hidden="true"></canvas>
+      <div class="jvignette" aria-hidden="true"></div>
+      <header class="jhead">
+        <div class="jeyebrow">The Member Journey</div>
+        <h2>Follow a member through <b>Shape.</b></h2>
+      </header>
+      <div class="jstages">
+        <article class="jstage on" data-i="0">
+          <div class="jx">Stage 01 / 05 · Join</div>
+          <h3>You step <b>in.</b></h3>
+          <p>One membership opens the whole platform — five dollars a month. Your account, your living profile and your climb begin from the very first day.</p>
+          <div class="jchips"><span class="jchip">Living profile</span><span class="jchip">Shape Score</span><span class="jchip">One app</span></div>
+        </article>
+        <article class="jstage" data-i="1">
+          <div class="jx">Stage 02 / 05 · Match</div>
+          <h3>You find your <b>person.</b></h3>
+          <p>Search the marketplace, read real coaches, and pair with the trainer or nutritionist who fits where you're headed. The start of a relationship — not a subscription.</p>
+          <div class="jchips"><span class="jchip">Vetted trainers</span><span class="jchip">Nutritionists</span><span class="jchip">Real humans</span></div>
+        </article>
+        <article class="jstage" data-i="2">
+          <div class="jx">Stage 03 / 05 · Train</div>
+          <h3>It becomes a <b>habit.</b></h3>
+          <p>Week after week the plan lands and you log it, until showing up stops being a decision. The grind quietly turns into a rhythm you keep.</p>
+          <div class="jchips"><span class="jchip">Workouts</span><span class="jchip">Macros</span><span class="jchip">Habits</span></div>
+        </article>
+        <article class="jstage" data-i="3">
+          <div class="jx">Stage 04 / 05 · Score</div>
+          <h3>The work <b>shows.</b></h3>
+          <p>Everything you log rolls up into your Shape Score — a single line that climbs as you do, and the proof your effort is compounding into something real.</p>
+          <div class="jchips"><span class="jchip">Shape Score</span><span class="jchip">Weekly read</span><span class="jchip">Momentum</span></div>
+        </article>
+        <article class="jstage" data-i="4">
+          <div class="jx">Stage 05 / 05 · Community</div>
+          <h3>You <b>belong.</b></h3>
+          <p>Your wins hit the wall, your coach and crew cheer them on, and a living profile carries the whole story. By now you're not using an app — you're part of a community.</p>
+          <div class="jchips"><span class="jchip">PR wall</span><span class="jchip">Co-signs</span><span class="jchip">Your climb</span></div>
+        </article>
+      </div>
+      <ol class="jrail" id="jrail">
+        <li class="active">Join<span class="jdot"></span></li>
+        <li>Match<span class="jdot"></span></li>
+        <li>Train<span class="jdot"></span></li>
+        <li>Score<span class="jdot"></span></li>
+        <li>Community<span class="jdot"></span></li>
+      </ol>
+      <div class="jcount"><b id="jcur">01</b><span>/ 05</span></div>
+      <div class="jcue">Scroll</div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="market"><div class="wrap" style="max-width:1440px">
+  <div class="shead"><h2>The <b>Expert Marketplace</b></h2><div class="s" id="mk-stats">Browse free before you pay</div></div>
+  <div class="gal" id="gal"></div>
+  <div style="text-align:center;margin-top:46px"><a class="b g" href="/newdesign/Marketplace.html">Browse all coaches →</a></div>
+</div></section>
+
 <section class="loop" id="loop"><div class="loopbeats" id="loopbeats">
   <div class="stage">
     <div class="beat" data-i="0">
@@ -601,12 +709,6 @@
       <div class="vis dark"><div class="scr"><img class="on" src="/newdesign/getapp-profile-v1.png?v=20260617" alt="" /></div></div>
     </div>
   </div>
-</div></section>
-
-<section class="sec" id="market"><div class="wrap" style="max-width:1440px">
-  <div class="shead"><h2>The <b>Expert Marketplace</b></h2><div class="s" id="mk-stats">Browse free before you pay</div></div>
-  <div class="gal" id="gal"></div>
-  <div style="text-align:center;margin-top:46px"><a class="b g" href="/newdesign/Marketplace.html">Browse all coaches →</a></div>
 </div></section>
 
 <section class="sec" style="padding-top:0"><div class="wrap" style="max-width:1440px">
@@ -747,6 +849,184 @@
     card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;card.style.transform='rotateY('+(px*9)+'deg) rotateX('+(-py*9)+'deg) translateZ(6px)';});
     card.addEventListener('mouseleave',function(){card.style.transform='';});
   });
+})();
+</script>
+<script>
+/* The Member Journey — scroll-scrubbed stage advance over a morphing point-cloud.
+   Mirrors the existing .loop pin pattern: a tall #jtrack with a sticky .jpin; the
+   active stage = floor(scrollProgress * stageCount). The cloud holds a distinct
+   FORM per bullet and morphs to the next as you scroll: a sphere (Join) -> two
+   interlocking rings (Match) -> a heart-rate monitor (Train) -> a score ring/dial
+   -> the Shape mark (Community), each with its own energy (links / pulse /
+   orbiters). Degrades to a static stacked list under prefers-reduced-motion. */
+(function(){
+  var sec=document.getElementById('journey'); if(!sec) return;
+  var track=document.getElementById('jtrack');
+  var stages=[].slice.call(sec.querySelectorAll('.jstage'));
+  var rail=[].slice.call(sec.querySelectorAll('.jrail li'));
+  var curEl=document.getElementById('jcur');
+  if(!track||!stages.length) return;
+
+  var n=stages.length, curIdx=-1;
+  function setStage(idx){
+    if(idx===curIdx) return; curIdx=idx;
+    for(var i=0;i<n;i++) stages[i].classList.toggle('on',i===idx);
+    for(var j=0;j<rail.length;j++){ rail[j].classList.toggle('active',j===idx); rail[j].classList.toggle('done',j<idx); }
+    if(curEl) curEl.textContent=(idx<9?'0':'')+(idx+1);
+  }
+
+  var still=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(still) return; // reduced-motion: every stage renders stacked via CSS, no scrub
+
+  var cv=document.getElementById('jcanvas');
+  var ctx=cv&&cv.getContext?cv.getContext('2d'):null;
+  var N=(window.innerWidth<760?380:580);
+  function lerp(a,b,k){ return a+(b-a)*k; }
+  function smooth(k){ if(k<0)k=0; else if(k>1)k=1; return k*k*(3-2*k); }
+  function rnd(){ return Math.random(); }
+
+  // --- the five forms the cloud takes, one per bullet (each = N matched 3D points) ---
+  var SH=[[],[],[],[],[]], anim=[];
+  for(var s=0;s<N;s++){ var yy=1-(s/(N-1))*2, rr=Math.sqrt(Math.max(0,1-yy*yy)), ph=s*2.399963229728653;
+    SH[0].push([Math.cos(ph)*rr, yy, Math.sin(ph)*rr]); anim.push(rnd()*6.283); }              // 0 JOIN — a sphere
+  function tri(arr,c,ax,ay,bx,by,cx2,cy2){ for(var k=0;k<c;k++){ var u=rnd(),v=rnd(); if(u+v>1){u=1-u;v=1-v;} arr.push([ax+u*(bx-ax)+v*(cx2-ax), ay+u*(by-ay)+v*(cy2-ay), (rnd()-0.5)*0.05]); } }
+  function rct(arr,c,x0,y0,x1,y1){ for(var k=0;k<c;k++) arr.push([x0+rnd()*(x1-x0), y0+rnd()*(y1-y0), (rnd()-0.5)*0.05]); }
+  function rng(arr,c,mx,my,r){ for(var k=0;k<c;k++){ var an=rnd()*6.283, rr=r*(0.9+rnd()*0.12); arr.push([mx+Math.cos(an)*rr, my+Math.sin(an)*rr, (rnd()-0.5)*0.05]); } }
+  var H1=Math.floor(N/2);
+  rng(SH[1],H1,-0.42,0,0.6); rng(SH[1],N-H1,0.42,0,0.6);                                        // 1 MATCH — two interlocking rings
+  function ecgY(x){ var u=(((x+0.92)%0.613)+0.613)%0.613/0.613, d=Math.abs(u-0.5); return d<0.055?-0.62*(1-d/0.055):0; }     // 2 TRAIN — a heart-rate monitor (ECG trace)
+  var eBase=Math.floor(N*0.5), eEach=Math.floor((N-eBase)/3);
+  for(var eb=0;eb<eBase;eb++){ var ex=-0.92+rnd()*1.84; SH[2].push([ex, ecgY(ex)+(rnd()-0.5)*0.03, (rnd()-0.5)*0.04]); }       // baseline
+  for(var sB=0;sB<3;sB++){ var sx=-0.92+(sB+0.5)*0.613, cnt=(sB<2?eEach:N-eBase-2*eEach);
+    for(var es=0;es<cnt;es++){ var ex2=sx+(rnd()-0.5)*0.08; SH[2].push([ex2, ecgY(ex2)+(rnd()-0.5)*0.025, (rnd()-0.5)*0.04]); } } // QRS beat spikes
+  for(var gr2=0;gr2<N;gr2++){ var gang=rnd()*6.283, grad=0.72+rnd()*0.18; SH[3].push([Math.cos(gang)*grad, Math.sin(gang)*grad, (rnd()-0.5)*0.05]); } // 3 SCORE — a score ring/dial (annulus; the fill arc is drawn in the loop)
+  tri(SH[4],H1,-0.62,-0.20,-0.62,0.78,0.12,0.29); tri(SH[4],N-H1,0.62,-0.78,0.62,0.20,-0.12,-0.29);                     // 4 COMMUNITY — the Shape mark (SVG geometry, ~0.78x)
+
+  // per-stage energy [rotSpeed, brightness, pulseAmp, pulseSpeed, links, orbSpeed]
+  var MODE=[
+    [0.50,0.85,0.04,1.0,0.00,0.6],  // Join — spins + breathes
+    [0.06,0.96,0.03,1.2,0.90,0.7],  // Match — rings wired by the web
+    [0.05,1.12,0.02,1.0,0.04,0.9],  // Train — heart-rate monitor (sweep reveal + beat flash, below)
+    [0.07,1.32,0.05,1.7,0.10,1.6],  // Score — arrow, bright + fast
+    [0.04,1.12,0.04,1.1,0.00,0.8]   // Community — the Shape mark (clean)
+  ];
+  var ORB=(window.innerWidth<760?7:11), orb=[];
+  for(var o=0;o<ORB;o++) orb.push({ r:1.0+rnd()*0.35, sp:0.5+rnd()*1.1, ph:rnd()*6.283, tilt:rnd()*Math.PI, sz:1.0+rnd()*1.2 });
+  var LINKN=Math.min(N, window.innerWidth<760?34:52), stride=Math.max(1,Math.floor(N/LINKN)), MX=SH.length-1;
+
+  var DPR=Math.min(2,window.devicePixelRatio||1),W=0,H=0;
+  function resize(){ if(!cv)return; W=cv.clientWidth; H=cv.clientHeight; cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); if(ctx)ctx.setTransform(DPR,0,0,DPR,0,0); }
+  window.addEventListener('resize',resize); resize();
+
+  var t=0, rot=0, proj=[], lnodes=[];
+  function frame(){
+    var rc=track.getBoundingClientRect();
+    var span=track.offsetHeight-window.innerHeight;
+    var p=span>0?(-rc.top)/span:0; if(p<0)p=0; else if(p>1)p=1;
+    var fs=p*n, idx=Math.floor(fs); if(idx>MX)idx=MX; if(idx<0)idx=0;
+    setStage(idx);
+
+    if(ctx && rc.bottom>0 && rc.top<window.innerHeight){
+      t+=0.016;
+      // hold this stage's form, then morph to the next over the last 40% of the stage
+      var frac=fs-idx, a=idx, b=idx<MX?idx+1:MX, kk=smooth((frac-0.6)/0.4);
+      var A=MODE[a], B=MODE[b];
+      var mRot=lerp(A[0],B[0],kk), mBri=lerp(A[1],B[1],kk), mPa=lerp(A[2],B[2],kk), mPs=lerp(A[3],B[3],kk), mLink=lerp(A[4],B[4],kk), mOrb=lerp(A[5],B[5],kk);
+      var flat=(a===0)?kk:1; // 0 = the sphere (full depth + spin); 1 = a flat form held face-on
+      rot+=mRot*0.016;
+
+      ctx.clearRect(0,0,W,H);
+      // Train = a heart-rate monitor: a sweep reveals the ECG, and a beat flashes as it passes each QRS
+      var trainness=(a===2)?(1-kk):((b===2)?kk:0);
+      var sweepU=(t*0.33)%1.0, sweepX0=-0.92+sweepU*1.84, beatFlash=0;
+      if(trainness>0.001){ for(var bsp=0;bsp<3;bsp++){ beatFlash=Math.max(beatFlash, Math.exp(-Math.pow((sweepU-(bsp+0.5)/3)/0.035,2))); } }
+      var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+mPa*Math.sin(t*mPs));
+      var gr=R*(1.7+0.12*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
+      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.34,(0.13+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+      // sphere spins; flat forms settle nearly face-on with a gentle wobble
+      var ry=lerp(rot, Math.sin(t*0.32)*0.12, flat), rx=lerp(0.42+Math.sin(t*0.45)*0.28, Math.sin(t*0.4)*0.08, flat);
+      var cyr=Math.cos(ry),syr=Math.sin(ry),cxr=Math.cos(rx),sxr=Math.sin(rx);
+      var SA=SH[a], SB=SH[b];
+      proj.length=0; lnodes.length=0;
+      for(var i=0;i<N;i++){
+        var pa=SA[i], pb=SB[i];
+        var X0=lerp(pa[0],pb[0],kk), Y0=lerp(pa[1],pb[1],kk), Z0=lerp(pa[2],pb[2],kk);
+        var x1=X0*cyr-Z0*syr, z1=X0*syr+Z0*cyr;
+        var y1=Y0*cxr-z1*sxr, z2=Y0*sxr+z1*cxr;
+        var X=cx+x1*R, Y=cy+y1*R;
+        proj.push([X, Y, z2, anim[i], X0]);
+        if(i%stride===0) lnodes.push([X,Y]);
+      }
+      proj.sort(function(a,b){return a[2]-b[2];});
+
+      // connection web — Match wires the two rings together
+      if(mLink>0.04){
+        var thr=R*0.5, th2=thr*thr; ctx.lineWidth=1;
+        for(var li=0;li<lnodes.length;li++){ for(var lj=li+1;lj<lnodes.length;lj++){
+          var na=lnodes[li], nb=lnodes[lj], dx=na[0]-nb[0], dy=na[1]-nb[1], dd=dx*dx+dy*dy;
+          if(dd<th2){ var la=mLink*0.3*(1-dd/th2); if(la>0.02){ ctx.strokeStyle='rgba(46,224,196,'+la.toFixed(3)+')'; ctx.beginPath(); ctx.moveTo(na[0],na[1]); ctx.lineTo(nb[0],nb[1]); ctx.stroke(); } }
+        }}
+      }
+
+      for(var ki=0;ki<proj.length;ki++){
+        var pp=proj[ki], dep=(pp[2]+1.5)/3.0; if(dep<0)dep=0; else if(dep>1)dep=1;
+        var deff=lerp(dep,0.7,flat*0.85), sw=0.84+0.16*Math.sin(t*3.0+pp[3]);
+        var alpha=(0.18+deff*0.62+flat*0.24)*sw*mBri;
+        if(trainness>0.01){ var behind=sweepX0-pp[4], rev=behind<-0.05?0.05:Math.max(0.1,1-Math.max(0,behind)/1.25); alpha*=lerp(1,rev,trainness); }
+        ctx.beginPath();
+        ctx.fillStyle='rgba(46,224,196,'+Math.min(1,alpha).toFixed(3)+')';
+        ctx.arc(pp[0],pp[1],(0.95+deff*1.9+flat*0.45)*sw,0,6.283);
+        ctx.fill();
+      }
+
+      for(var oi=0;oi<ORB;oi++){ var ob=orb[oi], ang=ob.ph+t*ob.sp*mOrb*1.5;
+        var ox=Math.cos(ang)*ob.r, oz=Math.sin(ang)*ob.r, oy=Math.sin(ang*0.6+ob.tilt)*0.5;
+        var ox1=ox*cyr-oz*syr, oz1=ox*syr+oz*cyr;
+        var oy1=oy*cxr-oz1*sxr, oz2=oy*sxr+oz1*cxr;
+        var od=(oz2+1.5)/3.0; if(od<0)od=0; else if(od>1)od=1;
+        var OX=cx+ox1*R, OY=cy+oy1*R;
+        var og=ctx.createRadialGradient(OX,OY,0,OX,OY,8); og.addColorStop(0,'rgba(170,255,244,'+Math.min(1,(0.45+0.45*od)*mBri).toFixed(3)+')'); og.addColorStop(1,'rgba(46,224,196,0)');
+        ctx.fillStyle=og; ctx.fillRect(OX-8,OY-8,16,16);
+        ctx.beginPath(); ctx.fillStyle='rgba(225,255,250,'+Math.min(1,(0.55+0.45*od)*mBri).toFixed(3)+')'; ctx.arc(OX,OY,(0.7+od*1.5)*ob.sz,0,6.283); ctx.fill();
+      }
+
+      // heart-rate monitor draw-head — the bright point that reveals the ECG, flaring on each beat
+      if(trainness>0.04){
+        var shy=ecgY(sweepX0), shx1=sweepX0*cyr, shz1=sweepX0*syr, shy1=shy*cxr-shz1*sxr;
+        var SHX=cx+shx1*R, SHY=cy+shy1*R, sga=trainness*(0.65+0.35*beatFlash);
+        var sg=ctx.createRadialGradient(SHX,SHY,0,SHX,SHY,16+13*beatFlash); sg.addColorStop(0,'rgba(190,255,247,'+sga.toFixed(3)+')'); sg.addColorStop(0.4,'rgba(46,224,196,'+(sga*0.5).toFixed(3)+')'); sg.addColorStop(1,'rgba(46,224,196,0)');
+        ctx.fillStyle=sg; ctx.fillRect(SHX-28,SHY-28,56,56);
+        ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+sga.toFixed(3)+')'; ctx.arc(SHX,SHY,2.6+1.8*beatFlash,0,6.283); ctx.fill();
+      }
+
+      // score dial — the ring fills + a centre number counts up as you scroll the Score stage
+      var scoreness=(a===3)?(1-kk):((b===3)?kk:0);
+      if(scoreness>0.04){
+        var prog=Math.max(0,Math.min(1,(fs-3)/0.85));
+        var fill=0.04+prog*0.82, rr=0.81*R, sa=-Math.PI/2, ea=sa+fill*6.283;
+        ctx.lineCap='round';
+        if(fill>0.01){
+          ctx.beginPath(); ctx.arc(cx,cy,rr,sa,ea); ctx.strokeStyle='rgba(46,224,196,'+(scoreness*0.16).toFixed(3)+')'; ctx.lineWidth=11; ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx,cy,rr,sa,ea); ctx.strokeStyle='rgba(150,255,240,'+(scoreness*0.55).toFixed(3)+')'; ctx.lineWidth=2.5; ctx.stroke();
+          var lx=cx+Math.cos(ea)*rr, ly=cy+Math.sin(ea)*rr;
+          var lg=ctx.createRadialGradient(lx,ly,0,lx,ly,16); lg.addColorStop(0,'rgba(190,255,247,'+scoreness.toFixed(3)+')'); lg.addColorStop(1,'rgba(46,224,196,0)');
+          ctx.fillStyle=lg; ctx.fillRect(lx-16,ly-16,32,32);
+          ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+scoreness.toFixed(3)+')'; ctx.arc(lx,ly,3,0,6.283); ctx.fill();
+        }
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font='600 '+Math.round(R*0.46)+'px "Space Grotesk",sans-serif';
+        ctx.fillStyle='rgba(245,239,225,'+(scoreness*0.97).toFixed(3)+')';
+        ctx.fillText(String(Math.round(prog*847)), cx, cy-R*0.03);
+        ctx.font='500 '+Math.round(R*0.082)+'px "JetBrains Mono",monospace';
+        ctx.fillStyle='rgba(46,224,196,'+(scoreness*0.8).toFixed(3)+')';
+        ctx.fillText('SHAPE SCORE', cx, cy+R*0.32);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();
 </script>
 <script>
