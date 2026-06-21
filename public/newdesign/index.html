@@ -235,7 +235,7 @@
 
   /* The Member Journey — pinned scroll-scrubbed sequence over a morphing point-cloud */
   .journey{position:relative;background:linear-gradient(180deg,#02030a 0%,#060c1e 16%,#081127 50%,#050b1a 84%,#02030a 100%)}
-  .jtrack{height:600vh}
+  .jtrack{height:1000vh}
   .jpin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
   .jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
   .jvignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 92% 78% at 52% 47%,transparent 36%,rgba(2,3,10,0.66) 100%)}
@@ -847,7 +847,7 @@
    Mirrors the existing .loop pin pattern: a tall #jtrack with a sticky .jpin; the
    active stage = floor(scrollProgress * stageCount). The cloud holds a distinct
    FORM per bullet and morphs to the next as you scroll: a sphere (Join) -> two
-   interlocking rings (Match) -> a beating heart (Train) -> a score ring/dial
+   interlocking rings (Match) -> a heart-rate monitor (Train) -> a score ring/dial
    -> the Shape mark (Community), each with its own energy (links / pulse /
    orbiters). Degrades to a static stacked list under prefers-reduced-motion. */
 (function(){
@@ -885,19 +885,11 @@
   function rng(arr,c,mx,my,r){ for(var k=0;k<c;k++){ var an=rnd()*6.283, rr=r*(0.9+rnd()*0.12); arr.push([mx+Math.cos(an)*rr, my+Math.sin(an)*rr, (rnd()-0.5)*0.05]); } }
   var H1=Math.floor(N/2);
   rng(SH[1],H1,-0.42,0,0.6); rng(SH[1],N-H1,0.42,0,0.6);                                        // 1 MATCH — two interlocking rings
-  // 2 TRAIN — an anatomical human heart: union of ventricular bulk + apex + two atria + great vessels (y-down)
-  function inEll(x,y,ex,ey,rx,ry){ var dx=(x-ex)/rx, dy=(y-ey)/ry; return dx*dx+dy*dy<=1; }
-  function inTri(x,y,ax,ay,bx,by,cx2,cy2){ var d1=(x-bx)*(ay-by)-(ax-bx)*(y-by), d2=(x-cx2)*(by-cy2)-(bx-cx2)*(y-cy2), d3=(x-ax)*(cy2-ay)-(cx2-ax)*(y-ay); return !(((d1<0)||(d2<0)||(d3<0))&&((d1>0)||(d2>0)||(d3>0))); }
-  function inHeart(x,y){
-    return inEll(x,y,0.0,0.06,0.56,0.52)            // ventricular bulk
-      || inTri(x,y,-0.46,0.30,0.5,0.16,0.18,0.95)   // apex taper (points down)
-      || inEll(x,y,0.47,-0.30,0.31,0.29)            // right atrium
-      || inEll(x,y,-0.43,-0.26,0.28,0.25)           // left atrium / appendage
-      || (x>-0.05&&x<0.17&&y>-0.95&&y<-0.30)        // aorta (centre vessel)
-      || (x>-0.28&&x<-0.06&&y>-0.80&&y<-0.32)       // pulmonary trunk (left)
-      || (x>0.2&&x<0.36&&y>-0.72&&y<-0.28);         // superior vena cava (right)
-  }
-  for(var eh=0;eh<N;){ var hx=rnd()*2.2-1.1, hy=rnd()*2.2-1.1; if(inHeart(hx,hy)){ SH[2].push([hx*0.84, hy*0.8, (rnd()-0.5)*0.06]); eh++; } }
+  function ecgY(x){ var u=(((x+0.92)%0.613)+0.613)%0.613/0.613, d=Math.abs(u-0.5); return d<0.055?-0.62*(1-d/0.055):0; }     // 2 TRAIN — a heart-rate monitor (ECG trace)
+  var eBase=Math.floor(N*0.5), eEach=Math.floor((N-eBase)/3);
+  for(var eb=0;eb<eBase;eb++){ var ex=-0.92+rnd()*1.84; SH[2].push([ex, ecgY(ex)+(rnd()-0.5)*0.03, (rnd()-0.5)*0.04]); }       // baseline
+  for(var sB=0;sB<3;sB++){ var sx=-0.92+(sB+0.5)*0.613, cnt=(sB<2?eEach:N-eBase-2*eEach);
+    for(var es=0;es<cnt;es++){ var ex2=sx+(rnd()-0.5)*0.08; SH[2].push([ex2, ecgY(ex2)+(rnd()-0.5)*0.025, (rnd()-0.5)*0.04]); } } // QRS beat spikes
   for(var gr2=0;gr2<N;gr2++){ var gang=rnd()*6.283, grad=0.72+rnd()*0.18; SH[3].push([Math.cos(gang)*grad, Math.sin(gang)*grad, (rnd()-0.5)*0.05]); } // 3 SCORE — a score ring/dial (annulus; the fill arc is drawn in the loop)
   tri(SH[4],H1,-0.62,-0.20,-0.62,0.78,0.12,0.29); tri(SH[4],N-H1,0.62,-0.78,0.62,0.20,-0.12,-0.29);                     // 4 COMMUNITY — the Shape mark (SVG geometry, ~0.78x)
 
@@ -905,7 +897,7 @@
   var MODE=[
     [0.50,0.85,0.04,1.0,0.00,0.6],  // Join — spins + breathes
     [0.06,0.96,0.03,1.2,0.90,0.7],  // Match — rings wired by the web
-    [0.05,1.12,0.00,1.4,0.04,0.9],  // Train — a beating heart (cardiac pump, below)
+    [0.05,1.12,0.02,1.0,0.04,0.9],  // Train — heart-rate monitor (sweep reveal + beat flash, below)
     [0.07,1.32,0.05,1.7,0.10,1.6],  // Score — arrow, bright + fast
     [0.04,1.12,0.04,1.1,0.00,0.8]   // Community — the Shape mark (clean)
   ];
@@ -935,13 +927,13 @@
       rot+=mRot*0.016;
 
       ctx.clearRect(0,0,W,H);
-      // cardiac pump — the heart (Train) beats with a lub-dub envelope; other stages keep their sine pulse
-      var trainness=(a===2)?(1-kk):((b===2)?kk:0), beat=0;
-      if(trainness>0.001){ var bph=(t*0.95)%1.0, bdd=bph<0.5?bph:1-bph; beat=Math.min(1, Math.exp(-Math.pow(bdd/0.045,2))+0.5*Math.exp(-Math.pow((bph-0.22)/0.05,2))); }
-      var pulseAmt=lerp(mPa*Math.sin(t*mPs), 0.2*beat, trainness);
-      var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+pulseAmt);
+      // Train = a heart-rate monitor: a sweep reveals the ECG, and a beat flashes as it passes each QRS
+      var trainness=(a===2)?(1-kk):((b===2)?kk:0);
+      var sweepU=(t*0.33)%1.0, sweepX0=-0.92+sweepU*1.84, beatFlash=0;
+      if(trainness>0.001){ for(var bsp=0;bsp<3;bsp++){ beatFlash=Math.max(beatFlash, Math.exp(-Math.pow((sweepU-(bsp+0.5)/3)/0.035,2))); } }
+      var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+mPa*Math.sin(t*mPs));
       var gr=R*(1.7+0.12*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
-      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.34,(0.13+0.05*Math.sin(t*1.6)+0.14*beat*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.34,(0.13+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
       ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
       // sphere spins; flat forms settle nearly face-on with a gentle wobble
@@ -955,7 +947,7 @@
         var x1=X0*cyr-Z0*syr, z1=X0*syr+Z0*cyr;
         var y1=Y0*cxr-z1*sxr, z2=Y0*sxr+z1*cxr;
         var X=cx+x1*R, Y=cy+y1*R;
-        proj.push([X, Y, z2, anim[i]]);
+        proj.push([X, Y, z2, anim[i], X0]);
         if(i%stride===0) lnodes.push([X,Y]);
       }
       proj.sort(function(a,b){return a[2]-b[2];});
@@ -972,8 +964,10 @@
       for(var ki=0;ki<proj.length;ki++){
         var pp=proj[ki], dep=(pp[2]+1.5)/3.0; if(dep<0)dep=0; else if(dep>1)dep=1;
         var deff=lerp(dep,0.7,flat*0.85), sw=0.84+0.16*Math.sin(t*3.0+pp[3]);
+        var alpha=(0.18+deff*0.62+flat*0.24)*sw*mBri;
+        if(trainness>0.01){ var behind=sweepX0-pp[4], rev=behind<-0.05?0.05:Math.max(0.1,1-Math.max(0,behind)/1.25); alpha*=lerp(1,rev,trainness); }
         ctx.beginPath();
-        ctx.fillStyle='rgba(46,224,196,'+Math.min(1,(0.18+deff*0.62+flat*0.24)*sw*mBri).toFixed(3)+')';
+        ctx.fillStyle='rgba(46,224,196,'+Math.min(1,alpha).toFixed(3)+')';
         ctx.arc(pp[0],pp[1],(0.95+deff*1.9+flat*0.45)*sw,0,6.283);
         ctx.fill();
       }
@@ -989,10 +983,19 @@
         ctx.beginPath(); ctx.fillStyle='rgba(225,255,250,'+Math.min(1,(0.55+0.45*od)*mBri).toFixed(3)+')'; ctx.arc(OX,OY,(0.7+od*1.5)*ob.sz,0,6.283); ctx.fill();
       }
 
+      // heart-rate monitor draw-head — the bright point that reveals the ECG, flaring on each beat
+      if(trainness>0.04){
+        var shy=ecgY(sweepX0), shx1=sweepX0*cyr, shz1=sweepX0*syr, shy1=shy*cxr-shz1*sxr;
+        var SHX=cx+shx1*R, SHY=cy+shy1*R, sga=trainness*(0.65+0.35*beatFlash);
+        var sg=ctx.createRadialGradient(SHX,SHY,0,SHX,SHY,16+13*beatFlash); sg.addColorStop(0,'rgba(190,255,247,'+sga.toFixed(3)+')'); sg.addColorStop(0.4,'rgba(46,224,196,'+(sga*0.5).toFixed(3)+')'); sg.addColorStop(1,'rgba(46,224,196,0)');
+        ctx.fillStyle=sg; ctx.fillRect(SHX-28,SHY-28,56,56);
+        ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+sga.toFixed(3)+')'; ctx.arc(SHX,SHY,2.6+1.8*beatFlash,0,6.283); ctx.fill();
+      }
+
       // score dial — the ring fills + a centre number counts up as you scroll the Score stage
       var scoreness=(a===3)?(1-kk):((b===3)?kk:0);
       if(scoreness>0.04){
-        var prog=Math.max(0,Math.min(1,(fs-3)/0.6));
+        var prog=Math.max(0,Math.min(1,(fs-3)/0.85));
         var fill=0.04+prog*0.82, rr=0.81*R, sa=-Math.PI/2, ea=sa+fill*6.283;
         ctx.lineCap='round';
         if(fill>0.01){
