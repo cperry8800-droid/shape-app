@@ -12,10 +12,28 @@ function base64url(input: Buffer | string) {
     .replace(/\//g, '_');
 }
 
+// Resolve the .p8 private key from the env var, tolerant of how it was pasted.
+// Multi-line env values are notoriously fragile (Vercel's field can strip the
+// line breaks), so we normalize ANY reasonable form — a proper multi-line PEM, a
+// single-line value with literal \n escapes, a flattened PEM with the breaks
+// removed, or just the bare base64 body — back into a valid PEM.
 function privateKeyFromEnv() {
-  const raw = process.env.APPLE_MUSIC_PRIVATE_KEY;
-  if (!raw) return null;
-  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+  const rawEnv = process.env.APPLE_MUSIC_PRIVATE_KEY;
+  if (!rawEnv) return null;
+  // Single-line env values use literal "\n" escapes — turn them into real newlines.
+  let pem = rawEnv.includes('\\n') ? rawEnv.replace(/\\n/g, '\n') : rawEnv;
+  pem = pem.trim();
+  // Already a well-formed multi-line PEM (header on its own line) — use as-is.
+  if (/-----BEGIN [^-]+-----\r?\n/.test(pem) && /\r?\n-----END [^-]+-----/.test(pem)) return pem;
+  // Otherwise the line breaks were lost on paste. Rebuild a valid PEM from the
+  // base64 body so the key works regardless of how the value was formatted.
+  const body = pem
+    .replace(/-----BEGIN [^-]+-----/g, '')
+    .replace(/-----END [^-]+-----/g, '')
+    .replace(/\s+/g, '');
+  const wrapped = body.match(/.{1,64}/g);
+  if (!wrapped) return pem;
+  return `-----BEGIN PRIVATE KEY-----\n${wrapped.join('\n')}\n-----END PRIVATE KEY-----\n`;
 }
 
 export async function GET() {
