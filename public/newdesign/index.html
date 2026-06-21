@@ -847,7 +847,7 @@
    Mirrors the existing .loop pin pattern: a tall #jtrack with a sticky .jpin; the
    active stage = floor(scrollProgress * stageCount). The cloud holds a distinct
    FORM per bullet and morphs to the next as you scroll: a sphere (Join) -> two
-   interlocking rings (Match) -> a beating heart (Train) -> a rising area graph
+   interlocking rings (Match) -> a beating heart (Train) -> a score ring/dial
    -> the Shape mark (Community), each with its own energy (links / pulse /
    orbiters). Degrades to a static stacked list under prefers-reduced-motion. */
 (function(){
@@ -885,13 +885,20 @@
   function rng(arr,c,mx,my,r){ for(var k=0;k<c;k++){ var an=rnd()*6.283, rr=r*(0.9+rnd()*0.12); arr.push([mx+Math.cos(an)*rr, my+Math.sin(an)*rr, (rnd()-0.5)*0.05]); } }
   var H1=Math.floor(N/2);
   rng(SH[1],H1,-0.42,0,0.6); rng(SH[1],N-H1,0.42,0,0.6);                                        // 1 MATCH — two interlocking rings
-  function inHeart(hx,hy){ var aa=hx*hx+hy*hy-1; return aa*aa*aa - hx*hx*hy*hy*hy < 0; }                                       // 2 TRAIN — a beating heart (implicit heart curve, filled)
-  for(var eh=0;eh<N;){ var hx=rnd()*2.7-1.35, hy=rnd()*2.7-1.35; if(inHeart(hx,hy)){ SH[2].push([hx*0.74, -hy*0.72+0.06, (rnd()-0.5)*0.05]); eh++; } }
-  var gA=Math.floor(N*0.56), gL=Math.floor(N*0.30), gX=N-gA-gL, gYb=0.82;                                              // 3 SCORE — a rising area graph
-  function gTop(x){ var u=(x+0.92)/1.84; return 0.55-1.15*u+0.13*Math.sin(u*9)+0.07*Math.sin(u*17+1); }
-  for(var ga=0;ga<gA;ga++){ var gx=-0.92+rnd()*1.84, gt=gTop(gx); SH[3].push([gx, gt+rnd()*(gYb-gt), (rnd()-0.5)*0.05]); }   // area fill
-  for(var gl=0;gl<gL;gl++){ var gx2=-0.92+rnd()*1.84; SH[3].push([gx2, gTop(gx2)+(rnd()-0.5)*0.025, (rnd()-0.5)*0.05]); }     // trend line
-  for(var gz=0;gz<gX;gz++){ var gx3=-0.92+rnd()*1.84; SH[3].push([gx3, gYb+(rnd()-0.5)*0.02, (rnd()-0.5)*0.05]); }            // x-axis baseline
+  // 2 TRAIN — an anatomical human heart: union of ventricular bulk + apex + two atria + great vessels (y-down)
+  function inEll(x,y,ex,ey,rx,ry){ var dx=(x-ex)/rx, dy=(y-ey)/ry; return dx*dx+dy*dy<=1; }
+  function inTri(x,y,ax,ay,bx,by,cx2,cy2){ var d1=(x-bx)*(ay-by)-(ax-bx)*(y-by), d2=(x-cx2)*(by-cy2)-(bx-cx2)*(y-cy2), d3=(x-ax)*(cy2-ay)-(cx2-ax)*(y-ay); return !(((d1<0)||(d2<0)||(d3<0))&&((d1>0)||(d2>0)||(d3>0))); }
+  function inHeart(x,y){
+    return inEll(x,y,0.0,0.06,0.56,0.52)            // ventricular bulk
+      || inTri(x,y,-0.46,0.30,0.5,0.16,0.18,0.95)   // apex taper (points down)
+      || inEll(x,y,0.47,-0.30,0.31,0.29)            // right atrium
+      || inEll(x,y,-0.43,-0.26,0.28,0.25)           // left atrium / appendage
+      || (x>-0.05&&x<0.17&&y>-0.95&&y<-0.30)        // aorta (centre vessel)
+      || (x>-0.28&&x<-0.06&&y>-0.80&&y<-0.32)       // pulmonary trunk (left)
+      || (x>0.2&&x<0.36&&y>-0.72&&y<-0.28);         // superior vena cava (right)
+  }
+  for(var eh=0;eh<N;){ var hx=rnd()*2.2-1.1, hy=rnd()*2.2-1.1; if(inHeart(hx,hy)){ SH[2].push([hx*0.84, hy*0.8, (rnd()-0.5)*0.06]); eh++; } }
+  for(var gr2=0;gr2<N;gr2++){ var gang=rnd()*6.283, grad=0.72+rnd()*0.18; SH[3].push([Math.cos(gang)*grad, Math.sin(gang)*grad, (rnd()-0.5)*0.05]); } // 3 SCORE — a score ring/dial (annulus; the fill arc is drawn in the loop)
   tri(SH[4],H1,-0.62,-0.20,-0.62,0.78,0.12,0.29); tri(SH[4],N-H1,0.62,-0.78,0.62,0.20,-0.12,-0.29);                     // 4 COMMUNITY — the Shape mark (SVG geometry, ~0.78x)
 
   // per-stage energy [rotSpeed, brightness, pulseAmp, pulseSpeed, links, orbSpeed]
@@ -980,6 +987,29 @@
         var og=ctx.createRadialGradient(OX,OY,0,OX,OY,8); og.addColorStop(0,'rgba(170,255,244,'+Math.min(1,(0.45+0.45*od)*mBri).toFixed(3)+')'); og.addColorStop(1,'rgba(46,224,196,0)');
         ctx.fillStyle=og; ctx.fillRect(OX-8,OY-8,16,16);
         ctx.beginPath(); ctx.fillStyle='rgba(225,255,250,'+Math.min(1,(0.55+0.45*od)*mBri).toFixed(3)+')'; ctx.arc(OX,OY,(0.7+od*1.5)*ob.sz,0,6.283); ctx.fill();
+      }
+
+      // score dial — the ring fills + a centre number counts up as you scroll the Score stage
+      var scoreness=(a===3)?(1-kk):((b===3)?kk:0);
+      if(scoreness>0.04){
+        var prog=Math.max(0,Math.min(1,(fs-3)/0.6));
+        var fill=0.04+prog*0.82, rr=0.81*R, sa=-Math.PI/2, ea=sa+fill*6.283;
+        ctx.lineCap='round';
+        if(fill>0.01){
+          ctx.beginPath(); ctx.arc(cx,cy,rr,sa,ea); ctx.strokeStyle='rgba(46,224,196,'+(scoreness*0.16).toFixed(3)+')'; ctx.lineWidth=11; ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx,cy,rr,sa,ea); ctx.strokeStyle='rgba(150,255,240,'+(scoreness*0.55).toFixed(3)+')'; ctx.lineWidth=2.5; ctx.stroke();
+          var lx=cx+Math.cos(ea)*rr, ly=cy+Math.sin(ea)*rr;
+          var lg=ctx.createRadialGradient(lx,ly,0,lx,ly,16); lg.addColorStop(0,'rgba(190,255,247,'+scoreness.toFixed(3)+')'); lg.addColorStop(1,'rgba(46,224,196,0)');
+          ctx.fillStyle=lg; ctx.fillRect(lx-16,ly-16,32,32);
+          ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+scoreness.toFixed(3)+')'; ctx.arc(lx,ly,3,0,6.283); ctx.fill();
+        }
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font='600 '+Math.round(R*0.46)+'px "Space Grotesk",sans-serif';
+        ctx.fillStyle='rgba(245,239,225,'+(scoreness*0.97).toFixed(3)+')';
+        ctx.fillText(String(Math.round(prog*847)), cx, cy-R*0.03);
+        ctx.font='500 '+Math.round(R*0.082)+'px "JetBrains Mono",monospace';
+        ctx.fillStyle='rgba(46,224,196,'+(scoreness*0.8).toFixed(3)+')';
+        ctx.fillText('SHAPE SCORE', cx, cy+R*0.32);
       }
     }
     requestAnimationFrame(frame);
