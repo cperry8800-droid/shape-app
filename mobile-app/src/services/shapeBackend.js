@@ -2708,6 +2708,64 @@ async function disconnectAppleMusic() {
   return payload;
 }
 
+// Save (add) a coach's Apple Music playlist into the signed-in member's own
+// library. Apple has NO server save route — the write happens client-side via
+// MusicKit using the on-device Music-User-Token. `playlist` is an Apple Music
+// catalog URL or a `pl.xxxx` id.
+async function saveAppleMusicPlaylist(playlist) {
+  if (typeof window === 'undefined') throw new Error('Apple Music is unavailable here.');
+  const url = typeof playlist === 'string' ? playlist : (playlist?.url || '');
+  const m = String(url).match(/(pl\.[A-Za-z0-9-]+)/);
+  const playlistId = m ? m[1] : '';
+  if (!playlistId) throw new Error('Not a catalog Apple Music playlist link.');
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenJson.developerToken) throw new Error('Apple Music is not configured yet.');
+  const MusicKit = await loadMusicKit();
+  try { await MusicKit.configure({ developerToken: tokenJson.developerToken, app: { name: 'Shape', build: '1.0.0' } }); } catch (_) { /* may already be configured */ }
+  const music = MusicKit.getInstance();
+  if (!music.isAuthorized) {
+    const tok = await music.authorize();
+    if (!tok) throw new Error('Connect Apple Music before saving.');
+    if (apiBaseUrl && state.session?.access_token) {
+      fetch(`${apiBaseUrl}/api/integrations/apple-music/connect`, { method: 'POST', headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ musicUserToken: tok, storefront: music.storefrontId || null }) }).catch(() => {});
+    }
+  }
+  // Add the catalog playlist to the user's library (client-side write).
+  await music.api.music('/v1/me/library', { 'ids[playlists]': playlistId }, { fetchOptions: { method: 'POST' } });
+  return { ok: true };
+}
+
+// List the signed-in user's Apple Music library playlists (client-side via
+// MusicKit — Apple has no server playlists route). Returns the same shape the
+// Spotify picker uses: [{ id, name, tracks, url, image }].
+async function listAppleMusicPlaylists() {
+  if (typeof window === 'undefined') { const e = new Error('Apple Music unavailable.'); e.connected = false; throw e; }
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenJson.developerToken) { const e = new Error('Apple Music is not configured yet.'); e.connected = false; throw e; }
+  const MusicKit = await loadMusicKit();
+  try { await MusicKit.configure({ developerToken: tokenJson.developerToken, app: { name: 'Shape', build: '1.0.0' } }); } catch (_) {}
+  const music = MusicKit.getInstance();
+  if (!music.isAuthorized) {
+    const tok = await music.authorize();
+    if (!tok) { const e = new Error('Connect Apple Music.'); e.connected = false; throw e; }
+    if (apiBaseUrl && state.session?.access_token) {
+      fetch(`${apiBaseUrl}/api/integrations/apple-music/connect`, { method: 'POST', headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ musicUserToken: tok, storefront: music.storefrontId || null }) }).catch(() => {});
+    }
+  }
+  let rows = [];
+  try {
+    const result = await music.api.music('v1/me/library/playlists', { limit: 100 });
+    rows = (result && result.data && result.data.data) || [];
+  } catch (_) { rows = []; }
+  return rows.map((pl) => {
+    const at = pl.attributes || {};
+    const art = at.artwork && at.artwork.url ? at.artwork.url.replace('{w}', '88').replace('{h}', '88') : null;
+    return { id: pl.id, name: at.name || 'Playlist', tracks: at.trackCount != null ? at.trackCount : 0, url: at.url || ('https://music.apple.com/library/playlist/' + pl.id), image: art };
+  });
+}
+
 // Instacart: hand the user's grocery list to Instacart and return a URL that
 // opens a pre-filled shopping-list page. `items` is optional — when omitted
 // the server builds the list from coach-pushed meals.
@@ -4468,6 +4526,8 @@ window.ShapeIntegrations = {
   listSpotifyPlaylists,
   connectAppleMusic,
   disconnectAppleMusic,
+  saveAppleMusicPlaylist,
+  listAppleMusicPlaylists,
   sendGroceryToInstacart,
   syncWhoop,
   syncStrava,

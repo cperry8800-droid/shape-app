@@ -4620,6 +4620,11 @@ function BSStShell({ embedded, t, children, footerL, footerR, topPad = 46 }) {
 // Quota Mode. Until then, set VITE_SPOTIFY_LIBRARY_PICKER=off to hide the picker
 // fleet-wide (paste-a-link still works for everyone). Default: shown.
 const SPOTIFY_PICKER_ENABLED = String(import.meta.env.VITE_SPOTIFY_LIBRARY_PICKER ?? '').toLowerCase() !== 'off';
+// Apple Music "pick from your library" uses client-side MusicKit (no per-user
+// allowlist), but the developer-token route needs the APPLE_MUSIC_* env set.
+// Until then tapping it degrades to a friendly "paste a link" message. Set
+// VITE_APPLE_LIBRARY_PICKER=off to hide the picker fleet-wide. Default: shown.
+const APPLE_PICKER_ENABLED = String(import.meta.env.VITE_APPLE_LIBRARY_PICKER ?? '').toLowerCase() !== 'off';
 function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const t = useBS();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
@@ -4643,6 +4648,12 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const [spotBusy, setSpotBusy] = useStateBSP(false);
   const [spotErr, setSpotErr] = useStateBSP('');
   const [picking, setPicking] = useStateBSP(false);
+  // Apple Music "pick from your library" importer (client-side MusicKit authorize;
+  // no server connect-status — listAppleMusicPlaylists() configures + authorizes)
+  const [applePlaylists, setApplePlaylists] = useStateBSP(null);
+  const [appleBusy, setAppleBusy] = useStateBSP(false);
+  const [appleErr, setAppleErr] = useStateBSP('');
+  const [pickingApple, setPickingApple] = useStateBSP(false);
 
   const hydrate = (r) => ({ ...r, c: r.provider === 'apple' ? '#b9a13e' : '#4a6fb0', dur: r.duration || '—', bpm: r.bpm || '—', used: 0 });
   useEffectBSP(() => {
@@ -4678,6 +4689,24 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     setIName(pl.name || ''); setIUrl(pl.url || ''); setIProvider('spotify');
     if (!iTag.trim()) setITag('From Spotify');
     setPicking(false);
+  };
+  const loadAppleMusicPlaylists = async () => {
+    if (!window.ShapeIntegrations?.listAppleMusicPlaylists) { setAppleErr('Apple Music isn’t available here.'); return; }
+    setAppleBusy(true); setAppleErr('');
+    try {
+      const rows = await window.ShapeIntegrations.listAppleMusicPlaylists();
+      setApplePlaylists(Array.isArray(rows) ? rows : []);
+      setPickingApple(true);
+    } catch (e) {
+      // Not authorized / not configured yet → friendly nudge to the paste-a-link path.
+      if (e && e.connected === false) setAppleErr('Authorize Apple Music to pick from your library — it may not be enabled for your account yet.');
+      else setAppleErr('Couldn’t load your Apple Music library — paste a playlist link below for now.');
+    } finally { setAppleBusy(false); }
+  };
+  const pickAppleMusicPlaylist = (pl) => {
+    setIName(pl.name || ''); setIUrl(pl.url || ''); setIProvider('apple');
+    if (!iTag.trim()) setITag('From Apple Music');
+    setPickingApple(false);
   };
 
   // Custom playlists are server-backed when signed in (synced with the website),
@@ -4754,6 +4783,37 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     );
   }
 
+  // ── Apple Music playlist picker (pick from the coach's own library) ──
+  if (importing && pickingApple) {
+    const list = applePlaylists || [];
+    return (
+      <BSStShell embedded={embedded} t={t} footerL="Your Apple Music" footerR="Library" topPad={50}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR APPLE MUSIC</div>
+            <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
+          <div style={{ marginTop: 16 }}>
+            {list.length === 0 ? (
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No playlists found in your Apple Music library.</div>
+            ) : list.map((pl) => (
+              <button key={pl.id} onClick={() => pickAppleMusicPlaylist(pl)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 11, alignItems: 'center', padding: '11px 0', borderTop: `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
+                <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {pl.image ? <img src={pl.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : bsEqGlyph(gold)}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{pl.tracks} tracks{pl.owner ? ` · ${pl.owner}` : ''}</div>
+                </div>
+                <span style={{ fontFamily: t.MONO, fontSize: 16, color: gold, fontWeight: 700 }}>+</span>
+              </button>
+            ))}
+          </div>
+      </BSStShell>
+    );
+  }
+
   if (importing) {
     const field = (label, value, set, placeholder) => (
       <div style={{ marginBottom: 14 }}>
@@ -4787,6 +4847,21 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                 <button onClick={loadSpotifyPlaylists} disabled={spotBusy || spotConnected === null} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: (spotBusy || spotConnected === null) ? 0.6 : 1 }}>{spotBusy ? 'Loading…' : 'Pick from your Spotify →'}</button>
               )}
               {spotErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{spotErr}</div> : null}
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
+            </div>
+            )}
+            {/* Pick straight from the coach's Apple Music library (client-side MusicKit
+                authorize). Hidden when VITE_APPLE_LIBRARY_PICKER=off. */}
+            {APPLE_PICKER_ENABLED && (
+            <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#fc3c44' }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR APPLE MUSIC</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
+              </div>
+              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>Pick a playlist straight from your Apple Music library — we’ll fill in the rest.</div>
+              <button onClick={loadAppleMusicPlaylists} disabled={appleBusy} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? 'Loading…' : 'Pick from your Apple Music →'}</button>
+              {appleErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{appleErr}</div> : null}
               <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
             </div>
             )}

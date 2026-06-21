@@ -3061,52 +3061,68 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
 const bsSpotifyGlyph = (size = 22, fill = '#fff') => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
 );
+// Apple logo glyph (Apple Music), reused like the Spotify one.
+const bsAppleGlyph = (size = 22, fill = '#fff') => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path d="M17.05 12.04c-.03-2.86 2.34-4.23 2.44-4.3-1.33-1.95-3.4-2.22-4.14-2.25-1.77-.18-3.45 1.04-4.35 1.04-.9 0-2.28-1.02-3.75-.99-1.93.03-3.71 1.12-4.7 2.85-2 3.48-.51 8.63 1.44 11.45.95 1.38 2.09 2.93 3.58 2.87 1.44-.06 1.98-.93 3.72-.93 1.73 0 2.22.93 3.74.9 1.54-.03 2.52-1.41 3.46-2.79 1.09-1.6 1.54-3.15 1.57-3.23-.03-.02-3.01-1.16-3.04-4.57zM14.2 4.38c.79-.96 1.33-2.29 1.18-3.62-1.14.05-2.53.76-3.35 1.72-.73.85-1.37 2.21-1.2 3.51 1.27.1 2.57-.65 3.37-1.61z"/></svg>
+);
 
-function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
+function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks }) {
   const t = useBS();
   const [open, setOpen] = useStateBSC(false);
   const [saveState, setSaveState] = useStateBSC('idle'); // idle | saving | saved | error
   const [saveMsg, setSaveMsg] = useStateBSC('');
   const list = Array.isArray(tracks) ? tracks : [];
-  const isSpotifyUrl = typeof spotifyUrl === 'string' && /(^|\.)spotify\.com\//i.test(spotifyUrl);
-  // Only genuine Spotify playlist links can be followed into a user's library.
-  const canSaveToSpotify = isSpotifyUrl && /playlist[/:]/i.test(spotifyUrl);
-  const openSpotify = () => {
-    const url = isSpotifyUrl ? spotifyUrl : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
-    try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
+  const isApple = provider === 'apple';
+  const pUrl = url || spotifyUrl || '';
+  const pName = isApple ? 'Apple Music' : 'Spotify';
+  const glyph = isApple ? bsAppleGlyph : bsSpotifyGlyph;
+  const isProvUrl = isApple ? /music\.apple\.com\//i.test(pUrl) : /(^|\.)spotify\.com\//i.test(pUrl);
+  // Only genuine playlist links can be followed into a user's library.
+  const canSave = isApple ? /music\.apple\.com\/.*(playlist|pl\.)/i.test(pUrl) : (isProvUrl && /playlist[/:]/i.test(pUrl));
+  const openProvider = () => {
+    const fallback = isApple
+      ? `https://music.apple.com/search?term=${encodeURIComponent(String(title || 'playlist'))}`
+      : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
+    const u = isProvUrl ? pUrl : fallback;
+    try { window.open(u, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = u; } catch (e2) {} }
   };
-  // Follow (save) the coach's playlist into the signed-in member's own Spotify
-  // library via /api/integrations/spotify/save-playlist. Native goes through the
-  // bridge (Bearer token); the /m/ web build falls back to a same-origin cookie
-  // call. A missing/expired Spotify connection surfaces as a "connect" message.
-  const saveToSpotify = async () => {
+  // Follow (save) the coach's playlist into the signed-in member's own library.
+  // Spotify goes through /api/integrations/spotify/save-playlist (bridge or a
+  // /m/ cookie fallback); Apple Music writes client-side via MusicKit (no server
+  // route). A missing/expired connection surfaces as a "connect" message.
+  const saveToLibrary = async () => {
     if (saveState === 'saving' || saveState === 'saved') return;
     setSaveState('saving'); setSaveMsg('');
     try {
-      let done = false;
-      const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveSpotifyPlaylist;
-      if (typeof fn === 'function') {
-        try { await fn(spotifyUrl); done = true; }
-        catch (e) { if (!/not configured|VITE_API_BASE_URL/i.test(e && e.message || '')) throw e; }
-      }
-      if (!done) {
-        const res = await fetch('/api/integrations/spotify/save-playlist', {
-          method: 'POST', credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: spotifyUrl }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Could not save to Spotify.');
+      if (isApple) {
+        const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveAppleMusicPlaylist;
+        if (typeof fn !== 'function') throw new Error('Apple Music isn\'t available here.');
+        await fn(pUrl);
+      } else {
+        let done = false;
+        const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveSpotifyPlaylist;
+        if (typeof fn === 'function') {
+          try { await fn(pUrl); done = true; }
+          catch (e) { if (!/not configured|VITE_API_BASE_URL/i.test(e && e.message || '')) throw e; }
+        }
+        if (!done) {
+          const res = await fetch('/api/integrations/spotify/save-playlist', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: pUrl }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Could not save to Spotify.');
+        }
       }
       setSaveState('saved');
-      try { window.__bsToast && window.__bsToast('Saved to your Spotify', 'ok'); } catch (e) {}
+      try { window.__bsToast && window.__bsToast('Saved to your ' + pName, 'ok'); } catch (e) {}
     } catch (e) {
-      const msg = (e && e.message) || 'Could not save to Spotify.';
+      const msg = (e && e.message) || ('Could not save to ' + pName + '.');
       setSaveState('error'); setSaveMsg(msg);
-      // For "not linked / not signed in" errors the popup already shows an
-      // inline "Connect Spotify to save" CTA — skip the toast so it isn't
-      // doubled up. Only surface a toast for other (e.g. network) failures.
-      const needsConnect = /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(msg);
+      // For "not linked / not signed in" errors the popup shows an inline
+      // "Connect … to save" CTA — skip the toast so it isn't doubled up.
+      const needsConnect = /sign ?in|connect (spotify|apple)|authentic|log ?in|unauthor|reconnect|before saving|not connected|not configured|not available/i.test(msg);
       if (!needsConnect) { try { window.__bsToast && window.__bsToast(msg, 'error'); } catch (e2) {} }
     }
   };
@@ -3118,7 +3134,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
     <div onClick={() => setOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(24, '#fff')}</div>
+          <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{glyph(24, '#fff')}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
@@ -3130,7 +3146,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
         </div>
         <div style={{ marginTop: 6 }}>
           {list.length === 0 ? (
-            <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, padding: '10px 2px', letterSpacing: '0.03em' }}>Open in Spotify to see the full tracklist.</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, padding: '10px 2px', letterSpacing: '0.03em' }}>Open in {pName} to see the full tracklist.</div>
           ) : list.map((tr, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 2px', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 'none' }}>
               <div style={{ width: 16, textAlign: 'right', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{i + 1}</div>
@@ -3142,29 +3158,29 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
             </div>
           ))}
         </div>
-        {canSaveToSpotify && (
-          <button onClick={saveToSpotify} disabled={saveState === 'saving'} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: `1px solid ${color}`, background: saveState === 'saved' ? color : 'transparent', color: saveState === 'saved' ? '#04201d' : color, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: saveState === 'saving' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            {saveState === 'saved' ? '✓ Saved to Spotify' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Try again' : '♡ Save to my Spotify'}
+        {canSave && (
+          <button onClick={saveToLibrary} disabled={saveState === 'saving'} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: `1px solid ${color}`, background: saveState === 'saved' ? color : 'transparent', color: saveState === 'saved' ? '#04201d' : color, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: saveState === 'saving' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {saveState === 'saved' ? '✓ Saved to ' + pName : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Try again' : '♡ Save to my ' + pName}
           </button>
         )}
-        {canSaveToSpotify && saveState === 'error' && (
-          // Most failures here mean the member hasn't linked Spotify (or isn't
-          // signed in) — point them to where they connect it instead of showing
+        {canSave && saveState === 'error' && (
+          // Most failures here mean the member hasn't linked the service (or
+          // isn't signed in) — point them to where they connect it instead of
           // the raw error. Other errors (e.g. network) still show their message.
-          /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(saveMsg) ? (
+          /sign ?in|connect (spotify|apple)|authentic|log ?in|unauthor|reconnect|before saving|not connected|not configured|not available/i.test(saveMsg) ? (
             <button
               onClick={() => { setOpen(false); try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }}
               style={{ width: '100%', marginTop: 8, padding: '11px 12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${color}`, background: 'transparent', cursor: 'pointer', display: 'block', textAlign: 'center' }}
             >
-              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color }}>Connect Spotify to save →</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color }}>Connect {pName} to save →</div>
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Settings · Connected apps</div>
             </button>
           ) : (
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.02em', lineHeight: 1.4, textAlign: 'center' }}>{saveMsg}</div>
           )
         )}
-        <button onClick={openSpotify} style={{ width: '100%', marginTop: canSaveToSpotify ? 8 : 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          {bsSpotifyGlyph(15, '#04201d')} Open in Spotify
+        <button onClick={openProvider} style={{ width: '100%', marginTop: canSave ? 8 : 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {glyph(15, '#04201d')} Open in {pName}
         </button>
         <button onClick={() => setOpen(false)} style={{ width: '100%', marginTop: 8, padding: '12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
       </div>
@@ -3178,13 +3194,13 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
         onClick={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } }}
         style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', border: 0, background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-        <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(22, '#fff')}</div>
+        <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{glyph(22, '#fff')}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
           <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
           <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
         </div>
-        <button onClick={(e) => { e.stopPropagation(); openSpotify(); }} aria-label="Open in Spotify" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
+        <button onClick={(e) => { e.stopPropagation(); openProvider(); }} aria-label={`Open in ${pName}`} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
       </div>
       {sheet}
     </>
@@ -3449,14 +3465,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, tracks: p.songs }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
         return (
           <>
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} tracks={p.tracks} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
               ))}
             </div>
           </>
@@ -5949,14 +5965,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, tracks: p.songs }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
         return (
           <>
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} tracks={p.tracks} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
               ))}
             </div>
           </>
