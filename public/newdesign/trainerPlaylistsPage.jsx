@@ -26,14 +26,17 @@ function PlaylistPage({ ctx }) {
   });
   const [query, setQuery] = useState("");
   const [serverPlaylists, setServerPlaylists] = useState([]);
+  // null = checking · true = signed-in coach · false = signed-out preview.
+  const [authed, setAuthed] = useState(null);
 
-  // Pull the coach's saved soundtracks (synced with the mobile app).
+  // Pull the coach's saved soundtracks (synced with the mobile app). A 200 means
+  // we're signed in as a coach, so we hide the demo seed and show real data only.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/coach/soundtracks", { credentials: "same-origin" })
-      .then(r => (r.ok ? r.json() : null))
+      .then(r => { if (cancelled) return null; setAuthed(r.ok); return r.ok ? r.json() : null; })
       .then(d => { if (!cancelled && d && Array.isArray(d.soundtracks)) setServerPlaylists(d.soundtracks.map(soundtrackToWeb)); })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setAuthed(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -55,7 +58,9 @@ function PlaylistPage({ ctx }) {
     try { localStorage.setItem(storageKey, v); } catch {}
   };
 
-  const playlists = [...serverPlaylists, ...ctx.playlists];
+  // Signed-in coach → only their own saved playlists (zeroed when they have none);
+  // the demo seed is a preview for signed-out visitors only.
+  const playlists = authed === false ? [...serverPlaylists, ...ctx.playlists] : serverPlaylists;
   const mctx = { ...ctx, playlists, importSoundtrack };
   const filtered = playlists.filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase()));
   const totalAttached = playlists.reduce((s, p) => s + p.attachedTo.length, 0);
