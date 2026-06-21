@@ -144,6 +144,28 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-20 — Landing page: nutritionists in the coach grid + dark phone bezels (LIVE)
+- **Coach grid shows nutritionists/dietitians (#1355).** The signed-out `index.html` coach
+  grid was trainers-only; mixed in **3 registered nutritionists** (Rae Lindqvist · sports
+  performance, Claire Donovan · performance nutrition, Ben Caldwell · muscle gain),
+  interleaved with the trainers `[TR,TR,NU,TR,TR,NU,TR,NU]`, each with a verified face
+  photo so the cards read as real people, linking to their `role=nutritionist` living
+  profile. Added `photo: face(...)` to those three in `coachDirectory.js` (`?v=20260620c`);
+  `index.html` builds the trainer-led mix (falls back to a straight trainer slice if the
+  directory shape changes).
+- **Every landing phone mockup uses the dark bezel (#1356).** The `.beat` phone mockups
+  mixed bezel styles — Score/Profile used `class="vis dark"` but Train/Eat/Community used
+  the cream `vis`. On the **dark-screen Community** shot the cream `.scr` background bled at
+  the edges as a visible **cream border/gap** ("the screen doesn't fill the frame"), and on
+  the **light Train/Eat** shots the white screen blended into the cream bezel so the screen
+  edge vanished. Flipped all five to `vis dark` (`#14110d` frame + screen bg) so every
+  screenshot fills its frame as a clean phone with no cream gap. Verified live (all 5
+  `vis dark` on prod, Train renders a clean dark frame). Diagnosis was confirmed via
+  edge-pixel sampling: light shots have cream edges, dark shots have dark edges — the
+  cream-on-dark mismatch was Community.
+- Both squash-merged to `main`, CI green, deployed to production. The community shot itself
+  was re-captured crisp at DPR2 earlier (#1354, `getapp-community-v1.png?v=20260620b`).
+
 ### 2026-06-20 — Interactive spotlight tour (website dashboards, Phase B)
 - The **website dashboards now have the same guided spotlight walkthrough** as the mobile
   app (Phase A), reusing the identical engine — the page dims, a cutout spotlights a real
