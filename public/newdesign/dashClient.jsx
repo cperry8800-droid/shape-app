@@ -169,7 +169,7 @@ function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
         {workout.playlist && workout.playlist.name ? (
-          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1ED760", background: "rgba(30,215,96,0.08)", border: "1px solid rgba(30,215,96,0.35)", borderLeft: "3px solid #1ED760", borderRadius: 4, padding: "6px 10px" }}>
+          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1DB954", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
             ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
           </a>
         ) : (

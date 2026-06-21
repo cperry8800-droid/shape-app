@@ -4715,7 +4715,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const all = [...customList, ...BS_SOUNDTRACKS_DEMO];
   const isServerRow = (p) => Array.isArray(p.attached);
   const providerLabel = (p) => p === 'apple' ? 'APPLE MUSIC' : 'SPOTIFY';
-  const providerDot = (p) => p === 'apple' ? '#fc3c44' : '#1ED760';
+  const providerDot = (p) => p === 'apple' ? '#fa243c' : '#1DB954';
   const attachedFor = (p) => (p ? (isServerRow(p) ? p.attached : (assign[p.id] || [])) : []);
   const assignedCount = (p) => attachedFor(p).length;
   const shown = all
@@ -4834,7 +4834,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             {SPOTIFY_PICKER_ENABLED && (
             <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1ED760' }} />
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1DB954' }} />
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR SPOTIFY</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
               </div>
@@ -4855,7 +4855,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             {APPLE_PICKER_ENABLED && (
             <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#fc3c44' }} />
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#fa243c' }} />
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR APPLE MUSIC</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
               </div>
