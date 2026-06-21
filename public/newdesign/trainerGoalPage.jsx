@@ -142,6 +142,9 @@ function TrainerGoalPage() {
       const remote = await window.shapeDb.getUserGoals("trainer");
       if (remote && Object.keys(remote).length > 0) {
         setState(s => ({ ...s, ...remote, goals: ensureGoalIds(remote.goals || s.goals), calc: { ...s.calc, ...(remote.calc || {}) } }));
+      } else {
+        // Signed in with no saved goals → a clean empty state, not the demo goals.
+        setState(s => ({ ...s, goals: [], momentum: [], calc: { rate: 0, spw: 0, prog: 0, workoutSales: 0, currentWeekly: 0 } }));
       }
     })();
   }, []);
