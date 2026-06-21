@@ -144,6 +144,58 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-21 — Apple Music integration (web + mobile parity) + tolerant key parser; login & nav polish
+- **Apple Music is now a second music integration at full parity with Spotify — live
+  end-to-end** (#1360). Coaches import Apple Music playlists; members open/save them,
+  exactly like Spotify.
+  - **Web** (`trainerPlaylistsPage.jsx`, shared trainer+nutritionist; `clientPlaylist.jsx`):
+    the "New playlist" import offers **Pick from your Apple Music** (client-side MusicKit:
+    developer-token → `MK.configure` → authorize → POST `/apple-music/connect` → list the
+    coach's library playlists) alongside Spotify + paste-a-link; member **Connect Apple
+    Music** card. `importSoundtrack` infers the provider from the URL.
+  - **Mobile** (`iosAppBroadsheetClient.jsx`, `iosAppBroadsheetPros.jsx`, `shapeBackend.js`):
+    `BSPlaylistCard` is **provider-aware** (Apple glyph + red accent + "Open in Apple Music"
+    + save via MusicKit; Spotify unchanged via back-compat `spotifyUrl`); `BSProSoundtracks`
+    gains a **"Pick from your Apple Music"** library picker; `saveAppleMusicPlaylist` +
+    `listAppleMusicPlaylists` helpers (client-side MusicKit — Apple has **no** server
+    playlists route). `listAppleMusicPlaylists` requests `include=catalog` so library
+    playlists resolve to their shareable catalog URL; `canSave` only offers Save for a
+    catalog (`pl.`) URL.
+  - **Server** routes (`/api/integrations/apple-music/{developer-token,connect,disconnect}`)
+    + the `coach_soundtracks.provider='apple'` allowance already existed.
+  - **Activated:** owner created a MusicKit key (Key ID `252AT36GZM`, Team `6KA47K2J29`) and
+    set `APPLE_MUSIC_TEAM_ID/KEY_ID/PRIVATE_KEY` in Vercel. Token mints (ES256, HTTP 200),
+    verified live.
+- **Tolerant `.p8` key parser (#1365)** — the developer-token route threw OpenSSL
+  `1E08010C:DECODER` errors because Vercel's env field flattened the multi-line key
+  (stripped the line breaks). `privateKeyFromEnv` now rebuilds a valid PEM from **any** form
+  — proper multi-line, single-line `\n`-escaped, flattened, or bare base64 — by stripping the
+  markers/whitespace and re-wrapping the base64 at 64 cols. `.gitleaks.toml` allowlists the
+  route for its PEM-marker literals. The route is now immune to the notorious multi-line-env
+  pitfall; the existing (flattened) env value started working on deploy with no re-paste.
+- **Login degrade-open (#1361)** — the website login (`login.jsx`) hard-blocked on
+  "confirming you're human…" forever when Cloudflare Turnstile couldn't load (outage, a
+  network/VPN, or an extension blocking `challenges.cloudflare.com`). It now detects the
+  failure (render resolves null, or a 7s grace timer elapses with no token) and **degrades
+  open** — ungates submit, **omits** the token (so server-side Turnstile enforcement stays
+  authoritative), hides the broken widget, shows a calm "you can still sign in" notice.
+- **Login cleanup (#1362)** — removed the non-functional Google/Apple social buttons (no
+  OAuth wiring) + their dead `GoogleIcon`/`AppleIcon`/`SocialButton` components; compacted
+  the login card.
+- **Coach Playlists demo zero-out (#1363)** — the coach Playlists page always stacked the
+  demo seed ("Heavy Squat Day"/"Tempo Run" with fabricated listen counts) over real
+  soundtracks. Now signed-in coaches see only their own saved playlists (a clean zeroed empty
+  state when none); the demo shows for signed-out preview only (auth detected from the
+  `/api/coach/soundtracks` 200; one gate at the context-provided list covers Library/Matrix/
+  Builder).
+- **Removed redundant "More" nav dropdown (#1364)** — the signed-in top portal nav's "More ▾"
+  duplicated dashboard-sidebar tabs; removed from all three role navs (`pageShell.jsx`,
+  `?v=20260621` across 69 loaders). Orphaned items (client Playlists, coach Public-profile)
+  remain reachable by direct URL.
+- **Known Apple limit:** library playlists with no catalog equivalent aren't member-shareable
+  (Apple platform constraint) — coaches paste a shared/catalog link for those; the picker
+  resolves catalog-backed ones automatically.
+
 ### 2026-06-20 — Interactive spotlight tour (website dashboards, Phase B)
 - The **website dashboards now have the same guided spotlight walkthrough** as the mobile
   app (Phase A), reusing the identical engine — the page dims, a cutout spotlights a real
