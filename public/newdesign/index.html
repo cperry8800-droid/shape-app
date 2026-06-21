@@ -233,6 +233,54 @@
   .vis.dark .scr{background:#14110d}
   .vis .scr img.on{opacity:1}
 
+  /* The Member Journey — pinned scroll-scrubbed sequence over a morphing point-cloud */
+  .journey{position:relative;background:linear-gradient(180deg,#02030a 0%,#060c1e 16%,#081127 50%,#050b1a 84%,#02030a 100%)}
+  .jtrack{height:600vh}
+  .jpin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+  .jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
+  .jvignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 92% 78% at 52% 47%,transparent 36%,rgba(2,3,10,0.66) 100%)}
+  .jhead{position:relative;z-index:3;text-align:center;padding:62px 24px 0}
+  .jeyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.34em;text-transform:uppercase;color:var(--teal-b)}
+  .jhead h2{font-family:var(--serif);font-weight:300;font-size:clamp(30px,4.8vw,60px);line-height:1.03;letter-spacing:-.03em;margin-top:15px;color:var(--cream)}
+  .jhead h2 b{font-weight:500;font-style:italic;color:var(--teal-b)}
+  .jstages{position:relative;z-index:3;flex:1;width:100%;max-width:1240px;margin:0 auto}
+  .jstage{position:absolute;left:40px;right:40px;bottom:104px;max-width:530px;opacity:0;transform:translateY(26px);transition:opacity .6s cubic-bezier(.2,.7,.2,1),transform .6s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+  .jstage.on{opacity:1;transform:none;pointer-events:auto}
+  .jstage .jx{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--teal-b)}
+  .jstage h3{font-family:var(--serif);font-weight:300;font-size:clamp(28px,4.2vw,50px);line-height:1.0;letter-spacing:-.03em;margin:13px 0 0;color:var(--cream)}
+  .jstage h3 b{font-weight:500;font-style:italic;color:var(--teal-b)}
+  .jstage p{margin-top:17px;max-width:44ch;color:var(--cream-2);font-size:16px;line-height:1.62}
+  .jchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:21px}
+  .jchip{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--cream-2);border:1px solid var(--line);border-radius:999px;padding:7px 13px;background:rgba(245,239,225,0.035)}
+  .jrail{position:absolute;z-index:3;right:48px;top:50%;transform:translateY(-50%);list-style:none;display:flex;flex-direction:column;gap:21px;text-align:right}
+  .jrail li{display:flex;align-items:center;justify-content:flex-end;gap:13px;font-family:var(--sans);font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--cream-3);transition:color .45s ease}
+  .jrail li .jdot{width:9px;height:9px;border-radius:50%;border:1px solid var(--cream-3);background:transparent;transition:all .45s ease;flex:none}
+  .jrail li.done{color:var(--cream-2)}
+  .jrail li.done .jdot{border-color:var(--teal);background:var(--teal)}
+  .jrail li.active{color:var(--cream)}
+  .jrail li.active .jdot{border-color:var(--teal-b);background:var(--teal-b);box-shadow:0 0 14px 2px rgba(46,224,196,.55)}
+  .jcount{position:absolute;z-index:3;left:40px;top:58px;font-family:var(--mono);font-size:11px;letter-spacing:.24em;color:var(--cream-3);display:flex;align-items:baseline;gap:8px}
+  .jcount b{color:var(--teal-b);font-weight:500;font-size:30px;letter-spacing:0;line-height:1}
+  .jcue{position:absolute;z-index:3;bottom:22px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--cream-3)}
+  .jcue:after{content:"";display:block;width:1px;height:28px;margin:9px auto 0;background:linear-gradient(var(--teal-b),transparent)}
+  @media(max-width:860px){
+    .jrail{right:18px;gap:15px}
+    .jrail li{font-size:11px;gap:9px}
+    .jstage{left:22px;right:22px;bottom:92px;max-width:none}
+    .jcount{left:20px;top:50px}
+    .jcount b{font-size:24px}
+    .jhead{padding-top:46px}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .jtrack{height:auto}
+    .jpin{position:relative;height:auto;display:block;padding:64px 0 44px}
+    .jcanvas,.jvignette,.jcue,.jcount{display:none}
+    .jstages{max-width:760px;padding:0 28px}
+    .jstage{position:relative;left:auto;right:auto;bottom:auto;opacity:1;transform:none;max-width:none;margin:0 0 44px;pointer-events:auto}
+    .jrail{position:relative;right:auto;top:auto;transform:none;flex-direction:row;justify-content:center;flex-wrap:wrap;gap:14px 22px;margin:8px auto 0}
+    .jrail li{justify-content:center}
+  }
+
   .sec{padding:130px 0;position:relative}
   .shead{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:18px;border-bottom:1px solid var(--line);padding-bottom:24px}
   .shead h2{font-family:var(--serif);font-weight:300;font-size:clamp(36px,6vw,76px);letter-spacing:-.035em}
@@ -596,6 +644,60 @@
   </div>
 </div></section>
 
+<section class="journey" id="journey" aria-label="Follow a member through Shape">
+  <div class="jtrack" id="jtrack">
+    <div class="jpin">
+      <canvas class="jcanvas" id="jcanvas" aria-hidden="true"></canvas>
+      <div class="jvignette" aria-hidden="true"></div>
+      <header class="jhead">
+        <div class="jeyebrow">The Member Journey</div>
+        <h2>Follow a member through <b>Shape.</b></h2>
+      </header>
+      <div class="jstages">
+        <article class="jstage on" data-i="0">
+          <div class="jx">Stage 01 / 05 · Join</div>
+          <h3>You step <b>in.</b></h3>
+          <p>One membership opens the whole platform — five dollars a month. Your account, your living profile and your climb begin from the very first day.</p>
+          <div class="jchips"><span class="jchip">Living profile</span><span class="jchip">Shape Score</span><span class="jchip">One app</span></div>
+        </article>
+        <article class="jstage" data-i="1">
+          <div class="jx">Stage 02 / 05 · Match</div>
+          <h3>A coach reads <b>you.</b></h3>
+          <p>Browse a marketplace of vetted human trainers and nutritionists — free, before you pay. A real coach takes your goals, history and constraints. Not a chatbot.</p>
+          <div class="jchips"><span class="jchip">Vetted trainers</span><span class="jchip">Nutritionists</span><span class="jchip">Real humans</span></div>
+        </article>
+        <article class="jstage" data-i="2">
+          <div class="jx">Stage 03 / 05 · Train</div>
+          <h3>The plan runs <b>daily.</b></h3>
+          <p>Workouts, macros and habits are written before you arrive and tick live as you log. Every set, cue and swap loaded the night before — no guesswork at the rack.</p>
+          <div class="jchips"><span class="jchip">Workouts</span><span class="jchip">Macros</span><span class="jchip">Habits</span></div>
+        </article>
+        <article class="jstage" data-i="3">
+          <div class="jx">Stage 04 / 05 · Score</div>
+          <h3>One number tells the <b>truth.</b></h3>
+          <p>Sleep, nutrition and consistency read every week into a single Shape Score. Your coach sees the dip and adjusts the plan before you stall — not after.</p>
+          <div class="jchips"><span class="jchip">Shape Score</span><span class="jchip">Weekly read</span><span class="jchip">Momentum</span></div>
+        </article>
+        <article class="jstage" data-i="4">
+          <div class="jx">Stage 05 / 05 · Community</div>
+          <h3>You climb <b>together.</b></h3>
+          <p>PRs hit the wall, coaches co-sign your wins, channels keep you close. Your profile is alive — a public climb that grows with every session.</p>
+          <div class="jchips"><span class="jchip">PR wall</span><span class="jchip">Co-signs</span><span class="jchip">Your climb</span></div>
+        </article>
+      </div>
+      <ol class="jrail" id="jrail">
+        <li class="active">Join<span class="jdot"></span></li>
+        <li>Match<span class="jdot"></span></li>
+        <li>Train<span class="jdot"></span></li>
+        <li>Score<span class="jdot"></span></li>
+        <li>Community<span class="jdot"></span></li>
+      </ol>
+      <div class="jcount"><b id="jcur">01</b><span>/ 05</span></div>
+      <div class="jcue">Scroll</div>
+    </div>
+  </div>
+</section>
+
 <section class="sec" id="market"><div class="wrap" style="max-width:1440px">
   <div class="shead"><h2>The <b>Expert Marketplace</b></h2><div class="s" id="mk-stats">Browse free before you pay</div></div>
   <div class="gal" id="gal"></div>
@@ -738,6 +840,83 @@
     card.addEventListener('mousemove',function(e){var r=card.getBoundingClientRect();var px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;card.style.transform='rotateY('+(px*9)+'deg) rotateX('+(-py*9)+'deg) translateZ(6px)';});
     card.addEventListener('mouseleave',function(){card.style.transform='';});
   });
+})();
+</script>
+<script>
+/* The Member Journey — scroll-scrubbed stage advance over a morphing point-cloud.
+   Mirrors the existing .loop pin pattern: a tall #jtrack with a sticky .jpin; the
+   active stage = floor(scrollProgress * stageCount). The canvas draws a rotating
+   sphere of points whose radius is deformed by a per-stage seed, so the cloud
+   visibly reshapes as each stage advances. Degrades to a static stacked list under
+   prefers-reduced-motion (CSS handles the layout; this script no-ops). */
+(function(){
+  var sec=document.getElementById('journey'); if(!sec) return;
+  var track=document.getElementById('jtrack');
+  var stages=[].slice.call(sec.querySelectorAll('.jstage'));
+  var rail=[].slice.call(sec.querySelectorAll('.jrail li'));
+  var curEl=document.getElementById('jcur');
+  if(!track||!stages.length) return;
+
+  var n=stages.length, curIdx=-1;
+  function setStage(idx){
+    if(idx===curIdx) return; curIdx=idx;
+    for(var i=0;i<n;i++) stages[i].classList.toggle('on',i===idx);
+    for(var j=0;j<rail.length;j++){ rail[j].classList.toggle('active',j===idx); rail[j].classList.toggle('done',j<idx); }
+    if(curEl) curEl.textContent=(idx<9?'0':'')+(idx+1);
+  }
+
+  var still=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(still) return; // reduced-motion: every stage renders stacked via CSS, no scrub
+
+  var cv=document.getElementById('jcanvas');
+  var ctx=cv&&cv.getContext?cv.getContext('2d'):null;
+  var N=(window.innerWidth<760?180:260), pts=[];
+  for(var s=0;s<N;s++){
+    var yy0=1-(s/(N-1))*2, rr=Math.sqrt(Math.max(0,1-yy0*yy0)), ph=s*2.399963229728653;
+    pts.push({x:Math.cos(ph)*rr,y:yy0,z:Math.sin(ph)*rr,a:Math.random()*6.283,b:Math.random()*6.283});
+  }
+  var DPR=Math.min(2,window.devicePixelRatio||1),W=0,H=0;
+  function resize(){ if(!cv)return; W=cv.clientWidth; H=cv.clientHeight; cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); if(ctx)ctx.setTransform(DPR,0,0,DPR,0,0); }
+  window.addEventListener('resize',resize); resize();
+
+  var t=0, proj=[];
+  function frame(){
+    var r=track.getBoundingClientRect();
+    var span=track.offsetHeight-window.innerHeight;
+    var p=span>0?(-r.top)/span:0; if(p<0)p=0; else if(p>1)p=1;
+    var idx=Math.floor(p*n); if(idx>n-1)idx=n-1; if(idx<0)idx=0;
+    setStage(idx);
+
+    if(ctx && r.bottom>0 && r.top<window.innerHeight){
+      t+=0.0045;
+      ctx.clearRect(0,0,W,H);
+      var cx=W*0.52, cy=H*0.46, R=Math.min(W,H)*0.265;
+      var g=ctx.createRadialGradient(cx,cy,0,cx,cy,R*1.75);
+      g.addColorStop(0,'rgba(46,224,196,0.13)'); g.addColorStop(0.55,'rgba(46,224,196,0.045)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      var seed=p*n, ry=t*0.55, rx=Math.sin(t*0.32)*0.22;
+      var cyr=Math.cos(ry),syr=Math.sin(ry),cxr=Math.cos(rx),sxr=Math.sin(rx);
+      proj.length=0;
+      for(var i=0;i<N;i++){
+        var q=pts[i];
+        var def=1+0.17*Math.sin(q.a+seed+q.y*3.0)+0.10*Math.cos(q.b+t*1.25+q.x*2.3);
+        var x=q.x*def, yv=q.y*def, z=q.z*def;
+        var x1=x*cyr-z*syr, z1=x*syr+z*cyr;
+        var y1=yv*cxr-z1*sxr, z2=yv*sxr+z1*cxr;
+        proj.push([cx+x1*R, cy+y1*R, z2]);
+      }
+      proj.sort(function(a,b){return a[2]-b[2];});
+      for(var k=0;k<proj.length;k++){
+        var pp=proj[k], d=(pp[2]+1.45)/2.9; if(d<0)d=0; else if(d>1)d=1;
+        ctx.beginPath();
+        ctx.fillStyle='rgba(46,224,196,'+(0.10+d*0.62).toFixed(3)+')';
+        ctx.arc(pp[0],pp[1],0.7+d*2.1,0,6.283);
+        ctx.fill();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();
 </script>
 <script>
