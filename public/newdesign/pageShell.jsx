@@ -88,7 +88,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
     { kind: "link", label: "Progress", href: "ClientProgress.html" },
     { kind: "link", label: "Community", href: "ClientCommunity.html" },
-    { kind: "drop", label: "More", match: ["More", "Habits", "Goals", "Library", "Playlists", "My Team", "Shape Score"], items: [["Habits", "ClientHabits.html"], ["Goals", "ClientGoal.html"], ["Library", "ClientLibrary.html"], ["Playlists", "ClientPlaylists.html"], ["My Team", "ClientTeam.html"], ["Shape Score", "ClientScore.html"], ["My Profile", "ClientProfile.html"]] },
     { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   trainer: [
@@ -98,7 +97,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
     { kind: "link", label: "Messages", href: "TrainerMessages.html" },
     { kind: "link", label: "Business", href: "TrainerAnalytics.html" },
-    { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "TrainerCommunity.html"], ["Playlists", "TrainerPlaylists.html"], ["Shape Score", "TrainerScore.html"], ["Public profile", "MemberProfile.html"], ["My Profile", "TrainerProfile.html"]] },
     { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   nutritionist: [
@@ -108,7 +106,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
     { kind: "link", label: "Messages", href: "NutritionistMessages.html" },
     { kind: "link", label: "Business", href: "NutritionistAnalytics.html" },
-    { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "NutritionistCommunity.html"], ["Playlists", "NutritionistPlaylists.html"], ["Shape Score", "NutritionistScore.html"], ["Public profile", "MemberProfile.html"], ["My Profile", "NutritionistProfile.html"]] },
     { kind: "link", label: "Radio", href: "Radio.html" },
   ],
 };
