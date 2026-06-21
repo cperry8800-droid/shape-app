@@ -260,6 +260,13 @@
   .c .av .gem-win img{position:absolute;width:152%;height:152%;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-45deg);object-fit:cover}
   .c h4{font-family:var(--serif);font-size:24px;font-weight:500;letter-spacing:-.01em;margin:22px 0 6px;transform:translateZ(28px)}
   .c .role{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-b);transform:translateZ(28px)}
+  .c .role.nu{color:#e6c373}
+  .c .crole{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid;margin:0 0 11px;transform:translateZ(28px)}
+  .c .crole:before{content:"";width:5px;height:5px;border-radius:50%;flex:none}
+  .c .crole.tr{color:var(--teal-b);border-color:rgba(46,224,196,0.42);background:rgba(46,224,196,0.08)}
+  .c .crole.tr:before{background:var(--teal-b);box-shadow:0 0 8px rgba(46,224,196,.7)}
+  .c .crole.nu{color:#e6c373;border-color:rgba(230,195,115,0.5);background:rgba(230,195,115,0.10)}
+  .c .crole.nu:before{background:#e6c373;box-shadow:0 0 8px rgba(230,195,115,.7)}
   .c .bio{margin-top:14px;color:var(--cream-2);font-size:13.5px;line-height:1.55;min-height:48px;transform:translateZ(16px)}
   .c .st{display:flex;gap:0;margin-top:24px;padding-top:18px;border-top:1px solid rgba(245,239,225,0.08);font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--cream-3);transform:translateZ(20px)}
   .c .st span{flex:1;display:flex;flex-direction:column;gap:5px}
@@ -692,10 +699,12 @@
   var gal=document.getElementById('gal');
   TRAINERS.forEach(function(c,i){
     var ini=c.name.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
-    var role=(c.tag==='Nutritionist')?'nutritionist':'trainer';
+    var isNu=(c.tag==='Nutritionist');
+    var role=isNu?'nutritionist':'trainer';
+    var gem=isNu?['#e6c373','#8f6620']:hue[i%hue.length];
     var el=document.createElement('a');el.href=c.photo?('MemberProfile.html?name='+encodeURIComponent(c.name)+'&role='+role+'&avatar='+encodeURIComponent(c.photo)):('TrainerPublic.html?coach='+slugify(c.name));el.className='c';
-    el.innerHTML='<div class="av"><div class="gem" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')"><i class="gem-hl"></i><div class="gem-win"><span class="gem-ini">'+esc(ini)+'</span>'+(c.photo?'<img src="'+esc(c.photo)+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div></div></div>'+
-      '<h4>'+esc(c.name)+'</h4><div class="role">'+esc(c.role)+'</div><div class="bio">'+esc(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
+    el.innerHTML='<div class="av"><div class="gem" style="background:linear-gradient(135deg,'+gem[0]+','+gem[1]+')"><i class="gem-hl"></i><div class="gem-win"><span class="gem-ini">'+esc(ini)+'</span>'+(c.photo?'<img src="'+esc(c.photo)+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div></div></div>'+
+      '<h4>'+esc(c.name)+'</h4><div class="crole '+(isNu?'nu':'tr')+'">'+(isNu?'Nutritionist':'Trainer')+'</div><div class="role'+(isNu?' nu':'')+'">'+esc(c.role)+'</div><div class="bio">'+esc(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
       '<div class="st"><span><b>'+esc(c.years)+'y</b>Coaching</span><span><b>'+esc(c.sessions != null ? c.sessions.toLocaleString() : '')+'</b>Sessions</span></div>'+
       '<span class="corner-bl" aria-hidden="true"></span>';
     gal.appendChild(el);
