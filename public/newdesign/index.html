@@ -847,7 +847,7 @@
    Mirrors the existing .loop pin pattern: a tall #jtrack with a sticky .jpin; the
    active stage = floor(scrollProgress * stageCount). The cloud holds a distinct
    FORM per bullet and morphs to the next as you scroll: a sphere (Join) -> two
-   interlocking rings (Match) -> a heartbeat trace (Train) -> a rising area graph
+   interlocking rings (Match) -> a beating heart (Train) -> a rising area graph
    -> the Shape mark (Community), each with its own energy (links / pulse /
    orbiters). Degrades to a static stacked list under prefers-reduced-motion. */
 (function(){
@@ -885,11 +885,8 @@
   function rng(arr,c,mx,my,r){ for(var k=0;k<c;k++){ var an=rnd()*6.283, rr=r*(0.9+rnd()*0.12); arr.push([mx+Math.cos(an)*rr, my+Math.sin(an)*rr, (rnd()-0.5)*0.05]); } }
   var H1=Math.floor(N/2);
   rng(SH[1],H1,-0.42,0,0.6); rng(SH[1],N-H1,0.42,0,0.6);                                        // 1 MATCH — two interlocking rings
-  function ecgY(x){ var u=(((x+0.92)%0.613)+0.613)%0.613/0.613, d=Math.abs(u-0.5); return d<0.06?-0.7*(1-d/0.06):0; }       // 2 TRAIN — a heartbeat trace
-  var eBase=Math.floor(N*0.55), eEach=Math.floor((N-eBase)/3);
-  for(var eb=0;eb<eBase;eb++){ var ex=-0.92+rnd()*1.84; SH[2].push([ex, ecgY(ex)+(rnd()-0.5)*0.04, (rnd()-0.5)*0.05]); }       // baseline trace
-  for(var sB=0;sB<3;sB++){ var sx=-0.92+(sB+0.5)*0.613, cnt=(sB<2?eEach:N-eBase-2*eEach);
-    for(var es=0;es<cnt;es++){ var ex2=sx+(rnd()-0.5)*0.09; SH[2].push([ex2, ecgY(ex2)+(rnd()-0.5)*0.03, (rnd()-0.5)*0.05]); } } // beat spikes
+  function inHeart(hx,hy){ var aa=hx*hx+hy*hy-1; return aa*aa*aa - hx*hx*hy*hy*hy < 0; }                                       // 2 TRAIN — a beating heart (implicit heart curve, filled)
+  for(var eh=0;eh<N;){ var hx=rnd()*2.7-1.35, hy=rnd()*2.7-1.35; if(inHeart(hx,hy)){ SH[2].push([hx*0.74, -hy*0.72+0.06, (rnd()-0.5)*0.05]); eh++; } }
   var gA=Math.floor(N*0.56), gL=Math.floor(N*0.30), gX=N-gA-gL, gYb=0.82;                                              // 3 SCORE — a rising area graph
   function gTop(x){ var u=(x+0.92)/1.84; return 0.55-1.15*u+0.13*Math.sin(u*9)+0.07*Math.sin(u*17+1); }
   for(var ga=0;ga<gA;ga++){ var gx=-0.92+rnd()*1.84, gt=gTop(gx); SH[3].push([gx, gt+rnd()*(gYb-gt), (rnd()-0.5)*0.05]); }   // area fill
@@ -901,7 +898,7 @@
   var MODE=[
     [0.50,0.85,0.04,1.0,0.00,0.6],  // Join — spins + breathes
     [0.06,0.96,0.03,1.2,0.90,0.7],  // Match — rings wired by the web
-    [0.05,1.10,0.05,1.4,0.05,1.0],  // Train — heartbeat trace + travelling sweep
+    [0.05,1.12,0.00,1.4,0.04,0.9],  // Train — a beating heart (cardiac pump, below)
     [0.07,1.32,0.05,1.7,0.10,1.6],  // Score — arrow, bright + fast
     [0.04,1.12,0.04,1.1,0.00,0.8]   // Community — the Shape mark (clean)
   ];
@@ -931,9 +928,13 @@
       rot+=mRot*0.016;
 
       ctx.clearRect(0,0,W,H);
-      var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+mPa*Math.sin(t*mPs));
+      // cardiac pump — the heart (Train) beats with a lub-dub envelope; other stages keep their sine pulse
+      var trainness=(a===2)?(1-kk):((b===2)?kk:0), beat=0;
+      if(trainness>0.001){ var bph=(t*0.95)%1.0, bdd=bph<0.5?bph:1-bph; beat=Math.min(1, Math.exp(-Math.pow(bdd/0.045,2))+0.5*Math.exp(-Math.pow((bph-0.22)/0.05,2))); }
+      var pulseAmt=lerp(mPa*Math.sin(t*mPs), 0.2*beat, trainness);
+      var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+pulseAmt);
       var gr=R*(1.7+0.12*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
-      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.3,(0.13+0.05*Math.sin(t*1.6))*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.34,(0.13+0.05*Math.sin(t*1.6)+0.14*beat*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
       ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
       // sphere spins; flat forms settle nearly face-on with a gentle wobble
@@ -979,17 +980,6 @@
         var og=ctx.createRadialGradient(OX,OY,0,OX,OY,8); og.addColorStop(0,'rgba(170,255,244,'+Math.min(1,(0.45+0.45*od)*mBri).toFixed(3)+')'); og.addColorStop(1,'rgba(46,224,196,0)');
         ctx.fillStyle=og; ctx.fillRect(OX-8,OY-8,16,16);
         ctx.beginPath(); ctx.fillStyle='rgba(225,255,250,'+Math.min(1,(0.55+0.45*od)*mBri).toFixed(3)+')'; ctx.arc(OX,OY,(0.7+od*1.5)*ob.sz,0,6.283); ctx.fill();
-      }
-
-      // heartbeat sweep — a bright pulse runs along the Train trace
-      var trainness=(a===2)?(1-kk):((b===2)?kk:0);
-      if(trainness>0.04){
-        var pu=(t*0.4)%1.0, tr=function(uu){ var px=-0.92+uu*1.84, py=ecgY(px); return [cx+(px*cyr)*R, cy+(py*cxr-(px*syr)*sxr)*R]; };
-        for(var hb=7;hb>=1;hb--){ var hbp=tr((pu-hb*0.018+1)%1.0); ctx.beginPath(); ctx.fillStyle='rgba(46,224,196,'+(trainness*(1-hb/7)*0.5).toFixed(3)+')'; ctx.arc(hbp[0],hbp[1],(1-hb/7)*2.4+0.5,0,6.283); ctx.fill(); }
-        var hp=tr(pu), ga=trainness*0.92;
-        var hg=ctx.createRadialGradient(hp[0],hp[1],0,hp[0],hp[1],18); hg.addColorStop(0,'rgba(180,255,246,'+ga.toFixed(3)+')'); hg.addColorStop(0.4,'rgba(46,224,196,'+(ga*0.5).toFixed(3)+')'); hg.addColorStop(1,'rgba(46,224,196,0)');
-        ctx.fillStyle=hg; ctx.fillRect(hp[0]-18,hp[1]-18,36,36);
-        ctx.beginPath(); ctx.fillStyle='rgba(230,255,250,'+ga.toFixed(3)+')'; ctx.arc(hp[0],hp[1],2.8,0,6.283); ctx.fill();
       }
     }
     requestAnimationFrame(frame);
