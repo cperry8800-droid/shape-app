@@ -144,6 +144,38 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-21 — Push notifications activated (cloud pipeline) + dashboard role guard + more demo zero-out
+- **System push — cloud pipeline LIVE + verified end-to-end** (the code + native-plugin
+  side was already built). The owner set `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` /
+  `FCM_PRIVATE_KEY` + `PUSH_WEBHOOK_SECRET` in Vercel (Firebase project `shape-84d22`) and
+  created the **Supabase Database Webhook** (`notifications` INSERT → POST
+  `/api/push/dispatch`, header `x-push-secret`). **Verified with a test notification:** the
+  webhook fired → `/api/push/dispatch` returned **200** with the FCM creds recognized
+  (the route 401s on a bad/missing secret and returns `skipped:'fcm_not_configured'` when the
+  FCM env is absent — both confirmed during setup). So every notification Shape writes now
+  fans out to the dispatch route automatically.
+  - `src/lib/push.ts` already tolerates the multi-line FCM key (`.replace(/\\n/g,'\n')`), so
+    the service-account `private_key` pastes cleanly (no Apple-key-style DECODER headache).
+  - **Remaining (native, separate project):** upload the **APNs `.p8`** into Firebase
+    (Cloud Messaging → Apple app config) + ship the **native iOS App Store build** (Push
+    capability + `GoogleService-Info.plist`). Push only reaches a locked/unlocked iPhone from
+    that native build; until then there are no device tokens, so dispatch correctly no-ops
+    the send.
+- **Dashboard role guard (#1367)** — a trainer/nutritionist could land on the **client**
+  dashboard (root cause: the login "LOG IN AS" selector routes by the *selection*, not the
+  user's real role, and the SPAs had no guard). Each dashboard SPA
+  (`ClientApp`/`TrainerApp`/`NutritionistApp`) now runs an early `/api/me` check and
+  **redirects to the dashboard matching the active role**; signed-out preview + matching
+  roles are a no-op, and the hash is preserved (unknown hashes default to the SPA's home tab).
+- **Coach Schedule scrollbar (#1367)** — hid the horizontal scrollbar on the availability
+  grid (scroll still works) via a `.dash-hide-scroll` class + injected CSS.
+- **More demo-data zero-out (#1368)** — continuing the signed-in zero-out: the **community
+  feed** (`dashboardCommunity.jsx`, client + coach) shows only the real feed when signed in
+  (clean empty state when none; demo sample is signed-out preview only); the **client
+  Library** (`clientLibrary.jsx`) shows an empty library when signed in (web library-sync is
+  a follow-up); the **coach Goal pages** (`trainerGoalPage` + `nutritionistGoalPage`) render
+  a clean empty state (no demo goals/calculator/momentum) when signed in with no saved goals.
+
 ### 2026-06-21 — Apple Music integration (web + mobile parity) + tolerant key parser; login & nav polish
 - **Apple Music is now a second music integration at full parity with Spotify — live
   end-to-end** (#1360). Coaches import Apple Music playlists; members open/save them,
