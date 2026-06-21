@@ -7826,7 +7826,7 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
 // Add a playlist (paste a Spotify/Apple Music link), toggle public/private,
 // share to a member (✉) or externally (↗), open in the provider app, and — on
 // someone else's profile — save their public playlist into your own library.
-function bsProviderColor(p) { return p === 'apple' ? '#fc3c44' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
+function bsProviderColor(p) { return p === 'apple' ? '#fa243c' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
 function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
 function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
   const t = useBS();

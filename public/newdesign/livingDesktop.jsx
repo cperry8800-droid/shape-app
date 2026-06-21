@@ -631,7 +631,7 @@ function MusicBlock({ d }) {
       .catch(() => { if (on) setItems([]); });
     return () => { on = false; };
   }, [d.uid]);
-  const provColor = (p) => p === "apple" ? "#fc3c44" : p === "spotify" ? "#1db954" : dHexA(LV_INK, 0.4);
+  const provColor = (p) => p === "apple" ? "#fa243c" : p === "spotify" ? "#1db954" : dHexA(LV_INK, 0.4);
   const provLabel = (p) => p === "apple" ? "Apple Music" : p === "spotify" ? "Spotify" : "Playlist";
   // The playlist URL is user-supplied (member_playlists.url) — only allow http(s)
   // to the music hosts the parser advertises, so a javascript:/data: link can't ride

@@ -245,8 +245,8 @@ function NewPlaylistCard() {
   };
   const pick = (pl, prov) => { setUrl(pl.url || ""); setName(pl.name || ""); setPickProvider(prov || null); setMode("form"); };
   const connectHref = "/api/integrations/spotify/authorize?return=" + encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search) : "/newdesign/TrainerPlaylists.html");
-  const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1ED760", display: "inline-block" };
-  const redDot = { width: 8, height: 8, borderRadius: 999, background: "#fa233b", display: "inline-block" };
+  const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1DB954", display: "inline-block" };
+  const redDot = { width: 8, height: 8, borderRadius: 999, background: "#fa243c", display: "inline-block" };
   // The picker sub-view (mode !== 'form') is shared by both providers.
   const isApple = mode === "apple";
   const pItems = isApple ? appleItems : spotItems;
@@ -325,7 +325,7 @@ function NewPlaylistCard() {
                   <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
                 </button>
                 <button onClick={loadApple} disabled={appleBusy}
-                  style={{ all: "unset", cursor: appleBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 8, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(250,35,59,0.4)", background: "rgba(250,35,59,0.06)", display: "flex", alignItems: "center", gap: 10, opacity: appleBusy ? 0.6 : 1 }}>
+                  style={{ all: "unset", cursor: appleBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 8, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(250,36,60,0.4)", background: "rgba(250,36,60,0.06)", display: "flex", alignItems: "center", gap: 10, opacity: appleBusy ? 0.6 : 1 }}>
                   <span style={redDot} />
                   <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{appleBusy ? "Loading…" : "Pick from your Apple Music"}</span>
                   <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
