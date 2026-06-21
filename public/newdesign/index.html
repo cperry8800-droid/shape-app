@@ -847,8 +847,8 @@
    Mirrors the existing .loop pin pattern: a tall #jtrack with a sticky .jpin; the
    active stage = floor(scrollProgress * stageCount). The cloud holds a distinct
    FORM per bullet and morphs to the next as you scroll: a sphere (Join) -> two
-   interlocking rings (Match) -> a barbell (Train) -> an up-arrow (Score) -> the
-   Shape mark (Community), each with its own energy (links / pulse / brightness /
+   interlocking rings (Match) -> a barbell (Train) -> a rising area graph (Score)
+   -> the Shape mark (Community), each with its own energy (links / pulse /
    orbiters). Degrades to a static stacked list under prefers-reduced-motion. */
 (function(){
   var sec=document.getElementById('journey'); if(!sec) return;
@@ -887,7 +887,11 @@
   rng(SH[1],H1,-0.42,0,0.6); rng(SH[1],N-H1,0.42,0,0.6);                                        // 1 MATCH — two interlocking rings
   var nbar=Math.floor(N*0.26), npl=Math.floor((N-nbar)/2);
   rct(SH[2],nbar,-0.72,-0.08,0.72,0.08); rct(SH[2],npl,-0.96,-0.5,-0.62,0.5); rct(SH[2],N-nbar-npl,0.62,-0.5,0.96,0.5); // 2 TRAIN — a barbell
-  var nsh=Math.floor(N*0.4); rct(SH[3],nsh,-0.13,-0.02,0.13,0.9); tri(SH[3],N-nsh,-0.52,-0.02,0.52,-0.02,0,-0.94);       // 3 SCORE — an up-arrow
+  var gA=Math.floor(N*0.56), gL=Math.floor(N*0.30), gX=N-gA-gL, gYb=0.82;                                              // 3 SCORE — a rising area graph
+  function gTop(x){ var u=(x+0.92)/1.84; return 0.55-1.15*u+0.13*Math.sin(u*9)+0.07*Math.sin(u*17+1); }
+  for(var ga=0;ga<gA;ga++){ var gx=-0.92+rnd()*1.84, gt=gTop(gx); SH[3].push([gx, gt+rnd()*(gYb-gt), (rnd()-0.5)*0.05]); }   // area fill
+  for(var gl=0;gl<gL;gl++){ var gx2=-0.92+rnd()*1.84; SH[3].push([gx2, gTop(gx2)+(rnd()-0.5)*0.025, (rnd()-0.5)*0.05]); }     // trend line
+  for(var gz=0;gz<gX;gz++){ var gx3=-0.92+rnd()*1.84; SH[3].push([gx3, gYb+(rnd()-0.5)*0.02, (rnd()-0.5)*0.05]); }            // x-axis baseline
   tri(SH[4],H1,-0.79,-0.26,-0.79,1.0,0.16,0.37); tri(SH[4],N-H1,0.79,-1.0,0.79,0.26,-0.16,-0.37);                       // 4 COMMUNITY — the Shape mark (SVG geometry)
 
   // per-stage energy [rotSpeed, brightness, pulseAmp, pulseSpeed, links, orbSpeed]
