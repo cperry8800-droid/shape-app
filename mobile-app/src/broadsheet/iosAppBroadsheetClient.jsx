@@ -3077,8 +3077,10 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
   const pName = isApple ? 'Apple Music' : 'Spotify';
   const glyph = isApple ? bsAppleGlyph : bsSpotifyGlyph;
   const isProvUrl = isApple ? /music\.apple\.com\//i.test(pUrl) : /(^|\.)spotify\.com\//i.test(pUrl);
-  // Only genuine playlist links can be followed into a user's library.
-  const canSave = isApple ? /music\.apple\.com\/.*(playlist|pl\.)/i.test(pUrl) : (isProvUrl && /playlist[/:]/i.test(pUrl));
+  // Only genuine playlist links can be followed into a user's library. For Apple
+  // that means a CATALOG playlist (a `pl.` id) — saveAppleMusicPlaylist can't add
+  // a personal library URL (`/library/playlist/p.xxx`), so don't offer Save for it.
+  const canSave = isApple ? (/music\.apple\.com\//i.test(pUrl) && /\/pl\.[A-Za-z0-9-]+/i.test(pUrl)) : (isProvUrl && /playlist[/:]/i.test(pUrl));
   const openProvider = () => {
     const fallback = isApple
       ? `https://music.apple.com/search?term=${encodeURIComponent(String(title || 'playlist'))}`
@@ -3096,7 +3098,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider,
     try {
       if (isApple) {
         const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveAppleMusicPlaylist;
-        if (typeof fn !== 'function') throw new Error('Apple Music isn\'t available here.');
+        if (typeof fn !== 'function') throw new Error('Apple Music is not available here.');
         await fn(pUrl);
       } else {
         let done = false;

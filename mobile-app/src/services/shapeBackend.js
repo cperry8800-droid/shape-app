@@ -2756,13 +2756,21 @@ async function listAppleMusicPlaylists() {
   }
   let rows = [];
   try {
-    const result = await music.api.music('v1/me/library/playlists', { limit: 100 });
+    // include=catalog resolves each library playlist to its shareable catalog
+    // equivalent (a `pl.` id members can open + save) when one exists.
+    const result = await music.api.music('v1/me/library/playlists', { limit: 100, include: 'catalog' });
     rows = (result && result.data && result.data.data) || [];
   } catch (_) { rows = []; }
   return rows.map((pl) => {
     const at = pl.attributes || {};
-    const art = at.artwork && at.artwork.url ? at.artwork.url.replace('{w}', '88').replace('{h}', '88') : null;
-    return { id: pl.id, name: at.name || 'Playlist', tracks: at.trackCount != null ? at.trackCount : 0, url: at.url || ('https://music.apple.com/library/playlist/' + pl.id), image: art };
+    const cat = pl.relationships && pl.relationships.catalog && pl.relationships.catalog.data && pl.relationships.catalog.data[0];
+    const catAt = (cat && cat.attributes) || {};
+    const artSrc = (catAt.artwork && catAt.artwork.url) || (at.artwork && at.artwork.url) || null;
+    const art = artSrc ? artSrc.replace('{w}', '88').replace('{h}', '88') : null;
+    // Prefer the catalog playlist (shareable + saveable by other members); fall
+    // back to the personal library URL, which only the owner's account can open.
+    const url = catAt.url || at.url || (cat && cat.id ? ('https://music.apple.com/playlist/' + cat.id) : ('https://music.apple.com/library/playlist/' + pl.id));
+    return { id: (cat && cat.id) || pl.id, name: at.name || catAt.name || 'Playlist', tracks: at.trackCount != null ? at.trackCount : (catAt.trackCount || 0), url, image: art };
   });
 }
 
