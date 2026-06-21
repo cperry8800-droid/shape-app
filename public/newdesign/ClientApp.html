@@ -11,6 +11,22 @@
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
 <div id="root"></div>
+<script>
+// Role guard — keep the dashboard in sync with the signed-in user's ACTIVE role.
+// A trainer/nutritionist who lands on the client SPA (e.g. a login "LOG IN AS"
+// mismatch or an old link) is redirected to their own dashboard. Signed-out
+// preview and clients are unaffected (no redirect).
+(function () {
+  fetch('/api/me', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var role = d && d.user && d.user.role;
+      var dash = role === 'trainer' ? 'TrainerApp.html' : role === 'nutritionist' ? 'NutritionistApp.html' : null;
+      if (dash) window.location.replace('/newdesign/' + dash + (window.location.hash || ''));
+    })
+    .catch(function () {});
+})();
+</script>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
