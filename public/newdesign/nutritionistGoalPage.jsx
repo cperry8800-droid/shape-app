@@ -146,6 +146,9 @@ function NutritionistGoalPage() {
       const remote = await window.shapeDb.getUserGoals("nutritionist");
       if (remote && Object.keys(remote).length > 0) {
         setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) }, goals: withGoalIds(remote.goals || s.goals) }));
+      } else {
+        // Signed in with no saved goals → a clean empty state, not the demo goals.
+        setState(s => ({ ...s, goals: [], momentum: [], calc: { consult: 0, cpw: 0, subs: 0, subPrice: 0, mealPlans: 0, currentWeekly: 0 } }));
       }
     })();
   }, []);

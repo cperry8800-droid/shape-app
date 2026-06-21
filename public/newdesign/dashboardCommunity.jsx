@@ -247,38 +247,44 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
       return `${Math.floor(ms / 86_400_000)}d`;
     };
-    fetch('/api/community/feed', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
-        const live = d.posts.map(p => {
-          // Always render the body with the text-only 'post' renderer (the
-          // pr/run/workout/meal demo renderers need fields the feed API omits).
-          // BUT carry the real device metrics so activity posts get a Session
-          // details view (charts), mirroring the mobile app.
-          const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
-          const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
-          const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
-          return {
-            kind: 'post',
-            id: p.id || null,
-            who: p.author_name || 'Shape member',
-            role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
-            time: since(p.created_at),
-            title: p.title,
-            body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
-            photo: p.photo_url || null,
-            mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
-            likes: Array.isArray(p.likes) ? p.likes.length : 0,
-            comments: Array.isArray(p.comments) ? p.comments.length : 0,
-            tag: tagFor(p.activity_type),
-            isLive: true,
-            session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
-          };
-        });
-        setFeed([...live, ...DEMO_FEED]);
-      })
-      .catch(() => {});
+    const mapPost = (p) => {
+      // Always render the body with the text-only 'post' renderer (the
+      // pr/run/workout/meal demo renderers need fields the feed API omits).
+      // BUT carry the real device metrics so activity posts get a Session
+      // details view (charts), mirroring the mobile app.
+      const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
+      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
+      const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
+      return {
+        kind: 'post',
+        id: p.id || null,
+        who: p.author_name || 'Shape member',
+        role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
+        time: since(p.created_at),
+        title: p.title,
+        body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
+        photo: p.photo_url || null,
+        mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
+        likes: Array.isArray(p.likes) ? p.likes.length : 0,
+        comments: Array.isArray(p.comments) ? p.comments.length : 0,
+        tag: tagFor(p.activity_type),
+        isLive: true,
+        session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
+      };
+    };
+    (async () => {
+      // Signed-in users see only the REAL community feed (a clean empty state when
+      // there's nothing yet); the demo sample posts are for signed-out preview only.
+      let signedIn = false;
+      try { const sb = window.shapeDb && window.shapeDb.client; if (sb) { const { data } = await sb.auth.getUser(); signedIn = !!(data && data.user); } } catch (e) {}
+      let live = [];
+      try {
+        const r = await fetch('/api/community/feed', { credentials: 'same-origin' });
+        if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.posts)) live = d.posts.map(mapPost); }
+      } catch (e) {}
+      if (!alive) return;
+      setFeed(signedIn ? live : [...live, ...DEMO_FEED]);
+    })();
     return () => { alive = false; };
   }, []);
 
