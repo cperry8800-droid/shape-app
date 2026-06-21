@@ -870,48 +870,66 @@
 
   var cv=document.getElementById('jcanvas');
   var ctx=cv&&cv.getContext?cv.getContext('2d'):null;
-  var N=(window.innerWidth<760?180:260), pts=[];
+  var N=(window.innerWidth<760?200:300), pts=[];
   for(var s=0;s<N;s++){
     var yy0=1-(s/(N-1))*2, rr=Math.sqrt(Math.max(0,1-yy0*yy0)), ph=s*2.399963229728653;
-    pts.push({x:Math.cos(ph)*rr,y:yy0,z:Math.sin(ph)*rr,a:Math.random()*6.283,b:Math.random()*6.283});
+    pts.push({x:Math.cos(ph)*rr,y:yy0,z:Math.sin(ph)*rr,a:Math.random()*6.283,b:Math.random()*6.283,tw:Math.random()*6.283});
   }
+  // bright orbiters circling the core for extra life
+  var ORB=(window.innerWidth<760?7:11), orb=[];
+  for(var o=0;o<ORB;o++) orb.push({ r:0.86+Math.random()*0.5, sp:0.5+Math.random()*1.1, ph:Math.random()*6.283, tilt:Math.random()*Math.PI, sz:1.0+Math.random()*1.3 });
   var DPR=Math.min(2,window.devicePixelRatio||1),W=0,H=0;
   function resize(){ if(!cv)return; W=cv.clientWidth; H=cv.clientHeight; cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); if(ctx)ctx.setTransform(DPR,0,0,DPR,0,0); }
   window.addEventListener('resize',resize); resize();
 
   var t=0, proj=[];
   function frame(){
-    var r=track.getBoundingClientRect();
+    var rc=track.getBoundingClientRect();
     var span=track.offsetHeight-window.innerHeight;
-    var p=span>0?(-r.top)/span:0; if(p<0)p=0; else if(p>1)p=1;
+    var p=span>0?(-rc.top)/span:0; if(p<0)p=0; else if(p>1)p=1;
     var idx=Math.floor(p*n); if(idx>n-1)idx=n-1; if(idx<0)idx=0;
     setStage(idx);
 
-    if(ctx && r.bottom>0 && r.top<window.innerHeight){
-      t+=0.0045;
+    if(ctx && rc.bottom>0 && rc.top<window.innerHeight){
+      t+=0.016;
       ctx.clearRect(0,0,W,H);
-      var cx=W*0.52, cy=H*0.46, R=Math.min(W,H)*0.265;
-      var g=ctx.createRadialGradient(cx,cy,0,cx,cy,R*1.75);
-      g.addColorStop(0,'rgba(46,224,196,0.13)'); g.addColorStop(0.55,'rgba(46,224,196,0.045)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      var cx=W*0.52, cy=H*0.45, baseR=Math.min(W,H)*0.27, R=baseR*(1+0.05*Math.sin(t*1.1));
+      // pulsing glow halo
+      var gr=R*(1.7+0.12*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
+      g.addColorStop(0,'rgba(46,224,196,'+(0.16+0.05*Math.sin(t*1.6)).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
       ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-      var seed=p*n, ry=t*0.55, rx=Math.sin(t*0.32)*0.22;
+      // rotation (clearly visible) + tilt wobble
+      var seed=p*n, ry=t*0.72, rx=0.42+Math.sin(t*0.45)*0.32;
       var cyr=Math.cos(ry),syr=Math.sin(ry),cxr=Math.cos(rx),sxr=Math.sin(rx);
       proj.length=0;
       for(var i=0;i<N;i++){
         var q=pts[i];
-        var def=1+0.17*Math.sin(q.a+seed+q.y*3.0)+0.10*Math.cos(q.b+t*1.25+q.x*2.3);
+        // animated rippling surface — several travelling waves + a per-stage wave
+        var def=1+0.13*Math.sin(q.a+t*1.6+q.y*4.0)+0.11*Math.cos(q.b+t*2.2+q.x*3.0)+0.07*Math.sin(seed*1.7+q.z*5.0+t*0.9);
         var x=q.x*def, yv=q.y*def, z=q.z*def;
         var x1=x*cyr-z*syr, z1=x*syr+z*cyr;
         var y1=yv*cxr-z1*sxr, z2=yv*sxr+z1*cxr;
-        proj.push([cx+x1*R, cy+y1*R, z2]);
+        proj.push([cx+x1*R, cy+y1*R, z2, q.tw]);
       }
       proj.sort(function(a,b){return a[2]-b[2];});
       for(var k=0;k<proj.length;k++){
-        var pp=proj[k], d=(pp[2]+1.45)/2.9; if(d<0)d=0; else if(d>1)d=1;
+        var pp=proj[k], d=(pp[2]+1.5)/3.0; if(d<0)d=0; else if(d>1)d=1;
+        var tw=0.74+0.26*Math.sin(t*3.0+pp[3]); // per-point shimmer
         ctx.beginPath();
-        ctx.fillStyle='rgba(46,224,196,'+(0.10+d*0.62).toFixed(3)+')';
-        ctx.arc(pp[0],pp[1],0.7+d*2.1,0,6.283);
+        ctx.fillStyle='rgba(46,224,196,'+((0.10+d*0.6)*tw).toFixed(3)+')';
+        ctx.arc(pp[0],pp[1],(0.7+d*2.2)*tw,0,6.283);
         ctx.fill();
+      }
+      // bright orbiters streaking around the core
+      for(var oi=0;oi<ORB;oi++){ var ob=orb[oi], ang=ob.ph+t*ob.sp;
+        var ox=Math.cos(ang)*ob.r, oz=Math.sin(ang)*ob.r, oy=Math.sin(ang*0.6+ob.tilt)*0.55;
+        var ox1=ox*cyr-oz*syr, oz1=ox*syr+oz*cyr;
+        var oy1=oy*cxr-oz1*sxr, oz2=oy*sxr+oz1*cxr;
+        var od=(oz2+1.5)/3.0; if(od<0)od=0; else if(od>1)od=1;
+        var OX=cx+ox1*R, OY=cy+oy1*R;
+        var og=ctx.createRadialGradient(OX,OY,0,OX,OY,8); og.addColorStop(0,'rgba(170,255,244,'+(0.45+0.45*od).toFixed(3)+')'); og.addColorStop(1,'rgba(46,224,196,0)');
+        ctx.fillStyle=og; ctx.fillRect(OX-8,OY-8,16,16);
+        ctx.beginPath(); ctx.fillStyle='rgba(225,255,250,'+(0.55+0.45*od).toFixed(3)+')'; ctx.arc(OX,OY,(0.7+od*1.5)*ob.sz,0,6.283); ctx.fill();
       }
     }
     requestAnimationFrame(frame);
