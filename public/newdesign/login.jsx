@@ -97,8 +97,15 @@ function LoginCard() {
   // Protection with the matching TURNSTILE_SECRET_KEY).
   const captchaOn = typeof window !== "undefined" && window.ShapeTurnstile && window.ShapeTurnstile.enabled();
   const [captchaToken, setCaptchaToken] = React.useState("");
+  // If the Cloudflare human-check can't load/connect (outage, a network, or an
+  // extension blocking challenges.cloudflare.com), degrade open so login is never
+  // hard-blocked forever on "confirming you're human…".
+  const [captchaUnavailable, setCaptchaUnavailable] = React.useState(false);
   const captchaRef = React.useRef(null);
   const captchaIdRef = React.useRef(null);
+  // Mirror the latest token to a ref so the grace-period timer can read it.
+  const captchaTokenRef = React.useRef("");
+  React.useEffect(() => { captchaTokenRef.current = captchaToken; }, [captchaToken]);
   // The widget is hidden at the phone code-entry step. Track whether its container
   // is currently mounted so that, when we leave and return (e.g. "Change number"),
   // we tear down the spent single-use widget and render a FRESH challenge — instead
@@ -111,7 +118,17 @@ function LoginCard() {
       return;
     }
     if (!captchaRef.current || captchaIdRef.current != null) return;
-    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
+    setCaptchaUnavailable(false);
+    let alive = true;
+    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => {
+      if (!alive) return;
+      captchaIdRef.current = id;
+      if (id == null) setCaptchaUnavailable(true); // the Turnstile script never loaded
+    });
+    // The widget can mount but never return a token (its error-callback fires when
+    // Cloudflare is unreachable) — fall open after a short grace period.
+    const failTimer = setTimeout(() => { if (alive && !captchaTokenRef.current) setCaptchaUnavailable(true); }, 7000);
+    return () => { alive = false; clearTimeout(failTimer); };
   }, [captchaVisible]);
   // Tokens are single-use — clear after a failed attempt so a retry re-solves.
   const resetCaptcha = () => { setCaptchaToken(""); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
@@ -144,11 +161,11 @@ function LoginCard() {
     if (!sb) { setErrMsg("Auth is still loading. Try again in a second."); return; }
     const e164 = normalizePhoneE164(phone);
     if (!e164 || e164.length < 8) { setErrMsg("Enter a valid phone number, e.g. +1 555 123 4567."); return; }
-    if (captchaOn && !captchaToken) { setErrMsg("Just a moment — confirming you're human…"); return; }
+    if (captchaOn && !captchaToken && !captchaUnavailable) { setErrMsg("Just a moment — confirming you're human…"); return; }
     setPhone(e164);
     setSubmitting(true);
     const otpOpts = { shouldCreateUser: true };
-    if (captchaOn) otpOpts.captchaToken = captchaToken;
+    if (captchaOn && captchaToken) otpOpts.captchaToken = captchaToken;
     const { error } = await sb.auth.signInWithOtp({ phone: e164, options: otpOpts });
     setSubmitting(false);
     if (error) { if (captchaOn) resetCaptcha(); setErrMsg(error.message || "Could not send the code."); return; }
@@ -172,7 +189,7 @@ function LoginCard() {
     e.preventDefault();
     if (submitting) return;
     setErrMsg("");
-    if (captchaOn && !captchaToken) { setErrMsg("Just a moment — confirming you're human…"); return; }
+    if (captchaOn && !captchaToken && !captchaUnavailable) { setErrMsg("Just a moment — confirming you're human…"); return; }
     setSubmitting(true);
     try {
       const sb = window.shapeDb && window.shapeDb.client;
@@ -192,7 +209,7 @@ function LoginCard() {
         if (resolved === null) { setErrMsg("No account with that username — check the spelling or sign in with your email."); setSubmitting(false); return; }
         if (resolved) loginEmail = resolved;
       }
-      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password, options: captchaOn ? { captchaToken } : {} });
+      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password, options: (captchaOn && captchaToken) ? { captchaToken } : {} });
       if (error || !data.session) {
         if (captchaOn) resetCaptcha();
         setErrMsg(error ? error.message : "Could not sign in.");
@@ -347,9 +364,15 @@ function LoginCard() {
           <div style={{ marginTop: 4, padding: "10px 14px", borderRadius: 6, background: "rgba(220,80,80,0.1)", border: "1px solid rgba(220,80,80,0.3)", color: "#e27a7a", fontFamily: sans, fontSize: 13 }}>{errMsg}</div>
         ) : null}
 
-        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token). */}
+        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token).
+            Falls open if it can't load/connect, so it can't lock anyone out. */}
         {captchaOn && !(method === "phone" && otpSent) ? (
-          <div ref={captchaRef} style={{ minHeight: 65 }} />
+          <div>
+            <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
+            {captchaUnavailable ? (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>Couldn't load the human-check — you can still sign in.</div>
+            ) : null}
+          </div>
         ) : null}
 
         <button type="submit" disabled={submitting} style={{
