@@ -671,7 +671,7 @@
   </div>
 </footer>
 
-<script src="/newdesign/coachDirectory.js?v=20260620"></script>
+<script src="/newdesign/coachDirectory.js?v=20260620c"></script>
 <script>
 (function(){
   var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -681,11 +681,19 @@
   // Escape coach-supplied fields before they go into innerHTML (defense-in-depth: the
   // directory is curated today, but live coaches can flow through the same shape).
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});};
-  var TRAINERS=(window.SHAPE_COACHES||[]).filter(function(c){return c.tag==='Trainer';}).slice(0,8);
+  // Trainer-led mix that also surfaces a few nutritionists/dietitians (face photos only,
+  // so the cards read as real people; interleaved one per row).
+  var _coaches=(window.SHAPE_COACHES||[]);
+  var TR=_coaches.filter(function(c){return c.tag==='Trainer'&&c.photo;});
+  var NU=_coaches.filter(function(c){return c.tag==='Nutritionist'&&c.photo;});
+  var TRAINERS=[TR[0],TR[1],NU[0],TR[2],TR[3],NU[1],TR[4],NU[2]].filter(Boolean);
+  // fall back to a straight trainer slice if the directory shape changes
+  if(TRAINERS.length<8){TRAINERS=_coaches.filter(function(c){return c.tag==='Trainer';}).slice(0,8);}
   var gal=document.getElementById('gal');
   TRAINERS.forEach(function(c,i){
     var ini=c.name.split(' ').map(function(x){return x[0]}).join('').slice(0,2);
-    var el=document.createElement('a');el.href=c.photo?('MemberProfile.html?name='+encodeURIComponent(c.name)+'&role=trainer&avatar='+encodeURIComponent(c.photo)):('TrainerPublic.html?coach='+slugify(c.name));el.className='c';
+    var role=(c.tag==='Nutritionist')?'nutritionist':'trainer';
+    var el=document.createElement('a');el.href=c.photo?('MemberProfile.html?name='+encodeURIComponent(c.name)+'&role='+role+'&avatar='+encodeURIComponent(c.photo)):('TrainerPublic.html?coach='+slugify(c.name));el.className='c';
     el.innerHTML='<div class="av"><div class="gem" style="background:linear-gradient(135deg,'+hue[i%hue.length][0]+','+hue[i%hue.length][1]+')"><i class="gem-hl"></i><div class="gem-win"><span class="gem-ini">'+esc(ini)+'</span>'+(c.photo?'<img src="'+esc(c.photo)+'" alt="" loading="lazy" onerror="this.remove()" />':'')+'</div></div></div>'+
       '<h4>'+esc(c.name)+'</h4><div class="role">'+esc(c.role)+'</div><div class="bio">'+esc(c.specialties?c.specialties.join(' · '):c.city)+'</div>'+
       '<div class="st"><span><b>'+esc(c.years)+'y</b>Coaching</span><span><b>'+esc(c.sessions != null ? c.sessions.toLocaleString() : '')+'</b>Sessions</span></div>'+
