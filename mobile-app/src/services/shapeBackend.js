@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+import { mergePostPatch } from './communityPostPatch.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -2478,6 +2479,47 @@ async function createCommunityPost({
   return { stored: 'supabase', data: communityPostFromRow(data) };
 }
 
+async function updateCommunityPost({ postId, title, note, photoUrl, video, metrics, privacy } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before editing.');
+  if (!postId) throw new Error('Post id is required.');
+  if (!supabase) throw new Error('Not connected.');
+  // Fetch the current metrics so we merge (never clobber) the parts the editor
+  // didn't touch (workoutStats, coach, program, delta, mentions…).
+  const { data: cur } = await supabase
+    .from('community_posts').select('metrics').eq('id', postId).maybeSingle();
+  const patchMetrics = { ...(metrics || {}) };
+  if (video !== undefined) patchMetrics.video_url = String(video || '').trim();
+  patchMetrics.editedAt = new Date().toISOString();
+  const merged = mergePostPatch(cur?.metrics || {}, patchMetrics);
+  const patch = { metrics: merged };
+  if (title !== undefined) patch.title = String(title || '').trim() || 'Post';
+  if (note !== undefined) patch.note = String(note || '').trim() || null;
+  if (photoUrl !== undefined) patch.photo_url = String(photoUrl || '').trim() || null;
+  if (privacy !== undefined) patch.privacy = privacyToDb(privacy);
+  const { data, error } = await supabase
+    .from('community_posts')
+    .update(patch)
+    .eq('id', postId)
+    .eq('author_id', state.user.id) // RLS also enforces this; belt-and-braces
+    .select(COMMUNITY_POST_SELECT)
+    .single();
+  if (error) throw error;
+  return { stored: 'supabase', data: communityPostFromRow(data) };
+}
+
+async function deleteCommunityPost({ postId } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before deleting.');
+  if (!postId) throw new Error('Post id is required.');
+  if (!supabase) throw new Error('Not connected.');
+  const { error } = await supabase
+    .from('community_posts')
+    .delete()
+    .eq('id', postId)
+    .eq('author_id', state.user.id);
+  if (error) throw error;
+  return { ok: true };
+}
+
 async function toggleCommunityLike({ postId, cosign = false } = {}) {
   if (!state.user?.id) throw new Error('Sign in before liking posts.');
   if (!postId) throw new Error('Post id is required.');
@@ -4127,6 +4169,8 @@ window.ShapeCommunity = {
   listByAuthor: listCommunityPostsByAuthor,
   countByAuthor: countCommunityPostsByAuthor,
   createPost: createCommunityPost,
+  update: updateCommunityPost,
+  remove: deleteCommunityPost,
   uploadPhoto: uploadCommunityPhoto,
   toggleLike: toggleCommunityLike,
   addComment: addCommunityComment,
