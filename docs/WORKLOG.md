@@ -144,6 +144,30 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Mobile grocery redesign: checklist is the hero (less cluttered, more prominent) (#1372)
+- Reworked the mobile **grocery list** (`BSGrocery`, `iosAppBroadsheetClient.jsx`) per the
+  approved direction — the list itself is now the hero, the chrome is slimmed:
+  - **Source chip → a slim "List name ▾" selector** (colored dot + list name + item count
+    + ▾ on a hairline). Same list picker on tap; the big kind-label box is gone.
+  - **Heavy progress plate → a slim one-line strip** — dropped the SVG ring + 3 stacked
+    buttons for `{done}/{total} got · ~$X to go` + a thin fill line + `%`.
+  - **Aisle-tab filter → inline all-aisle checklist** — instead of one aisle at a time
+    behind a scrollable pill row, every aisle renders inline as a section header in one
+    scroll (struck-through + dimmed when its items are all checked). The checklist fills
+    the screen as the primary surface.
+  - **One bottom action bar** — Send to Instacart (primary) + Save to library + Share,
+    consolidated from the old progress card (the actions moved, none were lost).
+  - **Add-item form kept** (type one, or speak the whole list via `/api/nutrition/voice`).
+  - Removed the now-dead `activeAisle`/`setActiveAisle`/`resetAisle` state + the `RR`/`RC`
+    progress-ring constants.
+- **Home — a compact "Shop list" card** (teal `BSPlate`, under the habits plate) deep-links
+  straight to the grocery list: it sets a `window.__bsPendingGrocery` flag then opens the
+  Eat tab, and `BSClientEat` switches to the grocery view on mount (covers the unmounted-tab
+  case; the Eat tab isn't kept mounted). So the grocery list no longer "gets lost" inside Eat.
+- **Website port** of the same simplification is a follow-up (mobile first, as approved).
+- Verified: JSX parse-check (`sourceType: module`); mobile build + `public/m` resynced from
+  PowerShell (asset base `/m/`); CI green (Web + Mobile) on #1372.
+
 ### 2026-06-21 — Push notifications activated (cloud pipeline) + dashboard role guard + more demo zero-out
 - **System push — cloud pipeline LIVE + verified end-to-end** (the code + native-plugin
   side was already built). The owner set `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` /
