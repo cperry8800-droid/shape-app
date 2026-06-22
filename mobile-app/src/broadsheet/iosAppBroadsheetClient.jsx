@@ -7215,7 +7215,7 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
     </BSPostSheetShell>
   );
 }
-function BSPostActions({ post, c, INK, BG, onReposted }) {
+function BSPostActions({ post, c, INK, BG, onReposted, onEdit }) {
   const t = useBS();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
@@ -7255,6 +7255,7 @@ function BSPostActions({ post, c, INK, BG, onReposted }) {
         <button aria-label="Send privately" onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>{bsFeedIcon('send', 13)}</button>
         <button aria-label="Share" onClick={() => bsSharePostExternal(post)} style={iconPill}>{bsFeedIcon('share', 13)}</button>
         <button aria-label="Repost" disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>{bsFeedIcon('repost', 13)}</button>
+        {onEdit && post.postId && <button aria-label="Edit post" onClick={onEdit} style={{ ...iconPill, fontSize: 13 }}>✎</button>}
       </div>
       {openC && <BSPostCommentsSheet post={post} comments={cmts} onAdded={(cm) => setCmts(prev => [...prev, cm])} onClose={() => setOpenC(false)} c={accent} INK={ink} BG={BG} />}
       {openS && <BSPostSendSheet post={post} onClose={() => setOpenS(false)} c={accent} INK={ink} BG={BG} />}
@@ -7441,21 +7442,24 @@ function BSActivityBody({ it, c, INK, card }) {
 // "Log activity" composer — a Substack-style multi-type publisher on your own
 // Terrain profile. Pick a type (Note / Photo / Video / Workout / Link), fill it
 // in, and it publishes to your public feed + profile via ShapeCommunity.createPost.
-function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
+function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
-  const [kind, setKind] = useStateBSC('note');
-  const [title, setTitle] = useStateBSC('');
-  const [body, setBody] = useStateBSC('');
-  const [photoUrl, setPhotoUrl] = useStateBSC('');
-  const [videoUrl, setVideoUrl] = useStateBSC('');
-  const [linkUrl, setLinkUrl] = useStateBSC('');
-  const [woType, setWoType] = useStateBSC('Strength');
+  const ed = editPost || null;
+  const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : 'note';
+  const [kind, setKind] = useStateBSC(seedKind);
+  const [title, setTitle] = useStateBSC(ed ? (ed.title || '') : '');
+  const [body, setBody] = useStateBSC(ed ? (ed.body || ed.note || '') : '');
+  const [photoUrl, setPhotoUrl] = useStateBSC(ed ? (ed.photo || '') : '');
+  const [videoUrl, setVideoUrl] = useStateBSC(ed ? (ed.video || '') : '');
+  const [linkUrl, setLinkUrl] = useStateBSC(ed && ed.link ? (ed.link.url || '') : '');
+  const [woType, setWoType] = useStateBSC(ed && ed.activityType ? (ed.activityType.charAt(0).toUpperCase() + ed.activityType.slice(1)) : 'Strength');
   const [woA, setWoA] = useStateBSC(''), [woB, setWoB] = useStateBSC(''), [woC, setWoC] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
   const [upBusy, setUpBusy] = useStateBSC(false);
+  const [delBusy, setDelBusy] = useStateBSC(false);
   // Visibility: 'public' (profile + feed) · 'profile' (profile only, everyone) · 'private' (just me)
-  const [vis, setVis] = useStateBSC('public');
+  const [vis, setVis] = useStateBSC(ed ? (ed.privacy || 'public') : 'public');
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
 
   const TYPES = [
@@ -7516,8 +7520,13 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
         const host = bsLinkHost(u);
         payload = { ...base, title: title.trim() || host || 'Link', note: body.trim(), metrics: { kind: 'link', link: { url: u, title: title.trim() || host, desc: body.trim() } } };
       }
-      await window.ShapeCommunity?.createPost?.(payload);
-      window.__bsToast?.('Published to your profile', 'ok');
+      if (ed && ed.postId) {
+        await window.ShapeCommunity?.update?.({ postId: ed.postId, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: payload.metrics?.video_url || null, metrics: payload.metrics, privacy: vis });
+        window.__bsToast?.('Post updated', 'ok');
+      } else {
+        await window.ShapeCommunity?.createPost?.(payload);
+        window.__bsToast?.('Published to your profile', 'ok');
+      }
       onPosted && onPosted();
       onClose && onClose();
     } catch (err) { window.__bsToast?.(err?.message || 'Could not publish.', 'err'); setBusy(false); }
@@ -7530,8 +7539,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '18px 18px calc(16px + env(safe-area-inset-bottom, 0px))', maxHeight: '92%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Publish</div>
-            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>Log <span style={{ fontStyle: 'italic', color: TEAL }}>activity.</span></div>
+            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{ed ? 'Edit' : 'Publish'}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>{ed ? <>Edit <span style={{ fontStyle: 'italic', color: TEAL }}>post.</span></> : <>Log <span style={{ fontStyle: 'italic', color: TEAL }}>activity.</span></>}</div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', padding: 4 }}>×</button>
         </div>
@@ -7618,7 +7627,10 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
         </div>
 
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 14, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
-          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? 'Publishing…' : 'Publish →'}</button>
+          {ed && ed.postId && (
+            <button onClick={async () => { if (!window.confirm('Delete this post?')) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
+          )}
+          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? (ed ? 'Saving…' : 'Publishing…') : (ed ? 'Save changes →' : 'Publish →')}</button>
         </div>
       </div>
     </div>,
@@ -8333,6 +8345,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const feedAuthorId = isSelf ? (person.userId || myId) : (person.userId || null);
   const [photoPosts, setPhotoPosts] = useStateBSC([]);
   const [showLog, setShowLog] = useStateBSC(false);
+  const [feedReloadNonce, setFeedReloadNonce] = useStateBSC(0);
+  const [editingActivity, setEditingActivity] = useStateBSC(null);
   // Profile activity feed — every "log activity" post the member published
   // (note / photo / video / workout / link), newest first.
   const loadPhotoPosts = React.useCallback(() => {
@@ -8341,7 +8355,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       .then((r) => setPhotoPosts(bsMapActivityPosts(r?.data)))
       .catch(() => {});
   }, [feedAuthorId]);
-  React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts]);
+  React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts, feedReloadNonce]);
   const feedEff = (() => {
     // Signed in → only real activity (your published posts + logged PRs); never the
     // demo field-notes. Demo feed is the signed-out preview only.
@@ -8780,7 +8794,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                     <div style={{ ...card, padding: '13px 15px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
                       <BSActivityBody it={it} c={c} INK={INK} card={card} />
-                      <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={it.hot ? TEAL : c} INK={INK} BG={BG} />
+                      <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={it.hot ? TEAL : c} INK={INK} BG={BG} onEdit={isSelf && it.id && bsRealPostId({ id: it.id }) ? () => setEditingActivity({ postId: bsRealPostId({ id: it.id }), title: it.t || '', body: it.b || '', photo: it.photo || null, video: it.video || null, link: it.link || null, kind: it.kind || null, privacy: it.privacy || 'public' }) : undefined} />
                     </div>
                   </div>
                 ))}
@@ -8795,6 +8809,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
+      {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
 
       {/* dock — Message others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -8889,6 +8904,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [ringLive, setRingLive] = useStateBSC(null);
   const [showLog, setShowLog] = useStateBSC(false);
+  const [coachFeedReloadNonce, setCoachFeedReloadNonce] = useStateBSC(0);
+  const [editingActivity, setEditingActivity] = useStateBSC(null);
   const [coachPosts, setCoachPosts] = useStateBSC([]);
   const sigMyId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
   const sigFeedAuthorId = isSelf ? (person.userId || sigMyId) : (person.userId || null);
@@ -8900,7 +8917,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       .then((r) => setCoachPosts(bsMapActivityPosts(r?.data)))
       .catch(() => {});
   }, [sigFeedAuthorId]);
-  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts]);
+  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
   useBSPresence();
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
@@ -9292,7 +9309,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                   <div style={{ ...card, padding: '13px 15px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
                     <BSActivityBody it={it} c={c} INK={INK} card={card} />
-                    <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={c} INK={INK} BG={BG} />
+                    <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={c} INK={INK} BG={BG} onEdit={isSelf && it.id && bsRealPostId({ id: it.id }) ? () => setEditingActivity({ postId: bsRealPostId({ id: it.id }), title: it.t || '', body: it.b || '', photo: it.photo || null, video: it.video || null, link: it.link || null, kind: it.kind || null, privacy: it.privacy || 'public' }) : undefined} />
                   </div>
                 </div>
               ))}
@@ -9305,6 +9322,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
+      {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -10570,6 +10588,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [showLog, setShowLog] = useStateBSC(false);
   const [feedNonce, setFeedNonce] = useStateBSC(0);
   const canChatNow = useBSCanChat();
+  const [editingPost, setEditingPost] = useStateBSC(null);
   const onFeedPhoto = () => { try { feedPhotoRef.current && feedPhotoRef.current.click(); } catch (e) {} };
   const onFeedPhotoFile = async (e) => {
     const file = e?.target?.files?.[0];
@@ -10750,6 +10769,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <button aria-label="Send post" onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
           <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
+          {isMe && bsRealPostId(p) && (
+            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status, body: p.note, photo: p.photo || null, video: p.video || null, link: p.link || null, kind: p.kind === 'CLIENT' || p.kind === 'SHAPE' ? null : null, privacy: p.privacy || 'public' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
+          )}
         </div>
         {actCmtOpen === p.id && (
           <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
@@ -11459,6 +11481,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </>
       )}
       {showLog && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setFeedNonce(n => n + 1); }} />}
+      {editingPost && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} editPost={editingPost} onClose={() => setEditingPost(null)} onPosted={() => { setEditingPost(null); setFeedNonce(n => n + 1); }} />}
       {tagOpen && createPortal(
         <div onClick={() => setTagOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
