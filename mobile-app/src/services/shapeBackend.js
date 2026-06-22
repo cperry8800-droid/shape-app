@@ -295,18 +295,20 @@ async function signUp({ email, password, fullName, role, username, captchaToken,
 // Step 1: request an SMS one-time code. Supabase sends it via the configured
 // SMS provider (Twilio) — see the Auth → Providers → Phone settings. With
 // `shouldCreateUser: true` this doubles as passwordless sign-UP for new phones.
-async function signInWithPhone({ phone, fullName, role, captchaToken, dob }) {
+async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCreate }) {
   const normalizedPhone = String(phone || '').trim();
   if (!normalizedPhone) throw new Error('Enter your phone number.');
-  // 18+ age gate — phone signup creates an account (shouldCreateUser), so enforce
-  // the same server-side guard as email signup. (over_18 is recomputed from
-  // date_of_birth by a trigger, so the value can't be faked.)
-  if (dob) {
-    const d = new Date(dob);
-    if (!isNaN(d.getTime())) {
-      const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
-    }
+  // 18+ age gate — account CREATION via phone must carry a valid DOB, exactly like
+  // email signUp (no soft-fail). Creation only ever happens in the create flow:
+  // `shouldCreateUser` is tied to isCreate below, so an existing user signing in
+  // (isCreate false) never provisions an account and needs no DOB, while a new
+  // account can only be made through the DOB-required create path. over_18 is
+  // recomputed from date_of_birth by a trigger, so the value can't be faked.
+  if (isCreate) {
+    const d = dob ? new Date(dob) : null;
+    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
   }
   if (!authConfigured) {
     // Demo mode (no Supabase configured): pretend the code was sent.
@@ -315,11 +317,11 @@ async function signInWithPhone({ phone, fullName, role, captchaToken, dob }) {
   const meta = {};
   if (fullName) meta.full_name = fullName;
   if (role) meta.role = normalizeRole(role);
-  if (dob) meta.date_of_birth = dob; // claimed onto profiles after OTP verify
+  if (isCreate && dob) meta.date_of_birth = dob; // claimed onto profiles after OTP verify
   const { error } = await supabase.auth.signInWithOtp({
     phone: normalizedPhone,
     options: {
-      shouldCreateUser: true,
+      shouldCreateUser: !!isCreate, // only the create flow may provision an account — and that path always carries a DOB
       ...(captchaToken ? { captchaToken } : {}),
       data: Object.keys(meta).length ? meta : undefined,
     },

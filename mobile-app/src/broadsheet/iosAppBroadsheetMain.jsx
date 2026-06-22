@@ -752,7 +752,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     setPhone(e164);
     setBusy(true);
     try {
-      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken, dob: isCreate ? dob : undefined });
+      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken, dob: isCreate ? dob : undefined, isCreate });
       setOtpSent(true);
     } catch (error) {
       if (captchaOn) resetCaptcha();
