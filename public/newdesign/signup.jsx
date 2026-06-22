@@ -171,8 +171,9 @@ function ClientHealth({ v, set }) {
         <Field label="Biological sex"><Select value={v.sex || "Prefer not to say"} onChange={e => set({ sex: e.target.value })} options={["Prefer not to say", "Female", "Male"]} /></Field>
       </div>
       <Field label="Injuries or physical limitations"><TextInput placeholder="e.g. lower back sensitivity, recovering from ACL" value={v.injuries || ""} onChange={e => set({ injuries: e.target.value })} /></Field>
-      <Field label="Medical conditions or medications"><TextInput placeholder="Optional" value={v.medical || ""} onChange={e => set({ medical: e.target.value })} /></Field>
-      <Field label="Dietary restrictions or allergies"><TextInput placeholder="Optional" value={v.diet || ""} onChange={e => set({ diet: e.target.value })} /></Field>
+      <Field label="Prescription medications"><TextInput placeholder="List any you take — or 'None'" value={v.medications || ""} onChange={e => set({ medications: e.target.value })} /></Field>
+      <Field label="Other medical conditions"><TextInput placeholder="Optional — e.g. asthma, type 2 diabetes" value={v.medical || ""} onChange={e => set({ medical: e.target.value })} /></Field>
+      <Field label="Allergies (food, medication, other)"><TextInput placeholder="List any — or 'None'" value={v.diet || ""} onChange={e => set({ diet: e.target.value })} /></Field>
       <Field label="Emergency contact (name & phone)"><TextInput value={v.emergency || ""} onChange={e => set({ emergency: e.target.value })} /></Field>
       <Field label="Accountability style">
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

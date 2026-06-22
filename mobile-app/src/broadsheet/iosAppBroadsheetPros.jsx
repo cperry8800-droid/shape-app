@@ -3154,13 +3154,25 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           {cKit.health ? (() => {
             const h = cKit.health;
             const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
+            const rxLine = h.rxMeds === 'yes' ? (h.medications || 'Yes — not listed') : h.rxMeds === 'no' ? 'None' : (h.medications || null);
+            const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(' · ') : ''), (h.conditions || '')].filter(Boolean).join(' — ') || null;
+            const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || 'Yes — not listed') : h.allergies === 'no' ? 'None reported' : null;
+            const pregLine = h.pregnancy === 'yes' ? 'Yes — pregnant or ≤6 months postpartum' : null;
+            const rows = [
+              ['Prescription medication', rxLine],
+              ['Allergies', allergyLine],
+              ['Pregnancy / postpartum', pregLine],
+              ['Medical conditions', condLine],
+              ['Injuries & surgeries', h.injuries],
+              ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null],
+            ];
             return (
               <div style={{ borderRadius: 6, border: `1px solid ${h.flagged ? `${t.RUST}66` : t.RULE}`, borderLeft: `3px solid ${h.flagged ? t.RUST : teal}`, background: t.PAPER2, padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>PAR-Q screening</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.flagged ? t.RUST : teal }}>{h.flagged ? `${yesCount} flagged` : 'All clear'}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.flagged ? t.RUST : teal }}>{h.flagged ? `${yesCount || 'review'} flagged` : 'All clear'}</span>
                 </div>
-                {[['Injuries & surgeries', h.injuries], ['Medications & conditions', h.medications], ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null]].map(([l, v]) => v ? (
+                {rows.map(([l, v]) => v ? (
                   <div key={l} style={{ marginTop: 10 }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
                     <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
