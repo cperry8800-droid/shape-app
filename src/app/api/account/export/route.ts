@@ -52,10 +52,10 @@ export async function GET(request: Request) {
   const data: Record<string, unknown> = {};
 
   try {
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id);
-    data.profile = scrub(prof || []);
+    const res = await supabase.from('profiles').select('*').eq('id', user.id);
+    data.profile = res.error ? { unavailable: res.error.message } : scrub(res.data || []);
   } catch (e) {
-    data.profile = { error: (e as Error).message };
+    data.profile = { unavailable: (e as Error).message };
   }
 
   for (const t of OWNED) {
