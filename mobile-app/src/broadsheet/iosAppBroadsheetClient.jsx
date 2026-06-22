@@ -10523,7 +10523,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       } catch { /* keep sample */ }
     })();
     return () => { active = false; };
-  }, []);
+  }, [feedNonce]);
   const [tierByUser, setTierByUser] = useStateBSC({}); // userId → real tier (from Shape Score)
   const [avatarByUser, setAvatarByUser] = useStateBSC({}); // userId → profile photo (data URL)
   // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
@@ -10567,6 +10567,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Photo post — upload to community-photos then create a post carrying the URL.
   const feedPhotoRef = React.useRef(null);
   const [photoBusy, setPhotoBusy] = useStateBSC(false);
+  const [showLog, setShowLog] = useStateBSC(false);
+  const [feedNonce, setFeedNonce] = useStateBSC(0);
+  const canChatNow = useBSCanChat();
   const onFeedPhoto = () => { try { feedPhotoRef.current && feedPhotoRef.current.click(); } catch (e) {} };
   const onFeedPhotoFile = async (e) => {
     const file = e?.target?.files?.[0];
@@ -11452,9 +11455,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {tab === 'feed' && (
         <>
           <input ref={feedPhotoRef} type="file" accept="image/*" onChange={onFeedPhotoFile} style={{ display: 'none' }} />
-          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} pinned placeholder="Message…" />
+          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} onLog={canChatNow ? () => setShowLog(true) : null} pinned placeholder="Message…" />
         </>
       )}
+      {showLog && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setFeedNonce(n => n + 1); }} />}
       {tagOpen && createPortal(
         <div onClick={() => setTagOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
@@ -11652,7 +11656,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
@@ -11841,6 +11845,14 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
     }}>@</button>
   ) : null;
+  // ＋ Log activity — opens the full Note/Photo/Video/Workout/Link composer.
+  const logBtn = onLog ? (
+    <button onClick={onLog} aria-label="Log activity" title="Log an activity (photo / video / workout)" style={{
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
+      background: pinned ? t.SURFACE : t.PAPER, color: t.INK, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18, lineHeight: 1,
+    }}>＋</button>
+  ) : null;
   // Mic (push-to-talk) — only on Nora's support composer; reuses the left-button style.
   const micBtn = voiceOk ? (
     <button onClick={toggleVoice} aria-label={voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora'} title={voiceState === 'listening' ? 'Stop' : 'Speak to Nora'} style={{
@@ -11856,7 +11868,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="9" y1="22" x2="15" y2="22" /></svg>}
     </button>
   ) : null;
-  const leftBtns = (photoBtn || tagBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{micBtn}</div> : null;
+  const leftBtns = (photoBtn || tagBtn || logBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{logBtn}{micBtn}</div> : null;
   // Listening / transcribing / error status line above the field.
   const voiceStatus = (voice && (voiceState !== 'idle' || voiceErr)) ? (
     <div style={{ padding: '0 2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: voiceErr ? t.AMBER : (voiceState === 'listening' ? t.RUST : t.INK50) }}>
