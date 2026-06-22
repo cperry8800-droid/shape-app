@@ -332,6 +332,22 @@ function ClientMeSettings() {
     try { if (typeof window.__openChat === "function") { window.__openChat(); return; } } catch (e) {}
     window.location.href = "/contact.html";
   }
+  async function exportData() {
+    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!window.confirm("Download a copy of all the data Shape holds about you?")) return;
+    try {
+      const res = await fetch("/api/account/export", { credentials: "same-origin" });
+      if (!res.ok) throw new Error("export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      alert("Could not export your data right now. Email privacy@theshapecommunity.com and we'll send it.");
+    }
+  }
   function deleteAccount() {
     if (window.confirm("Delete your Shape account? This can't be undone. We'll confirm by email before anything is removed.")) contactSupport();
   }
@@ -424,7 +440,7 @@ function ClientMeSettings() {
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>
         <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <button onClick={contactSupport} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
+          <button onClick={exportData} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
           <button onClick={pauseMembership} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
           <button onClick={deleteAccount} style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
         </div>
