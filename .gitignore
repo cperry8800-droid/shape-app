@@ -34,6 +34,16 @@ yarn-error.log*
 .env*
 !.env.example
 
+# secrets / service-account credentials — NEVER commit these
+# (Firebase Admin SDK JSON, Apple Music/APNs .p8, generic service-account keys)
+*firebase-adminsdk*
+*-adminsdk-*.json
+serviceAccount*.json
+*service-account*.json
+*.p8
+*.key
+gha-creds-*.json
+
 # vercel
 .vercel
 
