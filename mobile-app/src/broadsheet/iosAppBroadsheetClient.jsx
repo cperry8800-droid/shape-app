@@ -18693,7 +18693,7 @@ function BSContactPage({ onBack }) {
   };
   const contactActions = [
     { label: 'Call', value: '(203) 526-3314', action: () => { window.location.href = 'tel:+12035263314'; } },
-    { label: 'Email', value: 'christopher.perry@theshapecommunity.com', action: () => { window.location.href = 'mailto:christopher.perry@theshapecommunity.com'; } },
+    { label: 'Email', value: 'info@theshapecommunity.com', action: () => { window.location.href = 'mailto:info@theshapecommunity.com'; } },
     { label: 'Instagram', value: '@theshapecommunity', action: () => { window.location.href = 'https://instagram.com/theshapecommunity'; } },
   ];
   const submit = () => {
@@ -19556,13 +19556,13 @@ function BSTermsPage({ onBack, onContact }) {
     ['04', 'Coaches', 'Trainers and nutritionists operate as independent providers, responsible for credentials, scope of practice, taxes, service quality, and client delivery. Unless a coach shows a Verified badge, the credentials on their profile are self-reported and not independently verified by Shape.'],
     ['05', 'Content & conduct', 'Users keep ownership of uploaded content, but must avoid false claims, harassment, infringement, scraping, malware, impersonation, and unlawful activity.'],
     ['06', 'Shape Score & rewards', 'Points can be earned through qualifying activity and redeemed in Shape Store. Points are not cash, are not transferable, and may be adjusted for abuse.'],
-    ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to christopher.perry@theshapecommunity.com.'],
+    ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to info@theshapecommunity.com.'],
     ['08', 'Music & audio', 'Coach playlists, soundtracks, and Shape Radio play through your own connected music account (e.g., Spotify) under that provider\'s license to you. Shape does not host, stream, or license the music itself; your use of a connected music service follows that service\'s own terms.'],
     ['09', 'Health disclaimer', 'Shape is not medical care; training, nutrition, and coach guidance are informational and don\'t replace licensed medical advice. Health/screening info you enter (PAR-Q, injuries, medications) helps your coach work with you safely and is shared only with your linked coach(es); see the Privacy Policy and Data & Compliance page for how it\'s stored and protected.'],
     ['10', 'Liability', 'Shape limits liability to the extent allowed by law. Some jurisdictions may provide rights that cannot be waived.'],
     ['11', 'Disputes', 'The terms include informal dispute resolution, arbitration, class-action waiver language, and Delaware governing law.'],
     ['12', 'Termination', 'Accounts may be closed by the user or removed by Shape for serious violations, fraud, safety issues, or breach of platform rules.'],
-    ['13', 'Changes & contact', 'Material changes are announced in advance. Questions go to christopher.perry@theshapecommunity.com or the contact page.'],
+    ['13', 'Changes & contact', 'Material changes are announced in advance. Questions go to info@theshapecommunity.com or the contact page.'],
   ];
 
   return (
@@ -19652,7 +19652,7 @@ function BSPrivacyPage({ onBack, onContact }) {
     ['09', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
     ['10', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
     ['11', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
-    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
+    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions: info@theshapecommunity.com.'],
   ];
 
   return (
@@ -19708,10 +19708,10 @@ function BSDataCompliancePage({ onBack, onContact }) {
     ['02', 'Subprocessors', 'Supabase (database, auth, storage), Stripe (payments/payouts), Vercel (hosting), Cloudflare (DNS/network), Resend (email), OpenAI (the in-app "Nora" assistant — only your support questions, never health records), and the wearable/audio providers you connect (Strava, Garmin, Whoop, Apple Health, Oura, Spotify). Each is bound by contract to use data only to provide its service to Shape.'],
     ['03', 'Security measures', 'TLS 1.2+ in transit; encryption at rest; per-user row-level security so only you and your linked coach reach your data; private, signed-URL storage for sensitive files; API rate limiting and request validation; integration tokens stored server-side, never in the app bundle; least-privilege keys; automated dependency audits and code review on every change.'],
     ['04', 'Health & sensitive data', 'Health info you enter is consumer health data, not HIPAA PHI, and we treat it as sensitive. It is share-gated to the coach(es) you choose; your safety screening is shared so a coach can work with you safely. See the Privacy Policy\'s Health & medical data section for detail.'],
-    ['05', 'Your rights & requests', 'Access, export, correct, or delete your data from Settings or by email; we verify identity and respond within 30 days. We honor GDPR (EEA/UK) and CCPA/CPRA (California) rights. We do not sell personal data, and we do not use your health or fitness data for advertising or to train ML models. Email christopher.perry@theshapecommunity.com.'],
+    ['05', 'Your rights & requests', 'Access, export, correct, or delete your data from Settings or by email; we verify identity and respond within 30 days. We honor GDPR (EEA/UK) and CCPA/CPRA (California) rights. We do not sell personal data, and we do not use your health or fitness data for advertising or to train ML models. Email info@theshapecommunity.com.'],
     ['06', 'Coaches & data responsibility', 'Trainers and nutritionists are independent professionals. When coaching you they receive only the data needed and agree to keep it confidential, use it solely to coach you, and meet their own legal obligations. Shape provides the security tooling; coaches are responsible for their own conduct and compliance.'],
     ['07', 'Breach response', 'If a breach affects your personal data, we notify you and any regulator required by law, typically within 72 hours of discovery.'],
-    ['08', 'Contact', 'christopher.perry@theshapecommunity.com for any data, security, or compliance question — same address for security reports.'],
+    ['08', 'Contact', 'info@theshapecommunity.com for any data, security, or compliance question — same address for security reports.'],
   ];
 
   return (
