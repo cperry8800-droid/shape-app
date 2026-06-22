@@ -877,7 +877,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               // Optimistically replace the edited post in the feed
               const patched = post._patchedPost;
               setFeed(prev => prev.map(x => {
-                if (x.id !== editingPost.postId) return x;
+                if (x.id !== (editingPost.postId || editingPost.id)) return x;
                 return {
                   ...x,
                   body: post.body || x.body,
@@ -928,9 +928,9 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
   const [kind, setKind] = React.useState(ed ? (ed.kind || "post") : "post");
   const [body, setBody] = React.useState(ed ? (ed.body || "") : "");
   const [tag, setTag] = React.useState(ed ? (ed.tag || "") : "");
-  const [photoUrl, setPhotoUrl] = React.useState(ed ? (ed.photoUrl || "") : "");
+  const [photoUrl, setPhotoUrl] = React.useState(ed ? (ed.photo || ed.photoUrl || "") : "");
   const [photoBusy, setPhotoBusy] = React.useState(false);
-  const [videoUrl, setVideoUrl] = React.useState(ed ? (ed.videoUrl || "") : "");
+  const [videoUrl, setVideoUrl] = React.useState(ed ? (ed.video || ed.videoUrl || "") : "");
   const [videoBusy, setVideoBusy] = React.useState(false);
   const fileRef = React.useRef(null);
   const videoRef = React.useRef(null);
@@ -1004,11 +1004,11 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
       if (postPayload.tag) patchMetrics.tags = [String(postPayload.tag).toUpperCase()];
       if (Array.isArray(postPayload.mentions) && postPayload.mentions.length) patchMetrics.mentions = postPayload.mentions;
       if (videoUrl) { patchMetrics.kind = "video"; patchMetrics.video_url = videoUrl; }
-      else if (ed.videoUrl && !videoUrl) { patchMetrics.video_url = ""; }
+      else if ((ed.video || ed.videoUrl) && !videoUrl) { patchMetrics.video_url = ""; }
       try {
         const res = await fetch("/api/community/feed", {
           method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ postId: ed.postId, title: (postPayload.body || "").trim() || (postPayload.photo ? "Photo" : "Post"), note: postPayload.body || "", photoUrl: postPayload.photo || "", privacy: "community", metrics: Object.keys(patchMetrics).length ? patchMetrics : undefined }),
+          body: JSON.stringify({ postId: ed.postId || ed.id, title: (postPayload.body || "").trim() || (postPayload.photo ? "Photo" : "Post"), note: postPayload.body || "", photoUrl: postPayload.photo || "", metrics: Object.keys(patchMetrics).length ? patchMetrics : undefined }),
         });
         if (!res.ok) throw new Error("edit_failed");
         const result = await res.json();
