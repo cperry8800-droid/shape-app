@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergePostPatch } from '../src/services/communityPostPatch.mjs';
+import { mergePostPatch } from '../mobile-app/src/services/communityPostPatch.mjs';
 
 test('preserves existing keys not named in the patch', () => {
   const existing = { kind: 'workout', workoutStats: [{ l: 'Load', v: '245 lb' }], coach: 'Maya', mentions: [{ name: 'A' }] };
