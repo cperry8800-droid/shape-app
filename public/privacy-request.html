@@ -60,6 +60,9 @@
   <h1>Make a privacy <em>request.</em></h1>
   <p class="lede">Exercise your rights over the data Shape holds about you. Members can also export or delete data directly in <strong>Settings</strong>. We verify your identity before acting and respond within the time the law requires (California: acknowledge within 10 business days, respond within 45; GDPR &amp; other states: within one month). See our <a href="/privacy.html">Privacy Policy</a> and <a href="/health-data-privacy.html">Consumer Health Data Policy</a>.</p>
 
+  <noscript>
+    <p class="note" style="color:#e0936f">This form needs JavaScript to submit. With JavaScript disabled, please email your request to <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a> — include the type of request (access, delete, correct, port, opt out, withdraw consent, or appeal) and the email on your account, and we'll verify and respond within the time the law requires.</p>
+  </noscript>
   <form id="pr-form" novalidate>
     <div class="field">
       <label for="type">What would you like to do?</label>
@@ -83,7 +86,7 @@
     <div class="field"><label for="details">Details (optional)</label><textarea id="details" name="details" placeholder="Anything that helps us locate your records or understand your request."></textarea></div>
     <label class="check"><input id="agent" type="checkbox"> I am an authorized agent making this request on someone else's behalf (we may ask for proof of authorization).</label>
     <button class="btn" type="submit">Submit request</button>
-    <div id="msg" class="msg"></div>
+    <div id="msg" class="msg" role="status" aria-live="polite"></div>
   </form>
 
   <p class="note">Prefer email? Write to <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. If we deny a request you may appeal here; if an appeal is denied you may contact your state attorney general or, in the EEA/UK, your data protection authority.</p>

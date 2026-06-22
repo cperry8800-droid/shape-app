@@ -232,14 +232,15 @@ async function claimUsername(username) {
 
 async function signUp({ email, password, fullName, role, username, captchaToken, dob }) {
   const normalizedRole = normalizeRole(role);
-  // 18+ age gate — neutral date of birth; block under-18 signups. (over_18 is
-  // recomputed server-side from date_of_birth by a trigger, so it can't be faked.)
-  if (dob) {
-    const d = new Date(dob);
-    if (!isNaN(d.getTime())) {
-      const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
-      if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
-    }
+  // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
+  // unparseable date of birth is rejected, and under-18 is blocked. This is the
+  // authoritative server-side check; over_18 is then recomputed from date_of_birth
+  // by a DB trigger, so neither the date nor the derived flag can be faked.
+  {
+    const d = dob ? new Date(dob) : null;
+    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
   }
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });

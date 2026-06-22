@@ -2,10 +2,22 @@
 // WA MHMDA cascading deletion). The authenticated caller's account and personal
 // data are erased: we explicitly purge their rows across the personal/health/
 // content tables and their objects in the private storage buckets, then delete
-// the auth user (which cascades any remaining FK-linked rows). A service-role
-// audit row records the deletion. Authoritative financial/tax records live in
-// Stripe and are retained there per our retention schedule — the Supabase rows
-// are app-side references and are removed with the account.
+// the auth user. A service-role audit row records the deletion. Authoritative
+// financial/tax records live in Stripe and are retained there per our retention
+// schedule — the Supabase rows are app-side references and are removed with the account.
+//
+// Why a service-role (admin) client rather than the user's RLS-scoped client:
+//   (1) `auth.admin.deleteUser` is service-role-only;
+//   (2) several owned tables have NO user-facing DELETE RLS policy (user_goals —
+//       which holds the health profile —, user_integrations/OAuth tokens, score_ledger,
+//       messages, and the coach trainers/nutritionists rows), so a user-scoped client
+//       would SILENTLY fail to erase exactly the most sensitive data while reporting
+//       success. An RLS client therefore cannot guarantee the erasure this endpoint
+//       legally promises;
+//   (3) the account_deletions audit table is service-role-only by design.
+// Safety is preserved by construction: every delete is scoped to the *verified*
+// caller's own id (`.eq(<owner col>, uid)` with uid = currentUser(request).id) — the
+// admin client is never used to reach another user's rows.
 //
 // No-ops gracefully on missing tables/buckets, so it is safe to deploy before the
 // account_deletions migration is applied (the audit write just fails quietly).
@@ -56,13 +68,27 @@ const PURGE: { table: string; col: string }[] = [
 // coach's verification files aren't orphaned after their account is deleted.
 const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials'];
 
+// List + remove every object under `<uid>/`, paginating so large folders are
+// fully cleared, and only reporting success if no list/remove call errored — so a
+// "purged" result can't hide files that were left behind.
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
+  const PAGE = 1000;
   try {
-    const { data, error } = await admin.storage.from(bucket).list(uid, { limit: 1000 });
-    if (error || !data || !data.length) return !error;
-    const paths = data.filter((o) => o.name).map((o) => `${uid}/${o.name}`);
-    if (paths.length) await admin.storage.from(bucket).remove(paths);
-    return true;
+    let offset = 0;
+    let ok = true;
+    for (;;) {
+      const { data, error } = await admin.storage.from(bucket).list(uid, { limit: PAGE, offset });
+      if (error) return false;
+      if (!data || !data.length) break;
+      const paths = data.filter((o) => o.name).map((o) => `${uid}/${o.name}`);
+      if (paths.length) {
+        const { error: rmErr } = await admin.storage.from(bucket).remove(paths);
+        if (rmErr) ok = false;
+      }
+      if (data.length < PAGE) break; // last page
+      offset += data.length;
+    }
+    return ok;
   } catch {
     return false;
   }
@@ -122,8 +148,20 @@ export async function POST(request: Request) {
     } catch { /* non-fatal */ }
   }
 
-  if (!authDeleted && purged.length === 0) {
-    return NextResponse.json({ error: 'Could not complete deletion. Email privacy@theshapecommunity.com.' }, { status: 500 });
+  // Success REQUIRES the auth user actually being deleted. If only the data was
+  // purged but the auth record remains, the account still exists (the user could
+  // sign back in) — report a partial failure so the client never tells them the
+  // account is gone. The audit row above is already flagged for follow-up.
+  if (!authDeleted) {
+    return NextResponse.json(
+      {
+        error: 'Could not fully delete your account. Your data was removed but the account record remains — email privacy@theshapecommunity.com and we will finish it.',
+        partial: true,
+        tablesPurged: purged.length,
+        bucketsPurged: bucketsPurged.length,
+      },
+      { status: 500 },
+    );
   }
   return NextResponse.json({ ok: true, authDeleted, tablesPurged: purged.length, bucketsPurged: bucketsPurged.length });
 }
