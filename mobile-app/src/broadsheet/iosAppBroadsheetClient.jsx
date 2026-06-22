@@ -10504,6 +10504,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
       replies: Array.isArray(p.comments) ? p.comments.length : (p.commentCount || 0),
       comments: Array.isArray(p.comments) ? p.comments.map(c => ({ who: c.author_name || c.who || 'Member', body: c.body || c.text || '' })) : [],
+      // Fields needed so the Edit seed can pre-populate the sheet correctly.
+      note: p.note || null,
+      status: p.status || null,
+      video: p.video || null,
+      link: p.link || null,
+      privacy: p.privacy || null,
+      metaKind: p.kind || null,
     };
   };
   const [posts, setPosts] = useStateBSC(SAMPLE);
@@ -10770,7 +10777,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
           {isMe && bsRealPostId(p) && (
-            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status, body: p.note, photo: p.photo || null, video: p.video || null, link: p.link || null, kind: null, privacy: p.privacy || 'public' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
+            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status || '', body: p.body || p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, kind: null, privacy: p.privacy || 'community' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
           )}
         </div>
         {actCmtOpen === p.id && (
