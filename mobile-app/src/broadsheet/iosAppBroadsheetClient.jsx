@@ -17553,8 +17553,28 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   };
 
   const requestAccountAction = async (action) => {
+    // Export is now a real, self-serve download of the user's own data.
+    if (action === 'Export') {
+      const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+      if (!signedIn) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
+      if (!window.confirm('Download a copy of all the data Shape holds about you?')) return;
+      try {
+        const res = await fetch('/api/account/export', { credentials: 'same-origin' });
+        if (res.status === 401) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
+        if (!res.ok) throw new Error('export failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        window.__bsToast?.('Your data export is downloading.', 'ok');
+      } catch (err) {
+        window.__bsToast?.('Could not export — email privacy@theshapecommunity.com', 'err');
+      }
+      return;
+    }
     const confirms = {
-      Export: 'Email a copy of all your data to the address on file?',
       Pause: 'Pause your membership? You keep your data and can resume anytime.',
       Delete: 'Permanently delete your account and all data? This cannot be undone.',
     };
@@ -18108,7 +18128,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const findSec = (title) => sections.find(s => s.title === title) || { rows: [] };
   const notifOn = ['workoutReminders', 'coachReplies', 'weeklyDigest', 'community'].filter(k => prefs[k] !== 'Off').length;
   const accountActionRows = [
-    { l: 'Export all my data', r: 'Request file', act: 'Export' },
+    { l: 'Export all my data', r: 'Download', act: 'Export' },
     { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
     { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
   ];
