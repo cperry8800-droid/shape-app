@@ -7521,7 +7521,22 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
         payload = { ...base, title: title.trim() || host || 'Link', note: body.trim(), metrics: { kind: 'link', link: { url: u, title: title.trim() || host, desc: body.trim() } } };
       }
       if (ed && ed.postId) {
-        await window.ShapeCommunity?.update?.({ postId: ed.postId || ed.id, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: payload.metrics?.video_url || null, metrics: payload.metrics, privacy: vis });
+        const editMetrics = { ...(payload.metrics || {}) };
+        const origKind = ed.kind || null;
+        // F3 — preserve existing workout stats: when re-saving a workout post whose
+        // stat fields were left empty (the edit sheet doesn't seed them), DON'T send
+        // workoutStats/lift/load — an empty [] would clobber the real stored stats.
+        if (kind === 'workout' && origKind === 'workout' && !woA.trim() && !woB.trim() && !woC.trim()) {
+          delete editMetrics.workoutStats; delete editMetrics.lift; delete editMetrics.load;
+        }
+        // F4 — clear stale type-specific keys when the post's type changed on edit, so
+        // mergePostPatch removes the now-irrelevant data (null ⇒ delete).
+        if (origKind && origKind !== kind) {
+          if (kind !== 'workout') { editMetrics.workoutStats = null; editMetrics.lift = null; editMetrics.load = null; }
+          if (kind !== 'link') editMetrics.link = null;
+          if (kind !== 'video') editMetrics.video_url = null;
+        }
+        await window.ShapeCommunity?.update?.({ postId: ed.postId || ed.id, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: editMetrics.video_url !== undefined ? editMetrics.video_url : (payload.metrics?.video_url || null), metrics: editMetrics, privacy: vis });
         window.__bsToast?.('Post updated', 'ok');
       } else {
         await window.ShapeCommunity?.createPost?.(payload);
@@ -10519,6 +10534,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // same community posts that are workouts / sensor-imported sessions). Demo cards
   // are the signed-out / no-activity-yet fallback.
   const [activityFeed, setActivityFeed] = useStateBSC([]);
+  // Declared BEFORE the post-loader effect below (its dep array reads feedNonce) —
+  // moving it here avoids a temporal-dead-zone ReferenceError when BSClientFeed renders.
+  const [feedNonce, setFeedNonce] = useStateBSC(0);
   React.useEffect(() => {
     let active = true;
     (async () => {
@@ -10593,7 +10611,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const feedPhotoRef = React.useRef(null);
   const [photoBusy, setPhotoBusy] = useStateBSC(false);
   const [showLog, setShowLog] = useStateBSC(false);
-  const [feedNonce, setFeedNonce] = useStateBSC(0);
   const canChatNow = useBSCanChat();
   const [editingPost, setEditingPost] = useStateBSC(null);
   const onFeedPhoto = () => { try { feedPhotoRef.current && feedPhotoRef.current.click(); } catch (e) {} };
@@ -10777,7 +10794,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
           {isMe && bsRealPostId(p) && (
-            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status || '', body: p.body || p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, kind: null, privacy: p.privacy || 'community' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
+            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status || '', body: p.body || p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, kind: p.metaKind || null, privacy: p.privacy || 'community' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
           )}
         </div>
         {actCmtOpen === p.id && (

@@ -2484,9 +2484,12 @@ async function updateCommunityPost({ postId, title, note, photoUrl, video, metri
   if (!postId) throw new Error('Post id is required.');
   if (!supabase) throw new Error('Not connected.');
   // Fetch the current metrics so we merge (never clobber) the parts the editor
-  // didn't touch (workoutStats, coach, program, delta, mentions…).
-  const { data: cur } = await supabase
-    .from('community_posts').select('metrics').eq('id', postId).maybeSingle();
+  // didn't touch (workoutStats, coach, program, delta, mentions…). Scope to the
+  // owner and HARD-FAIL on a read error — otherwise we'd merge against {} and wipe
+  // the existing metrics.
+  const { data: cur, error: curErr } = await supabase
+    .from('community_posts').select('metrics').eq('id', postId).eq('author_id', state.user.id).maybeSingle();
+  if (curErr) throw curErr;
   const patchMetrics = { ...(metrics || {}) };
   if (video !== undefined) patchMetrics.video_url = String(video || '').trim();
   patchMetrics.editedAt = new Date().toISOString();

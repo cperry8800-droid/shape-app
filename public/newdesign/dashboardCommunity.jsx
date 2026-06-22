@@ -881,12 +881,19 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
               const patched = post._patchedPost;
               setFeed(prev => prev.map(x => {
                 if (x.id !== (editingPost.postId || editingPost.id)) return x;
+                // Prefer the server's authoritative patched row (it reflects an
+                // intentional clear as null), then the optimistic payload via an
+                // explicit !== undefined check (not `||`, which drops '' / null
+                // clears), then the old value.
+                const pPhoto = patched ? (patched.photo_url ?? null) : undefined;
+                const pVideo = patched ? ((patched.metrics && patched.metrics.video_url) ?? null) : undefined;
+                const pBody = patched ? (patched.note ?? "") : undefined;
                 return {
                   ...x,
-                  body: post.body || x.body,
-                  photo: post.photo || (patched && patched.photo_url) || x.photo,
-                  video: post.video || (patched && patched.metrics && patched.metrics.video_url) || x.video,
-                  tag: post.tag || x.tag,
+                  body: pBody !== undefined ? pBody : (post.body !== undefined ? post.body : x.body),
+                  photo: pPhoto !== undefined ? pPhoto : (post.photo !== undefined ? post.photo : x.photo),
+                  video: pVideo !== undefined ? pVideo : (post.video !== undefined ? post.video : x.video),
+                  tag: post.tag !== undefined ? post.tag : x.tag,
                 };
               }));
               setEditingPost(null);
@@ -928,7 +935,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     { value: "video", label: "Video", tag: "" },
   ];
   const ed = editing || null;
-  const [kind, setKind] = React.useState(ed ? (ed.kind || "post") : "post");
+  const [kind, setKind] = React.useState(ed ? (ed.kind || ((ed.video || ed.videoUrl) ? "video" : "post")) : "post");
   const [body, setBody] = React.useState(ed ? (ed.body || "") : "");
   const [tag, setTag] = React.useState(ed ? (ed.tag || "") : "");
   const [photoUrl, setPhotoUrl] = React.useState(ed ? (ed.photo || ed.photoUrl || "") : "");
@@ -1004,8 +1011,10 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
     if (ed) {
       // Edit mode: PATCH the existing post
       const patchMetrics = {};
-      if (postPayload.tag) patchMetrics.tags = [String(postPayload.tag).toUpperCase()];
-      if (Array.isArray(postPayload.mentions) && postPayload.mentions.length) patchMetrics.mentions = postPayload.mentions;
+      // Always send tags/mentions (null when empty) so the server merge removes a
+      // cleared key — only set when non-empty, they could never be cleared on edit.
+      patchMetrics.tags = postPayload.tag ? [String(postPayload.tag).toUpperCase()] : null;
+      patchMetrics.mentions = (Array.isArray(postPayload.mentions) && postPayload.mentions.length) ? postPayload.mentions : null;
       if (videoUrl) { patchMetrics.kind = "video"; patchMetrics.video_url = videoUrl; }
       else if ((ed.video || ed.videoUrl) && !videoUrl) { patchMetrics.video_url = ""; }
       try {

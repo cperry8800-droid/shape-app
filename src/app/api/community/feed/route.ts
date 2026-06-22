@@ -110,8 +110,12 @@ export async function PATCH(request: Request) {
   const postId = cleanText(body?.postId, 64);
   if (!postId) return NextResponse.json({ error: 'postId is required.' }, { status: 400 });
 
-  // Merge metrics so workoutStats/coach/etc. survive a partial edit.
-  const { data: cur } = await client.from('community_posts').select('metrics').eq('id', postId).maybeSingle();
+  // Merge metrics so workoutStats/coach/etc. survive a partial edit. Scope to the
+  // owner and fail on a read error — otherwise we'd merge against {} and wipe the
+  // existing metrics.
+  const { data: cur, error: curError } = await client
+    .from('community_posts').select('metrics').eq('id', postId).eq('author_id', user.id).maybeSingle();
+  if (curError) return dbError(curError, 'community feed edit prefetch', 400);
   const existing = (cur && typeof cur.metrics === 'object' && cur.metrics) ? cur.metrics as Record<string, unknown> : {};
   const incoming = (typeof body?.metrics === 'object' && body?.metrics) ? body.metrics as Record<string, unknown> : {};
   const merged: Record<string, unknown> = { ...existing };
@@ -136,8 +140,8 @@ export async function DELETE(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const client = await clientForRequest(request);
-  const postId = new URL(request.url).searchParams.get('id') || '';
-  if (!postId) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
+  const postId = (new URL(request.url).searchParams.get('id') || '').trim();
+  if (!postId || postId.length > 64) return NextResponse.json({ error: 'A valid id is required.' }, { status: 400 });
   const { error } = await client.from('community_posts').delete().eq('id', postId).eq('author_id', user.id);
   if (error) return dbError(error, 'community feed delete', 400);
   return NextResponse.json({ ok: true });
