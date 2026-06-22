@@ -172,6 +172,20 @@ changelog whenever something ships.
   added the Sec 5 incorporation. All copy is **DRAFT pending legal/privacy counsel** before launch.
 - Verified: HTML tag-balance on the new + edited pages; mobile JSX parse-check; tsc (warroom).
   Standalone legal pages have no `?v=` companion; the app change rebuilds `public/m`.
+- **MERGED as PR #1385** (CI + gitleaks + CodeRabbit + Codex green). CodeRabbit's one
+  substantive finding — the legal-page nav dropdowns were mouse-only — was fixed by opening
+  them on `:focus-within` as well as `:hover` (keyboard-accessible) across code-of-conduct /
+  terms / privacy / data-compliance. (Skipped its WORKLOG MD022 nit — the changelog uses tight
+  heading→bullet formatting by design.) Still DRAFT pending counsel before launch.
+
+### 2026-06-22 — Landing journey: Score counter climbs slower with scroll (follow-up)
+- Follow-up to the editorial-landing Score count-up: even with the ease-in (#1382), the number
+  rose too fast because an ease only redistributes the climb within a fixed scroll budget.
+  Increased the pinned journey track height **`1000vh → 1500vh`** (`index.html` `.jtrack`) so each
+  stage — including the Score count-up — spans ~50% more scroll; the number now climbs noticeably
+  slower as you scroll. Desktop only (the mobile journey is static `height:auto`); the quadratic
+  ease-in is kept. Merged as PR #1386. *(If only the Score stage should slow while the other
+  beats keep pace, that's a non-uniform stage-weighting change — a follow-up if wanted.)*
 
 ### 2026-06-22 — Grocery list: web redesign ported from the app (ClientGrocery.html)
 - Brought the **mobile grocery redesign** (#1372) to the **website** grocery page so the two
