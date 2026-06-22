@@ -144,6 +144,32 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Compliance Waves 3+4 MERGED + migrations applied · review pass · logo cleanup
+- **PR #1381 (Waves 3 + 4) squash-merged to `main`** (`651af508`). The **three migrations
+  are APPLIED + verified on Supabase** (`consent_log` table w/ 2 owner policies ·
+  `account_deletions` table RLS-on/0-policies = service-role-only deny-all ·
+  `profiles.date_of_birth`/`over_18` + `set_over_18()` trigger). Security advisors after:
+  **0 ERROR** (the `account_deletions` no-policy + `set_over_18` search-path WARN are both
+  by-design). So Waves 3+4 are live end-to-end (legal docs are still DRAFT pending counsel).
+- **Full review stack ran** (CodeRabbit + Codex). Substantive findings addressed across 3
+  fix commits before merge: deletion now also purges the `coach-credentials` bucket + the
+  coach's `owner_id` rows (verified safe — none cascade from `auth.users`, none have inbound
+  FKs); deletion paginates the storage purge + requires the auth-user delete for an `ok:true`
+  (no "deleted" on a data-only purge); **18+ age gate hardened** (email `signUp` now *requires*
+  a valid DOB; phone account-creation tied to create-mode via `shouldCreateUser:isCreate`,
+  so creation always carries a DOB); GPC opt-out logged **per-user, only after a confirmed
+  insert**; export fetched with `cache:"no-store"` + double-submit guards; `privacy-request`
+  now 500s when the rights email can't be delivered (was a silent false-success);
+  privacy-request `<noscript>` + ARIA live region. Deliberately **kept service-role for the
+  deletion route** (7 purged tables incl. `user_goals`/health profile have no user DELETE
+  policy → an RLS client would silently fail to erase the most sensitive data) — documented.
+- **Logo case-collision resolved.** The repo tracked `public/SHAPE-logo-white.png` (the real
+  203 KB wordmark, referenced by nothing) AND `public/shape-logo-white.png` (a ~4 KB blank
+  placeholder, referenced by `radio.jsx`'s footer CTA) — two paths differing only by case, so
+  Windows showed a perpetual phantom "modified". Consolidated to one canonical
+  `public/shape-logo-white.png` holding the real wordmark + removed the uppercase duplicate.
+  Fixes the collision **and** the previously-blank radio-footer CTA logo.
+
 ### 2026-06-22 — Global data-privacy compliance: Waves 3 + 4 (mechanisms + counsel docs)
 - **Makes Shape operable globally + in California** end-to-end. Built on Waves 1–2 (the
   public + in-app legal docs: privacy.html · terms.html · data-compliance.html ·
