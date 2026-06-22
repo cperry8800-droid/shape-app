@@ -144,6 +144,24 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Dashboard pages: top gap + masthead aligns with the sidebar "Today" tab
+- The dashboard mains had **zero top padding** (`padding: "0 …px 80px"`), so the page
+  masthead (date eyebrow + greeting/title) butted right up under the fixed header while the
+  sidebar's first nav item ("Today") sat ~23px lower (aside 12px + link 11px). The content
+  read as cramped and misaligned with the nav.
+- Gave every dashboard `<main>` a **24px top padding** so the masthead's first line lines up
+  with the "Today" tab and there's a comfortable gap below the header. Applied to all three
+  shared shells, so it's uniform across **all profiles and all dashboard pages**:
+  `dashClient.jsx` (client Today) + `trainerDashboard.jsx` `DashPage` (every tab page —
+  Progress/Workouts/Nutrition/Library/Team/Community/Score/Habits/Goal · coach
+  Schedule/Clients/Programs/Business) + `DashShell` (coach Today). The Profile/Me page
+  (`livingProfilePage.jsx`) is intentionally left edge-to-edge — it renders the immersive
+  living profile with its own full-bleed `LV_BG` background (a top gap there would show a
+  seam of dashboard paper above the hero).
+- Verified in a headless browser (client Today at 1440px): the "MONDAY, JUN 22" eyebrow now
+  aligns with the "Today" tab. `trainerDashboard.jsx?v=20260622a` (44 loaders) +
+  `dashClient.jsx?v=20260622a` (8 loaders) bumped.
+
 ### 2026-06-22 — Remove the redundant signed-in "Radio" nav link
 - The signed-in top nav (`pageShell.jsx` `PORTAL_NAV`) carried a left-nav **Radio**
   tab (`Radio.html`) that duplicated the **SHAPE ▸ RADIO** wordmark link already in the
