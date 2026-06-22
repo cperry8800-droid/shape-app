@@ -14630,6 +14630,8 @@ const BS_PARQ = [
   'Is a doctor currently prescribing medication for your blood pressure or a heart condition?',
   'Do you know of any other reason why you should not do physical activity?',
 ];
+// Common ongoing-condition quick-picks (free text still captures the rest).
+const BS_CONDITION_TAGS = ['Diabetes', 'High blood pressure', 'Asthma / respiratory', 'Heart condition', 'Thyroid', 'High cholesterol', 'Anxiety / depression', 'Arthritis / joint', 'Pregnant / postpartum'];
 function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -14637,20 +14639,40 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const [answers, setAnswers] = useStateBSC(() => (initial && Array.isArray(initial.parq) ? initial.parq : Array(BS_PARQ.length).fill(null)));
   const [injuries, setInjuries] = useStateBSC((initial && initial.injuries) || '');
   const [medications, setMedications] = useStateBSC((initial && initial.medications) || '');
+  // Prescription meds — mandatory yes/no; default 'yes' for legacy docs that
+  // already carry a medications free-text but no explicit flag.
+  const [rxMeds, setRxMeds] = useStateBSC((initial && initial.rxMeds) || ((initial && initial.medications) ? 'yes' : null));
+  const [conditions, setConditions] = useStateBSC((initial && initial.conditions) || '');
+  const [conditionTags, setConditionTags] = useStateBSC(() => (initial && Array.isArray(initial.conditionTags) ? initial.conditionTags : []));
+  const [pregnancy, setPregnancy] = useStateBSC((initial && initial.pregnancy) || null);
+  const [allergies, setAllergies] = useStateBSC((initial && initial.allergies) || null);
+  const [allergyDetails, setAllergyDetails] = useStateBSC((initial && initial.allergyDetails) || '');
   const [emName, setEmName] = useStateBSC((initial && initial.emergency && initial.emergency.name) || '');
   const [emPhone, setEmPhone] = useStateBSC((initial && initial.emergency && initial.emergency.phone) || '');
   const [consent, setConsent] = useStateBSC(!!(initial && initial.consentAt));
   const [busy, setBusy] = useStateBSC(false);
   const allAnswered = answers.every((a) => a === true || a === false);
-  const canSave = allAnswered && consent && !busy;
+  // Mandatory: PAR-Q, the prescription-med screen (+ list when yes), pregnancy,
+  // and the allergy screen (+ details when yes).
+  const rxOk = rxMeds === 'no' || (rxMeds === 'yes' && medications.trim().length > 0);
+  const allergyOk = allergies === 'no' || (allergies === 'yes' && allergyDetails.trim().length > 0);
+  const screenComplete = allAnswered && rxMeds !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
+  const canSave = screenComplete && consent && !busy;
+  const toggleTag = (tag) => setConditionTags((cur) => (cur.includes(tag) ? cur.filter((x) => x !== tag) : [...cur, tag]));
   const save = async () => {
     if (!canSave) return;
     setBusy(true);
     const doc = {
       parq: answers,
-      flagged: answers.some((a) => a === true),
+      flagged: answers.some((a) => a === true) || pregnancy === 'yes',
       injuries: injuries.trim() || null,
-      medications: medications.trim() || null,
+      rxMeds: rxMeds,
+      medications: rxMeds === 'yes' ? (medications.trim() || null) : null,
+      conditions: conditions.trim() || null,
+      conditionTags: conditionTags,
+      pregnancy: pregnancy,
+      allergies: allergies,
+      allergyDetails: allergies === 'yes' ? (allergyDetails.trim() || null) : null,
       emergency: { name: emName.trim() || null, phone: emPhone.trim() || null },
       consentAt: (initial && initial.consentAt) || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -14665,6 +14687,15 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
   const ta = { width: '100%', boxSizing: 'border-box', minHeight: 56, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
   const field = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none' };
+  // Reusable yes/no(/n.a.) selector row — same look as the PAR-Q buttons.
+  const ynRow = (value, onPick, options) => (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {options.map(([labelTxt, v, c]) => {
+        const on = value === v;
+        return <button key={labelTxt} type="button" onClick={() => onPick(v)} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
+      })}
+    </div>
+  );
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 0` }}>
@@ -14698,11 +14729,46 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
           )}
         </div>
         <div style={card}>
-          <div style={lbl}>History · helps your coach program safely</div>
-          <div style={{ ...lbl, marginBottom: 5 }}>Injuries or surgeries (past & current)</div>
-          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" style={{ ...ta, marginBottom: 10 }} />
-          <div style={{ ...lbl, marginBottom: 5 }}>Medications & conditions</div>
-          <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="e.g. Blood-pressure medication · asthma inhaler" style={ta} />
+          <div style={lbl}>Prescription medication · required</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Are you currently taking any prescription medication(s)?</div>
+          {ynRow(rxMeds, setRxMeds, [['No', 'no', teal], ['Yes', 'yes', t.RUST]])}
+          {rxMeds === 'yes' && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ ...lbl, marginBottom: 5 }}>List your prescription medication(s)</div>
+              <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="e.g. Lisinopril (blood pressure) · Levothyroxine (thyroid)" style={ta} />
+            </div>
+          )}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Allergies · required</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Do you have any allergies (food, medication, or other)?</div>
+          {ynRow(allergies, setAllergies, [['No', 'no', teal], ['Yes', 'yes', t.RUST]])}
+          {allergies === 'yes' && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ ...lbl, marginBottom: 5 }}>List your allergies</div>
+              <textarea value={allergyDetails} onChange={(e) => setAllergyDetails(e.target.value)} placeholder="e.g. Peanuts (severe) · penicillin · shellfish" style={ta} />
+            </div>
+          )}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Pregnancy · required</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Are you currently pregnant, or have you given birth in the past 6 months?</div>
+          {ynRow(pregnancy, setPregnancy, [['No', 'no', teal], ['Yes', 'yes', t.RUST], ['N/A', 'na', t.INK50]])}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Ongoing medical conditions · optional</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
+            {BS_CONDITION_TAGS.map((tag) => {
+              const on = conditionTags.includes(tag);
+              return <button key={tag} type="button" onClick={() => toggleTag(tag)} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tag}</button>;
+            })}
+          </div>
+          <div style={{ ...lbl, marginBottom: 5 }}>Anything else your coach should know</div>
+          <textarea value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="e.g. Type 2 diabetes — diet-managed · exercise-induced asthma" style={ta} />
+        </div>
+        <div style={card}>
+          <div style={lbl}>Injuries & surgeries · helps your coach program safely</div>
+          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" style={ta} />
         </div>
         <div style={card}>
           <div style={lbl}>Emergency contact</div>
@@ -14718,7 +14784,7 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
           </span>
         </label>
         <button onClick={save} disabled={!canSave} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : onBack ? 'Save health profile' : 'Save & enter Shape →'}</button>
-        {!allAnswered && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all 7 screening questions to continue</div>}
+        {!screenComplete && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all required screening questions to continue</div>}
       </div>
     </BSPage>
   );

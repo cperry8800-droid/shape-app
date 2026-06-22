@@ -293,14 +293,26 @@ function CoachClientDetailPage() {
           {data.healthProfile && (() => {
             const h = data.healthProfile;
             const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
+            const rxLine = h.rxMeds === "yes" ? (h.medications || "Yes — not listed") : h.rxMeds === "no" ? "None" : (h.medications || null);
+            const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(" · ") : ""), (h.conditions || "")].filter(Boolean).join(" — ") || null;
+            const allergyLine = h.allergies === "yes" ? (h.allergyDetails || "Yes — not listed") : h.allergies === "no" ? "None reported" : null;
+            const pregLine = h.pregnancy === "yes" ? "Yes — pregnant or ≤6 months postpartum" : null;
+            const rows = [
+              ["PRESCRIPTION MEDICATION", rxLine],
+              ["ALLERGIES", allergyLine],
+              ["PREGNANCY / POSTPARTUM", pregLine],
+              ["MEDICAL CONDITIONS", condLine],
+              ["INJURIES & SURGERIES", h.injuries],
+              ["EMERGENCY CONTACT", h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ""} ${h.emergency.phone || ""}`.trim() : null],
+            ].filter(([l, v]) => v);
             return (
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                   <CKSecHead>HEALTH PROFILE · SCREENING</CKSecHead>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: h.flagged ? rust : teal, textTransform: "uppercase" }}>{h.flagged ? `PAR-Q · ${yesCount} flagged` : "PAR-Q · all clear"}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: h.flagged ? rust : teal, textTransform: "uppercase" }}>{h.flagged ? `PAR-Q · ${yesCount || "review"} flagged` : "PAR-Q · all clear"}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                  {[["INJURIES & SURGERIES", h.injuries], ["MEDICATIONS & CONDITIONS", h.medications], ["EMERGENCY CONTACT", h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ""} ${h.emergency.phone || ""}`.trim() : null]].map(([l, v]) => (
+                  {rows.map(([l, v]) => (
                     <div key={l}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
                       <div style={{ marginTop: 4, fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>{v || "— none noted"}</div>
