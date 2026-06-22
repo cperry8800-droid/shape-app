@@ -144,6 +144,15 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Remove the redundant signed-in "Radio" nav link
+- The signed-in top nav (`pageShell.jsx` `PORTAL_NAV`) carried a left-nav **Radio**
+  tab (`Radio.html`) that duplicated the **SHAPE ▸ RADIO** wordmark link already in the
+  header on the right (rendered for both signed-in and signed-out states). Removed the
+  `Radio` item from all three role navs (client / trainer / nutritionist) — the right-side
+  wordmark is the single radio entry point now; signed-out marketing nav is unchanged, and
+  the footer Product "Radio" link stays.
+- `pageShell.jsx?v=20260622` bumped across the 69 loader pages.
+
 ### 2026-06-22 — Mobile grocery redesign: checklist is the hero (less cluttered, more prominent) (#1372)
 - Reworked the mobile **grocery list** (`BSGrocery`, `iosAppBroadsheetClient.jsx`) per the
   approved direction — the list itself is now the hero, the chrome is slimmed:

@@ -88,7 +88,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
     { kind: "link", label: "Progress", href: "ClientProgress.html" },
     { kind: "link", label: "Community", href: "ClientCommunity.html" },
-    { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   trainer: [
     { kind: "link", label: "Dashboard", href: "TrainerDashboard.html" },
@@ -97,7 +96,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
     { kind: "link", label: "Messages", href: "TrainerMessages.html" },
     { kind: "link", label: "Business", href: "TrainerAnalytics.html" },
-    { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   nutritionist: [
     { kind: "link", label: "Dashboard", href: "NutritionistDashboard.html" },
@@ -106,7 +104,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
     { kind: "link", label: "Messages", href: "NutritionistMessages.html" },
     { kind: "link", label: "Business", href: "NutritionistAnalytics.html" },
-    { kind: "link", label: "Radio", href: "Radio.html" },
   ],
 };
 
