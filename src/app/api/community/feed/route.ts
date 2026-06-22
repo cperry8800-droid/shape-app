@@ -99,3 +99,46 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ post: data });
 }
+
+export async function PATCH(request: Request) {
+  const user = await currentUser(request);
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const client = await clientForRequest(request);
+  const parsed = await readJson<Record<string, unknown>>(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data as { postId?: unknown; title?: unknown; note?: unknown; photoUrl?: unknown; privacy?: unknown; metrics?: unknown } | null;
+  const postId = cleanText(body?.postId, 64);
+  if (!postId) return NextResponse.json({ error: 'postId is required.' }, { status: 400 });
+
+  // Merge metrics so workoutStats/coach/etc. survive a partial edit.
+  const { data: cur } = await client.from('community_posts').select('metrics').eq('id', postId).maybeSingle();
+  const existing = (cur && typeof cur.metrics === 'object' && cur.metrics) ? cur.metrics as Record<string, unknown> : {};
+  const incoming = (typeof body?.metrics === 'object' && body?.metrics) ? body.metrics as Record<string, unknown> : {};
+  const merged: Record<string, unknown> = { ...existing };
+  for (const [k, v] of Object.entries(incoming)) { if (v === '' || v === null) delete merged[k]; else merged[k] = v; }
+  merged.editedAt = new Date().toISOString();
+
+  const patch: Record<string, unknown> = { metrics: merged };
+  if (body?.title !== undefined) patch.title = cleanText(body.title, 200) || 'Post';
+  if (body?.note !== undefined) patch.note = cleanText(body.note, 4000) || null;
+  if (body?.photoUrl !== undefined) patch.photo_url = cleanText(body.photoUrl, 2048) || null;
+  if (body?.privacy !== undefined) patch.privacy = normalizePrivacy(body.privacy);
+
+  const { data, error } = await client
+    .from('community_posts').update(patch)
+    .eq('id', postId).eq('author_id', user.id) // RLS also enforces ownership
+    .select().single();
+  if (error) return dbError(error, 'community feed edit', 400);
+  return NextResponse.json({ post: data });
+}
+
+export async function DELETE(request: Request) {
+  const user = await currentUser(request);
+  if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  const client = await clientForRequest(request);
+  const postId = new URL(request.url).searchParams.get('id') || '';
+  if (!postId) return NextResponse.json({ error: 'id is required.' }, { status: 400 });
+  const { error } = await client.from('community_posts').delete().eq('id', postId).eq('author_id', user.id);
+  if (error) return dbError(error, 'community feed delete', 400);
+  return NextResponse.json({ ok: true });
+}
