@@ -144,6 +144,35 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Code of Conduct + strengthened ToS ban/enforcement rules (web + app)
+- Closes the **ToS-ban-rules follow-up** (raised during compliance Wave 3). Shape's Terms
+  Sec 12 already granted removal rights for 14 enumerated violations but referenced a
+  "code of conduct" that didn't exist; this builds the enforcement framework around it.
+- **New standalone `public/code-of-conduct.html`** (house style, 8 sections): who it applies
+  to + how it's incorporated into the Terms · community standards for everyone · coaches'
+  professional conduct (higher bar — credentials, scope, client safety/boundaries, deliver
+  what you sell, no off-platform fee-dodging, protect client data, no medical claims) ·
+  clients' conduct · safety (not an emergency service; no dangerous/illegal advice; 18+) ·
+  reporting & moderation (how to report, how we review — evidence + proportionality, possible
+  outcomes) · enforcement & ban tiers · a living-document/counsel closer.
+- **terms.html Sec 12 strengthened**: replaced the one-line "Process" para with a tiered
+  enforcement model — **warning → temporary suspension/restriction → permanent removal**
+  (proportionate) — plus a **zero-tolerance immediate-removal list** (threats/violence, sexual
+  misconduct/minors, fraud, illegal/controlled substances, endangering safety, credential
+  fraud, serious security abuse), a **coach higher-bar** clause, and a **no-ban-evasion /
+  re-registration** clause. **Sec 5** now incorporates the Code of Conduct by reference.
+- **Web↔app parity**: app `BSTermsPage` (shared by client + coach apps) gets a new "Code of
+  Conduct" summary entry + a rewritten Termination summary (tiers, immediate bans, no
+  re-registration, appeals). CoC linked from all legal-page footers (terms/privacy/
+  data-compliance/health-data-privacy/subprocessors) + Sec 5 + Sec 12.
+- **Drafted via a multi-agent workflow** (3 parallel drafters + an adversarial legal-consistency
+  reviewer). Applied the review fixes: single canonical Termination block, **softened the
+  ban-evasion language** (dropped a device-fingerprinting claim the Privacy Policy doesn't
+  disclose — limited to email/payment), merged out the redundant old "Process" paragraph, and
+  added the Sec 5 incorporation. All copy is **DRAFT pending legal/privacy counsel** before launch.
+- Verified: HTML tag-balance on the new + edited pages; mobile JSX parse-check; tsc (warroom).
+  Standalone legal pages have no `?v=` companion; the app change rebuilds `public/m`.
+
 ### 2026-06-22 — Grocery list: web redesign ported from the app (ClientGrocery.html)
 - Brought the **mobile grocery redesign** (#1372) to the **website** grocery page so the two
   match — the list is the hero, slimmer chrome:
