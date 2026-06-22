@@ -168,16 +168,19 @@
     <section class="section" id="s2">
       <div class="num">02</div>
       <h2>Subprocessors</h2>
-      <p>We rely on a small set of vetted subprocessors to operate Shape. Each is bound by contract to use data only to provide its service to Shape.</p>
+      <p>We rely on a vetted set of subprocessors to operate Shape. Each is bound by contract to use your data only to provide its service to Shape. The complete, versioned list — with the data category each receives, the region it is processed in, and the transfer mechanism — is on our <a href="/subprocessors.html">Subprocessors</a> page.</p>
       <ul>
-        <li><strong>Supabase</strong> — database, authentication, and storage.</li>
-        <li><strong>Stripe</strong> — payments and payouts.</li>
-        <li><strong>Vercel</strong> — hosting.</li>
-        <li><strong>Cloudflare</strong> — DNS and network.</li>
-        <li><strong>Resend</strong> — transactional email.</li>
-        <li><strong>OpenAI</strong> — powers the in-app "Nora" assistant. Only the text of your support questions is sent, never your health records or account data.</li>
-        <li><strong>Wearable &amp; audio providers you choose to connect</strong> — Strava, Garmin, Whoop, Apple Health, Oura, and Spotify.</li>
+        <li><strong>Supabase</strong> — database, authentication, and file storage (holds the bulk of your data, including health data).</li>
+        <li><strong>Stripe</strong> — payments, subscriptions, and coach payouts.</li>
+        <li><strong>Vercel</strong> — web hosting, edge delivery, and product analytics.</li>
+        <li><strong>Cloudflare</strong> — DNS, network security, and the Turnstile bot check.</li>
+        <li><strong>OpenAI</strong> — powers the in-app "Nora" assistant, voice transcription, and text-to-speech. Depending on the feature you use, the text sent <strong>can include health and fitness context</strong> — for example a summary of your recovery, sleep, weight, or training, or a voice meal-note you record. It is processed only to generate your response; Shape does not use your data to train AI models, sell it, or use it for advertising.</li>
+        <li><strong>Google Firebase Cloud Messaging</strong> — delivers push notifications (device token + notification content).</li>
+        <li><strong>Resend</strong> — transactional (and, where you opt in, marketing) email.</li>
+        <li><strong>Instacart</strong> — only when you choose to send a grocery list to it.</li>
+        <li><strong>Wearable &amp; audio services you choose to connect</strong> — Apple Health, Strava, Garmin, Whoop, Oura, and Spotify. Each connection asks for your consent and pulls only the metrics you authorize.</li>
       </ul>
+      <p>The independent coaches you link with are not subprocessors — they are third-party recipients of the data you choose to share with them, for the purpose of coaching you.</p>
     </section>
 
     <section class="section" id="s3">
@@ -263,6 +266,8 @@
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
         <a href="/data-compliance.html">Data &amp; compliance</a>
+        <a href="/health-data-privacy.html">Consumer health data</a>
+        <a href="/subprocessors.html">Subprocessors</a>
       </div>
       <div class="footer-col">
         <h4>Support</h4>
