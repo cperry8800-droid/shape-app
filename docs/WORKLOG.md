@@ -144,6 +144,23 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Grocery list: web redesign ported from the app (ClientGrocery.html)
+- Brought the **mobile grocery redesign** (#1372) to the **website** grocery page so the two
+  match — the list is the hero, slimmer chrome:
+  - **Dropped the `TO BUY / HAVE / ALL` view filter** — every aisle now renders inline in one
+    scroll (checked items just dim + strike through), so the checklist is the primary surface
+    instead of being gated behind a buy/have toggle. Kept the search box (slimmed, full-width).
+  - **Slim one-line progress strip** — `{got}/{total} got · ~$X to go · {pct}%` + a thin fill
+    bar, above the list (replaces the heavy filter-pill row).
+  - **Unified action bar** — the Send-to-Instacart card now also carries **Save a copy**
+    (turns a read-only nutritionist plan into your own editable list, or duplicates a custom
+    one) + **Share** (native share sheet / clipboard), matching the app's one-bar layout. The
+    web-only "combine multiple lists into one Instacart batch" feature is preserved.
+- ClientGrocery.html renders `ClientGroceryPage` inline (it's a standalone page reached via
+  the Nutrition→Grocery tab; `ClientApp.html` has no grocery tab), so no `?v=` bump needed.
+  Removed the now-dead `FilterPill` component + `filter`/`toBuyCount` state. Inline-babel
+  parse-check clean. Closes the grocery-web-port follow-up.
+
 ### 2026-06-22 — Compliance Waves 3+4 MERGED + migrations applied · review pass · logo cleanup
 - **PR #1381 (Waves 3 + 4) squash-merged to `main`** (`651af508`). The **three migrations
   are APPLIED + verified on Supabase** (`consent_log` table w/ 2 owner policies ·
