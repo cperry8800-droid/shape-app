@@ -337,6 +337,7 @@ function ClientMeSettings() {
     if (!window.confirm("Download a copy of all the data Shape holds about you?")) return;
     try {
       const res = await fetch("/api/account/export", { credentials: "same-origin" });
+      if (res.status === 401) { window.location.href = "/login.html"; return; }
       if (!res.ok) throw new Error("export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

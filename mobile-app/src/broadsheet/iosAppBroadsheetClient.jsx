@@ -17558,6 +17558,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (!window.confirm('Download a copy of all the data Shape holds about you?')) return;
       try {
         const res = await fetch('/api/account/export', { credentials: 'same-origin' });
+        if (res.status === 401) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
         if (!res.ok) throw new Error('export failed');
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);

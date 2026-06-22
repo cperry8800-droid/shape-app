@@ -22,23 +22,26 @@ const OWNED: { key: string; table: string; col: string }[] = [
   { key: 'score_ledger', table: 'score_ledger', col: 'user_id' },
   { key: 'playlists', table: 'member_playlists', col: 'user_id' },
   { key: 'reminders', table: 'user_scheduled_reminders', col: 'user_id' },
-  { key: 'assigned_workouts', table: 'client_workouts', col: 'user_id' },
+  { key: 'assigned_workouts', table: 'client_workouts', col: 'client_id' },
   { key: 'community_posts', table: 'community_posts', col: 'author_id' },
+  { key: 'sent_messages', table: 'messages', col: 'sender_id' },
 ];
 
-// Keys we never include in an export even if present on a row.
-const SENSITIVE_KEYS = /(access|refresh|provider)?_?token$|^password|secret/i;
-function scrub(rows: unknown): unknown {
-  if (!Array.isArray(rows)) return rows;
-  return rows.map((r) => {
-    if (!r || typeof r !== 'object') return r;
+// Keys we never include in an export even if present — at ANY nesting level,
+// since jsonb columns (user_goals.data, client_workouts.payload, integration
+// rows) can carry tokens/secrets in nested objects.
+const SENSITIVE_KEYS = /(access|refresh|provider|id|api|bearer)?_?(token|secret)s?$|^password/i;
+function scrub(val: unknown): unknown {
+  if (Array.isArray(val)) return val.map(scrub);
+  if (val && typeof val === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(r as Record<string, unknown>)) {
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
       if (SENSITIVE_KEYS.test(k)) continue;
-      out[k] = v;
+      out[k] = scrub(v);
     }
     return out;
-  });
+  }
+  return val;
 }
 
 export async function GET(request: Request) {

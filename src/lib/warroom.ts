@@ -328,7 +328,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/push') || p === '/api/notifications' || p === '/api/notify-app') return 'Push & notifications';
   if (p.startsWith('/api/community') || p.startsWith('/api/messages') || p.startsWith('/api/conversations') ||
       p.startsWith('/api/radio') || p === '/api/league' || p === '/api/leaderboard') return 'Community & social';
-  if (p.startsWith('/api/auth') || p.startsWith('/api/me')) return 'Auth & account';
+  if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
   if (p === '/api/health' || p === '/api/warroom') return 'System';
