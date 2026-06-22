@@ -290,10 +290,11 @@ function ClientGroceryPage() {
   };
 
   // Shopping progress for the slim strip (whole list, not the search-narrowed view).
+  const AVG_ITEM_COST = 3.2; // rough per-item $ estimate for the "to go" total
   const groTotal = rawItems.length;
   const groDone = haveCount;
   const groPct = groTotal ? Math.round((groDone / groTotal) * 100) : 0;
-  const groLeft = Math.round((groTotal - groDone) * 3.2); // rough ~$3.20/item still-to-buy
+  const groLeft = Math.round((groTotal - groDone) * AVG_ITEM_COST);
 
   return (
     <DashPage
