@@ -948,7 +948,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
   const [videoBusy, setVideoBusy] = React.useState(false);
   const fileRef = React.useRef(null);
   const videoRef = React.useRef(null);
-  const [tagged, setTagged] = React.useState([]); // [{ userId, name }]
+  const [tagged, setTagged] = React.useState(ed && Array.isArray(ed.mentions) ? ed.mentions : []); // [{ userId, name }]
   const [tagQuery, setTagQuery] = React.useState("");
   const [tagResults, setTagResults] = React.useState([]);
   const [tagOpen, setTagOpen] = React.useState(false);

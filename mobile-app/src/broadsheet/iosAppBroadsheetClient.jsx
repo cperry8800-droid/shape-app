@@ -7280,7 +7280,7 @@ function bsMapActivityPosts(data) {
       k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false,
       // Engagement plumbing — real posts carry their id + live like/comment
       // state so the action row under each card works (demo cards have none).
-      id: p.id || null, who: p.name || '', likes: typeof p.likes === 'number' ? p.likes : 0, liked: !!p.liked,
+      id: p.id || null, privacy: p.privacy || null, who: p.name || '', likes: typeof p.likes === 'number' ? p.likes : 0, liked: !!p.liked,
       comments: Array.isArray(p.comments) ? p.comments : [], repostOf: p.repostOf || null,
     };
   });
