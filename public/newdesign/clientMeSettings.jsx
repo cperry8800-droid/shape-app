@@ -349,8 +349,21 @@ function ClientMeSettings() {
       alert("Could not export your data right now. Email privacy@theshapecommunity.com and we'll send it.");
     }
   }
-  function deleteAccount() {
-    if (window.confirm("Delete your Shape account? This can't be undone. We'll confirm by email before anything is removed.")) contactSupport();
+  async function deleteAccount() {
+    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
+    const typed = window.prompt("This erases your health data, history, photos, and account for good. Type DELETE to confirm.");
+    if ((typed || "").trim().toUpperCase() !== "DELETE") return;
+    try {
+      const res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
+      if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (!res.ok) throw new Error("delete failed");
+      alert("Your account and data have been deleted.");
+      try { if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut(); } catch (e) {}
+      window.location.href = "/";
+    } catch (e) {
+      alert("Could not delete your account right now. Email privacy@theshapecommunity.com and we'll handle it.");
+    }
   }
 
   const p = profile;

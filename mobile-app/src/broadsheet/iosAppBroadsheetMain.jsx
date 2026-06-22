@@ -612,6 +612,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
   const [authMethod, setAuthMethod] = useStateBSM('email'); // 'email' | 'phone'
   const [fullName, setFullName] = useStateBSM('');
+  const [dob, setDob] = useStateBSM('');
   const [username, setUsername] = useStateBSM('');
   const [unameOk, setUnameOk] = useStateBSM(null); // null = unchecked/checking · true · false
   const [email, setEmail] = useStateBSM('');
@@ -686,11 +687,17 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       setAuthError(!username ? 'Pick a username — it becomes your Shape handle.' : 'That username is taken or invalid — try another.');
       return;
     }
+    // 18+ age gate at account creation.
+    if (auth?.configured && isCreate) {
+      if (!dob) { setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+      if (isNaN(d.getTime()) || d > eighteen) { setAuthError('You must be 18 or older to use Shape.'); return; }
+    }
     if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
     setBusy(true);
     try {
       const result = isCreate
-        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role: signupRole, username, captchaToken })
+        ? await auth.signUp({ email: trimmedEmail, password, fullName: fullName.trim(), role: signupRole, username, captchaToken, dob })
         : await auth.signIn({ email: trimmedEmail, password, role, captchaToken });
       // New account needs email confirmation → show the verify screen, don't enter the app.
       if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
@@ -885,6 +892,11 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           {isCreate && (
             <div><div style={labelStyle}>Full name</div>
               <input placeholder="Your name" value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
+            </div>
+          )}
+          {isCreate && (
+            <div><div style={labelStyle}>Date of birth · Shape is 18+</div>
+              <input type="date" value={dob} onChange={(e) => setDob(e.target.value)} style={inputStyle} aria-label="Date of birth" />
             </div>
           )}
           {isCreate && !isPhone && (

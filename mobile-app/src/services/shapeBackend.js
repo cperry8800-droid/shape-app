@@ -213,8 +213,17 @@ async function claimUsername(username) {
   return data;
 }
 
-async function signUp({ email, password, fullName, role, username, captchaToken }) {
+async function signUp({ email, password, fullName, role, username, captchaToken, dob }) {
   const normalizedRole = normalizeRole(role);
+  // 18+ age gate — neutral date of birth; block under-18 signups. (over_18 is
+  // recomputed server-side from date_of_birth by a trigger, so it can't be faked.)
+  if (dob) {
+    const d = new Date(dob);
+    if (!isNaN(d.getTime())) {
+      const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+      if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+    }
+  }
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
     return setCached({
@@ -236,6 +245,7 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
         role: normalizedRole,
         roles: [normalizedRole],
         ...(cleanUsername ? { username: cleanUsername } : {}),
+        ...(dob ? { date_of_birth: dob } : {}),
       },
     },
   });
@@ -249,6 +259,12 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
   }
 
   let profile = data.user ? await upsertProfile(data.user, { fullName, role }) : null;
+  // Persist DOB so the over_18 trigger fires (best-effort: no-ops if the
+  // age-verification migration isn't applied yet). Email-confirm signups keep it
+  // in user_metadata until first login.
+  if (dob && data.user && data.session) {
+    try { await supabase.from('profiles').update({ date_of_birth: dob }).eq('id', data.user.id); } catch (e) { /* column may not exist yet */ }
+  }
   if (data.session) profile = await ensureUsernameClaimed(data.user, profile);
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {

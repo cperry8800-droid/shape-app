@@ -88,6 +88,9 @@ export async function updateSession(request: NextRequest) {
   // Footer) can read it via `headers()` and decide whether to render.
   const forwardedHeaders = new Headers(request.headers);
   forwardedHeaders.set('x-pathname', request.nextUrl.pathname);
+  // Global Privacy Control: recognize the opt-out signal so it's honored
+  // platform-wide (CCPA + state laws require this regardless of sale/share).
+  if (request.headers.get('sec-gpc') === '1') forwardedHeaders.set('x-gpc-optout', '1');
 
   let response = NextResponse.next({ request: { headers: forwardedHeaders } });
 
