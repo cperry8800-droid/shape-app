@@ -585,7 +585,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Contact email standardized to info@theshapecommunity.com on contact + all public pages; privacy/rights routed to privacy@theshapecommunity.com', status: 'done' },
         { label: 'OWNER / COUNSEL before launch: attorney review of all public + counsel docs; appoint EU/UK Art.27 representative; sign DPAs/SCCs with sub-processors; confirm breach-notification contacts; decide MD MODPA (strictest) data-minimization posture', status: 'manual' },
         { label: 'FOLLOW-UP (deferred) — ToS strict BAN rules + Code of Conduct: add explicit grounds on which Shape may ban coaches or clients for violations (terms.html Sec 12 has the base Termination clause; expand into enumerated violation categories + enforcement/appeal process)', status: 'manual' },
-        { label: 'FOLLOW-UP (deferred) — grocery-list WEB port of the 2026-06-22 mobile redesign: ClientGrocery.html is a cleaner separate impl; bring over the slim one-line progress strip + the single Instacart/Save/Share action bar + trim the chrome to match the app', status: 'manual' },
+        { label: 'DONE — grocery-list WEB port of the 2026-06-22 mobile redesign (ClientGrocery.html): list is the hero (dropped the TO BUY/HAVE/ALL view filter — all aisles inline, checked items dim), added the slim one-line progress strip (got/total · ~$ to go · % + fill), and a unified Instacart/Save-a-copy/Share action bar', status: 'done' },
       ],
     },
     {
