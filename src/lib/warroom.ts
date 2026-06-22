@@ -866,6 +866,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach chat thread renders the voice-memo player + meal photo inline', status: 'done' },
         { label: "'Log Now' on a meal preview opens the full logger; calendar preview keeps one-tap 'Ate it as planned'", status: 'done' },
         { label: "Shop list auto-builds from the week's meal ingredients (deduped, aisle-grouped) — matches the meals", status: 'done' },
+        { label: "Grocery list redesigned (mobile): slim 'List name ▾' selector + one-line progress strip + every aisle inline (checklist is the hero) + one bottom action bar (Instacart/Save/Share); a Home 'Shop list' card deep-links straight to it. Website port pending", status: 'done' },
         { label: 'Swap meal: pick which meal first, then the coach-approved alternate', status: 'done' },
         { label: 'Meal-search recents add to the meal + filter as you type', status: 'done' },
         { label: 'meal-notes storage bucket migration applied (audio + image mime types, 15 MB)', status: 'manual' },
