@@ -1004,7 +1004,8 @@
       // score dial — the ring fills + a centre number counts up as you scroll the Score stage
       var scoreness=(a===3)?(1-kk):((b===3)?kk:0);
       if(scoreness>0.04){
-        var prog=Math.max(0,Math.min(1,(fs-3)/0.85));
+        var praw=Math.max(0,Math.min(1,(fs-3)/0.85));
+        var prog=praw*praw; // ease-in: the score climbs gradually — you scroll further before the number rises
         var fill=0.04+prog*0.82, rr=0.81*R, sa=-Math.PI/2, ea=sa+fill*6.283;
         ctx.lineCap='round';
         if(fill>0.01){
@@ -1016,7 +1017,7 @@
           ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+scoreness.toFixed(3)+')'; ctx.arc(lx,ly,3,0,6.283); ctx.fill();
         }
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.font='600 '+Math.round(R*0.46)+'px "Space Grotesk",sans-serif';
+        ctx.font='400 '+Math.round(R*0.46)+'px "Space Grotesk",sans-serif';
         ctx.fillStyle='rgba(245,239,225,'+(scoreness*0.97).toFixed(3)+')';
         ctx.fillText(String(Math.round(prog*847)), cx, cy-R*0.03);
         ctx.font='500 '+Math.round(R*0.082)+'px "JetBrains Mono",monospace';
