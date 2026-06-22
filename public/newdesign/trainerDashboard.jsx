@@ -45,7 +45,7 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
       <Header />
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
-      <main style={{ padding: "0 48px 80px", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ padding: "24px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
           <div data-tour={tourHero}>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 14 }}>{eyebrow}</div>}
@@ -205,7 +205,7 @@ function DashShell({
 
       {/* Main — overflowX hidden matches DashPage; without it the Today pages
           scroll horizontally at 375px (nowrap pulse metas widen the document) */}
-      <main style={{ padding: "0 48px 80px", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ padding: "24px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
           <div data-tour={tourHero} style={{ minWidth: 0 }}>
