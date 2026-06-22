@@ -741,11 +741,18 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       setAuthError('Enter a valid phone number, e.g. +1 555 123 4567.');
       return;
     }
+    // 18+ age gate — phone signup creates an account too (shouldCreateUser), so it
+    // must enforce the same gate as email signup, not just the email path.
+    if (isCreate) {
+      if (!dob) { setAuthError('Enter your date of birth — Shape is for adults 18 and over.'); return; }
+      const d = new Date(dob); const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+      if (isNaN(d.getTime()) || d > eighteen) { setAuthError('You must be 18 or older to use Shape.'); return; }
+    }
     if (captchaOn && !captchaToken) { setAuthError("Just a moment — confirming you're human…"); return; }
     setPhone(e164);
     setBusy(true);
     try {
-      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken });
+      await auth.signInWithPhone({ phone: e164, fullName: fullName.trim(), role: signupRole, captchaToken, dob: isCreate ? dob : undefined });
       setOtpSent(true);
     } catch (error) {
       if (captchaOn) resetCaptcha();
@@ -764,7 +771,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
     }
     setBusy(true);
     try {
-      const result = await auth.verifyPhoneOtp({ phone: _bsNormalizePhone(phone), token: otpCode.trim(), fullName: fullName.trim(), role: signupRole });
+      const result = await auth.verifyPhoneOtp({ phone: _bsNormalizePhone(phone), token: otpCode.trim(), fullName: fullName.trim(), role: signupRole, dob: isCreate ? dob : undefined });
       const nextRole = result?.profile?.role;
       if (nextRole && nextRole !== role) setRole(nextRole);
       onLogin(result);

@@ -40,10 +40,21 @@ const PURGE: { table: string; col: string }[] = [
   { table: 'community_comments', col: 'user_id' },
   { table: 'messages', col: 'sender_id' },
   { table: 'user_activity', col: 'user_id' },
+  // Coach-owned rows — keyed by owner_id, with no FK to auth.users (so the auth
+  // delete does NOT cascade them) and no inbound FKs (so erasing them is safe and
+  // can't touch a client's data). Purging these delists a deleted coach and clears
+  // their uploaded credential metadata + marketplace content.
+  { table: 'provider_credentials', col: 'owner_id' },
+  { table: 'coach_plans', col: 'owner_id' },
+  { table: 'coach_soundtracks', col: 'owner_id' },
+  { table: 'trainers', col: 'owner_id' },
+  { table: 'nutritionists', col: 'owner_id' },
 ];
 
 // Private storage buckets that hold the user's files under a `<uid>/` prefix.
-const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media'];
+// `coach-credentials` holds a coach's COI/certification uploads — included so a
+// coach's verification files aren't orphaned after their account is deleted.
+const BUCKETS = ['progress-photos', 'community-photos', 'meal-notes', 'coach-media', 'coach-credentials'];
 
 async function purgeBucket(admin: ReturnType<typeof createAdminClient>, bucket: string, uid: string): Promise<boolean> {
   try {

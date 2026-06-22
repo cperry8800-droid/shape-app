@@ -44,15 +44,25 @@ export async function POST(req: Request) {
     `Details:\n${details || '(none)'}\n\n` +
     `Action: verify identity, then fulfil within the applicable SLA (CCPA: acknowledge <=10 business days, respond <=45 days; GDPR/state: <=1 month).`;
 
+  // A statutory rights request MUST actually reach the privacy inbox. sendEmail
+  // returns { ok:false } (it never throws) when email is unconfigured or Resend
+  // returns non-2xx — so check the result, don't just guard against throws. If we
+  // can't deliver it, tell the requester to email directly rather than silently
+  // dropping the request while reporting success.
+  let delivered = false;
   try {
-    await sendEmail({
+    const sent = await sendEmail({
       to: TO,
       subject: `[Shape] Privacy request: ${type} - ${email}`,
       text: summary,
       html: `<p>${esc(summary).replace(/\n/g, '<br/>')}</p>`,
     });
+    delivered = sent.ok;
+    if (!sent.ok) console.error('[privacy-request] notify failed:', sent.error);
   } catch (err) {
-    console.error('[privacy-request] notify failed:', err);
+    console.error('[privacy-request] notify threw:', err);
+  }
+  if (!delivered) {
     return NextResponse.json({ error: "Couldn't submit right now. Please email privacy@theshapecommunity.com directly." }, { status: 500 });
   }
 
