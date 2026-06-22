@@ -30,7 +30,7 @@ const OWNED: { key: string; table: string; col: string }[] = [
 // Keys we never include in an export even if present — at ANY nesting level,
 // since jsonb columns (user_goals.data, client_workouts.payload, integration
 // rows) can carry tokens/secrets in nested objects.
-const SENSITIVE_KEYS = /(access|refresh|provider|id|api|bearer)?_?(token|secret)s?$|^password/i;
+const SENSITIVE_KEYS = /(access|refresh|provider|id|api|bearer|client|private|secret|public|signing|encryption|webhook)?_?(token|secret|key|credential)s?$|^password/i;
 function scrub(val: unknown): unknown {
   if (Array.isArray(val)) return val.map(scrub);
   if (val && typeof val === 'object') {

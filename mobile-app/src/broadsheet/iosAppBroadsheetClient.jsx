@@ -17555,6 +17555,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const requestAccountAction = async (action) => {
     // Export is now a real, self-serve download of the user's own data.
     if (action === 'Export') {
+      const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+      if (!signedIn) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
       if (!window.confirm('Download a copy of all the data Shape holds about you?')) return;
       try {
         const res = await fetch('/api/account/export', { credentials: 'same-origin' });
