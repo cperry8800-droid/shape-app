@@ -234,11 +234,11 @@
   .vis .scr img.on{opacity:1}
 
   /* The Member Journey — pinned scroll-scrubbed sequence over a morphing point-cloud */
-  .journey{position:relative;background:linear-gradient(180deg,#02030a 0%,#060c1e 16%,#081127 50%,#050b1a 84%,#02030a 100%)}
+  .journey{position:relative;background:transparent}/* transparent so the page's fixed star sky shows through, like the rest of the page */
   .jtrack{height:1000vh}
   .jpin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
   .jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
-  .jvignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 92% 78% at 52% 47%,transparent 36%,rgba(2,3,10,0.66) 100%)}
+  .jvignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 92% 78% at 52% 47%,transparent 42%,rgba(2,3,10,0.42) 100%)}
   .jhead{position:relative;z-index:3;text-align:center;padding:62px 24px 0}
   .jeyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.34em;text-transform:uppercase;color:var(--teal-b)}
   .jhead h2{font-family:var(--serif);font-weight:300;font-size:clamp(30px,4.8vw,60px);line-height:1.03;letter-spacing:-.03em;margin-top:15px;color:var(--cream)}
@@ -1004,7 +1004,8 @@
       // score dial — the ring fills + a centre number counts up as you scroll the Score stage
       var scoreness=(a===3)?(1-kk):((b===3)?kk:0);
       if(scoreness>0.04){
-        var prog=Math.max(0,Math.min(1,(fs-3)/0.85));
+        var praw=Math.max(0,Math.min(1,(fs-3)/0.85));
+        var prog=praw*praw; // ease-in: the score climbs gradually — you scroll further before the number rises
         var fill=0.04+prog*0.82, rr=0.81*R, sa=-Math.PI/2, ea=sa+fill*6.283;
         ctx.lineCap='round';
         if(fill>0.01){
@@ -1016,7 +1017,7 @@
           ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+scoreness.toFixed(3)+')'; ctx.arc(lx,ly,3,0,6.283); ctx.fill();
         }
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.font='600 '+Math.round(R*0.46)+'px "Space Grotesk",sans-serif';
+        ctx.font='400 '+Math.round(R*0.46)+'px "Space Grotesk",sans-serif';
         ctx.fillStyle='rgba(245,239,225,'+(scoreness*0.97).toFixed(3)+')';
         ctx.fillText(String(Math.round(prog*847)), cx, cy-R*0.03);
         ctx.font='500 '+Math.round(R*0.082)+'px "JetBrains Mono",monospace';
