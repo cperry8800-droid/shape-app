@@ -2730,6 +2730,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
+      {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        return (
+          <BSPlate c={teal} notch={9} spine={2.5} pad="13px 16px 13px 22px" role="button" ariaLabel="Open your shopping list" onClick={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Shop list · this week</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK }}>
+                  Your <span style={{ fontStyle: 'italic', color: teal }}>shopping list.</span>
+                </div>
+                <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Auto-built from your meals · sorted by aisle</div>
+              </div>
+              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Open →</span>
+            </div>
+          </BSPlate>
+        );
+      })()}
+
       {/* WEEKLY CHECK-IN — nudge plate when this week's check-in hasn't been sent */}
       {checkinDue && (
         <BSPlate c={t.ACCENT} tick pad="12px 16px 12px 22px" role="button" ariaLabel="Open the weekly check-in" onClick={() => setCheckinPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
@@ -5653,6 +5672,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     const el = document.querySelector('.bs-scroll');
     if (el) el.scrollTop = 0;
   }, [day, previewMealId, previewRecipe, previewDayBrief, view, skRecipe]);
+
+  // Deep-link from the Home "Shop list" card: Home sets a pending flag then
+  // switches to the Eat tab; on mount we jump straight to the grocery list.
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.__bsPendingGrocery) {
+      window.__bsPendingGrocery = false;
+      setView('grocery');
+    }
+  }, []);
 
   // In-app "name your list" sheet — portaled so it overlays the grocery /
   // library full-screen views from which it's triggered.
@@ -16792,10 +16820,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
   const initialChecked = new Set(allKeys.filter(x => x.have).map(x => x.k));
   const [checked, setChecked] = useStateBSC(initialChecked);
-  const [activeAisle, setActiveAisle] = useStateBSC(0);
   React.useEffect(() => {
     setChecked(new Set(allKeys.filter(x => x.have).map(x => x.k)));
-    setActiveAisle(0);
   }, [list.id || list.name]);
 
   const toggle = (k) => {
@@ -16803,8 +16829,6 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     if (next.has(k)) next.delete(k); else next.add(k);
     setChecked(next);
   };
-  // Clear the checked items for a single aisle (keys are `${aisleIdx}-${itemIdx}`).
-  const resetAisle = (ai) => setChecked(prev => new Set([...prev].filter(k => !k.startsWith(`${ai}-`))));
   const total = allKeys.length;
   const done = checked.size;
   const pct = Math.round((done / total) * 100);
@@ -16891,7 +16915,6 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       setVState('rec');
     } catch (e) { window.__bsToast?.('Microphone unavailable', 'err'); setVState('idle'); }
   };
-  const RR = 22, RC = 2 * Math.PI * RR;
 
   return (
     <BSPage>
@@ -16906,19 +16929,16 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
       <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
 
-      {/* Which list is showing — source chip + name; tap to switch lists */}
+      {/* Which list is showing — a slim name selector; tap to switch lists */}
       {(() => {
-        const src = list.kind === 'recipe'
-          ? { label: 'Recipe list', c: t.AMBER }
-          : list.kind === 'custom'
-          ? { label: 'Your library', c: '#8a5cf6' }
-          : { label: 'Nutri plan · this week', c: rust };
+        const src = list.kind === 'recipe' ? { c: t.AMBER } : list.kind === 'custom' ? { c: '#8a5cf6' } : { c: rust };
         return (
           <div style={{ padding: `12px ${t.padX}px 0` }}>
-            <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${bsTHexA(src.c, 0.35)}`, borderLeft: `3px solid ${src.c}`, background: `${src.c}0d`, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: src.c }}>{src.label}</span>
-              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name === "This week's plan" ? '' : list.name}</span>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: src.c, letterSpacing: '0.1em' }}>SWITCH ▾</span>
+            <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}` }}>
+              <span style={{ flexShrink: 0, width: 9, height: 9, borderRadius: 999, background: src.c }} />
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{total} ITEMS</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: src.c, lineHeight: 1 }}>▾</span>
             </button>
           </div>
         );
@@ -16969,69 +16989,48 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         onUpdate({ ...list, aisles });
       }} />
 
-      <div style={{ padding: `8px ${t.padX}px 24px` }}>
-        {/* Progress card — instrument plate */}
-        <BSPlate c={rust} tick bracket pad="10px 11px 10px 16px" style={{ marginTop: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>PROGRESS</div>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{done}<span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>/{total}</span></div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: rust, letterSpacing: '0.03em' }}>~${estLeft} to go · {list.aisles.length} aisles · est. 22 min</div>
+      <div style={{ padding: `0 ${t.padX}px 24px` }}>
+        {/* Slim progress strip — one line + a thin fill (replaces the heavy plate) */}
+        {total > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{done}/{total} got · <span style={{ color: rust }}>{done < total ? <>~${estLeft} to go</> : 'all set'}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: rust }}>{pct}%</span>
             </div>
-            <svg width="38" height="38" viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
-              <circle cx="28" cy="28" r={RR} fill="none" stroke={t.HAIR} strokeWidth="5" />
-              <circle cx="28" cy="28" r={RR} fill="none" stroke={rust} strokeWidth="5" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={RC * (1 - (total ? done / total : 0))} transform="rotate(-90 28 28)" />
-              <text x="28" y="29" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.MONO, fontSize: '13px', fontWeight: 800, fill: rust }}>{total ? pct : 0}%</text>
-            </svg>
+            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: rust, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
           </div>
-          <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 2 }} /></div>
-          <button onClick={sendInstacart} style={{ width: '100%', marginTop: 9, borderRadius: 8, border: 0, background: rust, color: '#fff', padding: '8px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
-          <div style={{ marginTop: 7, display: 'flex', gap: 7 }}>
-            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '7px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
-            <button onClick={shareList} style={{ borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '7px 15px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
-          </div>
-        </BSPlate>
+        )}
 
-        {/* Aisle tabs — filter so the list doesn't fill the screen */}
-        {list.aisles.length > 0 && (() => {
-          const ai = Math.min(activeAisle, list.aisles.length - 1);
-          const aisle = list.aisles[ai];
+        {/* The checklist — every aisle inline (the list is the hero, no tab filter) */}
+        {list.aisles.map((aisle, ai) => {
+          if (!aisle.items.length) return null;
+          const adone = aisleDoneCount(ai), afull = adone >= aisle.items.length;
           return (
-            <div style={{ marginTop: 22 }}>
-              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
-                {list.aisles.map((a, i) => {
-                  const on = i === ai; const dn = aisleDoneCount(i); const full = a.items.length > 0 && dn >= a.items.length;
-                  return (
-                    <button key={a.aisle} onClick={() => setActiveAisle(i)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', color: on ? '#fff' : (full ? t.INK50 : t.INK), padding: '7px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', textDecoration: full ? 'line-through' : 'none' }}>{a.aisle}</button>
-                  );
-                })}
+            <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingBottom: 7, borderBottom: `2px solid ${t.INK}` }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: afull ? rust : t.INK50 }}>{adone}/{aisle.items.length}</span>
               </div>
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>AISLE · {aisleDoneCount(ai)}/{aisle.items.length} ITEMS</div>
-                <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{aisle.aisle}</div>
-                <div style={{ marginTop: 8 }}>
-                  {aisle.items.map((it, ii) => {
-                    const k = `${ai}-${ii}`; const on = checked.has(k);
-                    return (
-                      <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '14px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
-                        <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
-                          {it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em' }}>{it.meals}</div>}
-                        </div>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
-                          {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {aisle.items.length === 0 && <div style={{ padding: '14px 0', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{editable ? 'No items yet.' : 'Nothing here.'}</div>}
-                </div>
-              </div>
+              {aisle.items.map((it, ii) => {
+                const k = `${ai}-${ii}`; const on = checked.has(k);
+                return (
+                  <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '13px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
+                      {it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em' }}>{it.meals}</div>}
+                    </div>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
+                      {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           );
-        })()}
+        })}
+        {total === 0 && <div style={{ padding: '30px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{editable ? 'Add your first item below.' : 'This list is empty.'}</div>}
 
         {/* Add item (editable lists) — type one, or speak the whole list */}
         {editable && (
@@ -17060,6 +17059,17 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
               {vState === 'rec' ? 'Stop & add items' : vState === 'busy' ? 'Adding from voice…' : 'Speak your list — auto-adds each item'}
             </button>
             {vState === 'rec' && <style>{`@keyframes bsGrocBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>}
+          </div>
+        )}
+
+        {/* Actions — one bar: Instacart primary, Save + Share secondary */}
+        {total > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <button onClick={sendInstacart} style={{ width: '100%', borderRadius: 8, border: 0, background: rust, color: '#fff', padding: '12px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: grocerySaved ? `${rust}14` : 'transparent', color: rust, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? '✓ Saved' : '+ Save to library'}</button>
+              <button onClick={shareList} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
+            </div>
           </div>
         )}
       </div>
