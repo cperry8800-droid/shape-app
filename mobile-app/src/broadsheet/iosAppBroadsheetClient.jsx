@@ -7521,7 +7521,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
         payload = { ...base, title: title.trim() || host || 'Link', note: body.trim(), metrics: { kind: 'link', link: { url: u, title: title.trim() || host, desc: body.trim() } } };
       }
       if (ed && ed.postId) {
-        await window.ShapeCommunity?.update?.({ postId: ed.postId, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: payload.metrics?.video_url || null, metrics: payload.metrics, privacy: vis });
+        await window.ShapeCommunity?.update?.({ postId: ed.postId || ed.id, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: payload.metrics?.video_url || null, metrics: payload.metrics, privacy: vis });
         window.__bsToast?.('Post updated', 'ok');
       } else {
         await window.ShapeCommunity?.createPost?.(payload);
@@ -7628,7 +7628,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 14, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
           {ed && ed.postId && (
-            <button onClick={async () => { if (!window.confirm('Delete this post?')) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
+            <button onClick={async () => { if (!window.confirm('Delete this post? This cannot be undone.')) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
           )}
           <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? (ed ? 'Saving…' : 'Publishing…') : (ed ? 'Save changes →' : 'Publish →')}</button>
         </div>
@@ -10770,7 +10770,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
           {isMe && bsRealPostId(p) && (
-            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status, body: p.note, photo: p.photo || null, video: p.video || null, link: p.link || null, kind: p.kind === 'CLIENT' || p.kind === 'SHAPE' ? null : null, privacy: p.privacy || 'public' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
+            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status, body: p.note, photo: p.photo || null, video: p.video || null, link: p.link || null, kind: null, privacy: p.privacy || 'public' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
           )}
         </div>
         {actCmtOpen === p.id && (
