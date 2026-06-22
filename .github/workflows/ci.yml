@@ -16,6 +16,10 @@ on:
     branches: [main, staging]
   workflow_dispatch:
 
+# Least-privilege token: these CI jobs only read the repo (no writes/pushes).
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -25,10 +29,12 @@ jobs:
     name: Web (typecheck + build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -48,10 +54,12 @@ jobs:
     name: Mobile (build + public/m sync)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
@@ -83,19 +91,44 @@ jobs:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          # Full history so the PR commit-range scan below can diff base..head.
+          # (The working-tree scan doesn't need it; the git-mode scan does.)
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Scan the working tree for secrets
+      - name: Install gitleaks
         run: |
           VERSION=8.21.2
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           chmod +x /tmp/gitleaks
+
+      - name: Scan the working tree for secrets
+        run: |
           # --no-git scans the current checkout (deterministic, fast); the
           # config allowlists the by-design publishable key + generated bundles.
           /tmp/gitleaks detect --no-git --source . --config .gitleaks.toml \
             --redact --no-banner --exit-code 1 || {
-            echo "::error::gitleaks flagged a potential secret — review the (redacted) findings above. If it is a false-positive, allowlist it in .gitleaks.toml."
+            echo "::error::gitleaks flagged a potential secret in the working tree — review the (redacted) findings above. If it is a false-positive, allowlist it in .gitleaks.toml."
             exit 1
           }
-          echo "no secrets detected ✓"
+          echo "working tree clean ✓"
+
+      - name: Scan this PR's commits for secrets
+        if: github.event_name == 'pull_request'
+        run: |
+          # git-mode scan over ONLY this PR's commits (base..head). Catches a
+          # secret that was added in one commit and "removed" in a later commit
+          # of the same PR — the working-tree scan above never sees those, but
+          # the secret is still exposed in history once pushed.
+          BASE='${{ github.event.pull_request.base.sha }}'
+          HEAD='${{ github.event.pull_request.head.sha }}'
+          /tmp/gitleaks detect --source . --config .gitleaks.toml \
+            --log-opts="--diff-merges=first-parent ${BASE}..${HEAD}" \
+            --redact --no-banner --exit-code 1 || {
+            echo "::error::gitleaks flagged a potential secret in this PR's commit history (base..head). Even if it is not in the final diff, a secret committed at any point is exposed — rotate it and rewrite the branch to purge it. If it is a false-positive, allowlist it in .gitleaks.toml."
+            exit 1
+          }
+          echo "PR commits clean ✓"
