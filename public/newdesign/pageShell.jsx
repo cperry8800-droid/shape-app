@@ -1201,3 +1201,82 @@ function ShapeHomeCards() {
 function shapeCardBtn(color) { return { width: 28, height: 28, borderRadius: 7, border: 0, background: "transparent", color, fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1 }; }
 
 Object.assign(window, { ShapeHomeCards });
+
+// Region-aware cookie/analytics consent + Global Privacy Control. EEA/UK visitors
+// see a banner; GPC is honored everywhere; the choice is recorded (and, when
+// signed in, logged to consent_log). No-ops once a choice exists. Loaded via
+// pageShell, so it covers every page that renders the shared shell.
+(function shapeConsent() {
+  if (typeof document === "undefined") return;
+  // Resolves true only when a consent_log row was actually written (so callers
+  // can gate a "logged" flag on a confirmed insert, not an attempt).
+  function logConsent(kind, granted, text) {
+    try {
+      var db = window.shapeDb;
+      if (!(db && db.client && db.client.auth)) return Promise.resolve(false);
+      return db.client.auth.getUser().then(function (r) {
+        var uid = r && r.data && r.data.user && r.data.user.id;
+        if (!uid) return false;
+        return db.client.from("consent_log").insert({ user_id: uid, kind: kind, granted: granted, policy_version: "2026-06-22", source: "banner", consent_text: text }).then(function () { return true; }).catch(function () { return false; });
+      }).catch(function () { return false; });
+    } catch (e) { return Promise.resolve(false); }
+  }
+  function start() {
+    try {
+      var KEY = "shape.consent.v1";
+      var gpc = (typeof navigator !== "undefined" && navigator.globalPrivacyControl === true);
+      if (gpc) {
+        window.__shapeGPC = true;
+        // Log the GPC opt-out once PER USER (not once per browser), and only after
+        // the insert is confirmed — so a signed-out visit (or a failed insert)
+        // doesn't permanently suppress logging for a later signed-in user here.
+        try {
+          var gdb = window.shapeDb;
+          if (gdb && gdb.client && gdb.client.auth) {
+            gdb.client.auth.getUser().then(function (r) {
+              var uid = r && r.data && r.data.user && r.data.user.id;
+              if (!uid) return;                                  // anon: nothing to log yet; their next signed-in visit logs it
+              var gkey = "shape.gpc.logged." + uid;
+              if (localStorage.getItem(gkey)) return;
+              logConsent("gpc_optout", true, "Global Privacy Control honored as an opt-out of sale/sharing.").then(function (ok) {
+                if (ok) { try { localStorage.setItem(gkey, "1"); } catch (e) {} }
+              });
+            }).catch(function () {});
+          }
+        } catch (e) {}
+      }
+      if (localStorage.getItem(KEY)) return;                 // already chose
+      if (gpc) { try { localStorage.setItem(KEY, "reject"); } catch (e) {} return; } // GPC = opt out, no banner
+      var tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+      if (!/^Europe\//.test(tz)) return;                     // region-aware: show only for EEA/UK
+      function record(choice) {
+        try { localStorage.setItem(KEY, choice); } catch (e) {}
+        logConsent("cookies", choice === "accept", "Cookie/analytics consent banner choice: " + choice);
+      }
+      var bar = document.createElement("div");
+      bar.setAttribute("role", "dialog"); bar.setAttribute("aria-label", "Cookie consent");
+      // Use the design-system theme tokens (with the canonical palette as fallback,
+      // since this banner is injected outside any page stylesheet and must stay
+      // legible everywhere).
+      bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--paper,#1a1612);color:var(--ink,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
+      var txt = document.createElement("span");
+      txt.style.cssText = "flex:1;min-width:240px;line-height:1.5";
+      txt.appendChild(document.createTextNode("We use essential cookies to run Shape, and — only with your consent — privacy-friendly analytics. See our "));
+      var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--teal-bright,#2ee0c4)";
+      txt.appendChild(pl); txt.appendChild(document.createTextNode("."));
+      bar.appendChild(txt);
+      function btn(label, choice, primary) {
+        var b = document.createElement("button");
+        b.textContent = label;
+        b.style.cssText = "border:1px solid " + (primary ? "var(--teal,#0ac5a8)" : "rgba(242,237,228,0.25)") + ";background:" + (primary ? "var(--teal,#0ac5a8)" : "transparent") + ";color:" + (primary ? "var(--paper,#1a1612)" : "var(--ink,#f2ede4)") + ";padding:9px 16px;border-radius:7px;font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap";
+        b.onclick = function () { record(choice); if (bar.parentNode) bar.parentNode.removeChild(bar); };
+        return b;
+      }
+      bar.appendChild(btn("Reject non-essential", "reject", false));
+      bar.appendChild(btn("Accept", "accept", true));
+      document.body.appendChild(bar);
+    } catch (e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
+})();

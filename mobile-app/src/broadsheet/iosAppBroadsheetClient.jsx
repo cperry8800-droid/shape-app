@@ -17574,11 +17574,24 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       }
       return;
     }
-    const confirms = {
-      Pause: 'Pause your membership? You keep your data and can resume anytime.',
-      Delete: 'Permanently delete your account and all data? This cannot be undone.',
-    };
-    if (!window.confirm(confirms[action] || `Confirm ${action}?`)) return;
+    // Delete is now a real, irreversible erasure — guard it with a typed confirm.
+    if (action === 'Delete') {
+      if (!(window.ShapeAuth?.getCachedState?.()?.user?.id)) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
+      if (!window.confirm('Permanently delete your account and ALL your data? This cannot be undone.')) return;
+      const typed = window.prompt('This erases your health data, history, photos, and account for good. Type DELETE to confirm.');
+      if ((typed || '').trim().toUpperCase() !== 'DELETE') { window.__bsToast?.('Deletion cancelled.', 'ok'); return; }
+      try {
+        const res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
+        if (res.status === 401) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
+        if (!res.ok) throw new Error('delete failed');
+        window.__bsToast?.('Your account and data have been deleted.', 'ok');
+        setTimeout(onLogout, 1500);
+      } catch (err) {
+        window.__bsToast?.('Could not delete — email privacy@theshapecommunity.com', 'err');
+      }
+      return;
+    }
+    if (!window.confirm('Pause your membership? You keep your data and can resume anytime.')) return;
     try {
       await fetch('/api/me/account-action', {
         method: 'POST', credentials: 'same-origin',
@@ -17586,7 +17599,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         body: JSON.stringify({ action }),
       }).catch(() => null);
       window.__bsToast?.(`${action} request submitted — we’ll email a confirmation.`, 'ok');
-      if (action === 'Delete') setTimeout(onLogout, 1500);
     } catch (err) {
       window.__bsToast?.(`${action} failed`, 'err');
     }
@@ -19734,7 +19746,7 @@ function BSPrivacyPage({ onBack, onContact }) {
     ['05', 'Sharing & AI', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. The "Nora" assistant and voice features are powered by OpenAI, which can receive health and fitness context to generate your response. We do not sell your personal data. The full processor list is at theshapecommunity.com/subprocessors.html.'],
     ['06', 'Public profile & leaderboard', 'Some profile info is visible to other members by design: your name/handle, photo, role, Shape Score and tier, and anything you post publicly. It can appear on your profile, in community feeds, search, and leaderboards. Set Public / Friends / Private in Settings. Your health, training, and nutrition data is never public — only you and your linked coach(es) see it.'],
     ['07', 'Cookies & tracking', 'On the web, Shape uses strictly-necessary cookies (login session, CSRF) and functional cookies (your preferences). Analytics is cookieless (Vercel) — no advertising pixels or cross-site tracking; Stripe sets fraud-prevention cookies on payment pages. The native app uses secure device storage, not cookies.'],
-    ['08', 'Your choices & rights', 'Edit your data and control notifications and profile visibility in Settings. To access, correct, download, or delete your data, withdraw consent, or opt out, email privacy@theshapecommunity.com (self-service tools are rolling out). We do not sell or share your data for advertising; we recognize the Global Privacy Control signal (automatic honoring is rolling out — until then, send opt-outs to privacy@theshapecommunity.com). You may appeal a decision and use an authorized agent; we respond within the time the applicable law requires. The Shape Score rewards program is voluntary — see the Notice of Financial Incentive in the full Privacy Policy.'],
+    ['08', 'Your choices & rights', 'Edit your data and control notifications and profile visibility in Settings. Access, correct, download, or delete your data, withdraw consent, or opt out from Settings → Privacy & data, or by emailing privacy@theshapecommunity.com. We do not sell or share your data for advertising; we recognize the Global Privacy Control signal. You may appeal a decision and use an authorized agent; we respond within the time the applicable law requires. The Shape Score rewards program is voluntary — see the Notice of Financial Incentive in the full Privacy Policy.'],
     ['09', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
     ['10', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
     ['11', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],

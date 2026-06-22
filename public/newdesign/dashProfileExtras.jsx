@@ -149,9 +149,36 @@ function DashProfileExtras() {
       <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px" }}>
         <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>Account · Danger zone</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }} className="dk-3up">
-          <button style={btn(false)}>Export client data</button>
+          <button style={btn(false)} onClick={async (ev) => {
+            const b = ev && ev.currentTarget;
+            if (b) b.disabled = true; // guard against double-submission
+            try {
+              // no-store: the export is the coach's full personal data — keep it out of the browser HTTP cache.
+              const res = await fetch("/api/account/export", { credentials: "same-origin", cache: "no-store" });
+              if (res.status === 401) { window.location.href = "/login.html"; return; }
+              if (!res.ok) throw new Error("export failed");
+              const blob = await res.blob(); const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+              document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+            } catch (e) { alert("Could not export your data right now. Email privacy@theshapecommunity.com."); }
+            finally { if (b) b.disabled = false; }
+          }}>Export my data</button>
           <button style={btn(false)}>Pause coach profile</button>
-          <button style={btn(true)}>Close account</button>
+          <button style={btn(true)} onClick={async (ev) => {
+            const b = ev && ev.currentTarget;
+            if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
+            const typed = window.prompt("This erases your account, profile, and data for good. Type DELETE to confirm.");
+            if ((typed || "").trim().toUpperCase() !== "DELETE") return;
+            if (b) b.disabled = true; // destructive + non-idempotent — block re-clicks while in flight
+            try {
+              const res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
+              if (res.status === 401) { window.location.href = "/login.html"; return; }
+              if (!res.ok) throw new Error("delete failed");
+              alert("Your account and data have been deleted.");
+              try { if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut(); } catch (e) {}
+              window.location.href = "/";
+            } catch (e) { alert("Could not delete your account right now. Email privacy@theshapecommunity.com."); if (b) b.disabled = false; }
+          }}>Close account</button>
         </div>
       </div>
     </section>

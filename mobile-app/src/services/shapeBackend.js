@@ -181,6 +181,7 @@ async function signIn({ email, password, role, captchaToken }) {
   let profile = await fetchProfile(data.user);
   if (!profile) profile = await upsertProfile(data.user, { role });
   profile = await ensureUsernameClaimed(data.user, profile);
+  profile = await ensureDobPersisted(data.user, profile); // claim a signup DOB (email-confirm flow) on first login
 
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -201,6 +202,22 @@ async function ensureUsernameClaimed(user, profile) {
   } catch (e) {}
   return profile;
 }
+// Persist the account's date of birth onto the profiles row so the over_18
+// trigger fires. The email-confirmation signup flow has no session at signUp time
+// (DOB only lives in user_metadata) and the phone flow never touches signUp at
+// all — so copy it on first confirmed login / OTP verify when the profile doesn't
+// carry it yet. Best-effort: no-ops if the age-verification migration isn't
+// applied. Pass an explicit `dob` to seed it directly; otherwise read metadata.
+async function ensureDobPersisted(user, profile, dob) {
+  try {
+    if (!supabase || !user?.id) return profile;
+    const want = dob || (user.user_metadata && user.user_metadata.date_of_birth);
+    if (!want || (profile && profile.date_of_birth)) return profile;
+    const { data } = await supabase.from('profiles').update({ date_of_birth: want }).eq('id', user.id).select().maybeSingle();
+    if (data) profile = data;
+  } catch (e) { /* column may not exist yet */ }
+  return profile;
+}
 async function checkUsernameAvailable(username) {
   if (!supabase) return null;
   try { const { data } = await supabase.rpc('is_username_available', { p_username: String(username || '').replace(/^@/, '') }); return data === true; } catch (e) { return null; }
@@ -213,8 +230,18 @@ async function claimUsername(username) {
   return data;
 }
 
-async function signUp({ email, password, fullName, role, username, captchaToken }) {
+async function signUp({ email, password, fullName, role, username, captchaToken, dob }) {
   const normalizedRole = normalizeRole(role);
+  // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
+  // unparseable date of birth is rejected, and under-18 is blocked. This is the
+  // authoritative server-side check; over_18 is then recomputed from date_of_birth
+  // by a DB trigger, so neither the date nor the derived flag can be faked.
+  {
+    const d = dob ? new Date(dob) : null;
+    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+  }
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
     return setCached({
@@ -236,6 +263,7 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
         role: normalizedRole,
         roles: [normalizedRole],
         ...(cleanUsername ? { username: cleanUsername } : {}),
+        ...(dob ? { date_of_birth: dob } : {}),
       },
     },
   });
@@ -249,6 +277,12 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
   }
 
   let profile = data.user ? await upsertProfile(data.user, { fullName, role }) : null;
+  // Persist DOB so the over_18 trigger fires (best-effort: no-ops if the
+  // age-verification migration isn't applied yet). Email-confirm signups keep it
+  // in user_metadata until first login.
+  if (dob && data.user && data.session) {
+    try { await supabase.from('profiles').update({ date_of_birth: dob }).eq('id', data.user.id); } catch (e) { /* column may not exist yet */ }
+  }
   if (data.session) profile = await ensureUsernameClaimed(data.user, profile);
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -261,21 +295,35 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
 // Step 1: request an SMS one-time code. Supabase sends it via the configured
 // SMS provider (Twilio) — see the Auth → Providers → Phone settings. With
 // `shouldCreateUser: true` this doubles as passwordless sign-UP for new phones.
-async function signInWithPhone({ phone, fullName, role, captchaToken }) {
+async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCreate }) {
   const normalizedPhone = String(phone || '').trim();
   if (!normalizedPhone) throw new Error('Enter your phone number.');
+  // 18+ age gate — account CREATION via phone must carry a valid DOB, exactly like
+  // email signUp (no soft-fail). Creation only ever happens in the create flow:
+  // `shouldCreateUser` is tied to isCreate below, so an existing user signing in
+  // (isCreate false) never provisions an account and needs no DOB, while a new
+  // account can only be made through the DOB-required create path. over_18 is
+  // recomputed from date_of_birth by a trigger, so the value can't be faked.
+  if (isCreate) {
+    const d = dob ? new Date(dob) : null;
+    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+  }
   if (!authConfigured) {
     // Demo mode (no Supabase configured): pretend the code was sent.
     return { otpSent: true, demo: true, phone: normalizedPhone };
   }
+  const meta = {};
+  if (fullName) meta.full_name = fullName;
+  if (role) meta.role = normalizeRole(role);
+  if (isCreate && dob) meta.date_of_birth = dob; // claimed onto profiles after OTP verify
   const { error } = await supabase.auth.signInWithOtp({
     phone: normalizedPhone,
     options: {
-      shouldCreateUser: true,
+      shouldCreateUser: !!isCreate, // only the create flow may provision an account — and that path always carries a DOB
       ...(captchaToken ? { captchaToken } : {}),
-      data: fullName || role
-        ? { full_name: fullName || '', role: normalizeRole(role) }
-        : undefined,
+      data: Object.keys(meta).length ? meta : undefined,
     },
   });
   if (error) throw error;
@@ -284,7 +332,7 @@ async function signInWithPhone({ phone, fullName, role, captchaToken }) {
 
 // Step 2: verify the 6-digit SMS code, establish the session, and (for a brand
 // new phone account) seed the profile row + bridge the session to the API.
-async function verifyPhoneOtp({ phone, token, fullName, role }) {
+async function verifyPhoneOtp({ phone, token, fullName, role, dob }) {
   const normalizedPhone = String(phone || '').trim();
   const code = String(token || '').trim();
   if (!normalizedPhone || !code) throw new Error('Enter the code we texted you.');
@@ -301,6 +349,9 @@ async function verifyPhoneOtp({ phone, token, fullName, role }) {
 
   let profile = data.user ? await fetchProfile(data.user) : null;
   if (!profile && data.user) profile = await upsertProfile(data.user, { fullName, role });
+  // Persist the date of birth from this signup (or from earlier OTP metadata) so
+  // the over_18 trigger fires — phone signups never hit the email signUp path.
+  if (data.user) profile = await ensureDobPersisted(data.user, profile, dob);
 
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -375,6 +426,7 @@ async function getCurrentSession() {
   // persona. Idempotent (upsert on id).
   if (user && !profile) { try { profile = await upsertProfile(user); } catch (e) {} }
   if (user) profile = await ensureUsernameClaimed(user, profile); // claim a signup-chosen username on first (confirmed) login
+  if (user) profile = await ensureDobPersisted(user, profile); // claim a signup DOB on first (confirmed) login → fires the over_18 trigger
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)

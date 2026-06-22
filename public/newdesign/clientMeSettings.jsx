@@ -332,11 +332,14 @@ function ClientMeSettings() {
     try { if (typeof window.__openChat === "function") { window.__openChat(); return; } } catch (e) {}
     window.location.href = "/contact.html";
   }
-  async function exportData() {
+  async function exportData(ev) {
+    const btn = ev && ev.currentTarget;
     if (!signedIn) { window.location.href = "/login.html"; return; }
     if (!window.confirm("Download a copy of all the data Shape holds about you?")) return;
+    if (btn) btn.disabled = true; // guard against double-submission
     try {
-      const res = await fetch("/api/account/export", { credentials: "same-origin" });
+      // no-store: the export is all of the user's personal data — never let it sit in the browser HTTP cache.
+      const res = await fetch("/api/account/export", { credentials: "same-origin", cache: "no-store" });
       if (res.status === 401) { window.location.href = "/login.html"; return; }
       if (!res.ok) throw new Error("export failed");
       const blob = await res.blob();
@@ -347,10 +350,28 @@ function ClientMeSettings() {
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch (e) {
       alert("Could not export your data right now. Email privacy@theshapecommunity.com and we'll send it.");
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
-  function deleteAccount() {
-    if (window.confirm("Delete your Shape account? This can't be undone. We'll confirm by email before anything is removed.")) contactSupport();
+  async function deleteAccount(ev) {
+    const btn = ev && ev.currentTarget;
+    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
+    const typed = window.prompt("This erases your health data, history, photos, and account for good. Type DELETE to confirm.");
+    if ((typed || "").trim().toUpperCase() !== "DELETE") return;
+    if (btn) btn.disabled = true; // destructive + non-idempotent — block re-clicks while in flight
+    try {
+      const res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
+      if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (!res.ok) throw new Error("delete failed");
+      alert("Your account and data have been deleted.");
+      try { if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut(); } catch (e) {}
+      window.location.href = "/";
+    } catch (e) {
+      alert("Could not delete your account right now. Email privacy@theshapecommunity.com and we'll handle it.");
+      if (btn) btn.disabled = false; // re-enable to retry (success navigates away)
+    }
   }
 
   const p = profile;

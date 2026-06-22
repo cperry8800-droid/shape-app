@@ -144,6 +144,61 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 
+### 2026-06-22 — Global data-privacy compliance: Waves 3 + 4 (mechanisms + counsel docs)
+- **Makes Shape operable globally + in California** end-to-end. Built on Waves 1–2 (the
+  public + in-app legal docs: privacy.html · terms.html · data-compliance.html ·
+  subprocessors.html · health-data-privacy.html [WA My Health My Data Act] + the in-app
+  BSPrivacyPage/BSDataCompliancePage; canonical spec `docs/legal/compliance-spec.md`).
+  Waves 3 + 4 add the **working rights mechanisms** + the **counsel-review document set**,
+  shipped together as **ONE PR** (`compliance/wave3-mechanisms`) through the full review
+  stack. **⚠ Attorney + privacy-counsel review required before launch** — every legal doc
+  is marked DRAFT/illustrative.
+- **Data EXPORT** — `GET /api/account/export` (#1380, merged earlier; hardened over 4
+  CodeRabbit/Codex rounds): RLS-scoped, recursive `scrub()` strips `*token/*secret/*key/
+  *credential/^password` at every nesting level; correct owned-table list + chat history;
+  blob download. Wired everywhere: client Settings (`clientMeSettings.exportData`), **coach
+  Danger-zone** (`dashProfileExtras` → "Export my data", new this PR), and mobile
+  BSDataCompliancePage.
+- **Data DELETION** — `POST /api/account/delete`: `currentUser` + `createAdminClient`,
+  purges the user's owned rows across ~20 tables + 4 storage buckets
+  (progress-photos/community-photos/meal-notes/coach-media), writes an `account_deletions`
+  audit row, then `auth.admin.deleteUser`. **Preserves Stripe/tax records** (authoritative
+  in Stripe). Type-`DELETE` confirm on web (client + **coach**, new this PR) + mobile.
+- **Privacy RIGHTS intake** — public webform `public/privacy-request.html` (access · delete ·
+  correct · portability · opt-out · limit-sensitive · withdraw-consent · appeal · authorized
+  agent) → `POST /api/privacy-request` → emails `PRIVACY_EMAIL` (default
+  privacy@theshapecommunity.com) via `sendEmail`. Linked from privacy.html +
+  health-data-privacy.html.
+- **GPC** — `src/lib/gpc.ts` `gpcOptOut(request)` reads `sec-gpc:1`; middleware forwards
+  `x-gpc-optout`; `pageShell.jsx` consent IIFE honors `navigator.globalPrivacyControl`.
+  Shape doesn't sell/share so functionally a no-op, but detected server + client + recorded.
+- **Region-aware consent banner** — `pageShell.jsx` `shapeConsent()` IIFE (EEA via `Europe/*`
+  timezone, GPC honor, `consent_log` insert, safe DOM — no innerHTML). `?v=20260622b` across
+  69 loaders.
+- **18+ age gate** at signup — mobile `BSLogin` DOB field ("Shape is 18+") + 18+ validation
+  (throws `under_18`); `shapeBackend.signUp` writes `date_of_birth` metadata;
+  `2026-06-22-age-verification.sql` adds `date_of_birth`/`over_18` cols + `set_over_18()`
+  trigger.
+- **Migrations** (idempotent, RLS) — ⚠ **OWNER: run on Supabase**:
+  `2026-06-22-consent-log.sql` (append-only owner-RLS), `2026-06-22-age-verification.sql`,
+  `2026-06-22-account-deletions.sql` (service-role only). Code no-ops until applied.
+- **Wave 4 counsel docs** (`docs/legal/`, all "DRAFT — for privacy counsel"): `ropa.md`
+  (Art.30) · `dpia.md` (Art.35) · `transfer-impact-assessment.md` (SCCs/DPF) ·
+  `dpa-subprocessor-checklist.md` · `incident-response-plan.md` · `data-retention-schedule.md`
+  · `legitimate-interests-assessment.md` · `accessibility-and-pci-notes.md` (WCAG/SAQ A).
+- **Doc wording flipped live** (the previously hedged "rolling out" lines): privacy.html ×3
+  (export/delete in Settings, rights form link, consent banner), health-data-privacy.html ×2
+  (withdraw-consent + rights form), app BSPrivacyPage item '08' (export/delete in Settings →
+  Privacy & data; recognizes GPC) — removing the over-claims CodeRabbit flagged on #1379.
+- **War Room**: registered `/api/account/delete` + `/api/privacy-request`; added a full
+  "Data privacy & global compliance" checklist section (incl. OWNER/counsel launch gates) +
+  the two deferred follow-ups: **ToS strict ban rules + Code of Conduct** (terms.html Sec 12
+  has the base Termination clause) and the **grocery-list web port** of the 06-22 mobile
+  redesign.
+- `dashProfileExtras.jsx?v=20260622a` (4 loaders). privacy.html / health-data-privacy.html
+  are standalone root pages (no `?v=` companion). Verified: tsc · web + mobile JSX
+  parse-checks · mobile build + `public/m` resync.
+
 ### 2026-06-22 — Dashboard pages: top gap + masthead aligns with the sidebar "Today" tab
 - The dashboard mains had **zero top padding** (`padding: "0 …px 80px"`), so the page
   masthead (date eyebrow + greeting/title) butted right up under the fixed header while the
