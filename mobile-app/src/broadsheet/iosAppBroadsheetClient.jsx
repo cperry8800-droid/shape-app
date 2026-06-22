@@ -19642,7 +19642,7 @@ function BSTermsPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
         </div>
@@ -19714,7 +19714,7 @@ function BSPrivacyPage({ onBack, onContact }) {
     ['05', 'Sharing & AI', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. The "Nora" assistant and voice features are powered by OpenAI, which can receive health and fitness context to generate your response. We do not sell your personal data. The full processor list is at theshapecommunity.com/subprocessors.html.'],
     ['06', 'Public profile & leaderboard', 'Some profile info is visible to other members by design: your name/handle, photo, role, Shape Score and tier, and anything you post publicly. It can appear on your profile, in community feeds, search, and leaderboards. Set Public / Friends / Private in Settings. Your health, training, and nutrition data is never public — only you and your linked coach(es) see it.'],
     ['07', 'Cookies & tracking', 'On the web, Shape uses strictly-necessary cookies (login session, CSRF) and functional cookies (your preferences). Analytics is cookieless (Vercel) — no advertising pixels or cross-site tracking; Stripe sets fraud-prevention cookies on payment pages. The native app uses secure device storage, not cookies.'],
-    ['08', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
+    ['08', 'Your choices & rights', 'Edit your data and control notifications and profile visibility in Settings. To access, correct, download, or delete your data, withdraw consent, or opt out, email privacy@theshapecommunity.com (self-service tools are rolling out). We do not sell or share your data for advertising; we recognize the Global Privacy Control signal (automatic honoring is rolling out — until then, send opt-outs to privacy@theshapecommunity.com). You may appeal a decision and use an authorized agent; we respond within the time the applicable law requires. The Shape Score rewards program is voluntary — see the Notice of Financial Incentive in the full Privacy Policy.'],
     ['09', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
     ['10', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
     ['11', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
@@ -19732,7 +19732,7 @@ function BSPrivacyPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           How Shape collects, uses, and protects your data — across training, nutrition, recovery, payments, and the coaches you work with.
         </div>
@@ -19792,7 +19792,7 @@ function BSDataCompliancePage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           Where your Shape data lives, who processes it, how we secure it, and how we handle privacy & compliance.
         </div>
