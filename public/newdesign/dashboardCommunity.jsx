@@ -888,11 +888,15 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
                 const pPhoto = patched ? (patched.photo_url ?? null) : undefined;
                 const pVideo = patched ? ((patched.metrics && patched.metrics.video_url) ?? null) : undefined;
                 const pBody = patched ? (patched.note ?? "") : undefined;
+                const pMentions = patched
+                  ? ((patched.metrics && Array.isArray(patched.metrics.mentions)) ? patched.metrics.mentions : [])
+                  : undefined;
                 return {
                   ...x,
                   body: pBody !== undefined ? pBody : (post.body !== undefined ? post.body : x.body),
                   photo: pPhoto !== undefined ? pPhoto : (post.photo !== undefined ? post.photo : x.photo),
                   video: pVideo !== undefined ? pVideo : (post.video !== undefined ? post.video : x.video),
+                  mentions: pMentions !== undefined ? pMentions : x.mentions,
                   tag: post.tag !== undefined ? post.tag : x.tag,
                 };
               }));
