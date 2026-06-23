@@ -150,17 +150,18 @@ changelog whenever something ships.
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
 >
-> **Supabase Pro is active (org upgraded 2026-06-23).** Unblocks leaked-password
-> protection (one-click owner toggle, not yet flipped) + branch databases (isolated
-> staging test data). War Room checklist refreshed — applied migrations + shipped
-> features checked off (253 done / 10 pending / 26 manual).
+> **Supabase Pro is active (org upgraded 2026-06-23).** **Leaked-password protection
+> (HaveIBeenPwned) is now ENABLED** (Auth → Attack Protection) — verified via the
+> cleared security advisor. Pro also unblocks branch databases (isolated staging test
+> data). War Room checklist refreshed — applied migrations + shipped features checked
+> off (255 done / 10 pending / 24 manual).
 
 ### 2026-06-23 — Supabase Pro upgrade · War Room refresh · legal/standalone pages → canonical nav + footer + live search
-- **Supabase Pro** (org "Shape", upgraded 2026-06-23) unblocks two previously Free-gated,
-  deferred items: **leaked-password protection** (HaveIBeenPwned — now a one-click owner
-  enable at Auth → Passwords → "Prevent use of leaked passwords"; **toggle not yet flipped**)
-  and **Supabase branch databases** (an isolated DB per staging/preview branch instead of
-  sharing production). Both War Room items reworded; the staging caveat updated.
+- **Supabase Pro** (org "Shape", upgraded 2026-06-23) unblocked two previously Free-gated,
+  deferred items. **Leaked-password protection** (HaveIBeenPwned) is now **ENABLED** (Auth →
+  Attack Protection) — verified by the `auth_leaked_password_protection` security advisor
+  clearing. **Supabase branch databases** (an isolated DB per staging/preview branch instead
+  of sharing production) are now available. Both War Room items updated; the staging caveat updated.
 - **War Room checklist refresh** (`src/lib/warroom.ts`): audited every `manual`/`pending`
   item against this changelog + the repo and **checked off ~19 that were actually done** —
   the migrations the WORKLOG records as APPLIED (notifications/push_tokens/activities,
@@ -168,7 +169,8 @@ changelog whenever something ships.
   weigh-in-body-fat, client-goals-coach-read + client-weigh-ins, checkin-kit, universal-search,
   member-playlists, usernames, channels, meal-notes bucket, community-photos, user_follows,
   follow-requests, public-profile visibility/avatar) + the notifications→push DB webhook
-  (verified 200 end-to-end). **253 done / 10 pending / 26 manual.** The rest are genuine
+  (verified 200 end-to-end), and leaked-password protection once enabled. **255 done /
+  10 pending / 24 manual.** The rest are genuine
   externals: native iOS/Android builds, Garmin/Spotify approvals, owner dashboard toggles
   (Auth rate limits, CAPTCHA enable, leaked-password, Connect activation, gitleaks required
   check), and counsel reviews.
