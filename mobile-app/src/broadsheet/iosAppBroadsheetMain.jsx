@@ -287,6 +287,139 @@ function SplashBackdrop({ bg = 'newsprint', inkRgb, t }) {
   );
 }
 
+// ── "The Shape Daily" launch digest — real member data ───────────────────────
+// Wires the launch splash to the member's actual day. Every fetch is fully
+// guarded (returns null on signed-out / non-member / error), so the splash
+// always renders and "Step inside" always works. shapeBackend.js (imported at
+// boot by main.jsx, before this bundle) provides window.ShapeAuth + the
+// window.Shape* data services; the heavy client bundle is NOT loaded at this
+// stage, so we only use those boot-level services + raw authed fetches for the
+// two endpoints with no service wrapper (score, dashboard streak).
+async function bsSplashGet(path, auth) {
+  try {
+    const st = auth || (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
+    if (!st.user || !st.user.id) return null;
+    const token = st.session && st.session.access_token;
+    const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+    const headers = {};
+    if (token) headers.Authorization = 'Bearer ' + token;
+    const res = await fetch(base + path, { headers, credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) { return null; }
+}
+function bsDigestFirstName(auth) {
+  try {
+    const m = (auth && auth.user && auth.user.user_metadata) || {};
+    const full = (auth && auth.profile && auth.profile.full_name) || m.full_name || m.name || '';
+    const first = String(full).trim().split(/\s+/)[0];
+    return first || null;
+  } catch (e) { return null; }
+}
+function bsDigestRelTime(iso) {
+  try {
+    if (!iso) return '';
+    const then = new Date(iso).getTime();
+    if (!then) return '';
+    const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  } catch (e) { return ''; }
+}
+function bsDigestTime12(hhmm) {
+  try {
+    const mm = String(hhmm).match(/^(\d{1,2}):(\d{2})$/);
+    if (!mm) return hhmm;
+    let h = parseInt(mm[1], 10); const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return h + ':' + mm[2] + ' ' + ap;
+  } catch (e) { return hhmm; }
+}
+function bsDigestClamp(s, n) {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n - 1).trim() + '…' : s;
+}
+async function bsDigestScore(auth) {
+  const d = await bsSplashGet('/api/client/score', auth);
+  if (!d || typeof d.points_total !== 'number') return null;
+  return { score: d.points_total, tier: (d.current_tier && d.current_tier.name) || 'Raw', delta: d.week_gain || 0 };
+}
+async function bsDigestTraining() {
+  try {
+    const plan = (window.ShapePlan && window.ShapePlan.get) ? await window.ShapePlan.get() : null;
+    if (!plan || !plan.training || !plan.training.hasPlan) return null;
+    const workouts = plan.training.workouts || [];
+    const coach = plan.training.coach || null;
+    const now = new Date();
+    const iso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const w = workouts.find((x) => x.scheduledDate === iso) || workouts.find((x) => !x.scheduledDate) || workouts[0];
+    if (!w) return { coach: coach, hasWorkout: false };
+    return { title: w.title || 'Workout', time: w.time || null, durationMin: w.durationMin || null, moveCount: (w.exercises || []).length, coach: coach, hasWorkout: true };
+  } catch (e) { return null; }
+}
+async function bsDigestCoach() {
+  try {
+    const res = (window.ShapeMessages && window.ShapeMessages.listDirectCoachThreads) ? await window.ShapeMessages.listDirectCoachThreads() : null;
+    const threads = (res && res.data) || [];
+    const norm = threads.map((th) => {
+      const cm = (th.messages || []).filter((m) => m.coach);
+      const last = cm.length ? cm[cm.length - 1] : null;
+      return { who: th.who, role: th.provider_role, text: (last && last.t) || th.last || null, at: th.updatedAt || null };
+    }).filter((th) => th.text);
+    norm.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    return norm[0] || null;
+  } catch (e) { return null; }
+}
+async function bsDigestNutrition() {
+  try {
+    const r = await Promise.all([
+      (window.ShapeProgress && window.ShapeProgress.nutrition) ? window.ShapeProgress.nutrition() : null,
+      (window.ShapeProgress && window.ShapeProgress.analytics) ? window.ShapeProgress.analytics() : null,
+    ]);
+    const today = (r[0] && r[0].today) || null;
+    const ticker = (r[1] && r[1].ticker) || null;
+    const cal = (today && today.calories != null) ? today.calories : ((ticker && ticker.cal != null) ? ticker.cal : null);
+    const protein = (today && today.protein != null) ? today.protein : ((ticker && ticker.protein_g != null) ? ticker.protein_g : null);
+    if (cal == null && protein == null) return null;
+    return { cal: cal, calTarget: (ticker && ticker.cal_target != null) ? ticker.cal_target : null, protein: protein, proteinTarget: (ticker && ticker.protein_target != null) ? ticker.protein_target : null };
+  } catch (e) { return null; }
+}
+async function bsDigestStreakChallenge(auth) {
+  let streak = 0, challenge = null;
+  try {
+    const r = await Promise.all([
+      (window.ShapeCommit && window.ShapeCommit.get) ? window.ShapeCommit.get() : null,
+      (window.ShapeCommit && window.ShapeCommit.progress) ? window.ShapeCommit.progress() : null,
+    ]);
+    const commitment = r[0], progress = r[1] || {};
+    if (commitment && commitment.targets) {
+      const tg = commitment.targets;
+      challenge = {
+        workouts: tg.workouts ? { done: progress.workouts || 0, target: tg.workouts } : null,
+        habits: tg.habits ? { done: progress.habits || 0, target: tg.habits } : null,
+        checkin: tg.checkin ? { done: !!progress.checkin } : null,
+      };
+    }
+  } catch (e) {}
+  try {
+    const dash = await bsSplashGet('/api/client/dashboard', auth);
+    streak = (dash && dash.kpis && dash.kpis.streak) || 0;
+  } catch (e) {}
+  return { streak: streak, challenge: challenge };
+}
+async function bsBuildDailyDigest() {
+  let auth = {};
+  try { if (window.ShapeAuth && window.ShapeAuth.getCurrentSession) await window.ShapeAuth.getCurrentSession(); } catch (e) {}
+  try { auth = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {}; } catch (e) { auth = {}; }
+  const name = bsDigestFirstName(auth);
+  if (!auth || !auth.user || !auth.user.id) return { signedIn: false, name: name };
+  const r = await Promise.all([bsDigestScore(auth), bsDigestTraining(), bsDigestCoach(), bsDigestNutrition(), bsDigestStreakChallenge(auth)]);
+  return { signedIn: true, name: name, score: r[0], training: r[1], coach: r[2], nutrition: r[3], streak: r[4].streak, challenge: r[4].challenge };
+}
+
 function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   const t = useBS();
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
@@ -295,6 +428,17 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     if (style === 'classified') return; // classified is tap-only
     const id = setTimeout(onDone, style === 'classified' ? 4200 : (style === 'cosmos' || !style) ? 4000 : 1600);
     return () => clearTimeout(id);
+  }, [style]);
+
+  // The Daily digest: when the "classified" (daily) splash mounts, fetch the
+  // member's real day. Fully guarded; null = still loading. Tap-to-advance works
+  // the whole time regardless of fetch state.
+  const [bsDigest, setBsDigest] = useStateBSM(null);
+  useEffectBSM(() => {
+    if (style !== 'classified') return undefined;
+    let alive = true;
+    bsBuildDailyDigest().then((dd) => { if (alive) setBsDigest(dd); }).catch(() => { if (alive) setBsDigest({ signedIn: false, name: null }); });
+    return () => { alive = false; };
   }, [style]);
 
   // ── 0. COSMOS (default): colourful night sky + floating Shape mark ──
@@ -419,24 +563,9 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     );
   }
 
-  // ── 5. CLASSIFIED: dense newspaper classifieds, wordmark as featured listing
+  // ── 5. THE DAILY: a personalized morning briefing built on real member data ──
   if (style === 'classified') {
-    const STATIC_INSIDE = [
-      { tag: 'SHP-01',  title: 'Shape Score 2.0',         meta: 'Tiers + rewards, live now',         col: 1 },
-      { tag: 'SHP-04',  title: 'Coach chat, instant',     meta: 'Reactions · voice notes · video',   col: 1 },
-      { tag: 'SHP-12',  title: 'Marketplace · 410 coaches', meta: '+38 verified this week',          col: 1 },
-      { tag: 'SHP-19',  title: 'Personal challenges',     meta: 'Your coach writes them, you run',   col: 1 },
-      { tag: 'SHP-22',  title: 'Block 3 unlocked',        meta: 'Hypertrophy · 4 weeks',             col: 1 },
-    ];
-    const STATIC_WORLD = [
-      { tag: 'NWS-18',  title: 'GLP-1 + lifting',         meta: 'Lancet · muscle preservation',      col: 2 },
-      { tag: 'NWS-22',  title: 'Protein floor is 1g/lb',  meta: 'Schoenfeld meta-analysis, May',     col: 2 },
-      { tag: 'WLB-03',  title: 'Sleep is the new gym',    meta: 'Stanford · HRV + recovery',         col: 2 },
-      { tag: 'WLB-09',  title: 'Cold plunge ≠ recovery',  meta: 'JPhysiol · blunts hypertrophy',     col: 2 },
-      { tag: 'MND-14',  title: 'Walking lowers anxiety',  meta: 'JAMA Psychiatry · 30m/day',         col: 2 },
-    ];
-
-    // Today's editorial date — "Thu · May 28 · 2026"
+    // Today's editorial date + time-of-day greeting.
     const today = new Date();
     const wkday = today.toLocaleDateString([], { weekday: 'short' });
     const month = today.toLocaleDateString([], { month: 'short' });
@@ -444,76 +573,165 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const year  = today.getFullYear();
     const dateLine = `${wkday} · ${month} ${day} · ${year}`;
     const dateShort = `${wkday} · ${month} ${day}`;
+    const hr = today.getHours();
+    const greetWord = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
 
-    // "Inside Shape" is the curated list of Shape's OWN product updates &
-    // announcements (STATIC_INSIDE) — NOT the member community feed. Member
-    // posts ("hii") must never surface here, so this is intentionally static.
-    const insideItems = STATIC_INSIDE;
+    // FIXED night-sky palette — the background is a hardcoded dark cosmos
+    // gradient, so the ink must NOT follow the paper theme.
+    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.22)', ACCF = '#34d6c5', AMBER = '#e9b949', BLUE = '#7ed4ff';
+    const serif = `'Newsreader', Georgia, serif`;
 
-    const items = [...insideItems, ...STATIC_WORLD];
-    // FIXED night-sky palette — this splash's background is a hardcoded dark
-    // cosmos gradient, so its ink must NOT follow the paper theme (a saved
-    // light paper turned t.INK near-black → black-on-black at boot).
-    const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.28)', ACCF = '#34d6c5';
-    const _bgRGB = bgColor && bgColor !== 'auto' ? _hexToRGBmain(bgColor) : null;
-    const inkRgbCl = _bgRGB || t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
+    const dg = bsDigest;                 // null while loading
+    const loading = dg === null;
+    const signedIn = !!(dg && dg.signedIn);
+    const name = dg && dg.name;
+    const sc = dg && dg.score;
+    const tr = dg && dg.training;
+    const co = dg && dg.coach;
+    const nu = dg && dg.nutrition;
+    const streak = (dg && dg.streak) || 0;
+    const challenge = dg && dg.challenge;
+
+    // Evergreen research notes — curated, shown to everyone (not personal data).
+    const WORLD = [
+      { tag: 'Strength', title: 'GLP-1 paired with lifting preserves muscle', src: 'Lancet' },
+      { tag: 'Nutrition', title: 'Protein floor holds at ~1g/lb', src: 'Schoenfeld' },
+    ];
+
+    const colHead = { fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', color: INKF, textTransform: 'uppercase', borderBottom: `2px solid ${INKF}`, paddingBottom: 5 };
+    const statK = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50, marginBottom: 2 };
+    const statV = { fontFamily: serif, fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.05 };
+    const statS = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 };
+    const newsTag = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: BLUE, fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 };
+
     return (
-      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, padding: '50px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', cursor: 'pointer' }}>
+      <div onClick={onDone} style={{ position: 'absolute', inset: 0, background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.14), transparent 50%), radial-gradient(120% 70% at 50% 112%, rgba(52,214,197,0.05), transparent 60%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF, padding: '50px 18px 22px', display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden', cursor: 'pointer' }}>
 
-        <div style={{ position: 'relative', zIndex: 1, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><BSLogo size={16} color={INKF} /> Classifieds</span>
+        {/* topbar */}
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${INKF}`, paddingBottom: 8 }}>
+          <span>Your briefing</span>
           <span style={{ fontWeight: 700, color: INKF }}>{dateShort}</span>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', paddingTop: 6 }}>
-          <div style={{ paddingBottom: 12, borderBottom: `1px solid ${INKF}` }}>
-            <div className="bs-splash-title" style={{ lineHeight: 1, width: '100%', margin: '0 auto', textAlign: 'center', paddingBottom: 12, borderBottom: `3px solid ${INKF}` }}>
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 15, width: '100%', lineHeight: 1 }}>
-                <span className="bs-splash-the" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
-                <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block', transform: 'translateY(-3px)' }} />
-                <span className="bs-splash-daily" style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>Daily.</span>
-              </span>
-            </div>
-            <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: INKF70, marginTop: 18 }}>Today's edition · <span style={{ fontWeight: 700, color: INKF }}>{dateLine}</span></div>
+        {/* masthead */}
+        <div style={{ textAlign: 'center', borderBottom: `1px solid ${INKF}`, paddingBottom: 12 }}>
+          <div className="bs-splash-title" style={{ width: '100%', margin: '0 auto', paddingBottom: 12, borderBottom: `3px solid ${INKF}` }}>
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, width: '100%', lineHeight: 1 }}>
+              <span className="bs-splash-the" style={{ fontFamily: serif, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>The</span>
+              <img className="bs-splash-shape" src={`${import.meta.env.BASE_URL}shape-wordmark-tight.png`} alt="Shape" style={{ height: 21, width: 'auto', flexShrink: 0, display: 'block', transform: 'translateY(-2px)' }} />
+              <span className="bs-splash-daily" style={{ fontFamily: serif, fontWeight: 700, fontSize: 30, letterSpacing: '-0.055em', flexShrink: 0 }}>Daily.</span>
+            </span>
           </div>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF70, marginTop: 13 }}>Today's edition · <span style={{ fontWeight: 700, color: INKF }}>{dateLine}</span></div>
         </div>
 
-        <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 4 }}>
-          {[1, 2].map(col => (
-            <React.Fragment key={col}>
-              {col === 2 && <div style={{ background: RULEF }} />}
-              <div style={{ paddingRight: col === 1 ? 10 : 0, paddingLeft: col === 2 ? 10 : 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.24em', color: INKF, textTransform: 'uppercase', borderBottom: `2px solid ${INKF}`, paddingBottom: 5 }}>
-                  {col === 1 ? 'Inside Shape' : 'In the world'}
+        {/* greeting (centered) */}
+        <div style={{ fontFamily: serif, fontSize: 21, fontWeight: 400, letterSpacing: '-0.02em', textAlign: 'center' }}>
+          {greetWord}{name ? <>, <em style={{ fontStyle: 'italic', color: ACCF }}>{name}.</em></> : '.'}
+        </div>
+
+        {loading ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
+        ) : !signedIn ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center', fontFamily: serif, fontSize: 16, color: INKF70, lineHeight: 1.35, padding: '0 8px' }}>
+              Your training, your numbers, and a note from your coach — every morning. <span style={{ color: INKF }}>Step inside to make it yours.</span>
+            </div>
+            <div>
+              <div style={{ ...colHead, marginBottom: 12 }}>In the world</div>
+              {WORLD.map((w, i) => (
+                <div key={i} style={{ marginBottom: 12 }}>
+                  <div style={newsTag}>{w.tag}</div>
+                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 15, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src}</div>
                 </div>
-                {items.filter(i => i.col === col).map((it, i) => {
-                  const tagColor = it.tag.startsWith('SHP') ? ACCF
-                                  : it.tag.startsWith('MND') ? '#a86bc4'
-                                  : it.tag.startsWith('WLB') ? '#7ed4ff'
-                                  : INKF;
-                  return (
-                    <div key={i}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: tagColor, fontWeight: 700, marginBottom: 3 }}>{it.tag}</div>
-                      <div style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 15, letterSpacing: '-0.012em', color: INKF, lineHeight: 1.15 }}>{it.title}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: INKF50, marginTop: 3, textTransform: 'uppercase' }}>{it.meta}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </React.Fragment>
-          ))}
-        </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* lead — today's training (centered) */}
+            <div style={{ borderTop: `1px solid ${RULEF}`, borderBottom: `1px solid ${RULEF}`, padding: '10px 0', textAlign: 'center' }}>
+              {tr && tr.hasWorkout ? (
+                <>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, color: ACCF, marginBottom: 5 }}>Today's training{tr.time ? ' · ' + bsDigestTime12(tr.time) : ''}</div>
+                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 26, lineHeight: 0.98, letterSpacing: '-0.03em' }}>{tr.title}.</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: INKF50, marginTop: 7 }}>
+                    {[tr.durationMin ? tr.durationMin + ' min' : null, tr.moveCount ? tr.moveCount + (tr.moveCount === 1 ? ' move' : ' moves') : null, tr.coach ? 'with ' + tr.coach : null].filter(Boolean).join(' · ')}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700, color: ACCF, marginBottom: 5 }}>Today</div>
+                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 24, lineHeight: 0.98, letterSpacing: '-0.03em' }}>{tr ? 'Rest & recover.' : 'Find your coach.'}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: INKF50, marginTop: 7 }}>{tr ? 'No session scheduled' : 'Browse the marketplace inside'}</div>
+                </>
+              )}
+            </div>
 
-        {/* CTA — actual intro page, user must tap to advance */}
-        <button onClick={onDone} style={{ borderRadius: 999,
-          margin: '4px auto 0', width: 'fit-content',
-          padding: '10px 26px', position: 'relative', zIndex: 1,
-          background: INKF, color: '#0b0e0c', border: 0,
-          fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700,
-          letterSpacing: '0.24em', textTransform: 'uppercase',
-          cursor: 'pointer',
-          display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12,
-        }}>
+            {/* two columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 2 }}>
+              <div style={{ paddingRight: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={colHead}>Your numbers</div>
+                {sc ? (
+                  <div>
+                    <div style={statK}>Shape Score</div>
+                    <div style={statV}>{sc.score.toLocaleString()}{sc.delta > 0 ? <span style={{ color: ACCF, fontFamily: t.MONO, fontWeight: 700, fontSize: 12, marginLeft: 5 }}>▲ {sc.delta}</span> : null}</div>
+                    <div style={statS}>{sc.tier}{sc.delta > 0 ? ' · +' + sc.delta + ' this week' : ''}</div>
+                  </div>
+                ) : null}
+                {nu ? (
+                  <div>
+                    <div style={statK}>Nutrition · today</div>
+                    <div style={statV}>{nu.protein != null ? <>{nu.protein}<span style={{ fontSize: 11, color: INKF50 }}>g protein</span></> : '—'}</div>
+                    <div style={statS}>{nu.cal != null ? nu.cal.toLocaleString() + (nu.calTarget ? ' / ' + nu.calTarget.toLocaleString() : '') + ' kcal' : ''}</div>
+                  </div>
+                ) : null}
+                {(challenge && challenge.workouts) ? (
+                  <div>
+                    <div style={statK}>This week</div>
+                    <div style={statV}>{challenge.workouts.done} <span style={{ fontSize: 12, color: INKF50 }}>of {challenge.workouts.target} done</span></div>
+                    <div style={statS}>{streak > 0 ? streak + '-day streak · keep it' : 'workouts'}</div>
+                  </div>
+                ) : streak > 0 ? (
+                  <div>
+                    <div style={statK}>Streak</div>
+                    <div style={statV}>{streak} <span style={{ fontSize: 12, color: INKF50 }}>day{streak === 1 ? '' : 's'}</span></div>
+                    <div style={statS}>keep it going</div>
+                  </div>
+                ) : null}
+                {!sc && !nu && !(challenge && challenge.workouts) && streak <= 0 ? (
+                  <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: INKF50, lineHeight: 1.5 }}>Log a workout or meal to start your numbers.</div>
+                ) : null}
+              </div>
+
+              <div style={{ background: RULEF }} />
+
+              <div style={{ paddingLeft: 11, display: 'flex', flexDirection: 'column', gap: 11 }}>
+                <div style={colHead}>From your team</div>
+                {co ? (
+                  <div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: AMBER, fontWeight: 700, marginBottom: 4 }}>★ {co.who}{co.at ? ' · ' + bsDigestRelTime(co.at) : ''}</div>
+                    <div style={{ fontFamily: serif, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.3, color: INKF }}>“{bsDigestClamp(co.text, 130)}”</div>
+                  </div>
+                ) : (
+                  <div style={{ fontFamily: serif, fontSize: 13.5, lineHeight: 1.3, color: INKF70 }}>No coach yet — <span style={{ color: ACCF }}>find one inside →</span></div>
+                )}
+                <div style={{ ...colHead, marginTop: 2 }}>In the world</div>
+                {WORLD.map((w, i) => (
+                  <div key={i}>
+                    <div style={newsTag}>{w.tag}</div>
+                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* CTA — tap to enter the app (the whole screen is also tappable) */}
+        <button onClick={onDone} style={{ borderRadius: 999, margin: '4px auto 0', width: 'fit-content', padding: '10px 26px', background: INKF, color: '#0b0e0c', border: 0, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.24em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
           <span>Step inside</span>
           <span style={{ letterSpacing: 0 }}>→</span>
         </button>
