@@ -424,6 +424,28 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => { on = false; clearTimeout(tid); };
   }, []);
 
+  // One-time identity-intent step ("What brings you here?") — shown once, BEFORE
+  // the health screen, so Day 1 reflects what the member is here for. Keyed off
+  // client_onboarding.intentSeen (NOT the goal field, which has a silent default).
+  const [intentGate, setIntentGate] = useStateBSC('unknown'); // unknown | needed | ok
+  React.useEffect(() => {
+    let on = true;
+    const check = async () => {
+      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+      if (!uid) { if (on) setIntentGate('ok'); return; } // signed-out preview skips
+      try {
+        const onb = await window.shapeDb?.getUserGoals?.('client_onboarding');
+        if (on) setIntentGate(onb && onb.intentSeen ? 'ok' : 'needed');
+      } catch (e) { if (on) setIntentGate('ok'); } // never lock out on a fetch error
+    };
+    check();
+    const tid = setTimeout(check, 1600); // auth may resolve after first paint
+    return () => { on = false; clearTimeout(tid); };
+  }, []);
+
+  if (intentGate === 'needed') {
+    return <BSIntentStep onDone={() => setIntentGate('ok')} />;
+  }
   if (healthGate === 'needed') {
     return <BSHealthIntake onDone={() => setHealthGate('ok')} />;
   }
@@ -2313,21 +2335,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // `stakes` = never-shaming upside copy on the levers that carry a real Shape Score
     // commitment (kept = earns + momentum; lapsing dips the number). Framed as "keep /
     // protect", never "or lose". Only the penalize-able levers carry it.
+    // CTAs are framed as a first-person PROMISE ("I'll …"), not a command — tapping
+    // the day's next move feels like making a pledge you then keep (commitment &
+    // consistency). The head stays the directive; the button is the promise.
     const engineMove = engineFlag ? ({
-      checkin:   { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT, stakes: 'keep your momentum + protect 15 pts' },
-      training:  { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN, stakes: 'hold your streak + momentum' },
-      nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal, stakes: 'keep your momentum going' },
-      goal:      { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
-      score:     { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
-      sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setSleepSheet(true)], c: t.AMBER },
+      checkin:   { head: 'Send your weekly check-in.', cta: ["I'll check in →", () => setCheckinPage(true)], c: t.ACCENT, stakes: 'keep your momentum + protect 15 pts' },
+      training:  { head: 'Keep the streak alive.', cta: ["I'll keep my streak →", () => setHabitsPage(true)], c: t.GREEN, stakes: 'hold your streak + momentum' },
+      nutrition: { head: 'Log a meal today.', cta: ["I'll log a meal →", () => goEat()], c: _teal, stakes: 'keep your momentum going' },
+      goal:      { head: 'Your goal pace slipped.', cta: ["I'll weigh in →", () => setGoalsPage(true)], c: t.AMBER },
+      score:     { head: 'Grab a win today.', cta: ["I'll grab a win →", () => setHabitsPage(true)], c: t.AMBER },
+      sleep:     { head: "Log last night's sleep.", cta: ["I'll log my sleep →", () => setSleepSheet(true)], c: t.AMBER },
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
-    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
+    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST });
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
-    if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN });
-    if (!todo.length) return { done: true, head: "You're all set today.", sub: 'Everything logged — nice work.', c: t.GREEN };
+    if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ["I'll finish my habits →", () => setHabitsPage(true)], c: t.GREEN });
+    // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
+    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN };
     const lead = todo[0];
     return { head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c, sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null), heroMealId: lead.mealId || null };
   })();
@@ -14691,6 +14717,78 @@ const BS_PARQ = [
 ];
 // Common ongoing-condition quick-picks (free text still captures the rest).
 const BS_CONDITION_TAGS = ['Diabetes', 'High blood pressure', 'Asthma / respiratory', 'Heart condition', 'Thyroid', 'High cholesterol', 'Anxiety / depression', 'Arthritis / joint', 'Pregnant / postpartum'];
+// One-time "What brings you here?" identity step — captures intent up front and
+// frames the member's identity, then writes the SAME canonical goal keys the
+// Goals page + coach view already read (client_goals.primaryGoal + the profile's
+// client_identity.goal). Marks client_onboarding.intentSeen so it shows once.
+function BSIntentStep({ onDone }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  const [picked, setPicked] = useStateBSC(null);
+  const GOALS = ['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'];
+  const IDENTITY = {
+    'Lose fat': 'someone who’s getting leaner',
+    'Build muscle': 'someone who builds muscle',
+    'Recomp': 'someone reshaping their body',
+    'Maintain': 'someone who keeps it dialed in',
+    'Get stronger': 'someone who trains for strength',
+    'Endurance': 'an endurance athlete in the making',
+    'Mobility': 'someone who moves well for life',
+    'Athletic performance': 'an athlete leveling up',
+    'General health': 'someone investing in their health',
+    'Tone up': 'someone getting toned and strong',
+    'Run a race': 'a runner with a race on the calendar',
+    'Postpartum': 'someone rebuilding strength, step by step',
+  };
+  const persistIntent = async (g) => {
+    try {
+      if (g) {
+        const goals = (await window.shapeDb?.getUserGoals?.('client_goals')) || {};
+        await window.shapeDb?.saveUserGoals?.('client_goals', { ...goals, primaryGoal: g });
+        const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
+        await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: g });
+        window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: g };
+        try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+      }
+      const onb = (await window.shapeDb?.getUserGoals?.('client_onboarding')) || {};
+      await window.shapeDb?.saveUserGoals?.('client_onboarding', { ...onb, intentSeen: true });
+    } catch (e) {}
+  };
+  const pick = (g) => { setPicked(g); persistIntent(g); };
+  const skip = () => { persistIntent(null); onDone(); };
+
+  if (picked) {
+    return (
+      <BSPage>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: `0 ${t.padX}px`, textAlign: 'center' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>You're in</div>
+          <h1 style={{ margin: '14px 0 0', fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.08, color: t.INK }}>You're becoming <span style={{ fontStyle: 'italic', color: teal }}>{IDENTITY[picked] || 'someone who shows up'}.</span></h1>
+          <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5, maxWidth: 320 }}>Every workout, meal, and check-in is a vote for that person. We build the plan — you keep showing up.</div>
+          <button onClick={onDone} style={{ marginTop: 30, padding: '14px 36px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Let's go →</button>
+          <button onClick={() => setPicked(null)} style={{ marginTop: 14, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Change</button>
+        </div>
+      </BSPage>
+    );
+  }
+
+  return (
+    <BSPage>
+      <div style={{ padding: `72px ${t.padX}px 0` }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Welcome to Shape</span>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>What brings you here <span style={{ fontStyle: 'italic', color: teal }}>today?</span></h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginTop: 22 }}>
+          {GOALS.map((g) => (
+            <button key={g} onClick={() => pick(g)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+          ))}
+        </div>
+        <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>Skip for now →</button>
+      </div>
+    </BSPage>
+  );
+}
+
 function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
