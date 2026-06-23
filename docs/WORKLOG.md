@@ -96,7 +96,8 @@ changelog whenever something ships.
   through the normal PR flow). Every dev-branch push also gets its own preview at
   `shape-app-git-claude-<branch>-….vercel.app`. **Caveats:** previews share the
   PRODUCTION Supabase DB + env vars (no isolated test data; don't test destructive
-  migrations here — Supabase branch DBs need the Pro plan, currently deferred), and
+  migrations here — though **Supabase branch DBs are now available** (org upgraded to
+  Pro 2026-06-23), so a branch can run against an isolated branch DB if set up), and
   if a preview URL asks you to log in, that's Vercel Deployment Protection
   (Project Settings → Deployment Protection to relax it).
 - **Verify before committing:** parse-check changed JS, `tsc --noEmit` for TS, build, copy `public/m`.
@@ -148,6 +149,42 @@ changelog whenever something ships.
 > **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
 > `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
+>
+> **Supabase Pro is active (org upgraded 2026-06-23).** Unblocks leaked-password
+> protection (one-click owner toggle, not yet flipped) + branch databases (isolated
+> staging test data). War Room checklist refreshed — applied migrations + shipped
+> features checked off (253 done / 10 pending / 26 manual).
+
+### 2026-06-23 — Supabase Pro upgrade · War Room refresh · legal/standalone pages → canonical nav + footer + live search
+- **Supabase Pro** (org "Shape", upgraded 2026-06-23) unblocks two previously Free-gated,
+  deferred items: **leaked-password protection** (HaveIBeenPwned — now a one-click owner
+  enable at Auth → Passwords → "Prevent use of leaked passwords"; **toggle not yet flipped**)
+  and **Supabase branch databases** (an isolated DB per staging/preview branch instead of
+  sharing production). Both War Room items reworded; the staging caveat updated.
+- **War Room checklist refresh** (`src/lib/warroom.ts`): audited every `manual`/`pending`
+  item against this changelog + the repo and **checked off ~19 that were actually done** —
+  the migrations the WORKLOG records as APPLIED (notifications/push_tokens/activities,
+  store-redemptions+fulfillment, client-program-detail, user_goals, goal-milestone-points,
+  weigh-in-body-fat, client-goals-coach-read + client-weigh-ins, checkin-kit, universal-search,
+  member-playlists, usernames, channels, meal-notes bucket, community-photos, user_follows,
+  follow-requests, public-profile visibility/avatar) + the notifications→push DB webhook
+  (verified 200 end-to-end). **253 done / 10 pending / 26 manual.** The rest are genuine
+  externals: native iOS/Android builds, Garmin/Spotify approvals, owner dashboard toggles
+  (Auth rate limits, CAPTCHA enable, leaked-password, Connect activation, gitleaks required
+  check), and counsel reviews.
+- **Legal + standalone pages now match the canonical site.** Every footer carries the new
+  legal pages (Code of conduct · Data & compliance · Consumer health data · Subprocessors);
+  the 6 legal pages + `contact` + `help` use the **canonical nav** (teal logo, lowercase tabs,
+  search circle, outlined Get-started, SHAPE▸Radio wordmark) and a **dark footer matching the
+  page** (single rule — the earlier double-line removed). Merged as **#1396** (footers) +
+  **#1397** (legal nav).
+- **Live site search works everywhere + facet avatars** (PR **#1398**). pageShell's `SiteSearch`
+  now **lazy-loads the Supabase client** — only 15/76 newdesign pages loaded `supabase.js`, so
+  search was dead on the rest — and results render the **facet gem avatar** (tier gradient,
+  photo/initials) instead of a circle. New `public/newdesign/siteSearch.js` brings the same
+  overlay (`search_shape_people` RPC + Nora concierge hit, XSS-escaped, lazy-loads Supabase) to
+  the standalone legal/contact/help pages. Legacy pre-`newdesign` root pages left alone (pending
+  retirement). `pageShell.jsx?v=20260623b`.
 
 ### 2026-06-22 — Code of Conduct + strengthened ToS ban/enforcement rules (web + app)
 - Closes the **ToS-ban-rules follow-up** (raised during compliance Wave 3). Shape's Terms
