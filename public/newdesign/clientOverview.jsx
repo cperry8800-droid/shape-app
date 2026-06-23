@@ -11,10 +11,7 @@ function ClientOvHero() {
     <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", width: "100%", position: "relative", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 14px", borderRadius: 999, background: "rgba(10,197,168,0.12)", border: "1px solid rgba(10,197,168,0.35)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginLeft: -15, marginBottom: 40 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL }}></span>
-            For clients
-          </div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>For clients</div>
           <h1 style={{ fontFamily: serif, fontSize: "clamp(60px, 7.6vw, 128px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.92, margin: 0, color: LIGHT }}>
             Shape your<br />
             <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: `1.4px ${LIGHT}` }}>lifestyle.</em>
