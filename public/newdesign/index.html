@@ -951,9 +951,11 @@
       var sweepU=(t*0.33)%1.0, sweepX0=-0.92+sweepU*1.84, beatFlash=0;
       if(trainness>0.001){ for(var bsp=0;bsp<3;bsp++){ beatFlash=Math.max(beatFlash, Math.exp(-Math.pow((sweepU-(bsp+0.5)/3)/0.035,2))); } }
       var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+mPa*Math.sin(t*mPs));
-      // No full-canvas glow fill: the journey canvas stays transparent so the page's
-      // single fixed star-sky shows through it, identical to every other section.
-      // (The globe's own dots + their point-glows below still give it presence.)
+      // Glow kept but contained close to the globe so it reads as the globe's own
+      // light, not a full-screen background wash (the moon/nebula tints are gone).
+      var gr=R*(1.25+0.1*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
+      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.30,(0.12+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.55,'rgba(46,224,196,0.04)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
       // sphere spins; flat forms settle nearly face-on with a gentle wobble
       var ry=lerp(rot, Math.sin(t*0.32)*0.12, flat), rx=lerp(0.42+Math.sin(t*0.45)*0.28, Math.sin(t*0.4)*0.08, flat);
