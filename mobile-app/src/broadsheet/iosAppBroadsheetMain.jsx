@@ -410,6 +410,18 @@ async function bsDigestStreakChallenge(auth) {
   } catch (e) {}
   return { streak: streak, challenge: challenge };
 }
+// Open an external source link — system browser on native (Capacitor Browser),
+// else a new tab on the /m/ web build.
+function bsOpenExternal(url) {
+  // Only ever open http(s) links — never javascript:/data: (safe-by-construction
+  // even if a future caller passes a non-constant/remote source URL).
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
+  try {
+    const cap = window.Capacitor;
+    if (cap && cap.Plugins && cap.Plugins.Browser && cap.Plugins.Browser.open) { cap.Plugins.Browser.open({ url }); return; }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch (e) { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {} }
+}
 async function bsBuildDailyDigest() {
   let auth = {};
   try { if (window.ShapeAuth && window.ShapeAuth.getCurrentSession) await window.ShapeAuth.getCurrentSession(); } catch (e) {}
@@ -437,7 +449,24 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
   useEffectBSM(() => {
     if (style !== 'classified') return undefined;
     let alive = true;
-    bsBuildDailyDigest().then((dd) => { if (alive) setBsDigest(dd); }).catch(() => { if (alive) setBsDigest({ signedIn: false, name: null }); });
+    let tries = 0;
+    // The session restores asynchronously during the splash, so the first build
+    // can come back "signed-out" for a member whose auth hasn't resolved yet.
+    // Retry a few times before falling back to the signed-out preview — and stay
+    // on the loading line while retrying, so a member never flashes the preview.
+    const run = () => {
+      bsBuildDailyDigest().then((dd) => {
+        if (!alive) return;
+        if (dd && dd.signedIn) { setBsDigest(dd); return; }   // member: show their day
+        if (tries >= 3) { setBsDigest(dd || { signedIn: false, name: null }); return; } // give up → preview
+        tries += 1; setTimeout(run, 500 * tries);             // auth may still be resolving
+      }).catch(() => {
+        if (!alive) return;
+        if (tries >= 3) { setBsDigest({ signedIn: false, name: null }); return; }
+        tries += 1; setTimeout(run, 500 * tries);
+      });
+    };
+    run();
     return () => { alive = false; };
   }, [style]);
 
@@ -593,9 +622,20 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
     const challenge = dg && dg.challenge;
 
     // Evergreen research notes — curated, shown to everyone (not personal data).
+    // Evergreen research notes — curated, shown to everyone. Each links to its real
+    // source (tap opens it; the source line carries a ↗). Headlines match what the
+    // linked study actually found.
     const WORLD = [
-      { tag: 'Strength', title: 'GLP-1 paired with lifting preserves muscle', src: 'Lancet' },
-      { tag: 'Nutrition', title: 'Protein floor holds at ~1g/lb', src: 'Schoenfeld' },
+      { tag: 'Strength', title: 'Lifting curbs muscle loss on GLP-1s', src: 'PubMed · 2025', url: 'https://pubmed.ncbi.nlm.nih.gov/41122508/' },
+      { tag: 'Nutrition', title: 'Protein gains plateau near 1.6 g/kg', src: 'Morton · BJSM 2018', url: 'https://pubmed.ncbi.nlm.nih.gov/28698222/' },
+    ];
+    // "Inside Shape" — what the app offers (shown in the non-member preview, beside
+    // "In the world"). A signed-in member sees their own numbers here instead.
+    const INSIDE = [
+      { tag: 'Score', title: 'Shape Score 2.0', src: 'Tiers · streaks · rewards' },
+      { tag: 'Coaching', title: 'Vetted coaches, one tap', src: 'Browse the marketplace' },
+      { tag: 'Chat', title: 'Coach chat + community', src: 'Voice notes · channels' },
+      { tag: 'Plan', title: 'Train · eat · recover', src: 'Your whole day, daily' },
     ];
 
     const colHead = { fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', color: INKF, textTransform: 'uppercase', borderBottom: `2px solid ${INKF}`, paddingBottom: 5 };
@@ -633,23 +673,40 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>Putting today together…</div>
         ) : !signedIn ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', fontFamily: serif, fontSize: 16, color: INKF70, lineHeight: 1.35, padding: '0 8px' }}>
-              Your training, your numbers, and a note from your coach — every morning. <span style={{ color: INKF }}>Step inside to make it yours.</span>
-            </div>
-            <div>
-              <div style={{ ...colHead, marginBottom: 12 }}>In the world</div>
-              {WORLD.map((w, i) => (
-                <div key={i} style={{ marginBottom: 12 }}>
-                  <div style={newsTag}>{w.tag}</div>
-                  <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 15, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
           <>
+            {/* invite lead */}
+            <div style={{ borderTop: `1px solid ${RULEF}`, borderBottom: `1px solid ${RULEF}`, padding: '10px 0', textAlign: 'center' }}>
+              <div style={{ fontFamily: serif, fontSize: 15, color: INKF70, lineHeight: 1.4, padding: '0 4px' }}>
+                Your training, your numbers, and a note from your coach — every morning. <span style={{ color: INKF }}>Step inside to make it yours.</span>
+              </div>
+            </div>
+            {/* two columns: Inside Shape + In the world */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 2 }}>
+              <div style={{ paddingRight: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={colHead}>Inside Shape</div>
+                {INSIDE.map((it, i) => (
+                  <div key={i}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', color: ACCF, fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>{it.tag}</div>
+                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{it.title}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{it.src}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: RULEF }} />
+              <div style={{ paddingLeft: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={colHead}>In the world</div>
+                {WORLD.map((w, i) => (
+                  <a key={i} href={/^https?:\/\//i.test(w.url) ? w.url : undefined} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
+                    <div style={newsTag}>{w.tag}</div>
+                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src} ↗</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="bs-hide-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarWidth: 'none', display: 'flex', flexDirection: 'column', gap: 11 }}>
             {/* lead — today's training (centered) */}
             <div style={{ borderTop: `1px solid ${RULEF}`, borderBottom: `1px solid ${RULEF}`, padding: '10px 0', textAlign: 'center' }}>
               {tr && tr.hasWorkout ? (
@@ -670,7 +727,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
             </div>
 
             {/* two columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, flex: 1, marginTop: 2 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', gap: 0, marginTop: 2 }}>
               <div style={{ paddingRight: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={colHead}>Your numbers</div>
                 {sc ? (
@@ -719,15 +776,29 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                 )}
                 <div style={{ ...colHead, marginTop: 2 }}>In the world</div>
                 {WORLD.map((w, i) => (
-                  <div key={i}>
+                  <a key={i} href={/^https?:\/\//i.test(w.url) ? w.url : undefined} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
                     <div style={newsTag}>{w.tag}</div>
                     <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src} ↗</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Inside Shape — what's in the app, beside your day */}
+            <div style={{ marginTop: 4 }}>
+              <div style={colHead}>Inside Shape</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '11px 14px', marginTop: 10 }}>
+                {INSIDE.map((it, i) => (
+                  <div key={i}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', color: ACCF, fontWeight: 700, textTransform: 'uppercase', marginBottom: 1 }}>{it.tag}</div>
+                    <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 12.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{it.title}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 1 }}>{it.src}</div>
                   </div>
                 ))}
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* CTA — tap to enter the app (the whole screen is also tappable) */}
