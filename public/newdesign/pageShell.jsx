@@ -121,12 +121,48 @@ function navGroupsFor(authUser) {
 // to the person's public profile page.
 const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "#34d6c5"], [750, "#d8a23a"], [0, "#8a93a0"]];
 function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#8a93a0"; }
+function ssShade(hex, f) { const h = String(hex || "#888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Facet gem avatar (rotated rounded-square, tier gradient, counter-rotated
+// content) — matches the marketplace / living-profile / app avatar.
+function SsFacet({ photo, ini, color, size = 38 }) {
+  const inset = Math.max(2, Math.round(size * 0.055));
+  return (
+    <span style={{ width: size, height: size, flexShrink: 0, position: "relative", display: "inline-grid", placeItems: "center" }}>
+      <span style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${ssShade(color, 0.5)})`, boxShadow: `0 5px 16px ${color}55, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+        <span style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
+        <span style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
+          {photo
+            ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
+            : <span style={{ transform: "rotate(-45deg)", fontFamily: serif, fontWeight: 500, fontSize: size * 0.4, color: "#f2ede4", lineHeight: 1 }}>{ini}</span>}
+        </span>
+      </span>
+    </span>
+  );
+}
+// Not every page includes supabase.js, so the search lazy-loads the Supabase
+// client (window.shapeDb) on first use — CDN first, then /supabase.js.
+let _ssDbPromise = null;
+function ssEnsureDb() {
+  if (window.shapeDb && window.shapeDb.client) return Promise.resolve(window.shapeDb);
+  if (_ssDbPromise) return _ssDbPromise;
+  const load = (src) => new Promise((res, rej) => {
+    const existing = document.querySelector('script[data-ssdb="' + src + '"]');
+    if (existing) { existing.addEventListener("load", () => res()); existing.addEventListener("error", rej); return; }
+    const s = document.createElement("script"); s.src = src; s.async = true; s.setAttribute("data-ssdb", src);
+    s.onload = () => res(); s.onerror = rej; document.head.appendChild(s);
+  });
+  _ssDbPromise = (window.supabase && window.supabase.createClient ? Promise.resolve() : load("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"))
+    .then(() => (window.shapeDb && window.shapeDb.client) ? null : load("/supabase.js"))
+    .then(() => (window.shapeDb && window.shapeDb.client) ? window.shapeDb : null)
+    .catch(() => null);
+  return _ssDbPromise;
+}
 function SiteSearch({ signedIn = false }) {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
   const [rows, setRows] = React.useState(null); // null = idle · [] = none
   const inputRef = React.useRef(null);
-  React.useEffect(() => { if (open) { const id = setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 60); return () => clearTimeout(id); } }, [open]);
+  React.useEffect(() => { if (open) { ssEnsureDb(); const id = setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 60); return () => clearTimeout(id); } }, [open]);
   React.useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
@@ -138,11 +174,14 @@ function SiteSearch({ signedIn = false }) {
     if (!open || !query) { setRows(null); return undefined; }
     let dead = false;
     const id = setTimeout(() => {
-      const sb = window.shapeDb && window.shapeDb.client;
-      if (!sb) { setRows([]); return; }
-      sb.rpc("search_shape_people", { p_q: query, p_limit: 12 })
-        .then(r => { if (!dead) setRows(Array.isArray(r.data) ? r.data : []); })
-        .catch(() => { if (!dead) setRows([]); });
+      ssEnsureDb().then(db => {
+        if (dead) return;
+        const sb = db && db.client;
+        if (!sb) { setRows([]); return; }
+        sb.rpc("search_shape_people", { p_q: query, p_limit: 12 })
+          .then(r => { if (!dead) setRows(Array.isArray(r.data) ? r.data : []); })
+          .catch(() => { if (!dead) setRows([]); });
+      });
     }, 250);
     return () => { dead = true; clearTimeout(id); };
   }, [q, open]);
@@ -173,7 +212,7 @@ function SiteSearch({ signedIn = false }) {
               {noraHit && (
                 <button onClick={openNora} style={rowStyle}
                   onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                  <img src="/nora-avatar.png" alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover", border: `1.5px solid ${TEAL}` }} />
+                  <SsFacet photo="/nora-avatar.png" ini="N" color={TEAL} />
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Shape's Concierge · always online</span>
                     <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4" }}>Nora</span>
@@ -191,9 +230,7 @@ function SiteSearch({ signedIn = false }) {
                 ) : rows.map((p) => (
                   <a key={p.id} href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(p.id)}`} style={rowStyle}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                    {p.avatar
-                      ? <img src={p.avatar} alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover", border: `1.5px solid ${ssTierColor(p.points)}` }} />
-                      : <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: `${ssTierColor(p.points)}26`, border: `1.5px solid ${ssTierColor(p.points)}`, color: "#f2ede4", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>{String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()}</span>}
+                    <SsFacet photo={p.avatar || ""} ini={String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()} color={ssTierColor(p.points)} />
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: roleColorOf(p.role) }}>{roleLabelOf(p.role)}</span>
                       <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.full_name}</span>
