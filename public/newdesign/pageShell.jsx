@@ -403,7 +403,7 @@ function Footer({ logoHeight = 64 } = {}) {
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
-            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Data & compliance", "/data-compliance.html"]]],
+            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
