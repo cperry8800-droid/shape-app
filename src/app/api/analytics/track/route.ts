@@ -20,8 +20,10 @@ export async function POST(request: Request) {
     const props = body.props && typeof body.props === 'object' && !Array.isArray(body.props) ? body.props : {};
     const supabase = await createClient();
     await supabase.rpc('track_event', { p_event: event, p_props: props });
-  } catch {
-    // swallow — analytics must never surface an error to the caller
+  } catch (e) {
+    // Never surface an error to the caller, but log server-side so a dead
+    // pipeline (e.g. track_event RPC missing pre-migration) isn't invisible.
+    console.warn('[analytics] track failed:', e instanceof Error ? e.message : e);
   }
   return new NextResponse(null, { status: 204 });
 }

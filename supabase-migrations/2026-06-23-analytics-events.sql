@@ -17,7 +17,12 @@ create index if not exists analytics_events_user_ts_idx   on public.analytics_ev
 
 alter table public.analytics_events enable row level security;
 
--- Admin-only read. Mirrors the app's admin allowlist (email in profiles).
+-- Direct SELECT is deny-all by default: the app.admin_emails GUC below is not
+-- set in practice (admins live in the ADMIN_EMAILS env var, used by Node, not a
+-- Postgres GUC), so this matches no one and fails closed. The funnel is read
+-- ONLY via the service-role get_funnel RPC (which bypasses RLS) — this policy is
+-- defense-in-depth, not the gate. Set the GUC here only if you ever need direct
+-- admin table reads via PostgREST.
 drop policy if exists "analytics_events_admin_read" on public.analytics_events;
 create policy "analytics_events_admin_read" on public.analytics_events
   for select using (
