@@ -33,13 +33,12 @@
   .site-sky{position:fixed;inset:0;z-index:0;pointer-events:none;
     background:radial-gradient(ellipse 120% 90% at 50% 0%, #142036 0%, #0a1020 35%, #050810 70%, #02030a 100%)}
   /* Moon glow — soft luminous halo top-right. */
-  .site-moon{position:fixed;inset:0;z-index:0;pointer-events:none;
-    background:radial-gradient(circle 480px at 78% 14%, rgba(232,238,255,0.22) 0%, rgba(232,238,255,0.10) 30%, rgba(232,238,255,0.04) 55%, transparent 75%)}
+  /* Moon + nebula removed: their warm/teal/violet glows sat at fixed spots and read
+     as different background shades from section to section. The page now shows ONE
+     uniform background everywhere — the dark sky gradient + starfield only. */
+  .site-moon{display:none}
   /* Distant nebula — teal/violet wash for depth. */
-  .site-nebula{position:fixed;inset:0;z-index:0;pointer-events:none;
-    background:
-      radial-gradient(ellipse 70% 50% at 18% 70%, rgba(10,197,168,0.10) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 45% at 82% 80%, rgba(120,90,200,0.10) 0%, transparent 60%)}
+  .site-nebula{display:none}
   /* Starfield container — populated by JS. */
   .site-stars{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
   .site-stars circle{fill:#e8eeff}
@@ -952,9 +951,9 @@
       var sweepU=(t*0.33)%1.0, sweepX0=-0.92+sweepU*1.84, beatFlash=0;
       if(trainness>0.001){ for(var bsp=0;bsp<3;bsp++){ beatFlash=Math.max(beatFlash, Math.exp(-Math.pow((sweepU-(bsp+0.5)/3)/0.035,2))); } }
       var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+mPa*Math.sin(t*mPs));
-      var gr=R*(1.7+0.12*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
-      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.34,(0.13+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
-      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      // No full-canvas glow fill: the journey canvas stays transparent so the page's
+      // single fixed star-sky shows through it, identical to every other section.
+      // (The globe's own dots + their point-glows below still give it presence.)
 
       // sphere spins; flat forms settle nearly face-on with a gentle wobble
       var ry=lerp(rot, Math.sin(t*0.32)*0.12, flat), rx=lerp(0.42+Math.sin(t*0.45)*0.28, Math.sin(t*0.4)*0.08, flat);
