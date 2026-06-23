@@ -32,14 +32,14 @@
   /* Night-sky base — deep navy fading to near-black at the horizon. */
   .site-sky{position:fixed;inset:0;z-index:0;pointer-events:none;
     background:radial-gradient(ellipse 120% 90% at 50% 0%, #142036 0%, #0a1020 35%, #050810 70%, #02030a 100%)}
-  /* Moon glow — soft luminous halo top-right. */
-  .site-moon{position:fixed;inset:0;z-index:0;pointer-events:none;
-    background:radial-gradient(circle 480px at 78% 14%, rgba(232,238,255,0.22) 0%, rgba(232,238,255,0.10) 30%, rgba(232,238,255,0.04) 55%, transparent 75%)}
-  /* Distant nebula — teal/violet wash for depth. */
+  /* Warm moon glow removed (it read as a different shade from the journey). */
+  .site-moon{display:none}
+  /* The whole page now carries the journey section's soft teal-dark ambiance as ONE
+     uniform fixed wash — identical on every section — so the rest of the page matches
+     the journey's background (not the other way around). The journey's globe glow just
+     intensifies this same teal locally. */
   .site-nebula{position:fixed;inset:0;z-index:0;pointer-events:none;
-    background:
-      radial-gradient(ellipse 70% 50% at 18% 70%, rgba(10,197,168,0.10) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 45% at 82% 80%, rgba(120,90,200,0.10) 0%, transparent 60%)}
+    background:radial-gradient(ellipse 120% 90% at 50% 45%, rgba(46,224,196,0.08) 0%, rgba(46,224,196,0.032) 45%, transparent 78%)}
   /* Starfield container — populated by JS. */
   .site-stars{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
   .site-stars circle{fill:#e8eeff}
@@ -179,8 +179,9 @@
   .ncta{font-family:var(--sans);font-size:11.5px;font-weight:400;letter-spacing:.04em;text-transform:lowercase;border:1px solid var(--cream);padding:8px 15px;border-radius:999px;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease;white-space:nowrap}
   .ncta:hover{background:var(--cream);color:var(--ink-d);transform:translateY(-1px);box-shadow:0 6px 22px -8px rgba(245,239,225,0.4)}
 
-  .hero{position:relative;min-height:84vh;display:grid;place-items:center;overflow:hidden;padding:80px 24px 90px;
-    background:linear-gradient(rgba(11,14,12,0),rgba(11,14,12,0.18) 70%,rgba(11,14,12,0.4))}
+  .hero{position:relative;min-height:84vh;display:grid;place-items:center;overflow:hidden;padding:80px 24px 90px}
+  /* No bottom-darkening overlay: the hero shows the page's fixed star-sky like the
+     journey below it, so the two meet with no dark band (seam) at the boundary. */
   .blob{position:absolute;border-radius:50%;filter:blur(120px);will-change:transform;mix-blend-mode:screen}
   .blob.a{width:620px;height:620px;top:-8%;left:-6%;background:radial-gradient(circle,var(--teal),transparent 70%);opacity:.16}
   .blob.b{width:660px;height:660px;bottom:-14%;right:-8%;background:radial-gradient(circle,var(--rust),transparent 70%);opacity:.14}
@@ -238,7 +239,7 @@
   .jtrack{height:1500vh}/* taller track = more scroll per stage, so the Score counter (and each beat) climbs slower as you scroll */
   .jpin{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column}
   .jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
-  .jvignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 92% 78% at 52% 47%,transparent 42%,rgba(2,3,10,0.42) 100%)}
+  .jvignette{display:none}/* removed: it darkened the journey's edges (esp. the top edge, right at the hero boundary) — that edge-darkening was the other half of the seam. The globe's own canvas glow stays, so the dot-cloud keeps its atmosphere (nothing shrinks). */
   .jhead{position:relative;z-index:3;text-align:center;padding:62px 24px 0}
   .jeyebrow{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.34em;text-transform:uppercase;color:var(--teal-b)}
   .jhead h2{font-family:var(--serif);font-weight:300;font-size:clamp(30px,4.8vw,60px);line-height:1.03;letter-spacing:-.03em;margin-top:15px;color:var(--cream)}
@@ -359,6 +360,16 @@
     .foot-grid{grid-template-columns:1fr 1fr;gap:28px}
     .foot-grid .fb{grid-column:1 / -1}
     .foot-base{flex-direction:column;gap:10px;align-items:flex-start}
+  }
+
+  /* The full desktop nav stops physically fitting around ~1130px but doesn't
+     collapse until 920px — that gap is where it overflowed the viewport and left a
+     white gutter on the right. Tighten it (drop the wide Radio wordmark, tighten
+     gaps + side padding) so it stays on one row, filling the width, down to 920px. */
+  @media(max-width:1180px){
+    .navr{padding-left:24px;padding-right:24px}
+    .nlinks{gap:11px}
+    .nradio{display:none}
   }
 
   @media(max-width:920px){
@@ -941,8 +952,10 @@
       var sweepU=(t*0.33)%1.0, sweepX0=-0.92+sweepU*1.84, beatFlash=0;
       if(trainness>0.001){ for(var bsp=0;bsp<3;bsp++){ beatFlash=Math.max(beatFlash, Math.exp(-Math.pow((sweepU-(bsp+0.5)/3)/0.035,2))); } }
       var cx=W*0.52, cy=H*0.45, R=Math.min(W,H)*0.27*(1+mPa*Math.sin(t*mPs));
-      var gr=R*(1.7+0.12*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
-      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.34,(0.13+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.5,'rgba(46,224,196,0.05)'); g.addColorStop(1,'rgba(46,224,196,0)');
+      // Glow kept but contained close to the globe so it reads as the globe's own
+      // light, not a full-screen background wash (the moon/nebula tints are gone).
+      var gr=R*(1.25+0.1*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
+      g.addColorStop(0,'rgba(46,224,196,'+Math.min(0.30,(0.12+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri).toFixed(3)+')'); g.addColorStop(0.55,'rgba(46,224,196,0.04)'); g.addColorStop(1,'rgba(46,224,196,0)');
       ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
       // sphere spins; flat forms settle nearly face-on with a gentle wobble
