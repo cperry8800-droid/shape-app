@@ -362,6 +362,16 @@
     .foot-base{flex-direction:column;gap:10px;align-items:flex-start}
   }
 
+  /* The full desktop nav stops physically fitting around ~1130px but doesn't
+     collapse until 920px — that gap is where it overflowed the viewport and left a
+     white gutter on the right. Tighten it (drop the wide Radio wordmark, tighten
+     gaps + side padding) so it stays on one row, filling the width, down to 920px. */
+  @media(max-width:1180px){
+    .navr{padding-left:24px;padding-right:24px}
+    .nlinks{gap:11px}
+    .nradio{display:none}
+  }
+
   @media(max-width:920px){
     .navr{padding-left:22px;padding-right:22px}
     .nlinks{display:none}
