@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+import { mergePostPatch } from './communityPostPatch.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -2478,6 +2479,78 @@ async function createCommunityPost({
   return { stored: 'supabase', data: communityPostFromRow(data) };
 }
 
+async function updateCommunityPost({ postId, title, note, photoUrl, video, metrics, privacy } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before editing.');
+  if (!postId) throw new Error('Post id is required.');
+  if (!supabase) throw new Error('Not connected.');
+  // Fetch the current metrics so we merge (never clobber) the parts the editor
+  // didn't touch (workoutStats, coach, program, delta, mentions…). Scope to the
+  // owner and HARD-FAIL on a read error — otherwise we'd merge against {} and wipe
+  // the existing metrics.
+  const { data: cur, error: curErr } = await supabase
+    .from('community_posts').select('metrics').eq('id', postId).eq('author_id', state.user.id).maybeSingle();
+  if (curErr) throw curErr;
+  const patchMetrics = { ...(metrics || {}) };
+  if (video !== undefined) patchMetrics.video_url = String(video || '').trim();
+  patchMetrics.editedAt = new Date().toISOString();
+  const merged = mergePostPatch(cur?.metrics || {}, patchMetrics);
+  const patch = { metrics: merged };
+  if (title !== undefined) patch.title = String(title || '').trim() || 'Post';
+  if (note !== undefined) patch.note = String(note || '').trim() || null;
+  if (photoUrl !== undefined) patch.photo_url = String(photoUrl || '').trim() || null;
+  if (privacy !== undefined) patch.privacy = privacyToDb(privacy);
+  const { data, error } = await supabase
+    .from('community_posts')
+    .update(patch)
+    .eq('id', postId)
+    .eq('author_id', state.user.id) // RLS also enforces this; belt-and-braces
+    .select(COMMUNITY_POST_SELECT)
+    .single();
+  if (error) throw error;
+  return { stored: 'supabase', data: communityPostFromRow(data) };
+}
+
+// Parse the object path out of a Supabase public storage URL for a bucket
+// (…/storage/v1/object/public/<bucket>/<path>). Returns null for non-matching
+// URLs (e.g. a pasted YouTube link) so we never try to delete media we don't own.
+function bsStoragePathFromUrl(url, bucket) {
+  if (!url || typeof url !== 'string') return null;
+  const marker = '/storage/v1/object/public/' + bucket + '/';
+  const i = url.indexOf(marker);
+  if (i === -1) return null;
+  try { return decodeURIComponent(url.slice(i + marker.length).split('?')[0]); }
+  catch (e) { return url.slice(i + marker.length).split('?')[0]; }
+}
+
+async function deleteCommunityPost({ postId } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before deleting.');
+  if (!postId) throw new Error('Post id is required.');
+  if (!supabase) throw new Error('Not connected.');
+  // Best-effort: remove the post's own uploaded media from public storage so a
+  // deleted photo/video isn't still reachable by URL (owner-scoped). Never blocks the delete.
+  try {
+    const { data: row } = await supabase
+      .from('community_posts').select('photo_url, metrics')
+      .eq('id', postId).eq('author_id', state.user.id).maybeSingle();
+    if (row) {
+      const jobs = [];
+      const ph = bsStoragePathFromUrl(row.photo_url, 'community-photos');
+      if (ph) jobs.push(supabase.storage.from('community-photos').remove([ph]));
+      const vurl = row.metrics && (row.metrics.video_url || row.metrics.video);
+      const vp = bsStoragePathFromUrl(vurl, 'coach-media');
+      if (vp) jobs.push(supabase.storage.from('coach-media').remove([vp]));
+      if (jobs.length) await Promise.allSettled(jobs);
+    }
+  } catch (e) { /* media cleanup is best-effort */ }
+  const { error } = await supabase
+    .from('community_posts')
+    .delete()
+    .eq('id', postId)
+    .eq('author_id', state.user.id);
+  if (error) throw error;
+  return { ok: true };
+}
+
 async function toggleCommunityLike({ postId, cosign = false } = {}) {
   if (!state.user?.id) throw new Error('Sign in before liking posts.');
   if (!postId) throw new Error('Post id is required.');
@@ -4127,6 +4200,8 @@ window.ShapeCommunity = {
   listByAuthor: listCommunityPostsByAuthor,
   countByAuthor: countCommunityPostsByAuthor,
   createPost: createCommunityPost,
+  update: updateCommunityPost,
+  remove: deleteCommunityPost,
   uploadPhoto: uploadCommunityPhoto,
   toggleLike: toggleCommunityLike,
   addComment: addCommunityComment,
