@@ -61,7 +61,8 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
   const [filter, setFilter] = useState('');
   // Top-level view tabs — the page was one long scroll; each area now gets its
   // own focused view. Checklist sections collapse with per-section progress.
-  const [view, setView] = useState<'status' | 'checklist' | 'architecture' | 'api'>('status');
+  const [view, setView] = useState<'status' | 'checklist' | 'architecture' | 'api' | 'funnel'>('status');
+  const [cohortDays, setCohortDays] = useState(0);
   const [secOpen, setSecOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -79,10 +80,23 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
     });
   }, []);
 
-  const refreshSnapshot = useCallback(async () => {
+  const refreshSnapshot = useCallback(async (days?: number) => {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/warroom', { cache: 'no-store' });
+      const d = days ?? cohortDays;
+      const url = d > 0 ? `/api/warroom?cohortDays=${d}` : '/api/warroom';
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) setSnap(await res.json());
+    } catch { /* keep last */ }
+    setRefreshing(false);
+  }, [cohortDays]);
+
+  const handleCohort = useCallback(async (days: number) => {
+    setCohortDays(days);
+    setRefreshing(true);
+    try {
+      const url = days > 0 ? `/api/warroom?cohortDays=${days}` : '/api/warroom';
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) setSnap(await res.json());
     } catch { /* keep last */ }
     setRefreshing(false);
@@ -174,7 +188,7 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             <div>env <b style={{ color: C.text }}>{snap.runtime.vercelEnv ?? snap.runtime.nodeEnv ?? 'local'}</b> · node {snap.runtime.nodeVersion}{snap.runtime.region ? ` · ${snap.runtime.region}` : ''}</div>
             <div>updated {new Date(snap.generatedAt).toLocaleTimeString()}</div>
           </div>
-          <button onClick={refreshSnapshot} disabled={refreshing}
+          <button onClick={() => refreshSnapshot()} disabled={refreshing}
             style={{ background: C.accent, color: '#04101f', border: 'none', borderRadius: 8, padding: '9px 16px', fontWeight: 700, cursor: 'pointer', opacity: refreshing ? 0.6 : 1 }}>
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
@@ -197,6 +211,7 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
             ['checklist', `Checklist · ${doneChecklist}/${totalChecklist}`],
             ['architecture', 'Architecture'],
             ['api', `API routes · ${snap.inventory.apiRoutes}`],
+            ['funnel', 'Funnel'],
           ] as const).map(([k, l]) => {
             const on = view === k;
             return (
@@ -552,12 +567,55 @@ export default function WarRoomClient({ initial }: { initial: WarRoomSnapshot })
           </Panel>
           )}
 
+          {/* ── FUNNEL & DROP-OFF ── */}
+          {view === 'funnel' && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FunnelPanel funnel={snap.funnel} onCohort={handleCohort} />
+          </div>
+          )}
+
         </div>
 
         <footer style={{ marginTop: 28, fontSize: 11.5, color: C.dim, textAlign: 'center' }}>
           Auto-refreshes every 30s · admin-only · full setup detail in GO-LIVE-CHECKLIST.md & DEPLOY.md
         </footer>
       </div>
+    </div>
+  );
+}
+
+function FunnelPanel({ funnel, onCohort }: { funnel: WarRoomSnapshot['funnel']; onCohort: (d: number) => void }) {
+  const max = Math.max(1, funnel.rows[0]?.count || 1);
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <strong style={{ color: C.text }}>Funnel &amp; drop-off · <span style={{ color: C.dim, fontWeight: 400 }}>{funnel.generatedFor}</span></strong>
+        <select onChange={e => onCohort(Number(e.target.value))} defaultValue="0" title="Cohort window"
+          style={{ background: C.panel2, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px' }}>
+          <option value="0">All time</option>
+          <option value="90">Last 90 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+      {funnel.biggestDrop && (
+        <div style={{ color: C.bad, fontSize: 13, marginBottom: 10 }}>
+          Biggest drop: {funnel.rows.find(r => r.isBiggestDrop)?.label} — {funnel.rows.find(r => r.isBiggestDrop)?.pctDrop}%
+        </div>
+      )}
+      {funnel.rows.map(r => (
+        <div key={r.key} style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: r.isBiggestDrop ? C.bad : C.text }}>
+            <span>{r.label}</span>
+            <span>{r.count.toLocaleString()} · {r.pctOfSignup}%{r.pctDrop > 0 ? ` · −${r.pctDrop}%` : ''}</span>
+          </div>
+          <div style={{ height: 6, background: C.panel2, borderRadius: 3, marginTop: 3 }}>
+            <div style={{ height: 6, width: `${Math.round((r.count / max) * 100)}%`, background: r.isBiggestDrop ? C.bad : C.ok, borderRadius: 3 }} />
+          </div>
+        </div>
+      ))}
+      {funnel.rows.length === 0 && (
+        <div style={{ color: C.dim, fontSize: 13, padding: '8px 2px' }}>No funnel data — apply the analytics_events migration to start collecting.</div>
+      )}
     </div>
   );
 }

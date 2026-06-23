@@ -923,6 +923,25 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     remove: function (id) { try { if (window.turnstile && id != null) window.turnstile.remove(id); } catch (e) {} },
   };
 
+  // Fire-and-forget product analytics. Consent-gated: never sends when GPC is on
+  // or the visitor opted out of the cookie/analytics banner. Whitelist enforced
+  // server-side too. Never throws.
+  window.ShapeAnalytics = window.ShapeAnalytics || {
+    track: function (event, props) {
+      try {
+        var gpc = (typeof navigator !== 'undefined' && navigator.globalPrivacyControl === true);
+        var c = null;
+        try { c = localStorage.getItem('shape.consent.v1'); } catch (e) {}
+        if (gpc || c === 'reject') return; // respect GPC + explicit opt-out; track otherwise
+        fetch('/api/analytics/track', {
+          method: 'POST', credentials: 'same-origin', keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: event, props: props || {} }),
+        }).catch(function () {});
+      } catch (e) {}
+    },
+  };
+
   // Global sign-out helper (used by navbar buttons site-wide).
   window.shapeSignOut = async function () {
     if (window.shapeDb) await window.shapeDb.signOut();

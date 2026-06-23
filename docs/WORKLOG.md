@@ -156,6 +156,13 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-23 — Funnel analytics ("find the biggest drop-off")
+- **Computed 7-step funnel** — signup → onboarding → first workout → first nutrition → paid → day 30 / 90 retention — sourced from event patterns in the product (milestone tables + milestones on `score_ledger`).
+- **Thin `analytics_events` table** — user_id + event name + minimal context properties, consent/GPC-gated at `/api/analytics/track` (client route). The 5 gap events from the funnel are consent-gated on the mobile app (same carrier as other telemetry).
+- **War Room "Funnel & drop-off" admin panel** — real-time computed 7-step funnel with biggest-drop highlighted (red severity badge), per-cohort breakout (acquisition source/coach role/day-range), and drill-down to per-user cohorts. Admin-only read via `get_funnel` RPC (service-role compute).
+- **12-month retention + daily purge** — `/api/cron/analytics-purge` (CRON_SECRET-gated) runs hourly, purges events >12 months; backups age out in 90 days. No alerts; silent no-op when events are absent.
+- **⚠ OWNER ACTION: run `supabase-migrations/2026-06-23-analytics-events.sql`** (the table + RPC + cron schedule); code degrades to an empty funnel (no crash) until applied. Docs: `docs/legal/data-retention-schedule.md` row, `docs/legal/ropa.md` section 3.9 (legitimate interests, admin-only, GPC-honored), `docs/WORKLOG.md` (this entry).
+
 ### 2026-06-23 — Supabase Pro upgrade · War Room refresh · legal/standalone pages → canonical nav + footer + live search
 - **Supabase Pro** (org "Shape", upgraded 2026-06-23) unblocked two previously Free-gated,
   deferred items. **Leaked-password protection** (HaveIBeenPwned) is now **ENABLED** (Auth →

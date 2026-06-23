@@ -1315,6 +1315,7 @@ function BSPaywallLoading({ t }) {
 // account), Sign in, and a "Preview the app" path so prospects can look around.
 function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
   const cta = { width: '100%', padding: '11px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   const ghost = { width: '100%', padding: '10px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' };
   return (

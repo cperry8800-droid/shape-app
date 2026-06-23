@@ -155,7 +155,20 @@ This register documents the processing activities carried out by Shape in its ca
 | Retention | While account active / per analytics retention window **[VERIFY exact window]**; backups ≤ 90 days |
 | Security measures | Turnstile bot mitigation; legitimate-interests assessment **[VERIFY LIA documented]**; no targeted/behavioral ads posture **[VERIFY]** |
 
-### 3.9 Legal / Tax
+### 3.9 Product Analytics (Funnel / Drop-off)
+
+| Art. 30 element | Detail |
+|---|---|
+| Purpose | Product funnel analysis; identify and fix the biggest user drop-off points in the onboarding and core flows |
+| Lawful basis | **Legitimate interests (Art. 6(1)(f))** — understanding where members abandon the signup/onboarding/training/nutrition journeys to improve product |
+| Categories of data subjects | Members |
+| Categories of personal data | `analytics_events`: user id + behavioral event name (e.g. `signup`, `onboarding_start`, `first_workout`, `paid_subscription_start`, `day_30_retention`) + minimal non-PII properties (timestamp, event context). **Not special-category** (excludes health/fitness data; is minimal event-behavioral data only) |
+| Recipients / sub-processors | Supabase (DB storage; admin-only read access via RLS) |
+| International transfers + safeguard | US transfer. Supabase: **SCCs + TIA + UK IDTA (not DPF)** |
+| Retention | **12 months**; daily cron (`/api/cron/analytics-purge`) purges events >12 months old; backups ≤ 90 days |
+| Security measures | Admin-only RLS on `analytics_events`; service-role-only read via **`get_funnel` RPC** (computed 7-step funnel, exposed only to admin dashboard War Room panel); **client-gated event collection** (`/api/analytics/track` validates consent/GPC before accepting events); GPC-honored server-side (no events recorded when `x-gpc-optout: 1` is set) |
+
+### 3.10 Legal / Tax
 
 | Art. 30 element | Detail |
 |---|---|
