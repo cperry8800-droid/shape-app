@@ -15,6 +15,8 @@
 import { readdir, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+import { buildFunnel } from './funnel.mjs';
+import { createAdminClient } from './supabase/admin';
 
 export type ServiceStatus = 'ok' | 'degraded' | 'down' | 'missing' | 'unknown';
 
@@ -88,6 +90,7 @@ export type WarRoomSnapshot = {
   checklist: ChecklistSection[];
   readiness: { score: number; total: number; label: string };
   architecture: ShapeArchitecture;
+  funnel: { cohortDays: number; generatedFor: string; rows: import('./funnel').FunnelRow[]; biggestDrop: string | null };
 };
 
 // The product map. Keep this current — it's the "what Shape is becoming" outline.
@@ -201,6 +204,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/score-accountability', 'GET,POST'],
   ['/api/cron/credential-expiry', 'GET,POST'],
   ['/api/cron/reminders', 'GET,POST'],
+  ['/api/analytics/track', 'POST'],
+  ['/api/cron/analytics-purge', 'GET'],
   ['/api/client/reminders', 'GET,POST,DELETE'],
   ['/api/ai/proposals', 'POST'],
   ['/api/ai/proposals/confirm', 'POST'],
@@ -988,10 +993,31 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Daily evaluator /api/cron/score-accountability (vercel.json 07:00 UTC, CRON_SECRET-gated, service-role, fail-open per user). ALL migrations applied; CRON_SECRET set + deployed; cron auth verified live (200). The full A–E system is active', status: 'done' },
       ],
     },
+    {
+      section: 'Funnel analytics',
+      items: [
+        { label: 'Funnel analytics: analytics_events + track_event + get_funnel migration applied; War Room funnel panel live; 5 gap events emitting (consent-gated); 12-month purge cron', status: 'manual' },
+      ],
+    },
   ];
 }
 
-export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
+async function buildFunnelSnapshot(cohortDays = 0): Promise<WarRoomSnapshot['funnel']> {
+  const to = new Date();
+  const from = cohortDays > 0 ? new Date(Date.now() - cohortDays * 86400000) : new Date('2020-01-01');
+  const empty = { cohortDays, generatedFor: 'all', rows: buildFunnel({}), biggestDrop: null };
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('get_funnel', { p_from: from.toISOString(), p_to: to.toISOString() });
+    if (error || !Array.isArray(data)) return empty; // migration not applied yet → graceful empty
+    const counts: Record<string, number> = {};
+    for (const r of data as Array<{ step: string; count: number }>) counts[r.step] = Number(r.count) || 0;
+    const rows = buildFunnel(counts);
+    return { cohortDays, generatedFor: cohortDays ? `last ${cohortDays}d` : 'all', rows, biggestDrop: rows.find(r => r.isBiggestDrop)?.key ?? null };
+  } catch { return empty; }
+}
+
+export async function buildWarRoomSnapshot(cohortDays = 0): Promise<WarRoomSnapshot> {
   const config = buildConfig();
   const apiRoutes = buildApiRoutes();
   const [services, inventory] = await Promise.all([
@@ -1009,6 +1035,8 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
   const total = requiredGroups.length;
   const label = score === total ? 'Launch-ready config' : score === 0 ? 'Not configured' : 'Partially configured';
 
+  const funnel = await buildFunnelSnapshot(cohortDays);
+
   return {
     generatedAt: new Date().toISOString(),
     runtime: {
@@ -1025,5 +1053,6 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
     checklist,
     readiness: { score, total, label },
     architecture: SHAPE_ARCHITECTURE,
+    funnel,
   };
 }
