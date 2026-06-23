@@ -106,6 +106,7 @@ export async function POST(request: Request) {
     if (!session.url) {
       return NextResponse.json({ error: 'Stripe did not return a checkout URL.' }, { status: 500 });
     }
+    try { const supabaseTrack = await createClient(); await supabaseTrack.rpc('track_event', { p_event: 'checkout_started', p_props: { kind: 'platform' } }); } catch {}
     return NextResponse.json({ url: session.url });
   } catch (err) {
     console.error('[shape-app] platform-checkout error', err);
