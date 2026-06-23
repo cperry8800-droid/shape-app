@@ -30,6 +30,7 @@
   // content) — matches the marketplace / living-profile / app avatar.
   function facet(photo, ini, color, size) {
     size = size || 38;
+    if (!/^#[0-9a-fA-F]{3,8}$/.test(String(color))) color = '#8a93a0'; // never interpolate an unvalidated color into the style string
     var inset = Math.max(2, Math.round(size * 0.055));
     var inner = photo
       ? '<img src="' + esc(photo) + '" alt="" style="position:absolute;width:152%;height:152%;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-45deg);object-fit:cover" />'
@@ -62,7 +63,7 @@
     return _db;
   }
 
-  var overlay = null, input = null, resultsEl = null, debounceId = null, signedIn = false;
+  var overlay = null, input = null, resultsEl = null, debounceId = null, signedIn = false, seq = 0;
 
   function build() {
     overlay = document.createElement('div');
@@ -101,6 +102,7 @@
     input.value = '';
     renderIdle();
     if (debounceId) { clearTimeout(debounceId); debounceId = null; }
+    seq++; // invalidate any in-flight search so it can't render into the closed overlay
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && overlay && overlay.style.display === 'block') close(); });
 
@@ -126,6 +128,7 @@
 
   function onInput() {
     var query = input.value.trim().replace(/^@/, '');
+    seq++; // each keystroke supersedes any in-flight search
     if (debounceId) clearTimeout(debounceId);
     if (!query) { renderIdle(); return; }
     resultsEl.innerHTML = '<div style="padding:12px 12px 8px;font-family:' + MONO + ';font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(242,237,228,0.45)">Searching…</div>';
@@ -133,13 +136,19 @@
   }
 
   function run(query) {
+    var mine = seq;
     var nh = noraHit(query.toLowerCase());
     ensureDb().then(function (db) {
+      if (mine !== seq) return; // a newer query (or close) superseded this one
       var c = db && db.client;
       if (!c || !c.rpc) { render([], nh, query); return; }
       c.rpc('search_shape_people', { p_q: query, p_limit: 12 })
-        .then(function (r) { render(Array.isArray(r.data) ? r.data : [], nh, query); })
-        .catch(function () { render([], nh, query); });
+        .then(function (r) {
+          if (mine !== seq) return;
+          if (!r.error) signedIn = true; // a successful RPC means we're authenticated — keep the empty state honest
+          render(Array.isArray(r.data) ? r.data : [], nh, query);
+        })
+        .catch(function () { if (mine === seq) render([], nh, query); });
     });
   }
 
