@@ -32,13 +32,14 @@
   /* Night-sky base — deep navy fading to near-black at the horizon. */
   .site-sky{position:fixed;inset:0;z-index:0;pointer-events:none;
     background:radial-gradient(ellipse 120% 90% at 50% 0%, #142036 0%, #0a1020 35%, #050810 70%, #02030a 100%)}
-  /* Moon glow — soft luminous halo top-right. */
-  /* Moon + nebula removed: their warm/teal/violet glows sat at fixed spots and read
-     as different background shades from section to section. The page now shows ONE
-     uniform background everywhere — the dark sky gradient + starfield only. */
+  /* Warm moon glow removed (it read as a different shade from the journey). */
   .site-moon{display:none}
-  /* Distant nebula — teal/violet wash for depth. */
-  .site-nebula{display:none}
+  /* The whole page now carries the journey section's soft teal-dark ambiance as ONE
+     uniform fixed wash — identical on every section — so the rest of the page matches
+     the journey's background (not the other way around). The journey's globe glow just
+     intensifies this same teal locally. */
+  .site-nebula{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(ellipse 120% 90% at 50% 45%, rgba(46,224,196,0.08) 0%, rgba(46,224,196,0.032) 45%, transparent 78%)}
   /* Starfield container — populated by JS. */
   .site-stars{position:fixed;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}
   .site-stars circle{fill:#e8eeff}
