@@ -413,12 +413,14 @@ async function bsDigestStreakChallenge(auth) {
 // Open an external source link — system browser on native (Capacitor Browser),
 // else a new tab on the /m/ web build.
 function bsOpenExternal(url) {
-  if (!url) return;
+  // Only ever open http(s) links — never javascript:/data: (safe-by-construction
+  // even if a future caller passes a non-constant/remote source URL).
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return;
   try {
     const cap = window.Capacitor;
     if (cap && cap.Plugins && cap.Plugins.Browser && cap.Plugins.Browser.open) { cap.Plugins.Browser.open({ url }); return; }
-    window.open(url, '_blank', 'noopener');
-  } catch (e) { try { window.open(url, '_blank'); } catch (_) {} }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch (e) { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {} }
 }
 async function bsBuildDailyDigest() {
   let auth = {};
@@ -694,7 +696,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
               <div style={{ paddingLeft: 11, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={colHead}>In the world</div>
                 {WORLD.map((w, i) => (
-                  <a key={i} href={w.url} onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
+                  <a key={i} href={/^https?:\/\//i.test(w.url) ? w.url : undefined} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
                     <div style={newsTag}>{w.tag}</div>
                     <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
                     <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src} ↗</div>
@@ -774,7 +776,7 @@ function BSSplash({ onDone, style, bg = 'plain', bgColor }) {
                 )}
                 <div style={{ ...colHead, marginTop: 2 }}>In the world</div>
                 {WORLD.map((w, i) => (
-                  <a key={i} href={w.url} onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
+                  <a key={i} href={/^https?:\/\//i.test(w.url) ? w.url : undefined} rel="noopener noreferrer" onClick={(e) => { e.preventDefault(); e.stopPropagation(); bsOpenExternal(w.url); }} style={{ display: 'block', textDecoration: 'none', color: INKF, cursor: 'pointer' }}>
                     <div style={newsTag}>{w.tag}</div>
                     <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 13.5, lineHeight: 1.12, letterSpacing: '-0.01em' }}>{w.title}</div>
                     <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: INKF50, marginTop: 2 }}>{w.src} ↗</div>
