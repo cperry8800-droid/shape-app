@@ -8098,28 +8098,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // light paper makes the profile light). TEAL accent is constant.
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const BSPlate = window.BSPlate;
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
-  // The ONE directive for the Me headline — same engine source as Home "Your
-  // move" (cross-domain; a coach override wins). Honest: only shows when there's
-  // a real, named lever.
-  const [meDir, setMeDir] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!meMode || !isSelf) return undefined;
-    let on = true;
-    (async () => {
-      try {
-        const S = typeof window !== 'undefined' && window.ShapeSignals;
-        if (!S || !S.selfRecord || !S.directive) return;
-        const rec = await S.selfRecord();
-        if (!on || !rec) return;
-        const d = S.directive(rec);
-        if (d && d.action && d.verdict && d.verdict !== '—') setMeDir(d);
-      } catch (e) { /* honest: no directive */ }
-    })();
-    return () => { on = false; };
-  }, [meMode, isSelf]);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
@@ -8551,7 +8533,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           const hp = Math.max(0.06, Math.min(heroPct, 0.66));
           const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
           return (
-          <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
+            {/* instrument-plate frame around the whole hero — matches the two plates inside it */}
+            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 17px) 0, 100% 17px, 100% 100%, 0 100%)', background: bsTHexA(c, 0.45) }} />
+            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c, zIndex: 3 }} />
+            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${c}`, borderBottom: `1.5px solid ${c}`, opacity: 0.7, zIndex: 3 }} />
+            <div style={{ position: 'relative', zIndex: 1, margin: 1.25, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', overflow: 'hidden', background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)}), ${BG}` }}>
             {custom && custom.cover && custom.cover.image && (
               <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: H, zIndex: 0 }}>
                 <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
@@ -8592,7 +8579,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* coached-by band */}
             {showCoachBand && (
             <div style={{ padding: '0 14px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 12, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
+              <BSPlate c={TEAL} notch={12} bracket pad="9px 12px">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{blockEff}</div>
                   <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
@@ -8604,7 +8592,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2, whiteSpace: 'nowrap' }}>{coachNameEff} <span style={{ color: bsTHexA(INK, 0.4) }}>›</span></div></div>
                 </button>
                 </>}
-              </div>
+                </div>
+              </BSPlate>
             </div>
             )}
             {/* Shape Score band — merged into the header (points + to-next + the four
@@ -8623,8 +8612,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
                 : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
-                <div style={{ padding: '0 14px 14px' }}>
-                  <div data-tour="hero-me" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
+                <div style={{ padding: '0 14px 14px' }} data-tour="hero-me">
+                  <BSPlate c={c} notch={12} bracket pad="11px 12px" onClick={onOpenScore} role="button" tabIndex={0} ariaLabel="Open your Shape Score" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
                         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
@@ -8641,10 +8630,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </BSPlate>
                 </div>
               );
             })()}
+            </div>
           </div>
           );
         })()}
@@ -8652,21 +8642,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {meMode && isSelf && (
         <div style={{ padding: '14px 18px 0' }}>
-          <BSMeGoalCard c={c} onOpen={onOpenGoals} />
+          <BSMeGoalCard c={c} onOpen={onOpenGoals} compact />
         </div>
       )}
 
-      {meMode && isSelf && meDir && meDir.action && (
-        <div style={{ padding: '12px 18px 0' }}>
-          <div style={{ borderRadius: 12, border: `1px solid ${bsTHexA(TEAL, 0.4)}`, background: bsTHexA(TEAL, 0.07), padding: '10px 13px' }}>
-            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>Today · your move</div>
-            <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, fontWeight: 600, color: INK }}>{meDir.action.label}</div>
-            {meDir.reason && meDir.reason !== '—' && (
-              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.55), lineHeight: 1.45 }}>{meDir.reason}</div>
-            )}
-          </div>
-        </div>
-      )}
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
@@ -14482,8 +14461,9 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
+  const BSPlate = window.BSPlate;
   return (
-    <button onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: onOpen ? 'pointer' : 'default', borderRadius: 6, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, borderLeft: `3px solid ${TEAL}`, background: bsTHexA(TEAL, 0.06), padding: compact ? '12px 15px' : '17px 19px', marginBottom: compact ? 0 : 14 }}>
+    <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel="Open your goal" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
         <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
@@ -14491,7 +14471,7 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
       <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
       <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
       <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
-    </button>
+    </BSPlate>
   );
 }
 

@@ -1011,11 +1011,11 @@ function BSTabIcon({ name, size = 22 }) {
 // status tick + corner bracket. Two-tier rule: plates dress LIVE/ACTIONABLE
 // surfaces (heroes, up-next cards, stat tiles, CTAs); quiet rounded cards stay
 // for forms/sheets/lists, and chat bubbles stay round.
-function BSPlate({ c, notch = 12, spine = 3, tick = false, bracket = false, pad = '14px 16px', style, onClick, role, ariaLabel, children }) {
+function BSPlate({ c, notch = 12, spine = 3, tick = false, bracket = false, pad = '14px 16px', style, onClick, onKeyDown, tabIndex, role, ariaLabel, children }) {
   const t = useBS();
   const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
-    <div onClick={onClick} role={role} aria-label={ariaLabel} style={{ position: 'relative', ...(onClick ? { cursor: 'pointer' } : null), ...style }}>
+    <div onClick={onClick} onKeyDown={onKeyDown} tabIndex={tabIndex} role={role} aria-label={ariaLabel} style={{ position: 'relative', ...(onClick ? { cursor: 'pointer' } : null), ...style }}>
       <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(notch + 1), background: `${c}77` }} />
       <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(notch), background: `linear-gradient(165deg, ${c}1f, ${c}06 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
       {spine > 0 && <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: spine, background: c }} />}
