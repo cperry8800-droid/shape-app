@@ -10175,32 +10175,36 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
   // collapses via bsSubStyle().
   const [subHidden, setSubHidden] = useStateBSC(false);
-  const bsSubAnchorRef = React.useRef(null);
   React.useEffect(() => { setSubHidden(false); }, [tab]);
-  React.useEffect(() => {
-    const start = bsSubAnchorRef.current;
-    if (!start || typeof getComputedStyle !== 'function') return undefined;
-    let sc = start.parentElement;
+  // Attach the scroll-direction listener via a CALLBACK ref on the (always-
+  // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
+  // after opening a DM/profile (which early-returns + unmounts the BSPage
+  // scroller) and backing out. Walks up to the scroller; the ref fn is stable.
+  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false });
+  const bsSubAnchorRef = React.useCallback((node) => {
+    const st = bsScroll.current;
+    if (st.sc && st.fn) { st.sc.removeEventListener('scroll', st.fn); st.sc = null; st.fn = null; }
+    if (!node || typeof getComputedStyle !== 'function') return;
+    let sc = node.parentElement;
     while (sc && sc !== document.body) {
       const oy = getComputedStyle(sc).overflowY;
       if (oy === 'scroll' || oy === 'auto') break;
       sc = sc.parentElement;
     }
-    if (!sc || sc === document.body) return undefined;
-    let last = sc.scrollTop, ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
+    if (!sc || sc === document.body) return;
+    st.sc = sc; st.last = sc.scrollTop; st.ticking = false;
+    st.fn = () => {
+      if (st.ticking) return;
+      st.ticking = true;
       requestAnimationFrame(() => {
-        const y = sc.scrollTop, dy = y - last;
+        const y = st.sc.scrollTop, dy = y - st.last;
         if (y < 28) setSubHidden(false);
         else if (dy > 6) setSubHidden(true);
         else if (dy < -6) setSubHidden(false);
-        last = y; ticking = false;
+        st.last = y; st.ticking = false;
       });
     };
-    sc.addEventListener('scroll', onScroll, { passive: true });
-    return () => sc.removeEventListener('scroll', onScroll);
+    sc.addEventListener('scroll', st.fn, { passive: true });
   }, []);
   // marginBottom (gap compensation) is NOT transitioned — it snaps, so the parent
   // flex `gap` doesn't visibly shift mid-collapse while maxHeight animates.
@@ -11482,7 +11486,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={bsSubStyle(16)}>
+              <div inert={subHidden} style={bsSubStyle(16)}>
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
                 {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, color: sec.color, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
               </div>
@@ -11505,7 +11509,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       ) : (
         <>
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
-          <div style={bsSubStyle(0)}>
+          <div inert={subHidden} style={bsSubStyle(0)}>
           <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
             {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
           </div>
