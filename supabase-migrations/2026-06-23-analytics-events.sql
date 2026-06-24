@@ -104,5 +104,9 @@ as $$
                 where d.user_id = c.uid and d.snapshot_date >= (c.created_at + interval '90 days')::date)
       );
 $$;
-revoke all on function public.get_funnel(timestamptz, timestamptz) from public;
+-- Supabase's default privileges grant EXECUTE on new public functions to anon +
+-- authenticated, and `revoke ... from public` does NOT remove those role grants,
+-- so revoke them explicitly — get_funnel exposes aggregate funnel metrics and
+-- must be service-role-only (the War Room reads it via the service-role client).
+revoke all on function public.get_funnel(timestamptz, timestamptz) from public, anon, authenticated;
 grant execute on function public.get_funnel(timestamptz, timestamptz) to service_role;
