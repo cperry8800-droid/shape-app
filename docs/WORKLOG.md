@@ -65,15 +65,23 @@ changelog whenever something ships.
   shared code that other profiles/pages also render. Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
-- **Review stack before shipping (required).** Three layers gate every
-  non-trivial change: **(1) `/code-review`** — run the skill on the diff before
-  merging (Claude reviews for logic bugs + the regressions listed above);
-  **(2) CodeRabbit** — auto-reviews every PR into `main`/`staging` (config in
-  `.coderabbit.yaml`; requires the CodeRabbit GitHub App installed on the repo);
-  **(3) required checks** — `main` branch protection requires the CI checks
+- **Review stack before shipping (required).** Layers that gate every
+  non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
+  extension (`coderabbit.coderabbit-vscode`, installed locally; sign in to its
+  sidebar panel once) reviews the LOCAL diff in-editor **before** pushing, so the
+  obvious stuff is fixed before a PR exists. It's **opportunistic, not a hard
+  gate** — run it on non-trivial/risky diffs to save PR round-trips, skip it on
+  one-liners. Same engine as layer 2, just earlier + with less context; there's no
+  CLI, so it's editor-triggered (the agent can't invoke it). **(1) `/code-review`**
+  — run the skill on the diff before merging (Claude reviews for logic bugs + the
+  regressions listed above); **(2) CodeRabbit GitHub App — the AUTHORITATIVE
+  review.** Auto-reviews every PR into `main`/`staging` with full PR context +
+  `.coderabbit.yaml` config (assertive profile, path rules). This is the source of
+  truth — **never treat the layer-0 IDE pass as a substitute for it.** **(3)
+  required checks** — `main` branch protection requires the CI checks
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)`) green before a
   merge (GitHub → Settings → Branches; once on, merging on red is impossible).
-  Docs/config-only commits may skip layer 1.
+  Docs/config-only commits may skip layers 0-1.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
