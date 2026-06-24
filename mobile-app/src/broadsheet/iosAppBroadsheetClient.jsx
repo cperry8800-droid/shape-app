@@ -10202,7 +10202,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     sc.addEventListener('scroll', onScroll, { passive: true });
     return () => sc.removeEventListener('scroll', onScroll);
   }, []);
-  const bsSubStyle = (gap) => ({ maxHeight: subHidden ? 0 : 80, opacity: subHidden ? 0 : 1, overflow: 'hidden', pointerEvents: subHidden ? 'none' : 'auto', transition: 'max-height 240ms cubic-bezier(.4,0,.2,1), opacity 150ms ease, margin-bottom 240ms cubic-bezier(.4,0,.2,1)', ...(gap ? { marginBottom: subHidden ? -gap : 0 } : null) });
+  // marginBottom (gap compensation) is NOT transitioned — it snaps, so the parent
+  // flex `gap` doesn't visibly shift mid-collapse while maxHeight animates.
+  const bsSubStyle = (gap) => ({ maxHeight: subHidden ? 0 : 80, opacity: subHidden ? 0 : 1, overflow: 'hidden', pointerEvents: subHidden ? 'none' : 'auto', transition: 'max-height 240ms cubic-bezier(.4,0,.2,1), opacity 150ms ease', ...(gap ? { marginBottom: subHidden ? -gap : 0 } : null) });
   const [draft, setDraft] = useStateBSC('');
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
@@ -10478,10 +10480,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const muted = t.INK50;
   const hair = t.RULE;
   // Sub-tab chip — minimal "bracket-frame": plain text at rest; accent corner
-  // brackets (top-left + bottom-right) + accent text + dot when active. Shared by
-  // the Feed role chips and the Team Coaches/Friends selector so both match.
-  const BSSubTab = ({ on, color, onClick, label, badge }) => (
-    <button onClick={onClick} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 16px', minWidth: 96, boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+  // brackets (top-left + bottom-right) + accent text + dot when active. A render
+  // FUNCTION (called inline like renderPost/Row), not a <Component/>, so it
+  // doesn't remount the chips on the parent's frequent re-renders. Shared by the
+  // Feed role chips and the Team Coaches/Friends selector so both match.
+  const bsSubTab = ({ key, on, color, onClick, label, badge }) => (
+    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 16px', minWidth: 96, boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {on && <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, width: 9, height: 9, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}` }} />}
       {on && <span aria-hidden style={{ position: 'absolute', right: 0, bottom: 0, width: 9, height: 9, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}` }} />}
       <span style={{ width: 5, height: 5, borderRadius: 1.5, background: on ? color : muted, opacity: on ? 1 : 0.6, flexShrink: 0 }} />
@@ -11480,10 +11484,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={bsSubStyle(16)}>
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
-                {selectors.map(sec => {
-                  const on = active.key === sec.key;
-                  return <BSSubTab key={sec.key} on={on} color={sec.color} onClick={() => setTeamsSel(sec.key)} label={sec.label} badge={sec.badge} />;
-                })}
+                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, color: sec.color, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
               </div>
               </div>
               {active.key === 'friends' ? (
@@ -11506,10 +11507,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
           <div style={bsSubStyle(0)}>
           <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            {CHIP_KEYS.map(k => {
-              const on = filter === k;
-              return <BSSubTab key={k} on={on} color={ROLE[k].color} onClick={() => setFilter(k)} label={chipLabel(k)} />;
-            })}
+            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
           </div>
           </div>
 
