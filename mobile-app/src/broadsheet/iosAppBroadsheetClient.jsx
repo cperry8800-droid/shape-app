@@ -6776,7 +6776,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
         <span style={{ color: c, fontWeight: 800 }}>{tierName} Tier</span>
         {streak ? <><span style={{ color: bsTHexA(INK, 0.4) }}>·</span><span style={{ color: '#c0533b' }}>{streak} week streak</span></> : null}
       </div>
-      <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
+      <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
       <div style={{ marginTop: 8 }}>
         <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} />
       </div>
@@ -10169,6 +10169,46 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('COMMUNITY');
   const [teamsSel, setTeamsSel] = useStateBSC('coaches');
+  // Auto-hide the sub-tab rows (Feed role chips, Team Coaches/Friends) on
+  // scroll-down; reveal on scroll-up or near the top. One scroll listener on the
+  // BSPage scroller — found by walking up from the always-rendered main tab row
+  // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
+  // collapses via bsSubStyle().
+  const [subHidden, setSubHidden] = useStateBSC(false);
+  React.useEffect(() => { setSubHidden(false); }, [tab]);
+  // Attach the scroll-direction listener via a CALLBACK ref on the (always-
+  // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
+  // after opening a DM/profile (which early-returns + unmounts the BSPage
+  // scroller) and backing out. Walks up to the scroller; the ref fn is stable.
+  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false });
+  const bsSubAnchorRef = React.useCallback((node) => {
+    const st = bsScroll.current;
+    if (st.sc && st.fn) { st.sc.removeEventListener('scroll', st.fn); st.sc = null; st.fn = null; }
+    if (!node || typeof getComputedStyle !== 'function') return;
+    let sc = node.parentElement;
+    while (sc && sc !== document.body) {
+      const oy = getComputedStyle(sc).overflowY;
+      if (oy === 'scroll' || oy === 'auto') break;
+      sc = sc.parentElement;
+    }
+    if (!sc || sc === document.body) return;
+    st.sc = sc; st.last = sc.scrollTop; st.ticking = false;
+    st.fn = () => {
+      if (st.ticking) return;
+      st.ticking = true;
+      requestAnimationFrame(() => {
+        const y = st.sc.scrollTop, dy = y - st.last;
+        if (y < 28) setSubHidden(false);
+        else if (dy > 6) setSubHidden(true);
+        else if (dy < -6) setSubHidden(false);
+        st.last = y; st.ticking = false;
+      });
+    };
+    sc.addEventListener('scroll', st.fn, { passive: true });
+  }, []);
+  // marginBottom (gap compensation) is NOT transitioned — it snaps, so the parent
+  // flex `gap` doesn't visibly shift mid-collapse while maxHeight animates.
+  const bsSubStyle = (gap) => ({ maxHeight: subHidden ? 0 : 80, opacity: subHidden ? 0 : 1, overflow: 'hidden', pointerEvents: subHidden ? 'none' : 'auto', transition: 'max-height 240ms cubic-bezier(.4,0,.2,1), opacity 150ms ease', ...(gap ? { marginBottom: subHidden ? -gap : 0 } : null) });
   const [draft, setDraft] = useStateBSC('');
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
@@ -10443,6 +10483,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const cardInk = t.INK;
   const muted = t.INK50;
   const hair = t.RULE;
+  // Sub-tab chip — minimal "bracket-frame": plain text at rest; accent corner
+  // brackets (top-left + bottom-right) + accent text + dot when active. A render
+  // FUNCTION (called inline like renderPost/Row), not a <Component/>, so it
+  // doesn't remount the chips on the parent's frequent re-renders. Shared by the
+  // Feed role chips and the Team Coaches/Friends selector so both match.
+  const bsSubTab = ({ key, on, color, onClick, label, badge }) => (
+    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 16px', minWidth: 96, boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {on && <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, width: 9, height: 9, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}` }} />}
+      {on && <span aria-hidden style={{ position: 'absolute', right: 0, bottom: 0, width: 9, height: 9, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}` }} />}
+      <span style={{ width: 5, height: 5, borderRadius: 1.5, background: on ? color : muted, opacity: on ? 1 : 0.6, flexShrink: 0 }} />
+      {label}
+      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1, marginLeft: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+    </button>
+  );
   const ROLE = {
     SHAPE: { color: TEALB, label: 'Client' },
     TRAINER: { color: '#ff7a59', label: 'Trainer' },
@@ -10934,7 +10988,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     });
     return (
       <div style={{ background: card, overflow: 'hidden' }}>
-        <div style={{ height: 1.5, background: tc }} />
+        <div style={{ height: 1, background: tc }} />
         <div style={{ padding: '10px 13px 11px' }}>
           {/* author + activity type */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
@@ -11201,7 +11255,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       </div>
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
-      <div style={{ padding: `6px ${t.padX}px 0` }}>
+      <div ref={bsSubAnchorRef} style={{ padding: `6px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
           {[['feed', 'Feed', 0], ['teams', 'Team', coachUnread + friendUnread], ['channels', 'Channels', chUnread], ['support', 'Support', 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
@@ -11378,7 +11432,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Support — its own top-level tab: the continuous AI-backed thread.
           if (tab === 'support') {
             return (
-              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
@@ -11432,16 +11486,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div inert={subHidden} style={bsSubStyle(16)}>
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
-                {selectors.map(sec => {
-                  const on = active.key === sec.key;
-                  return (
-                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      <span style={{ width: 5, height: 5, borderRadius: 3, background: sec.color }} />{sec.label}
-                      {sec.badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
-                    </button>
-                  );
-                })}
+                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, color: sec.color, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
+              </div>
               </div>
               {active.key === 'friends' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -11460,16 +11508,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         })()
       ) : (
         <>
-          {/* Role filter chips */}
+          {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
+          <div inert={subHidden} style={bsSubStyle(0)}>
           <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            {CHIP_KEYS.map(k => {
-              const on = filter === k;
-              return (
-                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 5, border: `1px solid ${on ? ROLE[k].color : hair}`, borderLeft: on ? `3px solid ${ROLE[k].color}` : `1px solid ${hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 1.5, background: ROLE[k].color }} />{chipLabel(k)}
-                </button>
-              );
-            })}
+            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
+          </div>
           </div>
 
           {filter === 'COMMUNITY' ? (
