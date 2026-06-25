@@ -10770,18 +10770,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
-  // Nora's voice (off by default) + tone toggle. Lives in localStorage via
-  // window.ShapeVoice; the thread mirrors it so toggles re-render immediately.
-  const [voicePrefs, setVoicePrefs] = useStateBSC(() => (window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive' }));
-  const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
-  const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
+  // Nora's tone is fixed to supportive (no in-thread toggle). The per-message
+  // "Listen" button plays a reply aloud on demand (forces TTS even when the
+  // global voice pref is off); the global voice on/off + tone still live in
+  // Settings → Nora voice.
   const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
-  // Reflect a tone that arrives async (account sync on login, or a change on another surface).
-  React.useEffect(() => {
-    const h = () => { try { if (window.ShapeVoice) setVoicePrefs(window.ShapeVoice.get()); } catch (e) {} };
-    window.addEventListener('shape:voice', h);
-    return () => window.removeEventListener('shape:voice', h);
-  }, []);
+  React.useEffect(() => { try { window.ShapeVoice && window.ShapeVoice.setTone && window.ShapeVoice.setTone('supportive'); } catch (e) {} }, []);
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
@@ -11711,9 +11705,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           if (tab === 'channels') {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px 2px' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Your channels</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{chUnread > 0 ? `${chUnread} unread · ` : ''}{chDisplay.length} channel{chDisplay.length === 1 ? '' : 's'}</span>
                 </div>
                 {/* Search + a compact "+" box that opens the create form */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -11760,18 +11753,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1 }} />
-                    {/* Nora's voice — off by default, fully usable without it. */}
-                    <button onClick={() => setVoiceEnabled(!voicePrefs.enabled)} title="Speak Nora's replies" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 999, border: `1px solid ${voicePrefs.enabled ? '#2e6fa0' : hair}`, background: voicePrefs.enabled ? '#2e6fa01f' : 'transparent', color: voicePrefs.enabled ? '#2e6fa0' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                      {voicePrefs.enabled ? '🔊' : '🔇'} Voice {voicePrefs.enabled ? 'on' : 'off'}
-                    </button>
-                    <div style={{ display: 'inline-flex', borderRadius: 999, border: `1px solid ${hair}`, overflow: 'hidden' }}>
-                      {['supportive', 'direct'].map(tn => (
-                        <button key={tn} onClick={() => setVoiceTone(tn)} title={tn === 'supportive' ? 'Warm and encouraging' : 'Concise and factual'} style={{ padding: '5px 10px', border: 0, background: voicePrefs.tone === tn ? '#2e6fa0' : 'transparent', color: voicePrefs.tone === tn ? '#fff' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tn}</button>
-                      ))}
-                    </div>
-                  </div>
                   {supportMsgs.map((m, i) => (
                     m.me ? (
                       <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
