@@ -14917,6 +14917,125 @@ function BSStepsCard() {
   );
 }
 
+function bsStrengthStatusMeta(status, t, tier) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  switch (status) {
+    case 'progressing': return { label: 'Progressing', color: tier || teal };
+    case 'stalled': return { label: 'Stalled', color: t.AMBER || '#c0533b' };
+    case 'holding': return { label: 'Holding', color: t.INK50 };
+    default: return { label: 'Building', color: t.INK50 };
+  }
+}
+
+function useBSStrength() {
+  const [data, setData] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    if (typeof window !== 'undefined' && window.ShapeStrength?.get) {
+      window.ShapeStrength.get().then((d) => { if (on && d) setData(d); }).catch(() => {});
+    }
+    return () => { on = false; };
+  }, []);
+  return data;
+}
+
+function BSStrengthHistory({ onClose, focusKey = null }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tier = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  const data = useBSStrength();
+  const lifts = (data && Array.isArray(data.lifts)) ? data.lifts : [];
+  const ordered = focusKey ? [...lifts].sort((a, b) => (a.key === focusKey ? -1 : b.key === focusKey ? 1 : 0)) : lifts;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 10px' }}>
+        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK }}>← BACK</button>
+        <BSMeCorner />
+      </div>
+      <div style={{ padding: '0 18px 90px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 6 }}>STRENGTH · ESTIMATED 1RM</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>strength.</span></div>
+        {ordered.length === 0 && (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '24px 0' }}>
+            Log a few sessions with weight and reps to see your estimated max climb. Strength is computed from your logged sets — nothing to show yet.
+          </div>
+        )}
+        {ordered.map((l) => {
+          const sm = bsStrengthStatusMeta(l.status, t, tier);
+          const vals = (l.series || []).map((p) => p.e1rm);
+          const top = l.topSet;
+          return (
+            <div key={l.key} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(sm.color, 0.6)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <div style={{ fontFamily: t.BODY, fontSize: 15, fontWeight: 700, color: t.INK }}>{l.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: sm.color, border: `1px solid ${bsTHexA(sm.color, 0.4)}`, borderRadius: 3, padding: '3px 8px', background: bsTHexA(sm.color, 0.12) }}>{sm.label}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{l.currentE1rm != null ? Math.round(l.currentE1rm) : '—'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{l.unit} e1RM</span>
+                {l.deltaPct != null && (
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: sm.color, marginLeft: 'auto' }}>{l.deltaPct >= 0 ? '+' : '−'}{Math.abs(l.deltaPct * 100).toFixed(1)}%</span>
+                )}
+              </div>
+              {vals.length >= 2 && <BSStrengthSpark vals={vals} color={sm.color} />}
+              {top && (
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 8, letterSpacing: '0.04em' }}>
+                  top set {top.load}×{top.reps}{top.rpe != null ? ` @ RPE ${top.rpe}` : ''} · best {Math.round(l.bestE1rm)} {l.unit}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BSStrengthSpark({ vals, color }) {
+  const t = useBS();
+  if (!Array.isArray(vals) || vals.length < 2) return null;
+  const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1;
+  const W = 100, top = 6, bot = 94, span = bot - top;
+  const yOf = (v) => bot - ((v - lo) / rng) * span;
+  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(2)} ${yOf(v).toFixed(2)}`).join(' ');
+  const gid = `e1rm-${String(color).replace(/[^a-z0-9]/gi, '')}`;
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: 64, display: 'block' }} aria-hidden>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.22" /><stop offset="100%" stopColor={color} stopOpacity="0.02" /></linearGradient></defs>
+      <path d={`${line} L100 100 L0 100 Z`} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BSStrengthCard({ onOpen }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tier = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  const data = useBSStrength();
+  const lifts = (data && Array.isArray(data.lifts)) ? data.lifts : [];
+  const lead = lifts[0] || null;
+  const sm = lead ? bsStrengthStatusMeta(lead.status, t, tier) : null;
+  return (
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(tier, 0.6)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tier }}>STRENGTH · ESTIMATED 1RM</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK50 }}>View strength →</div>
+      </div>
+      {lead ? (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
+          <span style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 700, color: t.INK }}>{lead.name}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, color: t.INK, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{lead.currentE1rm != null ? Math.round(lead.currentE1rm) : '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> {lead.unit}</span></span>
+          {sm && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: sm.color }}>{sm.label}</span>}
+        </div>
+      ) : (
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 8 }}>Log sets with weight & reps to track your estimated max.</div>
+      )}
+    </button>
+  );
+}
+
 function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -20072,6 +20191,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const [trend, setTrend] = useStateBSC('weight');
   const [measRows, setMeasRows] = useStateBSC([]);
   const [photoRows, setPhotoRows] = useStateBSC([]);
+  const [strengthOpen, setStrengthOpen] = useStateBSC(null); // null | { key } when open
   React.useEffect(() => {
     let on = true;
     window.ShapeProgress?.progress?.().then((d) => { if (on && d) setProg(d); }).catch(() => {});
@@ -20145,8 +20265,11 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
       <div style={card}>
         <Eyebrow>Personal records · from your sets</Eyebrow>
         {(O.prs || []).map((p, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-            <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{p.move}</div>
+          <div key={i} onClick={() => setStrengthOpen({})} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0, cursor: 'pointer' }}>
+            <div>
+              <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{p.move}</div>
+              {p.e1rm != null && <div style={{ fontFamily: t.MONO, fontSize: 9, color: teal, marginTop: 2 }}>≈ {Math.round(p.e1rm)} {p.unit} e1RM</div>}
+            </div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, letterSpacing: '-0.01em' }}>{Math.round(p.best)} {p.unit}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>{p.bestReps != null ? '× ' + p.bestReps : ''}</div>
           </div>
@@ -20210,6 +20333,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const maxVol = Math.max(1, ...volDays);
   const trainingView = (
     <div>
+      <BSStrengthCard onOpen={() => setStrengthOpen({})} />
       {kpiGrid([
         { k: String(ts.completedCount ?? 0), l: 'Workouts logged' },
         { k: String(ts.thisWeekCount ?? 0), l: 'This week' },
@@ -20335,7 +20459,8 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   if (embedded) {
     const Provider = (typeof window !== 'undefined' && window.BSContext && window.BSContext.Provider);
     const body = (
-      <div>
+      <div style={{ position: 'relative' }}>
+        {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
         {tabRow}
         <div style={{ marginTop: 16 }}>{tabBody}</div>
       </div>
@@ -20344,6 +20469,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   }
   return (
     <BSPage>
+      {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
       <BSDetailHeader onBack={onBack} eyebrow="Strength · body · recovery" kicker="Your progress" title={<>Progress.</>} />
       <BSClientNextPlate />
       <div style={{ padding: `12px ${t.padX}px 0` }}>{tabRow}</div>
