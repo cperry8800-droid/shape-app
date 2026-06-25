@@ -8196,7 +8196,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const selfScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   // Signed in on my OWN profile → show REAL data (zeroed for a fresh account),
   // never the demo persona's numbers. Demo sub-data is the signed-out preview only.
-  const signedInSelf = isSelf && !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const signedInSelf = isSelf && signedIn;
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
@@ -8474,9 +8475,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     };
   };
   const feedEff = (() => {
-    // Signed in → only real activity (your published posts + logged PRs); never the
-    // demo field-notes. Demo feed is the signed-out preview only.
-    const base = (isSelf && realFeed && realFeed.length) ? realFeed : (signedInSelf ? [] : feed);
+    // Signed in → only REAL activity (the profile owner's published posts + logged
+    // PRs); never the demo field-notes — on your OWN profile or anyone else's. The
+    // demo feed is the signed-out preview only (honest-data rule: no fabricated
+    // activity on a signed-in view of any real profile).
+    const base = (isSelf && realFeed && realFeed.length) ? realFeed : (signedIn ? [] : feed);
     const cards = (photoPosts || []).map((p) => bsProfileCardFromPost(p, 'Client')).filter(Boolean);
     const baseCards = (base || []).map((it, i) => itToCard({ ...it, _k: `it-${i}` }));
     return [...cards, ...baseCards];
@@ -9225,10 +9228,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
     city: '', activityType: '', stats: [], likers: [], comments: [],
   });
-  // Signed-in on your OWN coach profile → only your REAL published posts; never the
-  // demo "Tip/Win" field-notes (honest-data rule, mirroring the member profile's
-  // `signedInSelf ? [] : feed` gating). Demo tuples are the signed-out preview only.
-  const coachDemoFeed = ownZero ? [] : feed;
+  // Signed in → only REAL published posts; never the demo "Tip/Win" field-notes —
+  // on your OWN coach profile or anyone else's (honest-data rule, mirroring the
+  // member profile's `signedIn ? [] : feed` gating). Demo tuples are the signed-out
+  // preview only. (The illustrative sub-data — disciplines/certs/offerings — stays
+  // on `ownZero` own-profile zeroing; only this activity feed is fully gated.)
+  const coachDemoFeed = signedIn ? [] : feed;
   const coachFeedEff = [
     ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
     ...coachDemoFeed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
