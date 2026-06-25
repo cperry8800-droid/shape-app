@@ -2718,8 +2718,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const best = L.keyLifts.map(x => lnum(x.best)).filter(v => v != null);
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => {
-      const b = lnum(x.best), dl = lnum(x.delta);
-      return { n: x.name || 'Lift', v: b != null ? `${b} kg` : '—', d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
+      const b = lnum(x.best), dl = lnum(x.delta), e1 = lnum(x.e1rm);
+      const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : '—';
+      return { n: x.name || 'Lift', v, d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
     });
   })() : null;
 
