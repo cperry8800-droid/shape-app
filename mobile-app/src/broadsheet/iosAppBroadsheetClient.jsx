@@ -10422,8 +10422,11 @@ function useBSCardSheets() {
     if (!body) return;
     setActComments((prev) => ({ ...prev, [key]: [...(prev[key] || []), { who: 'You', body }] }));
     setActCmtDraft('');
-    if (postId) { const c0 = window.ShapeCommunity?.addComment?.({ postId, body }); if (c0 && c0.catch) c0.catch(() => {}); return; }
-    if (key && !String(key).includes('|') && !/^(s|tmp|post-)/.test(String(key))) { const c = window.ShapeCommunity?.addComment?.({ postId: key, body }); if (c && c.catch) c.catch(() => {}); }
+    // Persist ONLY to a real post-backed activity (the explicit postId). Profile
+    // demo cards carry synthetic keys (it-*/act-*) with no postId → local-only,
+    // never a bogus addComment to a non-id key. (The community feed's
+    // key-as-postId fallback is feed-specific and does NOT apply here.)
+    if (postId) { const c0 = window.ShapeCommunity?.addComment?.({ postId, body }); if (c0 && c0.catch) c0.catch(() => {}); }
   };
   const ctx = { actComments, actCmtOpen: null, setActivityDetail, setLikerSheetFor, setSendPostFor };
   const renderSheets = ({ applyReaction, setOpenProfile, actLikes, actExpr, feedAvatars = {} }) => (
