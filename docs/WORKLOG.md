@@ -178,6 +178,11 @@ changelog whenever something ships.
   card ctx. The `slimOpen` toast stubs are removed (verified absent from the shipped `public/m` bundle).
 - Verified: JSX parse-check + mobile build clean; slim-fallback toast gone from bundle + source; no JS
   errors. The community feed (`BSClientFeed`) keeps its own inline sheet blocks unchanged (no regression).
+- **Merged as #1408.** CodeRabbit caught + I fixed a **Critical**: `sendActComment` inherited the feed's
+  "treat `key` as a fallback `postId`" heuristic, but the profile's demo cards carry synthetic keys
+  (`it-*`/`act-*`) → a comment on a demo card would `addComment({ postId: 'it-0' })` against a
+  non-existent id. Dropped the fallback — profile persists only on a real explicit `postId`; demo-card
+  comments stay local-only. CodeRabbit **APPROVED** after the fix; CI green.
 
 ### 2026-06-24 — War Room audit: 4 "looks done" items verified — 2 are genuinely incomplete
 Verified four unchecked War Room items (multi-agent: repo code + **live Supabase** + GitHub API).
@@ -217,7 +222,8 @@ Verified four unchecked War Room items (multi-agent: repo code + **live Supabase
   `/api/*` routes — NOT Supabase's native auth endpoints (signup/OTP/token) the SDK calls
   directly. The real GoTrue limits (otp 60 / verify 100 / email_sent 30 / anonymous_users 5 /
   token_refresh ~1800) are Management-API/dashboard config, **not readable via the MCP tools** —
-  owner must confirm/set in Auth → Rate Limits (`zznufekgjngecelwxndw`).
+  owner must confirm/set in Auth → Rate Limits (`zznufekgjngecelwxndw`). **✅ RESOLVED — owner set
+  the dashboard values 2026-06-25.**
 - **Auth CAPTCHA — app side DONE (checklist text is STALE), dashboard owner-only.** The
   login/signup Turnstile wiring IS complete across web (`login.jsx`), mobile (`turnstile.js` +
   BSLogin), Next (`Turnstile.tsx` + login actions), and consultation — contradicting the
@@ -225,8 +231,10 @@ Verified four unchecked War Room items (multi-agent: repo code + **live Supabase
   Remaining: owner enables CAPTCHA in Auth → Settings + pastes the Turnstile secret + sets
   `TURNSTILE_SECRET_KEY` env (else `verifyTurnstile` no-ops). Native caveat: add
   `capacitor://localhost` to the Turnstile widget's allowed hostnames or native logins get rejected.
-- **Net:** 2 need real work (funnel mobile fix · `main` branch protection); 2 are app-complete
-  pending one owner Supabase-dashboard toggle each.
+  **✅ RESOLVED — owner enabled CAPTCHA 2026-06-25; the stale warroom.ts label corrected in #1409.**
+- **Net (RESOLVED 2026-06-25):** all four done — funnel mobile fix shipped (**#1407**), `main` branch
+  protection enabled (**gitleaks + Web + Mobile required**, enforce_admins on), and the owner set the
+  Auth rate-limit values + enabled CAPTCHA. All four flipped to `done` in `src/lib/warroom.ts` (**#1409**).
 
 ### 2026-06-24 — Mobile: profile ⇄ community activity cards unified (#1406) + profile & chat redesigns (#1404, #1405)
 - **Activity cards unified (#1406).** The profile **"Personal activities"** feed now renders the
