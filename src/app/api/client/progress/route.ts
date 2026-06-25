@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { epleyE1rm } from '@/lib/e1rm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -119,6 +120,7 @@ export async function GET(request: Request) {
     bestReps: number | null;
     unit: string;
     bestAt: string;
+    e1rm: number | null;
   };
   const prMap = new Map<string, PR>();
   for (const r of setRows ?? []) {
@@ -135,6 +137,7 @@ export async function GET(request: Request) {
         bestReps: r.actual_reps ?? null,
         unit: r.load_unit || 'lb',
         bestAt: r.created_at,
+        e1rm: null,
       });
     } else if (load > pr.best) {
       pr.best = load;
@@ -145,7 +148,11 @@ export async function GET(request: Request) {
 
   const prs = [...prMap.values()]
     .sort((a, b) => b.best - a.best)
-    .slice(0, 6);
+    .slice(0, 6)
+    .map((p) => {
+      const e = epleyE1rm(p.best, p.bestReps);
+      return { ...p, e1rm: e == null ? null : Math.round(e * 10) / 10 };
+    });
 
   // Strength trajectory: top one-rep-equivalent across all logged sets,
   // bucketed weekly so the chart shows the trend instead of every spike.
