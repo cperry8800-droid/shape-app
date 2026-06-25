@@ -18379,19 +18379,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   );
                 })}
               </div>
+              {s.desc && <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
             </div>
           );
         }
         const value = s.key ? prefs[s.key] : s.r;
         const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
         return (
-          <div key={i} onClick={onTap} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder,
-            cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-            {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+          <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
+            <div onClick={onTap} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
+            }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+            </div>
+            {s.desc && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
           </div>
         );
       })}
@@ -18585,9 +18588,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
-        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible },
-        { l: 'Share workout data', key: 'shareWorkoutData' },
+        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' },
+        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' },
+        { l: 'Share workout data', key: 'shareWorkoutData', desc: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' },
       ],
     },
     {
