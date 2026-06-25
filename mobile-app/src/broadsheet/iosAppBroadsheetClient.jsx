@@ -7452,10 +7452,20 @@ function bsActivityFromPost(p) {
 // reads correctly even on posts that didn't stamp an author role.
 function bsProfileCardFromPost(p, ownerRole) {
   if (!p) return null;
+  // Edit affordance needs the raw post's kind + privacy + media to reopen the
+  // composer faithfully; carry them on every card (workout + slim) for ctx.onEdit.
+  const editFields = { editKind: p.kind || null, privacy: p.privacy || null, photo: p.photo || null, video: p.video || null, link: p.link || null };
   const act = bsActivityFromPost(p);
-  if (act) return ownerRole ? { ...act, role: ownerRole } : act;
-  // Non-activity post — a slim note-style card. `real:true` routes engagement
-  // (real likes/comments/share) through the post id, just like the feed cards.
+  if (act) return { ...act, ...editFields, ...(ownerRole ? { role: ownerRole } : {}) };
+  // Match the old bsMapActivityPosts filter: the profile "Personal activities" feed
+  // is ONLY posts deliberately published via the Log Activity composer (an explicit
+  // metrics.kind) OR rich media — NOT plain community-feed/chat text posts (no kind /
+  // media / workout), which would otherwise leak onto the profile as "Note" cards.
+  const hasWorkout = Array.isArray(p.workoutStats) && p.workoutStats.length > 0;
+  if (!(p.kind || p.photo || p.video || p.link || hasWorkout)) return null;
+  // Slim Log-Activity card. `real:true` routes engagement (real likes/comments/share)
+  // through the post id, just like the feed cards. Media (photo/video/link) rides on
+  // the `a` shape so BSActivityCard can render the image / inline video / link card.
   const rawTitle = String(p.status || '').trim();
   const GENERIC = /^(workout|photo|video|link|note|article)$/i;
   return {
@@ -7472,6 +7482,13 @@ function bsProfileCardFromPost(p, ownerRole) {
     typeLabel: p.kind ? (String(p.kind).charAt(0).toUpperCase() + String(p.kind).slice(1)) : 'Note',
     title: (rawTitle && !GENERIC.test(rawTitle)) ? rawTitle : (p.kind === 'photo' ? 'Photo' : p.kind === 'video' ? 'Video' : p.kind === 'link' ? 'Link' : 'Note'),
     body: p.note || '',
+    // Log-Activity media — guarded no-ops on community workout cards (which lack them).
+    photo: p.photo || null,
+    video: p.video || null,
+    link: p.link || null,
+    // Edit affordance — reopen the composer with the post's kind + privacy.
+    editKind: p.kind || null,
+    privacy: p.privacy || null,
     ago: bsAgoShort(p.created_at) || p.time || '',
     city: '',
     statsRow: [], fullStats: [],
@@ -7479,8 +7496,10 @@ function bsProfileCardFromPost(p, ownerRole) {
     route: false, routeObj: null,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
     likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
+    // Count only commentable rows (with text) so the card's reply count matches
+    // what postComments renders (CodeRabbit L7483).
     postComments: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text) : [],
-    replies: Array.isArray(p.comments) ? p.comments.length : 0,
+    replies: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text).length : 0,
   };
 }
 // The body of an activity card (title · body · photo · inline video / video+link
@@ -8468,6 +8487,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // detail page / likers sheet / send-to-DM → a toast pointing to the feed).
   const slimOpen = () => window.__bsToast?.('Open in the community feed for the full view.', 'info');
   const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
+  // Owner edit — only on your OWN profile, only on a real (UUID-backed) published
+  // post; reopens BSLogActivitySheet with the post's data (kind/privacy/media).
+  const profileOnEdit = isSelf ? (a) => {
+    const realId = bsRealPostId({ id: a.postId });
+    if (!realId) return;
+    setEditingActivity({ postId: realId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' });
+  } : undefined;
   const profileCtx = {
     t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
@@ -8475,7 +8501,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
     tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setFollowProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
-    feedApplyReaction: profileApplyReaction,
+    feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
   };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
@@ -9190,9 +9216,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
     city: '', activityType: '', stats: [], likers: [], comments: [],
   });
+  // Signed-in on your OWN coach profile → only your REAL published posts; never the
+  // demo "Tip/Win" field-notes (honest-data rule, mirroring the member profile's
+  // `signedInSelf ? [] : feed` gating). Demo tuples are the signed-out preview only.
+  const coachDemoFeed = ownZero ? [] : feed;
   const coachFeedEff = [
     ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
-    ...feed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
+    ...coachDemoFeed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
   ];
   // Profile reaction handler — optimistic toggle + best-effort backend like via
   // the SAME path the community feed uses. Sample cards (no postId) toggle visually.
@@ -9207,6 +9237,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // SLIM FALLBACKS for the surfaces the profile doesn't host (detail/likers/send).
   const slimOpen = () => window.__bsToast?.('Open in the community feed for the full view.', 'info');
   const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
+  // Owner edit — only on your OWN coach profile, only on a real (UUID-backed) post;
+  // reopens BSLogActivitySheet with the post's data (kind/privacy/media).
+  const profileOnEdit = isSelf ? (a) => {
+    const realId = bsRealPostId({ id: a.postId });
+    if (!realId) return;
+    setEditingActivity({ postId: realId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' });
+  } : undefined;
   const profileCtx = {
     t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
@@ -9214,7 +9251,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
     tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setReviewerProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
-    feedApplyReaction: profileApplyReaction,
+    feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
   };
   const initials = bsInitials(name) || (person.init || '?');
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
@@ -9458,6 +9495,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
+              {coachFeedEff.length === 0 && (
+                <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+              )}
               {coachFeedEff.map((a, i) => (
                 <div key={a.key || i} style={{ position: 'relative', marginBottom: 12 }}>
                   <div style={{ position: 'absolute', left: -22, top: 16, width: 9, height: 9, borderRadius: 999, background: c, boxShadow: `0 0 0 3px ${BG}, 0 0 10px ${bsTHexA(c, 0.6)}` }} />
@@ -10309,6 +10349,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
     exprOpenKey, setExprOpenKey, lpTimerRef, lpFiredRef,
     tierByUser, avatarByUser, feedAvatars, myRole, coachClientIds, myFollowingSet,
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
+    onEdit, // optional owner-edit (profile only; community feed passes nothing)
   } = ctx;
     // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
     // tier name + color to it; members keep the client ramp. Real posts resolve the
@@ -10417,7 +10458,11 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
           {hideAuthor ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
-              <span style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
+              {/* owner edit — only when the host supplies onEdit (profile) AND the
+                  card is a real published post; the community feed passes no onEdit,
+                  and demo/PR cards have no postId, so this stays profile-own-posts. */}
+              {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
+              <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
             </div>
           ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
@@ -10448,6 +10493,15 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
             {/* caption — the human line, unchanged */}
             {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
           </div>
+          {/* Log-Activity media — photo · inline video / video-link card · link card.
+              GUARDED by a.photo/a.video/a.link, so it's a zero-render no-op on the
+              community workout cards (which carry none of these). Markup lifted from
+              the old BSActivityBody; theme-token styled. */}
+          {a.photo && <img src={a.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: 10 }} />}
+          {a.video && (bsIsDirectVideoUrl(a.video)
+            ? <video src={a.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: 10, background: '#000' }} />
+            : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: `${tc}2e`, color: tc, display: 'grid', placeItems: 'center', fontSize: 12 }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
+          {a.link && <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: `${tc}2e`, color: tc, display: 'grid', placeItems: 'center', fontSize: 13 }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontWeight: 600, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.link.title || bsLinkHost(a.link.url)}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.link.url)} ↗</span></span></a>}
           {/* coach attribution — honest slot: renders ONLY when the post names a
               program + coach; suppressed entirely for self-coached / opted-out */}
           {coachLine && (
