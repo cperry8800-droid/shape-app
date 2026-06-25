@@ -164,6 +164,48 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-25 — Daily steps / NEAT: device-synced steps + ring-instrument history (#1415)
+- **New display-only daily-steps feature** (NEAT). Steps come from a connected watch
+  (Apple Health / Garmin sync) — never manual entry, since a person can't know their own
+  count. **Migration `2026-06-25-daily-steps.sql`** (`daily_health_snapshot.steps integer`,
+  idempotent) — **APPLIED to prod**.
+- **Backend wiring**: `steps` → `SnapshotPatch` (`health-snapshot.ts`); Apple Health sync
+  `ALLOWED_FIELDS` (normalized to a **non-negative integer** in `cleanPatch`); Garmin
+  webhook dailies mapping (**rejects negative** totals); progress route `series.steps` +
+  `stepsLatest`/`stepsAvg` KPIs. `steps` registered in the source-reconcile `METRICS`
+  (`reconcile.mjs`) so INT2 can reconcile multi-source conflicts. The progress snapshot
+  query uses `select('*')` (migration-safe — PostgREST 400s an unknown explicit column).
+- **Mobile (`iosAppBroadsheetClient.jsx`)**:
+  - **`BSStepsCard`** (Me page) — today's count vs goal (honest `—` until today syncs;
+    "Connect a watch" only when nothing's ever synced); taps into history (keyboard-activatable).
+  - **`BSStepsHistory`** — a tier-colored **ring instrument**: hero gauge (today) + **Week**
+    (vertical day-list: ring + a bar filling toward goal + an `actual / goal` readout) +
+    **Month** & **3-Month** ring calendars. Rings fill to the user's Shape Score tier color
+    only at goal. **Calendar-correct windows** — the stat row matches the rendered rows,
+    missed-sync days are honest gaps, and "today" is today's date (not the last sample).
+  - **Editable custom goal** — a typeable editor (stepper + 6k–15k presets), persisted to
+    localStorage + `user_goals('client_step_goal')` (cross-device, dedicated key — no clobber;
+    a session edit wins over a late cloud hydrate). Card + history read one shared value;
+    ring fills, %, "to go", and goal-hits all recompute against it.
+  - **"Alive" ring treatment** (designed via a multi-agent design+review pass): staggered
+    one-shot draw-in; a tier-colored **breathing glow on every completed ring** (a circular
+    CSS `box-shadow` — follows the border-radius so **no square filter-region clip**;
+    GPU-composited transform/opacity only, so the 30-ring month grid stays smooth); the hero
+    gets an **avatar-style pulsing outer ring** + a **glow when filled**. Honors
+    `prefers-reduced-motion`.
+  - Standard page nav bar on the steps page (SHAPE logo + `Vol. 1 · No. 1` + search + tier
+    avatar, wired) + centered range tabs.
+- **Review stack** (CodeRabbit + Codex, two rounds): fixed every Critical/Major — honest `—`
+  vs fabricated 0, non-negative-int step validation (Apple + Garmin), migration-safe query,
+  Week stats matching the rendered Mon–Sun rows, the goal-hydrate race, history-button
+  keyboard a11y, reconcile METRICS. Verified: JSX parse · `tsc` · mobile build + `public/m`
+  sync · all 3 required CI checks green; iterated on `staging` (~12 previews) before merge.
+- Shipped as **#1415** (squash-merged to `main`, branch kept). Separately, **#1416**
+  added the product-strategy analysis + coach-acquisition marketing docs (`PRODUCT-STRATEGY.md`,
+  `marketing/coach-acquisition-campaign-plan.md`, `marketing/coach-outreach-email-sequence.md`;
+  review fixes: per-track signup URLs, conditional founding-perk copy, send-day calendar
+  alignment, illustrative-projection disclaimer).
+
 ### 2026-06-25 — Profile activity cards: full engagement parity (detail · send · likers · comments wired)
 - The profile **"Personal activities"** cards (member Terrain + coach Signal) were visual-only for
   the deep interactions — **Session details / Full activity / Comment / Send / the liker list** all
