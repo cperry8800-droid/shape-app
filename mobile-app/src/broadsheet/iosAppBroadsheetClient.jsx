@@ -8152,6 +8152,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // detail page / likers sheet / send-to-DM) get slim fallbacks below.
   const [actLikes, setActLikes] = useStateBSC({});
   const [profExprOpen, setProfExprOpen] = useStateBSC(null);
+  const [actExpr, setActExpr] = useStateBSC({});
   const profLpTimerRef = React.useRef(null);
   const profLpFiredRef = React.useRef(false);
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
@@ -8459,6 +8460,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
     const willLike = expr != null ? true : !wasLiked;
     setActLikes((prev) => ({ ...prev, [key]: willLike }));
+    setActExpr((prev) => { const next = { ...prev }; if (willLike && expr != null) next[key] = expr; else if (!willLike) delete next[key]; return next; });
     if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
   };
   // ctx for the shared BSActivityCard on this profile. Theme + working reactions +
@@ -8469,7 +8471,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const profileCtx = {
     t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
-    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
     tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setFollowProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
@@ -9098,6 +9100,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // (optimistic toggle + best-effort persist via the same backend path as the feed).
   const [actLikes, setActLikes] = useStateBSC({});
   const [profExprOpen, setProfExprOpen] = useStateBSC(null);
+  const [actExpr, setActExpr] = useStateBSC({});
   const profLpTimerRef = React.useRef(null);
   const profLpFiredRef = React.useRef(false);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
@@ -9197,6 +9200,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
     const willLike = expr != null ? true : !wasLiked;
     setActLikes((prev) => ({ ...prev, [key]: willLike }));
+    setActExpr((prev) => { const next = { ...prev }; if (willLike && expr != null) next[key] = expr; else if (!willLike) delete next[key]; return next; });
     if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
   };
   // ctx for the shared card on this profile: theme + working reactions/share/repost;
@@ -9206,7 +9210,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const profileCtx = {
     t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
-    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
     tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setReviewerProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
