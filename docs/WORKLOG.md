@@ -149,10 +149,12 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-06-22.md`](HANDOFF-2026-06-22.md)** —
-> compliance Waves 3+4 (export/delete/rights-form/GPC/consent/age-gate + 3 migrations
-> APPLIED), Code of Conduct + ToS ban rules, grocery web redesign, landing polish. All
-> legal/compliance copy is DRAFT pending counsel.
+> **Latest session handoff: [`docs/HANDOFF-2026-06-25.md`](HANDOFF-2026-06-25.md)** —
+> Daily steps / NEAT shipped end-to-end (#1415: device-synced backend + ring-instrument
+> history + editable goal + alive-ring animations), strategy/marketing docs (#1416), and
+> this WORKLOG/War-Room update (#1418). `main` clean, zero open PRs, `staging` reset.
+> (Prior: [`docs/HANDOFF-2026-06-22.md`](HANDOFF-2026-06-22.md) — compliance Waves 3+4,
+> Code of Conduct + ToS, grocery web redesign; legal copy DRAFT pending counsel.)
 >
 > **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
