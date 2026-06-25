@@ -3955,7 +3955,11 @@ async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
 window.ShapeMealLog = { log: logMealMacros };
 // Hydration logger — GET today's intake + target; POST a delta (liters).
 async function getHydration() {
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/hydration`, null);
+  // Pass the client LOCAL date so the read targets the same snapshot row the
+  // quick-add POST writes (addHydration sends date: _localDate()). Without it the
+  // GET falls back to the server UTC day and the card can read a different day's
+  // row near local midnight.
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/hydration?date=${_localDate()}`, null);
 }
 async function addHydration(deltaL) {
   const res = await fetch(`${apiBaseUrl || ''}/api/client/hydration`, {
