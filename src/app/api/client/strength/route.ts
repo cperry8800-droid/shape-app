@@ -48,13 +48,16 @@ export async function GET(request: Request) {
     const rows = setRows.map((r) => {
       const o = r as Record<string, unknown>;
       const p = (o.payload ?? {}) as Record<string, unknown>;
+      // Prefer the column when it's a real positive value; a null OR zero column
+      // means "not set" → fall back to the payload the app actually writes.
+      const colLoad = Number(o.actual_load);
+      const colReps = Number(o.actual_reps);
       return {
         key: String(o.move_name ?? '').trim().toLowerCase(),
         name: String(o.move_name ?? '').trim(),
         date: String(o.created_at ?? '').slice(0, 10),
-        // Prefer the columns; fall back to the payload the app actually writes.
-        load: num(o.actual_load ?? p.actualLoad ?? p.load ?? p.actual_load),
-        reps: num(o.actual_reps ?? p.actualReps ?? p.reps ?? p.actual_reps),
+        load: colLoad > 0 ? colLoad : num(p.actualLoad ?? p.load ?? p.actual_load),
+        reps: colReps > 0 ? colReps : num(p.actualReps ?? p.reps ?? p.actual_reps),
         rpe: ((v) => (v == null ? null : Number(v)))(o.rpe ?? p.rpe ?? null),
         completed: o.completed as boolean | undefined,
       };

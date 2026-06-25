@@ -47,15 +47,21 @@ begin
   with sets as (
     select sl.move_name,
            sl.created_at,
-           -- Actual lifted load: column, then payload, then prescription.
+           -- best/delta load: actual column (>0; 0 = "not set"), then payload
+           -- aliases (mirroring the API route), then the prescription.
            coalesce(
              case when sl.actual_load > 0 then sl.actual_load::numeric else null end,
-             (regexp_match(coalesce(sl.payload->>'actualLoad', sl.payload->>'load', sl.target_load, ''), '([0-9]+(?:\.[0-9]+)?)'))[1]::numeric
+             (regexp_match(coalesce(sl.payload->>'actualLoad', sl.payload->>'load', sl.payload->>'actual_load', sl.target_load, ''), '([0-9]+(?:\.[0-9]+)?)'))[1]::numeric
            ) as load,
-           -- Actual reps (for e1RM only): column, then payload. No target fallback.
+           -- e1RM load: actuals ONLY (column >0, then payload aliases) — no prescription.
            coalesce(
-             sl.actual_reps,
-             (regexp_match(coalesce(sl.payload->>'actualReps', ''), '([0-9]+)'))[1]::int
+             case when sl.actual_load > 0 then sl.actual_load::numeric else null end,
+             (regexp_match(coalesce(sl.payload->>'actualLoad', sl.payload->>'load', sl.payload->>'actual_load', ''), '([0-9]+(?:\.[0-9]+)?)'))[1]::numeric
+           ) as e1_load,
+           -- e1RM reps: actual column (>0), then payload aliases (matches the route).
+           coalesce(
+             case when sl.actual_reps > 0 then sl.actual_reps else null end,
+             (regexp_match(coalesce(sl.payload->>'actualReps', sl.payload->>'reps', sl.payload->>'actual_reps', ''), '([0-9]+)'))[1]::int
            ) as reps
     from public.workout_set_logs sl
     where sl.client_id = p_user_id
@@ -67,10 +73,10 @@ begin
            max(load) as best,
            max(
              case
-               when load is null or load <= 0 then null
+               when e1_load is null or e1_load <= 0 then null
                when reps is null or reps < 1 or reps > 12 then null
-               when reps <= 1 then round(load, 1)
-               else round((load * (1 + reps::numeric / 30)), 1)
+               when reps <= 1 then round(e1_load, 1)
+               else round((e1_load * (1 + reps::numeric / 30)), 1)
              end
            ) as best_e1rm,
            max(load) filter (where created_at >= now() - interval '30 days') as best_recent,

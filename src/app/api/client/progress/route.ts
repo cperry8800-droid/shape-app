@@ -135,9 +135,12 @@ export async function GET(request: Request) {
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
     const p = (r.payload ?? {}) as Record<string, unknown>;
-    const load = pnum(r.actual_load ?? p.actualLoad ?? p.load ?? p.actual_load);
+    // A null OR zero column means "not set" → fall back to the payload.
+    const colLoad = Number(r.actual_load);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
-    const repsN = pnum(r.actual_reps ?? p.actualReps ?? p.reps ?? p.actual_reps);
+    const colReps = Number(r.actual_reps);
+    const repsN = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps ?? p.actual_reps);
     const reps = Number.isFinite(repsN) ? Math.round(repsN) : null;
     const key = String(r.move_name || '').trim();
     if (!key) continue;
@@ -172,7 +175,8 @@ export async function GET(request: Request) {
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
     const p = (r.payload ?? {}) as Record<string, unknown>;
-    const load = pnum(r.actual_load ?? p.actualLoad ?? p.load ?? p.actual_load);
+    const colLoad = Number(r.actual_load);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
     const week = new Date(r.created_at);
     const day = week.getUTCDay();
