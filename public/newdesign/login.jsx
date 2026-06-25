@@ -123,12 +123,16 @@ function LoginCard() {
         const isWebsiteSignup = !!(meta.full_name && meta.role && meta.username && meta.date_of_birth);
         if (!row && isWebsiteSignup) {
           try {
+            // Role is FIXED to client — NEVER copy meta.role/meta.roles. The profiles
+            // INSERT policy only checks auth.uid() = id, so honoring client-supplied
+            // role metadata would let anyone self-mint a trainer/nutritionist profile.
+            // Coaches are provisioned server-side via the /api/apply approval flow.
             await sb.from('profiles').upsert({
               id: u.id,
               email: u.email,
               full_name: meta.full_name,
-              role: meta.role,
-              roles: (Array.isArray(meta.roles) && meta.roles.length) ? meta.roles : [meta.role],
+              role: 'client',
+              roles: ['client'],
               updated_at: new Date().toISOString(),
             }, { onConflict: 'id' });
           } catch (e) {}
