@@ -154,7 +154,7 @@ function ssEnsureDb() {
   _ssDbPromise = (window.supabase && window.supabase.createClient ? Promise.resolve() : load("/vendor/supabase-js-2.108.2.umd.js"))
     .then(() => (window.shapeDb && window.shapeDb.client) ? null : load("/supabase.js"))
     .then(() => (window.shapeDb && window.shapeDb.client) ? window.shapeDb : null)
-    .catch(() => null);
+    .catch((e) => { try { console.error("[shape] Supabase bundle failed to load", e); } catch (_) {} return null; });
   return _ssDbPromise;
 }
 function SiteSearch({ signedIn = false }) {

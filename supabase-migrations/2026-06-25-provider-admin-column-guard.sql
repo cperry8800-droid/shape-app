@@ -82,6 +82,9 @@ create trigger nutritionists_guard_admin_columns
 -- ── provider_credentials: gate the review workflow ───────────────────────────
 -- A coach may submit (review_status -> 'none'/'pending') and edit their own
 -- cert/insurance/attestation fields, but the admin VERDICT columns are pinned.
+-- A self-service RESUBMISSION (moving review_status back to none/pending) clears
+-- the stale verification + verdict — the changed credentials need re-review, so
+-- the prior "Verified" status must not carry over.
 create or replace function public.guard_credential_review_columns()
 returns trigger
 language plpgsql
@@ -117,11 +120,23 @@ begin
        and (new.review_status is null or new.review_status not in ('none','pending')) then
       new.review_status := old.review_status;
     end if;
-    new.reviewed_by := old.reviewed_by;
-    new.reviewed_at := old.reviewed_at;
-    new.review_notes := old.review_notes;
-    new.verified_rd := old.verified_rd;
-    new.verified_at := old.verified_at;
+    if new.review_status is distinct from old.review_status
+       and new.review_status in ('none','pending') then
+      -- self-service resubmission: the prior admin verdict + verification no longer
+      -- applies to the changed credentials -> clear it (re-review required).
+      new.verified_rd := false;
+      new.verified_at := null;
+      new.reviewed_by := null;
+      new.reviewed_at := null;
+      new.review_notes := null;
+    else
+      -- no review-status change: pin the admin verdict columns to their values.
+      new.reviewed_by := old.reviewed_by;
+      new.reviewed_at := old.reviewed_at;
+      new.review_notes := old.review_notes;
+      new.verified_rd := old.verified_rd;
+      new.verified_at := old.verified_at;
+    end if;
     return new;
   end if;
 

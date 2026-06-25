@@ -1,21 +1,20 @@
 -- Lock public.profiles.role / .roles against client-side self-elevation.
 --
--- THE HOLE: the only self-write policies on public.profiles are
---   "users insert own profile"  WITH CHECK (auth.uid() = id)
---   "users update own profile"  USING/CHECK (auth.uid() = id)
--- Neither restricts the `role` / `roles` columns, so ANY authenticated user can
---   update profiles set role = 'trainer' where id = auth.uid();
--- and self-grant a coach role. computeMembership() (src/lib/membership-core.ts)
--- trusts profiles.role/roles for `isCoach`, so that self-elevation grants
--- coach-surface access AND bypasses the $5/mo membership paywall.
--- (admin is email-based, not role-based, so 'admin' here is not exploitable.)
+-- THE HOLE: the only self-write policies on public.profiles check auth.uid()=id
+-- with NO restriction on the `role` / `roles` columns, so any authenticated user
+-- could `update profiles set role = 'trainer' where id = auth.uid();` and
+-- self-grant a coach role. computeMembership() (src/lib/membership-core.ts) trusts
+-- profiles.role/roles for `isCoach`, so that self-elevation grants coach-surface
+-- access AND bypasses the $5/mo membership paywall. (admin is email-based, not
+-- role-based, so 'admin' here is not exploitable.)
 --
 -- THE FIX: a BEFORE INSERT/UPDATE trigger that, for non-service-role callers,
--- neutralizes any attempt to set/add a coach role. Coach roles may ONLY come
--- from the server-side approval flow (createAdminClient -> service_role, in
+-- neutralizes any attempt to set/add a coach role. Coach roles may ONLY come from
+-- the server-side approval flow (createAdminClient -> service_role, in
 -- src/app/dashboard/applications/actions.ts updateProfileRole/publishProviderRow).
--- Existing coaches are preserved (the role they already hold is never downgraded);
--- only NEW self-elevation is blocked. Idempotent / safe to re-run.
+-- Existing coaches are PRESERVED — the singular role and the coach entries in
+-- roles[] are never dropped by a self-write, even one that omits them; only NEW
+-- self-elevation is blocked. Idempotent / safe to re-run.
 
 create or replace function public.guard_profile_role_elevation()
 returns trigger
@@ -50,19 +49,21 @@ begin
   end if;
 
   if tg_op = 'UPDATE' then
-    -- Never downgrade an existing coach (preserve what approval already granted),
-    -- but block ADDING any coach role the row didn't already hold.
+    -- Pin the singular role whenever a coach role is involved either way: blocks
+    -- self-elevation AND prevents self-downgrade of an existing coach.
     if new.role is distinct from old.role
-       and new.role = any(coach_roles)
-       and not (new.role = old.role) then
-      new.role := old.role;  -- revert a self-elevation of the singular role
+       and (new.role = any(coach_roles) or old.role = any(coach_roles)) then
+      new.role := old.role;
     end if;
-    -- roles[]: keep non-coach entries, plus any coach role the row already held;
-    -- strip coach roles that would be newly added by this self-write.
-    new.roles := array(
-      select r from unnest(coalesce(new.roles, array[]::text[])) r
-      where r <> all(coach_roles)
-         or r = any(coalesce(old.roles, array[]::text[]))
+    -- Keep the non-coach roles the update wants + ALWAYS retain old coach grants:
+    -- new coach roles can't be self-added; existing ones can't be self-removed.
+    new.roles := (
+      select coalesce(array_agg(distinct r), array[]::text[])
+      from (
+        select r from unnest(coalesce(new.roles, array[]::text[])) r where r <> all(coach_roles)
+        union
+        select r from unnest(coalesce(old.roles, array[]::text[])) r where r = any(coach_roles)
+      ) u
     );
     return new;
   end if;
