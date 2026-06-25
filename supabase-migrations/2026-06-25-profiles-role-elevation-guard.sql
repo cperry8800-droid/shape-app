@@ -9,12 +9,13 @@
 -- role-based, so 'admin' here is not exploitable.)
 --
 -- THE FIX: a BEFORE INSERT/UPDATE trigger that, for non-service-role callers,
--- neutralizes any attempt to set/add a coach role. Coach roles may ONLY come from
--- the server-side approval flow (createAdminClient -> service_role, in
--- src/app/dashboard/applications/actions.ts updateProfileRole/publishProviderRow).
--- Existing coaches are PRESERVED — the singular role and the coach entries in
--- roles[] are never dropped by a self-write, even one that omits them; only NEW
--- self-elevation is blocked. Idempotent / safe to re-run.
+-- neutralizes any attempt to GAIN a coach role the user doesn't already hold.
+-- Coach roles may ONLY be granted by the server-side approval flow
+-- (createAdminClient -> service_role, in dashboard/applications/actions.ts).
+-- Existing coaches are PRESERVED — the coach entries in roles[] are never dropped
+-- by a self-write (even one that omits them), and the active singular role may be
+-- switched among roles the user ALREADY holds (mirrors /api/me/role) — only NEW
+-- elevation to an un-held coach role is blocked. Idempotent / safe to re-run.
 
 create or replace function public.guard_profile_role_elevation()
 returns trigger
@@ -49,10 +50,12 @@ begin
   end if;
 
   if tg_op = 'UPDATE' then
-    -- Pin the singular role whenever a coach role is involved either way: blocks
-    -- self-elevation AND prevents self-downgrade of an existing coach.
+    -- Block ELEVATION to a coach role the user does not already hold; allow
+    -- switching the active role to any role already in roles[] (or to a non-coach
+    -- role). Mirrors /api/me/role, which only permits switching to an owned role.
     if new.role is distinct from old.role
-       and (new.role = any(coach_roles) or old.role = any(coach_roles)) then
+       and new.role = any(coach_roles)
+       and not (new.role = any(coalesce(old.roles, array[]::text[]))) then
       new.role := old.role;
     end if;
     -- Keep the non-coach roles the update wants + ALWAYS retain old coach grants:
