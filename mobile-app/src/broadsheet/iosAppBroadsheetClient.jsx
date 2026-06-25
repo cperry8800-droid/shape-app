@@ -9,7 +9,7 @@ import { startTour } from '../../../public/newdesign/spotlightTour.js';
 
 const { useState: useStateBSC } = React;
 const {
-  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
+  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
   BSTabBar, BSFooter, BSLogo, BSPlate,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
@@ -1154,7 +1154,7 @@ function BSLibraryDetail({ item, onBack }) {
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Library</button>
+        <BSBackButton onClick={onBack} label="Library" />
         <BSMeCorner size={28} />
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
@@ -1203,7 +1203,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           <BSMeCorner size={28} />
         </div>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
@@ -1299,7 +1299,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onBack} style={headBtn}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
         <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
       </div>
@@ -3759,7 +3759,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <BSMeCorner size={28} />
       </div>
 
@@ -8468,7 +8468,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     const isPr = !!it.hot;
     const lift = isPr ? String(it.t || '').replace(/^\s*new pr\s*[—–-]\s*/i, '').trim() : '';
     return {
-      real: false, key: it._k || null, postId: null, who: name, role: 'Client', hot: isPr,
+      real: false, key: it._k || null, postId: null, who: name, role: 'Client', tier: tierKey, hot: isPr,
       kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
       body: it.b || '', ago: it.time || '', city: '', activityType: '',
       stats: it.metric ? [[it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
@@ -8512,7 +8512,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
     actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
-    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    tierByUser: (person.userId ? { [person.userId]: tierKey } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setFollowProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
@@ -8634,7 +8634,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       ) : (
         /* Others' public profile (pushed): back + avatar corner. */
         <div style={{ padding: '44px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           {isSelf
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <BSSearchCorner size={30} ink={INK} />
@@ -8778,6 +8778,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         </div>
       )}
 
+      {isSelf && (
+        <div style={{ padding: '12px 18px 0' }}>
+          <button onClick={onOpenProgress} aria-label="Open your progress" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Progress</div>
+              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Streak · trends · overall · training · nutrition</div>
+            </div>
+            <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
+          </button>
+        </div>
+      )}
+
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
@@ -8790,7 +8802,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div ref={activityRef} />
             <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
-              { key: 'stats', label: 'Stats' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
               { key: 'playlists', label: 'Music' },
@@ -8798,25 +8809,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
                 <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
-              </div>
-            )}
-            {tab === 'stats' && (
-              <div style={{ marginBottom: 22 }}>
-                {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
-                {isSelf
-                  ? <>
-                      <BSMeKpis embedded onOpen={onOpenProgress} />
-                      {/* The full 3-tab Progress hub used to be embedded here as a
-                          second copy — it now lives ONLY on the Progress page. */}
-                      <button onClick={onOpenProgress} style={{ width: '100%', marginTop: 16, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Full progress & trends</div>
-                          <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Overall · Training · Nutrition</div>
-                        </div>
-                        <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
-                      </button>
-                    </>
-                  : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
             {tab === 'climb' && (<>
@@ -9227,7 +9219,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // ([kick, title, body, time] tuples) via a slim adapter.
   const ownerRole = isNutri ? 'Nutritionist' : 'Trainer';
   const tupleToCard = (k, t2, b, time, idx) => ({
-    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, hot: false,
+    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, tier: baseTier, hot: false,
     kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
     city: '', activityType: '', stats: [], likers: [], comments: [],
   });
@@ -9267,7 +9259,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
     actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
-    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    tierByUser: (person.userId ? { [person.userId]: baseTier } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setReviewerProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
@@ -9308,7 +9300,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>
         ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
@@ -10460,7 +10452,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
     // tier name + color to it; members keep the client ramp. Real posts resolve the
     // author's live tier (batched points → tier), with a stable name-hash fallback.
     const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
-    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : a.tier;
+    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : (a.tier || bsPostTier({ who: a.who }));
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
     const key = a.key || `${a.who}|${a.ago}`;
@@ -10770,18 +10762,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
-  // Nora's voice (off by default) + tone toggle. Lives in localStorage via
-  // window.ShapeVoice; the thread mirrors it so toggles re-render immediately.
-  const [voicePrefs, setVoicePrefs] = useStateBSC(() => (window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive' }));
-  const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
-  const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
+  // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
+  // default); the global voice on/off + tone still live in Settings → Nora voice.
+  // (We do NOT force the tone here — that would overwrite the user's own setting
+  // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
   const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
-  // Reflect a tone that arrives async (account sync on login, or a change on another surface).
-  React.useEffect(() => {
-    const h = () => { try { if (window.ShapeVoice) setVoicePrefs(window.ShapeVoice.get()); } catch (e) {} };
-    window.addEventListener('shape:voice', h);
-    return () => window.removeEventListener('shape:voice', h);
-  }, []);
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
@@ -11711,9 +11696,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           if (tab === 'channels') {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px 2px' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Your channels</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{chUnread > 0 ? `${chUnread} unread · ` : ''}{chDisplay.length} channel{chDisplay.length === 1 ? '' : 's'}</span>
                 </div>
                 {/* Search + a compact "+" box that opens the create form */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -11760,18 +11744,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
-                    {/* Nora's voice — off by default, fully usable without it. */}
-                    <button onClick={() => setVoiceEnabled(!voicePrefs.enabled)} title="Speak Nora's replies" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 999, border: `1px solid ${voicePrefs.enabled ? '#2e6fa0' : hair}`, background: voicePrefs.enabled ? '#2e6fa01f' : 'transparent', color: voicePrefs.enabled ? '#2e6fa0' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                      {voicePrefs.enabled ? '🔊' : '🔇'} Voice {voicePrefs.enabled ? 'on' : 'off'}
-                    </button>
-                    <div style={{ display: 'inline-flex', borderRadius: 999, border: `1px solid ${hair}`, overflow: 'hidden' }}>
-                      {['supportive', 'direct'].map(tn => (
-                        <button key={tn} onClick={() => setVoiceTone(tn)} title={tn === 'supportive' ? 'Warm and encouraging' : 'Concise and factual'} style={{ padding: '5px 10px', border: 0, background: voicePrefs.tone === tn ? '#2e6fa0' : 'transparent', color: voicePrefs.tone === tn ? '#fff' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tn}</button>
-                      ))}
-                    </div>
-                  </div>
                   {supportMsgs.map((m, i) => (
                     m.me ? (
                       <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
@@ -12480,13 +12452,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
       {/* Custom header with back chevron — no tab bar on the thread screen */}
       <div style={{ padding: '64px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-            background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}>
-            ← Back
-          </button>
+          <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
@@ -16535,11 +16501,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   return (
     <div style={{ padding: '64px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-          fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
           {!noCorner && <BSMeCorner size={28} />}
@@ -17849,6 +17811,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showHelp, setShowHelp] = useStateBSC(false);
   const [showPrivacy, setShowPrivacy] = useStateBSC(false);
   const [showDataCompliance, setShowDataCompliance] = useStateBSC(false);
+  const [showCodeOfConduct, setShowCodeOfConduct] = useStateBSC(false);
+  const [showConsumerHealth, setShowConsumerHealth] = useStateBSC(false);
+  const [showSubprocessors, setShowSubprocessors] = useStateBSC(false);
   const [showAbout, setShowAbout] = useStateBSC(initialPage === 'about-shape');
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
@@ -18413,19 +18378,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   );
                 })}
               </div>
+              {s.desc && <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
             </div>
           );
         }
         const value = s.key ? prefs[s.key] : s.r;
         const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
         return (
-          <div key={i} onClick={onTap} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder,
-            cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-            {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+          <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
+            <div onClick={onTap} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
+            }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+            </div>
+            {s.desc && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
           </div>
         );
       })}
@@ -18446,6 +18414,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showDataCompliance) {
     return <BSDataCompliancePage onBack={() => setShowDataCompliance(false)} onContact={() => { setShowDataCompliance(false); setShowContact(true); }} />;
+  }
+  if (showCodeOfConduct) {
+    return <BSCodeOfConductPage onBack={() => setShowCodeOfConduct(false)} onContact={() => { setShowCodeOfConduct(false); setShowContact(true); }} />;
+  }
+  if (showConsumerHealth) {
+    return <BSConsumerHealthPage onBack={() => setShowConsumerHealth(false)} onContact={() => { setShowConsumerHealth(false); setShowContact(true); }} />;
+  }
+  if (showSubprocessors) {
+    return <BSSubprocessorsPage onBack={() => setShowSubprocessors(false)} onContact={() => { setShowSubprocessors(false); setShowContact(true); }} />;
   }
   if (showAbout) {
     return <BSAboutPage onBack={() => setShowAbout(false)} />;
@@ -18610,9 +18587,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
-        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible },
-        { l: 'Share workout data', key: 'shareWorkoutData' },
+        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' },
+        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' },
+        { l: 'Share workout data', key: 'shareWorkoutData', desc: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' },
       ],
     },
     {
@@ -18636,6 +18613,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
         { l: 'Data & compliance', r: 'Legal', action: () => setShowDataCompliance(true) },
+        { l: 'Code of conduct', r: 'Legal', action: () => setShowCodeOfConduct(true) },
+        { l: 'Consumer health data', r: 'Legal', action: () => setShowConsumerHealth(true) },
+        { l: 'Subprocessors', r: 'Legal', action: () => setShowSubprocessors(true) },
       ],
     },
     { title: 'Nutrition', meta: '', rows: nutritionRows },
@@ -18740,7 +18720,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
-              {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
+              {[['Shape Score', () => setShowScore(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '7px 5px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
@@ -20363,6 +20343,117 @@ function BSDataCompliancePage({ onBack, onContact }) {
       </div>
 
       <BSFooter right="Data" />
+    </BSPage>
+  );
+}
+
+// Shared render helpers for the in-app legal summary pages (Code of Conduct,
+// Consumer health data, Subprocessors) — same look as Terms/Privacy/Data.
+function BSLegalSections({ sections }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      {sections.map(([num, title, body], i, arr) => (
+        <div key={num} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: 12, padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function BSLegalActions({ url, onContact }) {
+  const t = useBS();
+  const btn = { borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' };
+  return (
+    <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+      <button onClick={() => { window.location.href = url; }} style={{ ...btn, border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER }}>Open full</button>
+      {onContact && <button onClick={onContact} style={{ ...btn, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK }}>Contact support</button>}
+    </div>
+  );
+}
+
+function BSCodeOfConductPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Who it applies to', 'The Code applies to everyone on Shape — members, trainers, nutritionists, and dietitians — and is incorporated into the Terms of Service.'],
+    ['02', 'Community standards', "Be respectful and honest. No harassment, hate, threats, sexual misconduct, spam, scams, impersonation, or sharing someone else's private information. Keep it lawful and safe."],
+    ['03', 'Coaches — professional conduct', 'Coaches are held to a higher bar: hold real credentials, work within your scope of practice, protect client safety and boundaries, deliver what you sell, never dodge fees off-platform, protect client data, and make no medical claims.'],
+    ['04', 'Clients — conduct', "Treat coaches and members with respect, give honest feedback, and don't misuse the platform, the rewards, or other people's content."],
+    ['05', 'Safety', 'Shape is not an emergency service and is 18+. No dangerous, illegal, or unqualified medical advice. In an emergency, contact local services.'],
+    ['06', 'Reporting & moderation', 'Report anything that crosses a line. We review with evidence and proportionality; outcomes range from a warning to removal.'],
+    ['07', 'Enforcement & ban tiers', 'Most issues follow warning → temporary restriction → removal. Threats, sexual misconduct, fraud, illegal activity, abuse, and credential fraud are zero-tolerance — immediate ban, no refund. No ban evasion or re-registration.'],
+    ['08', 'A living document', 'We update the Code as the community grows; it is reviewed by counsel before launch. Full text on the web.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/code-of-conduct.html" onContact={onContact} />
+      <BSFooter right="Conduct" />
+    </BSPage>
+  );
+}
+
+function BSConsumerHealthPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Scope & who this covers', "Covers \"consumer health data\" under Washington's My Health My Data Act and similar state laws. It supplements our Privacy Policy."],
+    ['02', 'Health data we collect', 'PAR-Q screening, medications, allergies, pregnancy status, medical conditions, injuries, emergency contact, body measurements, weigh-ins, progress photos, weekly check-ins, and wearable recovery data (HR, HRV, sleep).'],
+    ['03', 'Where it comes from', 'From you (what you enter) and, if you connect them, wearables and health services — Apple Health, Strava, Garmin, Whoop, Oura.'],
+    ['04', 'How we use it', 'To run your coaching — show your activity and recovery, let your coach work with you safely, and power the features you use. Never for advertising, and never to train AI models.'],
+    ['05', 'Who we share it with', 'Only the coach(es) you choose (your safety screening is shared so they can work with you safely) and the infrastructure subprocessors that store it. We never sell it.'],
+    ['06', 'Consent', "We ask for your consent before collecting health data, and you can withdraw it any time. Some features won't work without the data they need."],
+    ['07', 'Your rights', 'Access, download, correct, or delete your health data, and withdraw consent, from Settings → Privacy & data or by emailing privacy@theshapecommunity.com.'],
+    ['08', 'Security & access', 'Per-user row-level access and private, signed-URL storage for photos and voice. Only you and your linked coach(es) can see it.'],
+    ['09', 'No sale · no geofencing', 'We do not sell health data and do not use geofencing around health facilities. We recognize the Global Privacy Control signal.'],
+    ['10', 'Changes & contact', 'Material changes are announced in advance. Questions go to privacy@theshapecommunity.com.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/health-data-privacy.html" onContact={onContact} />
+      <BSFooter right="Health" />
+    </BSPage>
+  );
+}
+
+function BSSubprocessorsPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'What a subprocessor is', 'A third party that processes some of your data to help Shape run. Each is bound by contract to use your data only to provide its service to Shape.'],
+    ['02', 'Infrastructure', 'Supabase (database, authentication, file storage), Vercel (web hosting and product analytics), and Cloudflare (DNS, network security, and the Turnstile bot check).'],
+    ['03', 'Payments', 'Stripe (payments and payouts).'],
+    ['04', 'AI & communications', 'OpenAI (the "Nora" assistant, voice transcription, and text-to-speech), Google Firebase Cloud Messaging (push notifications), and Resend (email).'],
+    ['05', 'Optional connections', 'Instacart (only if you send it a grocery list) and the wearable/audio services you choose to connect (Apple Health, Strava, Garmin, Whoop, Oura, Spotify).'],
+    ['06', 'International transfers', 'Where data is processed outside your region, transfers rely on appropriate safeguards such as Standard Contractual Clauses.'],
+    ['07', 'Changes', 'We announce material changes to the subprocessor list in advance. The full list — with the data each receives — is on the web.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The third parties that help run Shape — each bound by contract to use your data only to provide its service.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/subprocessors.html" onContact={onContact} />
+      <BSFooter right="Subprocessors" />
     </BSPage>
   );
 }
