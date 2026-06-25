@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { epleyE1rm } from '@/lib/e1rm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,13 @@ export const dynamic = 'force-dynamic';
 function avg(nums: number[]): number | null {
   if (!nums.length) return null;
   return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+// Parse a load/reps value that may be a number or free text ("230", "230 lb", "8").
+function pnum(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  return parseFloat(String(v));
 }
 
 export async function GET(request: Request) {
@@ -106,9 +114,11 @@ export async function GET(request: Request) {
   };
 
   // ---- Strength PRs from logged sets --------------------------------------
+  // The in-app live-session writer stores actuals in `payload` (actualLoad /
+  // actualReps), not the actual_load/actual_reps columns — read both.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('move_name, actual_load, actual_reps, load_unit, created_at, completed')
+    .select('move_name, actual_load, actual_reps, load_unit, payload, created_at, completed')
     .eq('client_id', user.id)
     .order('created_at', { ascending: true })
     .limit(3000);
@@ -119,12 +129,19 @@ export async function GET(request: Request) {
     bestReps: number | null;
     unit: string;
     bestAt: string;
+    e1rm: number | null;
   };
   const prMap = new Map<string, PR>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    // A null OR zero column means "not set" → fall back to the payload.
+    const colLoad = Number(r.actual_load);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
+    const colReps = Number(r.actual_reps);
+    const repsN = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps ?? p.actual_reps);
+    const reps = Number.isFinite(repsN) ? Math.round(repsN) : null;
     const key = String(r.move_name || '').trim();
     if (!key) continue;
     const pr = prMap.get(key);
@@ -132,27 +149,34 @@ export async function GET(request: Request) {
       prMap.set(key, {
         move: key,
         best: load,
-        bestReps: r.actual_reps ?? null,
+        bestReps: reps,
         unit: r.load_unit || 'lb',
         bestAt: r.created_at,
+        e1rm: null,
       });
     } else if (load > pr.best) {
       pr.best = load;
-      pr.bestReps = r.actual_reps ?? null;
+      pr.bestReps = reps;
       pr.bestAt = r.created_at;
     }
   }
 
   const prs = [...prMap.values()]
     .sort((a, b) => b.best - a.best)
-    .slice(0, 6);
+    .slice(0, 6)
+    .map((p) => {
+      const e = epleyE1rm(p.best, p.bestReps);
+      return { ...p, e1rm: e == null ? null : Math.round(e * 10) / 10 };
+    });
 
   // Strength trajectory: top one-rep-equivalent across all logged sets,
   // bucketed weekly so the chart shows the trend instead of every spike.
   const weeklyTop = new Map<string, number>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    const colLoad = Number(r.actual_load);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
     const week = new Date(r.created_at);
     const day = week.getUTCDay();

@@ -126,7 +126,7 @@ function CoachClientDetailPage() {
   const liftRows = (Array.isArray(L.keyLifts) && L.keyLifts.length) ? (() => {
     const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
     const mx = best.length ? Math.max(...best) : 1;
-    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta); return { n: x.name || "Lift", v: b != null ? `${b} kg` : "—", d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
+    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
   })() : [
     { n: "Back Squat", v: "82.5 kg", d: "+7.5", p: 0.92 },
     { n: "Bench Press", v: "52.5 kg", d: "+5.0", p: 0.55 },
