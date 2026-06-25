@@ -120,7 +120,7 @@ function BSProScheduleRows({ items = [], onOpen = () => {}, emptyText = 'Nothing
 
 const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 const {
-  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
+  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
@@ -356,7 +356,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         showDoubleRule={false}
         leftKicker={isNutri ? 'Nutritionist queue' : 'Trainer queue'}
         rightKicker={status}
-        trailing={<button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
 
       <BSSection title={isNutri ? 'Client sessions' : 'Logged workouts'} meta={`${sessions.length} items`} />
@@ -672,7 +672,7 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
     if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
     setLists(l => (l || DEMO).filter(x => x.id !== g.id));
   };
-  const backBtn = <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>;
+  const backBtn = <BSBackButton onClick={onBack} />;
   const pill = (k, label, count) => { const on = tab === k; return <button onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1f` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label} · {count}</button>; };
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
@@ -767,7 +767,7 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   };
   const cfg = configs[type] || configs.pr;
   const backBtn = (
-    <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>
+    <BSBackButton onClick={onBack} />
   );
   // Grocery Lists → dedicated, real (owner-scoped) lists the coach builds for
   // themselves or a client, then sends to that client. Role-accented.
@@ -778,18 +778,7 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
         title={cfg.title}
         leftKicker={cfg.kicker}
         rightKicker={cfg.meta}
-        trailing={<button onClick={onBack} style={{
-          border: `1px solid ${t.RULE}`,
-          background: t.PAPER2,
-          color: t.INK,
-          borderRadius: 10,
-          padding: '8px 10px',
-          fontFamily: t.MONO,
-          fontSize: 9,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-        }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
       <BSSection title={cfg.title} meta="Action queue" />
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'grid', gap: 10 }}>
@@ -1758,7 +1747,7 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
   if (!client) return null;
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>} />
+      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} trailing={<BSBackButton onClick={onBack} />} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSFacetAvatar size={36} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
@@ -1800,7 +1789,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
     <div style={{ paddingTop: 50 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
-        <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+        <BSBackButton onClick={onBack} />
       </div>
       <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
@@ -2787,7 +2776,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div style={{ paddingTop: 50 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
-        <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+        <BSBackButton onClick={onBack} />
       </div>
       <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {first} <span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
@@ -4967,7 +4956,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     <BSStShell embedded={embedded} t={t} footerL="Soundtracks" footerR={`${all.length} playlists`} topPad={46}>
         {!embedded && (<>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
@@ -5100,7 +5089,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
     <BSPage>
       <div style={{ padding: `${onBack ? 54 : 60}px ${t.padX}px 0` }}>
         {onBack && (
-          <button onClick={onBack} style={{ marginBottom: 14, background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>← Profile</button>
+          <BSBackButton onClick={onBack} label="Profile" style={{ marginBottom: 14 }} />
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
@@ -5278,7 +5267,7 @@ function BSProPublicProfilePage({ role = 'trainer', name = 'Profile', onBack }) 
       <BSPageHeader
         kicker="Profile settings"
         title={<>Public<br/>profile.</>}
-        trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
       <BSSection title="Profile live" meta="Visible on marketplace" />
       <div style={{ padding: `0 ${t.padX}px 16px`, borderTop: `2px solid ${t.INK}` }}>
@@ -5322,7 +5311,7 @@ function BSProNotificationsPage({ onBack }) {
       <BSPageHeader
         kicker="Settings"
         title={<>Notifications.</>}
-        trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
       <BSSection title="Push + email" meta="Delivery rules" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -5616,7 +5605,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, lineHeight: 1.5, minWidth: 0 }}>{D.eyebrow}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setEditing(true)} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Edit</button>
-            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
+            <BSBackButton onClick={onBack} />
           </div>
         </div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 1.0, letterSpacing: '-0.03em' }}>{D.head} <span style={{ fontStyle: 'italic', color: accent }}>{D.accentWord}</span></div>
