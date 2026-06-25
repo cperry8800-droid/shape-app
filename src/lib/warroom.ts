@@ -716,6 +716,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Garmin credentials set (GARMIN_CLIENT_ID/SECRET) — also needs Garmin program approval', status: auto(itemPresent('integrations', 'GARMIN')) },
         { label: 'Apple Health / Apple Watch native HealthKit plugin + /api/integrations/apple-health/sync', status: 'done' },
         { label: 'Apple Health live: iOS device build w/ HealthKit entitlement (TestFlight/App Store)', status: 'pending' },
+        { label: 'Daily steps / NEAT (#1415): device-synced (Apple Health ALLOWED_FIELDS + Garmin dailies → daily_health_snapshot.steps, non-negative-int validated) + progress stepsLatest/stepsAvg KPIs + steps in reconcile METRICS. Mobile: BSStepsCard + ring-instrument history (hero gauge + Week bars / Month / 3-Month) with a typeable editable goal (user_goals client_step_goal). Migration 2026-06-25-daily-steps.sql APPLIED', status: 'done' },
         { label: 'Live Bluetooth HRM (standard HR profile straps/watches): ShapeHRM service + Radio heart-rate-sync card wired (demo fallback); native permissions declared', status: 'done' },
         { label: 'Live HRM on device: native build w/ @capacitor-community/bluetooth-le (npx cap sync); works today in Chrome via Web Bluetooth', status: 'pending' },
         { label: 'Real song BPM on Shape Radio: blocked until radio streams real audio — compute BPM at ingest then (Spotify tempo API deprecated for new apps)', status: 'pending' },
