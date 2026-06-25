@@ -164,6 +164,21 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-25 — Profile activity cards: full engagement parity (detail · send · likers · comments wired)
+- The profile **"Personal activities"** cards (member Terrain + coach Signal) were visual-only for
+  the deep interactions — **Session details / Full activity / Comment / Send / the liker list** all
+  toasted "open in the community feed for the full view" (the deferred slim-fallback from #1406).
+  Now they're fully wired and behave EXACTLY like the community feed: tapping opens the real
+  **`BSActivityDetail`** page, the **send-to-DM** picker (`BSPostSendSheet`), and the **"who reacted"**
+  sheet, and inline comments persist. (Reactions/SPOT · Share · Repost already worked.)
+- New shared **`BSCardSheetHost`** component + **`useBSCardSheets`** hook host the three sheets +
+  comment state in ONE place; both profiles call the hook (placed with the other hooks, before the
+  sub-view early returns → rules-of-hooks safe) and render via
+  `renderSheets({ applyReaction, setOpenProfile, actLikes, actExpr })`, spreading the rest into the
+  card ctx. The `slimOpen` toast stubs are removed (verified absent from the shipped `public/m` bundle).
+- Verified: JSX parse-check + mobile build clean; slim-fallback toast gone from bundle + source; no JS
+  errors. The community feed (`BSClientFeed`) keeps its own inline sheet blocks unchanged (no regression).
+
 ### 2026-06-24 — War Room audit: 4 "looks done" items verified — 2 are genuinely incomplete
 Verified four unchecked War Room items (multi-agent: repo code + **live Supabase** + GitHub API).
 **Do not check these off as-is** — accurate status below.
