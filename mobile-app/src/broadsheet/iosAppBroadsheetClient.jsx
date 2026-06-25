@@ -963,6 +963,15 @@ function bsProgramWeek() {
   const w = Math.floor((Date.now() - start.getTime()) / 6048e5) + 1;
   return Math.min(52, Math.max(1, w));
 }
+// Day N of the current coaching block — the motivating "DAY 38 OF 84" anchor.
+// Same mock program-start anchor as bsProgramWeek (a real start/length would come
+// from the assigned program); total defaults to a standard 12-week block.
+function bsProgramDay() {
+  const start = new Date(2026, 3, 6); // Apr 6 2026
+  const total = 84; // 12-week block
+  const day = Math.floor((Date.now() - start.getTime()) / 864e5) + 1;
+  return { day: Math.min(total, Math.max(1, day)), total };
+}
 // Program phase per client — training block + nutrition phase, shown in the
 // Eat / Train / home eyebrows. Cached on window so headers read it synchronously;
 // persisted in client_settings (Settings → Preferences), so a coach-set value
@@ -2364,7 +2373,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSMasthead
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
+        leftKicker={(() => { const { day, total } = bsProgramDay(); return `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · Day ${day} of ${total}`; })()}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
         trailing={<BSHeaderTools onProfile={onProfile} />}
         showDoubleRule={false}
@@ -11761,7 +11770,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
+                    <div style={{ flex: 1 }} />
                     {/* Nora's voice — off by default, fully usable without it. */}
                     <button onClick={() => setVoiceEnabled(!voicePrefs.enabled)} title="Speak Nora's replies" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 999, border: `1px solid ${voicePrefs.enabled ? '#2e6fa0' : hair}`, background: voicePrefs.enabled ? '#2e6fa01f' : 'transparent', color: voicePrefs.enabled ? '#2e6fa0' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
                       {voicePrefs.enabled ? '🔊' : '🔇'} Voice {voicePrefs.enabled ? 'on' : 'off'}
