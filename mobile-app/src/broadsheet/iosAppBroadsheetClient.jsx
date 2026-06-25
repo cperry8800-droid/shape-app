@@ -3690,6 +3690,30 @@ if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
   };
 }
 
+// Editable daily STEP GOAL — what the steps rings are measured against. Persisted
+// to localStorage (instant + offline) and user_goals('client_step_goal')
+// (cross-device). The steps card + history both read it via useBSStepGoal() so
+// they always agree; .set() also broadcasts shape:stepGoal so live screens update.
+const BS_DEFAULT_STEP_GOAL = 8000;
+if (typeof window !== 'undefined' && !window.ShapeStepGoal) {
+  let _sg = BS_DEFAULT_STEP_GOAL;
+  let _userSet = false; // a user edit this session wins over a late cloud hydrate
+  try { const v = Number(localStorage.getItem('shape.stepGoal')); if (Number.isFinite(v) && v >= 1000) _sg = v; } catch (e) {}
+  const _clampSg = (n) => Math.max(1000, Math.min(50000, Math.round(Number(n) || BS_DEFAULT_STEP_GOAL)));
+  const _applySg = (v) => {
+    _sg = v;
+    try { localStorage.setItem('shape.stepGoal', String(v)); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('shape:stepGoal', { detail: v })); } catch (e) {}
+  };
+  window.ShapeStepGoal = {
+    get: () => _sg,
+    set: (n) => { _userSet = true; const v = _clampSg(n); _applySg(v); try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_step_goal', { goal: v }); } catch (e) {} return v; },
+    // hydrate from the cloud doc WITHOUT re-saving (avoids a write loop). A user edit
+    // made this session always wins, so a slow getUserGoals can't revert a fresh save.
+    hydrate: (n) => { if (_userSet) return; const v = Number(n); if (Number.isFinite(v) && v >= 1000 && _clampSg(v) !== _sg) _applySg(_clampSg(v)); },
+  };
+}
+
 // Shared meal-time formatting so the schedule reads the same everywhere (the
 // preview eyebrow, the day-log rows, the swap sheet): meal's own time, else the
 // client's meal-time preference for that slot, rendered 12-hour.
@@ -8775,6 +8799,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {meMode && isSelf && (
         <div style={{ padding: '14px 18px 0' }}>
           <BSMeGoalCard c={c} onOpen={onOpenGoals} compact />
+        </div>
+      )}
+
+      {meMode && isSelf && (
+        <div style={{ padding: '12px 0 0' }}>
+          <BSStepsCard />
         </div>
       )}
 
@@ -14462,6 +14492,429 @@ function BSSleepSheet({ onClose, onSave }) {
   );
   const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   return target ? createPortal(sheet, target) : sheet;
+}
+
+// Live daily step goal — re-renders on shape:stepGoal and hydrates the cloud
+// value once on mount (signed-in, cross-device). Both the card + history use it.
+function useBSStepGoal() {
+  const [g, setG] = useStateBSC((typeof window !== 'undefined' && window.ShapeStepGoal && window.ShapeStepGoal.get()) || BS_DEFAULT_STEP_GOAL);
+  React.useEffect(() => {
+    const on = (e) => setG((e && e.detail) || (window.ShapeStepGoal && window.ShapeStepGoal.get()) || BS_DEFAULT_STEP_GOAL);
+    window.addEventListener('shape:stepGoal', on);
+    if (window.ShapeAuth?.getCachedState?.()?.user?.id && window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('client_step_goal').then((d) => { if (d && Number(d.goal) >= 1000) window.ShapeStepGoal?.hydrate(Number(d.goal)); }).catch(() => {});
+    }
+    return () => window.removeEventListener('shape:stepGoal', on);
+  }, []);
+  return g;
+}
+
+// Bottom-sheet editor for the daily step goal (stepper + presets). Portals into
+// the phone surface above the steps overlay (zIndex 80 > the overlay's 70).
+function BSStepGoalSheet({ value, accent, onClose, onSave }) {
+  const t = useBS();
+  const [txt, setTxt] = useStateBSC(String(Math.max(1000, Math.min(50000, Math.round(Number(value) || BS_DEFAULT_STEP_GOAL)))));
+  const num = parseInt(txt, 10);
+  const ok = Number.isFinite(num) && num >= 1000 && num <= 50000;
+  const setNum = (n) => setTxt(String(Math.max(1000, Math.min(50000, Math.round(n)))));
+  const PRESETS = [6000, 8000, 10000, 12000, 15000];
+  const rust = t.RUST || '#c0533b';
+  const sheet = (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Daily step goal</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Set your <span style={{ fontStyle: 'italic', color: accent }}>goal.</span></div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '10px 12px' }}>
+          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) - 500)} aria-label="Decrease goal" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>−</button>
+          <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+            <input value={txt} onChange={(e) => setTxt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(num); }} inputMode="numeric" pattern="[0-9]*" aria-label="Daily step goal" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', border: 0, borderBottom: `1.5px solid ${bsTHexA(accent, 0.5)}`, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', padding: '0 0 2px' }} />
+            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>steps / day · tap to type</div>
+          </div>
+          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) + 500)} aria-label="Increase goal" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>+</button>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {PRESETS.map((p) => (
+            <button key={p} onClick={() => setNum(p)} style={{ flex: '1 0 auto', padding: '9px 0', minWidth: 52, borderRadius: 10, border: `1px solid ${num === p ? accent : t.RULE}`, background: num === p ? `${accent}1f` : 'transparent', color: num === p ? accent : t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700 }}>{p / 1000}k</button>
+          ))}
+        </div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: ok ? t.INK50 : rust, fontWeight: 600 }}>{ok ? 'Every ring fills toward this' : 'Enter 1,000–50,000'}</div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+          <button onClick={() => ok && onSave(num)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? accent : t.RULE, color: ok ? '#fff' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
+        </div>
+      </div>
+    </div>
+  );
+  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return target ? createPortal(sheet, target) : sheet;
+}
+
+// Steps history / timeline — opened by tapping the steps card. Ring instrument over a
+// Week / Month / 3-Month range from the device-synced steps series (same
+// /api/client/progress series.steps the card reads), with avg · best · goal-hits.
+function BSStepsHistory({ onClose }) {
+  const t = useBS();
+  // Rings correlate with the user's Shape Score tier (steel → gold → teal →
+  // violet → rose); a ring only fills to that color once the day/week is COMPLETE.
+  const accent = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const ringMuted = bsTHexA(t.INK, 0.32); // in-progress (not yet at goal)
+  const TARGET = useBSStepGoal();
+  const [goalEdit, setGoalEdit] = useStateBSC(false);
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [series, setSeries] = useStateBSC(null);
+  const [range, setRange] = useStateBSC(7);
+  _bsScrollTopOnMount();
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      setSeries(p && p.series && Array.isArray(p.series.steps) ? p.series.steps : []);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  // Signed-out preview gets a sample series (real dates so the labels read).
+  const demo = React.useMemo(() => {
+    const out = []; const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const base = 7200 + Math.round(Math.sin(i / 3.5) * 1900) + ((i * 53) % 1700) - 600;
+      out.push({ date: d.toISOString().slice(0, 10), value: Math.max(2400, base) });
+    }
+    return out;
+  }, []);
+  const data = signedIn ? (series || []) : demo;
+  // Calendar-correct window. A real local "today", a date→value map, and the EXACT
+  // calendar days the active range renders — so the stat row matches the rows shown,
+  // "today" reflects today (not the last synced sample), and missed-sync days stay
+  // visible gaps instead of being silently dropped from the average/grid.
+  const isoOf = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+  const todayIso = isoOf(new Date());
+  const byDate = {};
+  data.forEach((p) => { const v = Number(p.value); if (Number.isFinite(v)) byDate[p.date] = v; });
+  const windowDays = (() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const out = [];
+    if (range <= 7) {
+      const mon = new Date(today); mon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); out.push(isoOf(d)); }
+    } else {
+      for (let i = range - 1; i >= 0; i--) { const d = new Date(today); d.setDate(today.getDate() - i); out.push(isoOf(d)); }
+    }
+    return out.map((iso) => ({ date: iso, value: byDate[iso] != null ? byDate[iso] : null }));
+  })();
+  const vals = windowDays.filter((d) => d.value != null).map((d) => d.value);
+  const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+  const best = vals.length ? Math.max(...vals) : 0;
+  const hits = vals.filter((v) => v >= TARGET).length;
+  const todayHas = byDate[todayIso] != null; // did today actually sync? (else show "—", not a fabricated 0)
+  const todayV = todayHas ? byDate[todayIso] : 0;
+  const RANGES = [[7, 'Week'], [30, 'Month'], [90, '3 Months']];
+  const hair = bsTHexA(t.INK, 0.1);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const parseD = (iso) => { const d = new Date(String(iso) + 'T00:00:00'); return isNaN(d.getTime()) ? null : d; };
+  const dow = (iso) => { const d = parseD(iso); return d ? DOW[d.getDay()] : ''; };
+  const dnum = (iso) => { const d = parseD(iso); return d ? d.getDate() : ''; };
+  const md = (iso) => { const d = parseD(iso); return d ? `${MON[d.getMonth()]} ${d.getDate()}` : ''; };
+  // Month / date-range label for the section header (so the day numbers have context).
+  const monLabel = (() => {
+    const f = parseD(windowDays[0] && windowDays[0].date);
+    const l = parseD(windowDays[windowDays.length - 1] && windowDays[windowDays.length - 1].date);
+    if (!f || !l) return '';
+    return f.getMonth() === l.getMonth() && f.getFullYear() === l.getFullYear()
+      ? `${MON[f.getMonth()]} ${f.getDate()}–${l.getDate()}`
+      : `${MON[f.getMonth()]} ${f.getDate()} – ${MON[l.getMonth()]} ${l.getDate()}`;
+  })();
+  const ledger =<div style={{ height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.55)}, ${accent})` }} />;
+
+  // SVG gauge ring. ticks → the instrument hero; center → overlaid content.
+  // live → today (a breathing halo + the hero's avatar-style outer pulse ring); a
+  // goal-hit arc auto-shimmers; index staggers the one-shot draw-in. All continuous
+  // motion is transform/opacity only (GPU-safe across the 30-ring month grid). The
+  // one blur is static + hero-only. Keyframes live in the injected <style> above.
+  const ring = ({ size, sw, frac, hit, ticks = false, center = null, live = false, breathe = false, index = 0 }) => {
+    const tickPad = ticks ? 12 : 0;
+    const r = (size - sw) / 2 - tickPad;
+    const cx = size / 2, cy = size / 2;
+    const C = 2 * Math.PI * r;
+    const off = C * (1 - Math.max(0, Math.min(1, frac)));
+    const heroGlow = ticks && hit; // hero, goal hit → glow when filled
+    return (
+      <div style={{ position: 'relative', width: size, height: size, '--bsr': accent }}>
+        {/* Hero only — an avatar-style pulsing OUTER ring that signals "today · live". */}
+        {live && ticks && <div aria-hidden className="bs-ring-live" style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `1.5px solid ${accent}`, boxShadow: `0 0 16px ${bsTHexA(accent, hit ? 0.7 : 0.45)}`, pointerEvents: 'none' }} />}
+        {/* Breathing GLOW halo — a circular box-shadow (follows border-radius, so NO
+            square filter-region clip), scaled + faded by the breath keyframe. The
+            glow sits on the ring; the transparent center lets the arc show through. */}
+        {(live || breathe) && frac > 0 && <div aria-hidden className={'bs-ring-halo' + (ticks ? ' bs-ring-halo--hero' : '')} style={{ position: 'absolute', inset: tickPad + sw / 2, borderRadius: '50%', boxShadow: `0 0 ${ticks ? 16 : 8}px ${ticks ? 3 : 1}px ${accent}`, pointerEvents: 'none' }} />}
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', transform: 'rotate(-90deg)' }}>
+          {ticks && Array.from({ length: 48 }).map((_, i) => {
+            const a = (i / 48) * 2 * Math.PI; const major = i % 4 === 0;
+            const ri = r + sw / 2 + 5, ro = ri + (major ? 7 : 4);
+            return <line key={i} x1={cx + Math.cos(a) * ri} y1={cy + Math.sin(a) * ri} x2={cx + Math.cos(a) * ro} y2={cy + Math.sin(a) * ro} stroke={bsTHexA(t.INK, major ? 0.42 : 0.16)} strokeWidth={major ? 1.5 : 1} strokeLinecap="round" />;
+          })}
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={bsTHexA(t.INK, 0.1)} strokeWidth={sw} />
+          {frac > 0 && <circle className={'bs-ring-arc' + (hit ? ' bs-ring-arc--hit' : '')} cx={cx} cy={cy} r={r} fill="none" stroke={hit ? accent : ringMuted} strokeWidth={sw} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} style={{ '--bsc': C, '--bso': off, animationDelay: `${Math.min(index, 30) * 22}ms` + (hit ? `, ${(index % 7) * 180}ms` : ''), ...(heroGlow ? { filter: `drop-shadow(0 0 4px ${bsTHexA(accent, 0.85)})` } : {}) }} />}
+        </svg>
+        {center != null && <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>{center}</div>}
+      </div>
+    );
+  };
+
+  // History rendered as day-rings — a coherent ring system from hero → history.
+  const renderRings = () => {
+    // Shared calendar pieces (byDate / todayIso / windowDays are computed in the
+    // component scope so the stat row and these rings render the SAME calendar days).
+    const headerRow = (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 10 }}>
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((h, i) => <div key={i} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, fontWeight: 700 }}>{h}</div>)}
+      </div>
+    );
+    const calCell = (iso, value, size, k, idx = 0) => {
+      const has = value != null; const hit = has && value >= TARGET;
+      return (
+        <div key={k} style={{ textAlign: 'center', opacity: has ? 1 : 0.4 }} title={has ? `${md(iso)} · ${value.toLocaleString()}` : md(iso)}>
+          {ring({ size, sw: size >= 36 ? 3.4 : 3, frac: has ? value / TARGET : 0, hit, live: iso === todayIso, breathe: hit, index: idx, center: <span style={{ fontFamily: t.MONO, fontSize: size >= 36 ? 8 : 7, fontWeight: 700, color: hit ? accent : bsTHexA(t.INK, 0.5) }}>{dnum(iso)}</span> })}
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: hit ? accent : bsTHexA(t.INK, 0.45), fontVariantNumeric: 'tabular-nums', minHeight: 9 }}>{has ? value.toLocaleString() : '·'}</div>
+        </div>
+      );
+    };
+
+    if (range <= 7) {
+      // Weekly — the current Mon–Sun week (windowDays) as a vertical list: each day's
+      // ring + a bar filling toward goal + the steps/goal readout (future days dimmed).
+      const WD = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+      return (
+        <div>
+          {windowDays.map((d, i) => {
+            const iso = d.date;
+            const value = d.value;
+            const has = value != null;
+            const hit = has && value >= TARGET;
+            const pct = has ? Math.max(0, Math.min(1, value / TARGET)) : 0;
+            return (
+              <div key={iso} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: i < 6 ? `1px solid ${hair}` : 'none', opacity: has ? 1 : 0.42 }}>
+                <div style={{ flexShrink: 0, width: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: hit ? accent : t.INK50 }}>{WD[i]}</div>
+                <div style={{ flexShrink: 0 }}>
+                  {ring({ size: 40, sw: 3.4, frac: pct, hit, live: iso === todayIso, breathe: hit, index: i, center: <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: hit ? accent : bsTHexA(t.INK, 0.5) }}>{dnum(iso)}</span> })}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{md(iso)}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: hit ? accent : t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{has ? value.toLocaleString() : '—'}<span style={{ color: t.INK50, fontSize: 10, fontWeight: 600 }}> / {TARGET.toLocaleString()}</span></span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
+                    <div className="bs-bar-fill" style={{ width: `${pct * 100}%`, '--bw': `${pct * 100}%`, height: '100%', borderRadius: 999, background: hit ? accent : ringMuted, animationDelay: `${i * 45}ms` }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    if (range <= 30) {
+      // Month calendar — windowDays = last 30 calendar days; missing days render as
+      // dimmed gaps (no fabricated 0), weekday-aligned, count under each ring.
+      const first = parseD(windowDays[0] && windowDays[0].date);
+      const pad = first ? (first.getDay() + 6) % 7 : 0;
+      return (
+        <div>
+          {headerRow}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, rowGap: 9, justifyItems: 'center' }}>
+            {Array.from({ length: pad }).map((_, i) => <div key={'p' + i} style={{ width: 40, height: 54 }} />)}
+            {windowDays.map((d, i) => calCell(d.date, d.value, 40, 'd' + i, i))}
+          </div>
+        </div>
+      );
+    }
+    // 3 months → weekly aggregate rings over windowDays. Ring + center = recorded days
+    // at goal that week (N/n); the number below is the week's AVERAGE steps/day over its
+    // RECORDED days (missed-sync days don't drag the average to 0).
+    const weeks = [];
+    for (let i = 0; i < windowDays.length; i += 7) {
+      const chunk = windowDays.slice(i, i + 7);
+      const vs = chunk.filter((d) => d.value != null).map((d) => d.value);
+      const a = vs.length ? Math.round(vs.reduce((x, y) => x + y, 0) / vs.length) : 0;
+      weeks.push({ start: chunk[0] && chunk[0].date, avg: a, hitDays: vs.filter((v) => v >= TARGET).length, n: chunk.length });
+    }
+    return (
+      <div>
+        <div style={{ marginBottom: 16, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.02em', color: t.INK50, fontWeight: 500, lineHeight: 1.55 }}>
+          Each ring is <span style={{ color: t.INK, fontWeight: 700 }}>one week</span> — the fill &amp; <span style={{ color: accent }}>N/7</span> are days that hit goal; the number is the week&apos;s <span style={{ color: t.INK, fontWeight: 700 }}>avg steps/day</span>.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, justifyItems: 'center' }}>
+          {weeks.map((w, i) => {
+            const perfect = w.n > 0 && w.hitDays >= w.n;
+            return (
+              <div key={i} style={{ textAlign: 'center' }} title={`Week of ${md(w.start)} · ${w.avg.toLocaleString()} avg/day · ${w.hitDays}/${w.n} days at goal`}>
+                <div style={{ marginBottom: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Wk {md(w.start)}</div>
+                {ring({ size: 52, sw: 4.2, frac: w.n ? w.hitDays / w.n : 0, hit: perfect, breathe: perfect, index: i, center: <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: perfect ? accent : bsTHexA(t.INK, 0.6) }}>{w.hitDays}/{w.n}</span> })}
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{w.avg.toLocaleString()}<span style={{ fontFamily: t.MONO, fontSize: 7, color: t.INK50, marginLeft: 2, fontWeight: 600 }}>/day</span></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const overlay = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes bsRingDraw { from { stroke-dashoffset: var(--bsc); } to { stroke-dashoffset: var(--bso); } }
+        .bs-ring-arc { animation: bsRingDraw .62s cubic-bezier(.22,.61,.36,1) both; }
+        @keyframes bsRingBreath { 0%,100% { transform: scale(1); opacity:.30 } 50% { transform: scale(1.09); opacity:.72 } }
+        .bs-ring-halo { transform-origin: 50% 50%; animation: bsRingBreath 3.4s ease-in-out infinite; will-change: transform, opacity; }
+        .bs-ring-halo--hero { animation-duration: 4.2s; }
+        @keyframes bsRingShimmer { 0%,100% { opacity:.6 } 50% { opacity:1 } }
+        .bs-ring-arc--hit { animation: bsRingShimmer 3.6s ease-in-out infinite; will-change: opacity; }
+        @keyframes bsRingLive { 0%,100% { transform: scale(1); opacity:.8 } 50% { transform: scale(1.13); opacity:.12 } }
+        .bs-ring-live { animation: bsRingLive 2.6s ease-in-out infinite; }
+        @keyframes bsBarGrow { from { width: 0 } to { width: var(--bw) } }
+        .bs-bar-fill { animation: bsBarGrow .6s cubic-bezier(.22,.61,.36,1) both; }
+        @media (prefers-reduced-motion: reduce) {
+          .bs-ring-arc { animation: none !important; }
+          .bs-ring-arc--hit { animation: none !important; opacity: 1 !important; }
+          .bs-ring-halo { animation: none !important; opacity:.22 !important; transform: none !important; }
+          .bs-ring-live { animation: none !important; opacity:.5 !important; transform: none !important; }
+          .bs-bar-fill { animation: none !important; }
+        }
+      `}</style>
+      <div style={{ flex: '0 0 auto', padding: '48px 24px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <BSMeCorner size={28} />
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
+        </div>
+      </div>
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 44px' }}>
+        {data.length === 0 ? (
+          <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, textAlign: 'center', padding: '60px 0', textTransform: 'uppercase', letterSpacing: '0.1em' }}>No steps synced yet</div>
+        ) : (
+          <>
+            {/* HERO INSTRUMENT RING — today */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+              {ring({
+                size: 168, sw: 9, frac: todayHas ? todayV / TARGET : 0, hit: todayHas && todayV >= TARGET, ticks: true, live: true,
+                center: (
+                  <>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Steps · Today</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, letterSpacing: '-0.035em', color: t.INK, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{todayHas ? todayV.toLocaleString() : '—'}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: todayHas && todayV >= TARGET ? accent : t.INK50, fontWeight: 700 }}>{todayHas ? `${Math.round((todayV / TARGET) * 100)}% · goal ${TARGET.toLocaleString()}` : `No steps yet today · goal ${TARGET.toLocaleString()}`}</div>
+                  </>
+                ),
+              })}
+            </div>
+            {/* editable daily goal — what every ring is measured against */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: -10, marginBottom: 22 }}>
+              <button onClick={() => setGoalEdit(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '6px 7px 6px 14px', borderRadius: 999, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: 'transparent', cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Daily goal</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{TARGET.toLocaleString()}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent, fontWeight: 800, border: `1px solid ${bsTHexA(accent, 0.4)}`, borderRadius: 999, padding: '4px 9px' }}>Edit ✎</span>
+              </button>
+            </div>
+            {/* range — minimal underline tabs */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 30, borderBottom: `1px solid ${hair}`, marginBottom: 22 }}>
+              {RANGES.map(([r, label]) => (
+                <button key={r} onClick={() => setRange(r)} style={{ background: 'transparent', border: 0, padding: '0 0 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: range === r ? t.INK : t.INK50, borderBottom: `1.5px solid ${range === r ? accent : 'transparent'}`, marginBottom: -1 }}>{label}</button>
+              ))}
+            </div>
+            {/* flat stat row */}
+            <div style={{ display: 'flex', marginBottom: 28 }}>
+              {[['Avg / day', avg.toLocaleString()], ['Best day', best.toLocaleString()], ['Goal hits', `${hits}/${vals.length}`]].map(([l, v], i) => (
+                <div key={l} style={{ flex: 1, paddingLeft: i ? 18 : 0, borderLeft: i ? `1px solid ${hair}` : 'none' }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+            {/* history — day-rings, with the editorial eyebrow + ledger */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 7 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{range === 7 ? 'The week' : range === 30 ? 'The month' : '90 days'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{monLabel}</span>
+              </div>
+              {ledger}
+            </div>
+            {renderRings()}
+          </>
+        )}
+      </div>
+      {goalEdit && <BSStepGoalSheet value={TARGET} accent={accent} onClose={() => setGoalEdit(false)} onSave={(nv) => { try { window.ShapeStepGoal?.set(nv); } catch (e) {} setGoalEdit(false); }} />}
+    </div>
+  );
+  const portal = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return portal ? createPortal(overlay, portal) : overlay;
+}
+
+// Daily steps / NEAT card — today's count vs the user's editable goal (set on the
+// steps history page, default 8k), DISPLAY-ONLY. Steps come
+// from a connected watch (Apple Health / Garmin sync writes daily_health_snapshot
+// .steps) — never manual entry, since a person can't know their own count. Tap the
+// card to open the steps timeline/history; when nothing is synced it prompts to
+// connect a device. Self-contained.
+function BSStepsCard() {
+  const t = useBS();
+  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const TARGET = useBSStepGoal();
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [steps, setSteps] = useStateBSC(null);
+  const [history, setHistory] = useStateBSC(false);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      const series = p && p.series && Array.isArray(p.series.steps) ? p.series.steps : [];
+      const d = new Date();
+      const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const row = series.find((s) => s.date === todayIso);
+      setSteps({ today: row ? Math.round(Number(row.value) || 0) : null, ever: series.length > 0 });
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  // Signed-out preview shows a sample; signed-in shows TODAY's real count (0 until
+  // today syncs), and the connect-a-device prompt only when nothing has ever synced.
+  const hasData = signedIn ? !!(steps && steps.ever) : true;
+  const todayKnown = signedIn ? !!(steps && steps.today != null) : true; // synced today? (else show "—", not 0)
+  const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
+  const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
+  const hit = todayKnown && val >= TARGET;
+  const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
+  return (
+    <div style={{ margin: '0 18px 10px', boxSizing: 'border-box', border: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderRadius: 6, padding: '10px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Steps · Today</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Goal {TARGET.toLocaleString()}</span>
+      </div>
+      {hasData ? (
+        <div onClick={() => setHistory(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHistory(true); } }} role="button" tabIndex={0} aria-label="Open steps history" style={{ cursor: 'pointer' }}>
+          <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{todayKnown ? val.toLocaleString() : '—'}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>steps</span>
+          </div>
+          <div style={{ marginTop: 7, height: 4, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
+            <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent }} />
+          </div>
+          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
+          </div>
+        </div>
+      ) : (
+        <button onClick={openDevices} style={{ marginTop: 4, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.05em', color: accent, fontWeight: 700 }}>Connect a watch to track steps →</button>
+      )}
+      {history && <BSStepsHistory onClose={() => setHistory(false)} />}
+    </div>
+  );
 }
 
 function BSClientGoals({ onBack, onOpenProgress = () => {} }) {

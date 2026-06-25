@@ -24,6 +24,7 @@ export const METRICS = {
   workout_minutes:       { label: 'Workout minutes', unit: 'min', tol: 5 },
   avg_heart_rate:        { label: 'Avg HR', unit: 'bpm', tol: 2 },
   calories:              { label: 'Calories', unit: 'kcal', tol: 25 },
+  steps:                 { label: 'Steps', unit: '', tol: 250 },
 };
 
 // Default ranking when the user hasn't picked an authoritative source: dedicated
