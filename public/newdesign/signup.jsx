@@ -491,7 +491,7 @@ function SignupForm({ role }) {
           <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect x="3" y="6" width="20" height="15" rx="2" stroke={PAPER} strokeWidth="2.2"/><path d="M4 7l9 6 9-6" stroke={PAPER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </div>
         <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1 }}>Confirm your email.</h2>
-        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>We sent a confirmation link to {values.email}. Click it, then sign in to finish — your @{(values.username || "").trim().replace(/^@/, "").toLowerCase()} username is reserved.</p>
+        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>We sent a confirmation link to {values.email}. Click it, then sign in to finish — we'll claim @{(values.username || "").trim().replace(/^@/, "").toLowerCase()} for you then, if it's still available.</p>
         <div style={{ display: "flex", gap: 10 }}>
           <a href="Login.html" style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Go to sign in</a>
           <a href="Landing.html" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Back to landing</a>
@@ -524,7 +524,10 @@ function SignupForm({ role }) {
       if (!values.firstName || !values.lastName) { setError("First and last name are required."); return; }
       if (!values.email || !values.email.trim()) { setError("Enter your email."); return; }
       if (!values.password || values.password.length < 8) { setError("Choose a password with at least 8 characters."); return; }
-      if (!values.username || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(values.username)) {
+      // Normalize the username the same way it'll be submitted, THEN validate, so
+      // a value like " Jane.Doe " / "@jane" can't fail the check on a stray char.
+      const cleanUsername = String(values.username || "").trim().replace(/^@/, "").toLowerCase();
+      if (!cleanUsername || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(cleanUsername)) {
         setError("Pick a valid username — letters, numbers, . _ (3–20 chars).");
         return;
       }
@@ -534,10 +537,18 @@ function SignupForm({ role }) {
       const eighteen = new Date();
       eighteen.setFullYear(eighteen.getFullYear() - 18);
       if (d > eighteen) { setError("You must be 18 or older to use Shape."); return; }
-      // Captcha gate (Auth CAPTCHA rejects a tokenless signUp).
-      if (captchaOn && !captchaToken && !captchaUnavailable) { setError("Just a moment — confirming you're human…"); return; }
-
-      const cleanUsername = String(values.username || "").trim().replace(/^@/, "").toLowerCase() || undefined;
+      // Require Terms + Privacy acceptance before creating a real account (the
+      // ClientPrefs step collects values.tos — gate on it like the coach path does).
+      if (!values.tos) { setError("Please accept the Terms of Service and Privacy Policy to continue."); return; }
+      // Captcha gate — Auth CAPTCHA is enabled, so a tokenless signUp is REJECTED by
+      // the server. If the human-check can't load, BLOCK with a retry message rather
+      // than falling open into a confusing server-side rejection.
+      if (captchaOn && !captchaToken) {
+        setError(captchaUnavailable
+          ? "Couldn't load the human-check. Refresh the page or disable any blockers, then try again."
+          : "Just a moment — confirming you're human…");
+        return;
+      }
       const sb = window.shapeDb && window.shapeDb.client;
       if (!sb) { setError("Auth is still loading. Try again."); return; }
 
@@ -569,6 +580,24 @@ function SignupForm({ role }) {
         if (data && data.user && !data.session) {
           setConfirmEmail(true);
         } else {
+          // Auto-confirm (no email step): a session exists immediately and we go
+          // straight to the dashboard, skipping the login path — so provision the
+          // account HERE (create the profile, persist DOB → the over_18 trigger,
+          // claim the username), mirroring the mobile signUp's post-session steps.
+          try {
+            const u = data && data.user;
+            if (u && u.id) {
+              try {
+                await sb.from("profiles").upsert({
+                  id: u.id, email: u.email,
+                  full_name: (values.firstName + " " + values.lastName).trim(),
+                  role: "client", roles: ["client"],
+                  date_of_birth: values.dob, updated_at: new Date().toISOString(),
+                }, { onConflict: "id" });
+              } catch (e) {}
+              try { await sb.rpc("set_my_username", { p_username: cleanUsername }); } catch (e) {}
+            }
+          } catch (e) {}
           window.location.href = "ClientDashboard.html";
         }
       } catch (err) {
@@ -685,13 +714,14 @@ function SignupForm({ role }) {
 
       {error && <div style={{ marginTop: 18, color: "#ff7b6e", fontFamily: sans, fontSize: 13 }}>{error}</div>}
 
-      {/* Turnstile bot challenge — client signup's final step only. Falls open if it
-          can't load/connect, so it can't lock anyone out. */}
+      {/* Turnstile bot challenge — client signup's final step only. If it can't
+          load, submit is blocked with a retry notice (Auth CAPTCHA rejects a
+          tokenless signUp, so falling open would only hit a server rejection). */}
       {captchaVisible ? (
         <div style={{ marginTop: 18 }}>
           <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
           {captchaUnavailable ? (
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>Couldn't load the human-check — you can still continue.</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>Couldn't load the human-check. Refresh the page or disable any blockers, then try again.</div>
           ) : null}
         </div>
       ) : null}
