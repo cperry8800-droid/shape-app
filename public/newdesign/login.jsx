@@ -97,6 +97,54 @@ function LoginCard() {
         body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }),
       }).catch(() => {});
     }
+    // First confirmed login after a WEBSITE signup must provision the account,
+    // exactly like the mobile app's signIn: the website signup creates the auth
+    // user but NO public.profiles row (there's no DB trigger, and set_my_username
+    // only UPDATEs an existing row), so create it here from the signup metadata,
+    // persist the DOB (→ the over_18 trigger), then claim the pending @username.
+    // All best-effort + non-blocking, and ONLY create when missing — never clobber
+    // an existing profile (coach / mobile-created accounts log in here too).
+    try {
+      const u = session && session.user;
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (sb && u && u.id) {
+        const meta = u.user_metadata || {};
+        let row = null;
+        try {
+          const res = await sb.from('profiles').select('id, username, role, date_of_birth').eq('id', u.id).maybeSingle();
+          row = (res && res.data) || null;
+        } catch (e) {}
+        // Provision ONLY from a genuine website-signup's metadata (full_name +
+        // role + username + date_of_birth, all set by signup.jsx). Never fabricate
+        // a profile with a placeholder name / assumed role / no DOB for a login
+        // that didn't come through the website signup (e.g. a phone-OTP user, or an
+        // account that should already have a server-created profile) — that would
+        // mint junk client rows and skip the DOB/18+ gate. Otherwise leave it be.
+        const isWebsiteSignup = !!(meta.full_name && meta.role && meta.username && meta.date_of_birth);
+        if (!row && isWebsiteSignup) {
+          try {
+            // Role is FIXED to client — NEVER copy meta.role/meta.roles. The profiles
+            // INSERT policy only checks auth.uid() = id, so honoring client-supplied
+            // role metadata would let anyone self-mint a trainer/nutritionist profile.
+            // Coaches are provisioned server-side via the /api/apply approval flow.
+            await sb.from('profiles').upsert({
+              id: u.id,
+              email: u.email,
+              full_name: meta.full_name,
+              role: 'client',
+              roles: ['client'],
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+          } catch (e) {}
+        }
+        if (meta.date_of_birth && (!row || !row.date_of_birth)) {
+          try { await sb.from('profiles').update({ date_of_birth: meta.date_of_birth }).eq('id', u.id); } catch (e) {}
+        }
+        if (meta.username && (!row || !row.username)) {
+          try { await sb.rpc('set_my_username', { p_username: String(meta.username).replace(/^@/, '') }); } catch (e) {}
+        }
+      }
+    } catch (e) {}
     let nextDashboard = role === 'shape_radio' ? '/newdesign/Radio.html'
       : role === 'trainer' ? '/newdesign/TrainerDashboard.html'
       : role === 'nutritionist' ? '/newdesign/NutritionistDashboard.html'
