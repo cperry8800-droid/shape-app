@@ -21,6 +21,26 @@
 - **Tests:** repo-root `tests/*.test.mjs`, run via `npm test` (root `package.json` lists each file explicitly — new test files MUST be appended to that script). Mobile pure modules are imported from tests via `../mobile-app/src/services/<file>.mjs`.
 - **Pre-commit hook** rebuilds mobile in Git Bash for staged JSX/TS — commit those with `MSYS_NO_PATHCONV=1 git commit …`. Docs/SQL-only commits skip the hook.
 - **Review stack before the eventual PR merge:** `/code-review` + CodeRabbit GitHub App (authoritative); required CI checks **Web (typecheck+build) · Mobile (build + public/m sync) · Secret scan (gitleaks)** must be green; iterate on `staging` first.
+- **Security review is mandatory for this feature** (it adds an authenticated data route + changes a `SECURITY DEFINER` RPC). See the Security section below; the review is enforced in Task 10.
+
+---
+
+## Security review & considerations
+
+This feature adds a new authenticated data-read route and widens a `SECURITY DEFINER` Postgres function, so it carries real authorization surface. The controls below are **requirements**, not suggestions — Task 10 verifies each, and the diff goes through an explicit security review before merge.
+
+**Threat surface & required controls:**
+
+1. **`GET /api/client/strength` — IDOR / data exposure.** Must read ONLY the caller's rows. Controls (defense in depth): auth via `clientForRequest`/`currentUser` (Bearer **or** cookie — no anon path; returns 401 when unauthenticated), an explicit `.eq('client_id', user.id)` filter, **and** RLS on `workout_set_logs` scoping rows to the caller. There is no `:id`/query param selecting another user — the route derives the user from the session only. **Never** add a client-supplied user id to this route.
+2. **Membership gating.** `/api/client/*` is gated by the Edge proxy (`src/lib/supabase/middleware.ts` → 402 `membership_required` for non-members), so `/api/client/strength` inherits the paywall automatically by prefix. Task 10 confirms the prefix actually covers it (no allowlist bypass).
+3. **`get_client_lifts` widening — privilege boundary.** It's `SECURITY DEFINER`. The change must: keep `set search_path = public` (prevents search-path hijack), keep the `is_coach_on_client(p_user_id)` gate as the FIRST statement (returns null for non-coaches), and expose **no new data class** — e1RM is a pure arithmetic derivation of `actual_load`/`actual_reps`, columns the function already reads. No raw rows, file paths, or PII are added to the output.
+4. **No secrets / no injection.** No new env vars, keys, or credentials (gitleaks must stay green). No string-built SQL (the migration uses parameterized plpgsql; the route uses the Supabase query builder, not raw SQL). No user-supplied input is interpolated anywhere.
+5. **No new XSS surface.** All rendered values are numbers/enums/lift names already stored and shown elsewhere; output is React/JSX-escaped (the codebase uses no `dangerouslySetInnerHTML`). Lift names render as text, never as markup/URLs.
+6. **Fail-closed vs fail-soft.** The route fails **soft** to an empty list (never 500s the page) — acceptable because an empty result leaks nothing; auth failure still returns 401 (fail-closed on identity).
+
+**Security review process (who/what):**
+- **Automated:** Secret scan (gitleaks) — required CI check. CodeRabbit GitHub App (assertive profile) reviews every PR including security findings — authoritative. If the Aikido MCP/plugin is available, run `aikido:scan` (or the `/security-review` skill) on the diff.
+- **Manual gate:** run the **`/security-review`** skill on the branch diff before merge and resolve every finding (or justify in the PR). Confirm the four DB security advisors stay clean after the migration is applied (Supabase → Advisors: 0 new ERRORs; a gated `SECURITY DEFINER` function is expected/by-design).
 
 ---
 
