@@ -7444,6 +7444,45 @@ function bsActivityFromPost(p) {
     replies: Array.isArray(p.comments) ? p.comments.length : 0,
   };
 }
+// Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
+// sensor posts use the SAME mapper the community feed uses (bsActivityFromPost);
+// non-activity posts (note/photo/video/link) fall back to a minimal `a` so they
+// still render (title + caption). Honest-absent fields are fine — the card guards
+// them. `role` is forced to the profile owner's so the (hidden-author) tier chip
+// reads correctly even on posts that didn't stamp an author role.
+function bsProfileCardFromPost(p, ownerRole) {
+  if (!p) return null;
+  const act = bsActivityFromPost(p);
+  if (act) return ownerRole ? { ...act, role: ownerRole } : act;
+  // Non-activity post — a slim note-style card. `real:true` routes engagement
+  // (real likes/comments/share) through the post id, just like the feed cards.
+  const rawTitle = String(p.status || '').trim();
+  const GENERIC = /^(workout|photo|video|link|note|article)$/i;
+  return {
+    real: true,
+    key: p.id ? `post-${p.id}` : `act-${p.author_id || ''}-${p.created_at || ''}`,
+    postId: p.id || null,
+    liked: !!p.liked,
+    userId: p.author_id || null,
+    who: p.name || 'Shape member',
+    role: ownerRole || p.role || 'Client',
+    coach: null, program: '', delta: null,
+    activityType: String(p.kind || '').toLowerCase(),
+    cosign: (p.cosign && typeof p.cosign === 'object' && p.cosign.name) ? p.cosign : null,
+    typeLabel: p.kind ? (String(p.kind).charAt(0).toUpperCase() + String(p.kind).slice(1)) : 'Note',
+    title: (rawTitle && !GENERIC.test(rawTitle)) ? rawTitle : (p.kind === 'photo' ? 'Photo' : p.kind === 'video' ? 'Video' : p.kind === 'link' ? 'Link' : 'Note'),
+    body: p.note || '',
+    ago: bsAgoShort(p.created_at) || p.time || '',
+    city: '',
+    statsRow: [], fullStats: [],
+    breakdown: null, zones: null, trace: null, cadenceTrace: null, elevTrace: null, paceTrace: null, powerTrace: null,
+    route: false, routeObj: null,
+    kudos: typeof p.likes === 'number' ? p.likes : 0,
+    likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
+    postComments: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text) : [],
+    replies: Array.isArray(p.comments) ? p.comments.length : 0,
+  };
+}
 // The body of an activity card (title · body · photo · inline video / video+link
 // cards · workout stats · metric) — shared by both profile feeds.
 function BSActivityBody({ it, c, INK, card }) {
@@ -8107,6 +8146,14 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   useBSPresence();
+  // Local reaction state for the shared BSActivityCard on this profile feed.
+  // Reactions toggle optimistically + best-effort persist the like (same backend
+  // path as the community feed). The surfaces the profile doesn't host (full
+  // detail page / likers sheet / send-to-DM) get slim fallbacks below.
+  const [actLikes, setActLikes] = useStateBSC({});
+  const [profExprOpen, setProfExprOpen] = useStateBSC(null);
+  const profLpTimerRef = React.useRef(null);
+  const profLpFiredRef = React.useRef(false);
   React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
   // others read it from the public-profile RPC (`custom`).
@@ -8366,25 +8413,68 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // posts). Loaded for anyone; on your own profile you can add one.
   const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
   const feedAuthorId = isSelf ? (person.userId || myId) : (person.userId || null);
-  const [photoPosts, setPhotoPosts] = useStateBSC([]);
+  const [photoPosts, setPhotoPosts] = useStateBSC([]); // raw author posts (r.data)
   const [showLog, setShowLog] = useStateBSC(false);
   const [feedReloadNonce, setFeedReloadNonce] = useStateBSC(0);
   const [editingActivity, setEditingActivity] = useStateBSC(null);
   // Profile activity feed — every "log activity" post the member published
-  // (note / photo / video / workout / link), newest first.
+  // (note / photo / video / workout / link), newest first. Kept as RAW posts so
+  // they map through bsProfileCardFromPost into the shared BSActivityCard.
   const loadPhotoPosts = React.useCallback(() => {
     if (!feedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
     window.ShapeCommunity.listByAuthor(feedAuthorId, { withPhotoOnly: false })
-      .then((r) => setPhotoPosts(bsMapActivityPosts(r?.data)))
+      .then((r) => setPhotoPosts(Array.isArray(r?.data) ? r.data : []))
       .catch(() => {});
   }, [feedAuthorId]);
   React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts, feedReloadNonce]);
+  // Render the whole personal-activities feed as the rich BSActivityCard `a` shape:
+  // published author posts via the shared mapper; the realFeed/demo `it` items
+  // (PRs/logged activities — no raw post backing) via a slim it→a adapter.
+  const itToCard = (it) => {
+    // PR demo items carry the full title in `it.t` ("New PR — Back squat"); the
+    // card reconstructs a PR title as `${lift} — new PR`, so pull the lift out of
+    // it.t (this also makes the format match the community feed). Non-PR items
+    // use kind 'workout' so the card renders a.title directly.
+    const isPr = !!it.hot;
+    const lift = isPr ? String(it.t || '').replace(/^\s*new pr\s*[—–-]\s*/i, '').trim() : '';
+    return {
+      real: false, key: it._k || null, postId: null, who: name, role: 'Client', hot: isPr,
+      kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
+      body: it.b || '', ago: it.time || '', city: '', activityType: '',
+      stats: it.metric ? [[it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
+    };
+  };
   const feedEff = (() => {
     // Signed in → only real activity (your published posts + logged PRs); never the
     // demo field-notes. Demo feed is the signed-out preview only.
     const base = (isSelf && realFeed && realFeed.length) ? realFeed : (signedInSelf ? [] : feed);
-    return photoPosts.length ? [...photoPosts, ...base] : base;
+    const cards = (photoPosts || []).map((p) => bsProfileCardFromPost(p, 'Client')).filter(Boolean);
+    const baseCards = (base || []).map((it, i) => itToCard({ ...it, _k: `it-${i}` }));
+    return [...cards, ...baseCards];
   })();
+  // Profile reaction handler — optimistic toggle + best-effort backend like via
+  // the SAME path the community feed uses (ShapeCommunity.toggleLike). Sample
+  // cards (no postId) toggle visually only.
+  const profileApplyReaction = (a, key, _iAmAuthorsCoach, expr) => {
+    const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
+    const willLike = expr != null ? true : !wasLiked;
+    setActLikes((prev) => ({ ...prev, [key]: willLike }));
+    if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
+  };
+  // ctx for the shared BSActivityCard on this profile. Theme + working reactions +
+  // share/repost; SLIM FALLBACKS for the surfaces the profile doesn't host (full
+  // detail page / likers sheet / send-to-DM → a toast pointing to the feed).
+  const slimOpen = () => window.__bsToast?.('Open in the community feed for the full view.', 'info');
+  const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
+  const profileCtx = {
+    t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
+    card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
+    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
+    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    setOpenProfile: (p) => setFollowProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
+    feedApplyReaction: profileApplyReaction,
+  };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
     const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
@@ -8808,13 +8898,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 {feedEff.length === 0 && (
                   <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
-                {feedEff.map((it, i) => (
-                  <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
-                    <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
-                    <div style={{ ...card, padding: '13px 15px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
-                      <BSActivityBody it={it} c={c} INK={INK} card={card} />
-                      <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={it.hot ? TEAL : c} INK={INK} BG={BG} onEdit={isSelf && it.id && bsRealPostId({ id: it.id }) ? () => setEditingActivity({ postId: bsRealPostId({ id: it.id }), title: it.t || '', body: it.b || '', photo: it.photo || null, video: it.video || null, link: it.link || null, kind: it.kind || null, privacy: it.privacy || 'public' }) : undefined} />
+                {feedEff.map((a, i) => (
+                  <div key={a.key || i} style={{ position: 'relative', marginBottom: 12 }}>
+                    <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${(a.hot || a.delta) ? TEAL : c}` }} /></div>
+                    {/* The SAME rich card the community chat feed renders, with the
+                        author header hidden (the profile owns the identity). */}
+                    <div style={{ ...card, overflow: 'hidden' }}>
+                      <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                     </div>
                   </div>
                 ))}
@@ -8934,7 +9024,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const loadCoachPosts = React.useCallback(() => {
     if (!sigFeedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
     window.ShapeCommunity.listByAuthor(sigFeedAuthorId, { withPhotoOnly: false })
-      .then((r) => setCoachPosts(bsMapActivityPosts(r?.data)))
+      .then((r) => setCoachPosts(Array.isArray(r?.data) ? r.data : []))
       .catch(() => {});
   }, [sigFeedAuthorId]);
   React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
@@ -9004,6 +9094,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
   const [reviewerProfile, setReviewerProfile] = useStateBSC(null);
+  // Local reaction state for the shared BSActivityCard on this coach profile feed
+  // (optimistic toggle + best-effort persist via the same backend path as the feed).
+  const [actLikes, setActLikes] = useStateBSC({});
+  const [profExprOpen, setProfExprOpen] = useStateBSC(null);
+  const profLpTimerRef = React.useRef(null);
+  const profLpFiredRef = React.useRef(false);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   React.useEffect(() => {
@@ -9081,6 +9177,41 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     : [['Tip', 'The 3 cues that fix most squats', 'Brace, spread the floor, own the bottom. Save this for leg day.', '2d'], ['Win', 'Jonah pulled 2× bodyweight today', 'Showed up every week. That’s the whole secret.', '4d']];
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
+  // Render this coach's personal-activities feed as the SAME rich BSActivityCard
+  // the community feed uses (author header hidden — the profile owns identity).
+  // Published author posts map via the shared mapper; the demo field-notes
+  // ([kick, title, body, time] tuples) via a slim adapter.
+  const ownerRole = isNutri ? 'Nutritionist' : 'Trainer';
+  const tupleToCard = (k, t2, b, time, idx) => ({
+    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, hot: false,
+    kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
+    city: '', activityType: '', stats: [], likers: [], comments: [],
+  });
+  const coachFeedEff = [
+    ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
+    ...feed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
+  ];
+  // Profile reaction handler — optimistic toggle + best-effort backend like via
+  // the SAME path the community feed uses. Sample cards (no postId) toggle visually.
+  const profileApplyReaction = (a, key, _iAmAuthorsCoach, expr) => {
+    const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
+    const willLike = expr != null ? true : !wasLiked;
+    setActLikes((prev) => ({ ...prev, [key]: willLike }));
+    if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
+  };
+  // ctx for the shared card on this profile: theme + working reactions/share/repost;
+  // SLIM FALLBACKS for the surfaces the profile doesn't host (detail/likers/send).
+  const slimOpen = () => window.__bsToast?.('Open in the community feed for the full view.', 'info');
+  const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
+  const profileCtx = {
+    t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
+    card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
+    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
+    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    setOpenProfile: (p) => setReviewerProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
+    feedApplyReaction: profileApplyReaction,
+  };
   const initials = bsInitials(name) || (person.init || '?');
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // Tap a reviewer → open who wrote the review (their public profile).
@@ -9323,13 +9454,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             </div>
             <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
               <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
-              {[...coachPosts, ...feed.map(([k, t2, b, time]) => ({ k, t: t2, b, time }))].map((it, i) => (
-                <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
+              {coachFeedEff.map((a, i) => (
+                <div key={a.key || i} style={{ position: 'relative', marginBottom: 12 }}>
                   <div style={{ position: 'absolute', left: -22, top: 16, width: 9, height: 9, borderRadius: 999, background: c, boxShadow: `0 0 0 3px ${BG}, 0 0 10px ${bsTHexA(c, 0.6)}` }} />
-                  <div style={{ ...card, padding: '13px 15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
-                    <BSActivityBody it={it} c={c} INK={INK} card={card} />
-                    <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={c} INK={INK} BG={BG} onEdit={isSelf && it.id && bsRealPostId({ id: it.id }) ? () => setEditingActivity({ postId: bsRealPostId({ id: it.id }), title: it.t || '', body: it.b || '', photo: it.photo || null, video: it.video || null, link: it.link || null, kind: it.kind || null, privacy: it.privacy || 'public' }) : undefined} />
+                  {/* The SAME rich card the community chat feed renders, author header hidden. */}
+                  <div style={{ ...card, overflow: 'hidden' }}>
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                   </div>
                 </div>
               ))}
@@ -10162,6 +10292,266 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   return surface ? createPortal(view, surface) : view;
 }
 
+// The rich Strava-style activity card — shared by the community feed (BSClientFeed)
+// AND the profile "Personal activities" feed. Module-level + ctx-injected so both
+// surfaces render the SAME card. `ctx` bundles the host's state/handlers; the
+// community feed builds it once per render, the profile builds a slim version
+// (real reactions + share/repost; slim fallbacks for detail/likers/send).
+// `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
+function BSActivityCard({ a, ctx, hideAuthor = false }) {
+  const {
+    t, cardInk, muted, hair, card,
+    actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
+    exprOpenKey, setExprOpenKey, lpTimerRef, lpFiredRef,
+    tierByUser, avatarByUser, feedAvatars, myRole, coachClientIds, myFollowingSet,
+    setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
+  } = ctx;
+    // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
+    // tier name + color to it; members keep the client ramp. Real posts resolve the
+    // author's live tier (batched points → tier), with a stable name-hash fallback.
+    const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
+    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : a.tier;
+    const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
+    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
+    const key = a.key || `${a.who}|${a.ago}`;
+    // Seed from the post's live like state; local toggles override. The kudos
+    // count from the row already includes my own like, so subtract the seed
+    // before re-adding the local state (no double count).
+    const liked = actLikes[key] != null ? !!actLikes[key] : !!a.liked;
+    const baseKudos = Math.max(0, (a.kudos || 0) - (a.liked ? 1 : 0));
+    const comments = actComments[key] || [];
+    const cmtOpen = actCmtOpen === key;
+    const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
+    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
+    // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
+    // tally stays one unified count. PR/milestone (a new-best delta, or the demo
+    // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
+    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
+    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
+    const cheer = bsReactionVerb(actType);
+    const stats = a.real ? a.statsRow
+      : Array.isArray(a.stats) ? a.stats
+      : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
+      : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
+      : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
+    const showRoute = a.real ? !!a.route : a.kind === 'run';
+    // Real GPS points (Strava/Garmin imports normalize them server-side) draw
+    // the actual route; the tier-tinted tile is the fallback for routeless flags.
+    const routeObj = a.real && a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
+    const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
+    const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
+    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
+    // Redesign hierarchy: lead with ONE hero metric (load for lifts, distance for
+    // runs) at the existing stat-plate value styling; demote the rest behind a
+    // disclosure. Delta + coach rows are HONEST slots — they render only when the
+    // post actually carries them (no fabricated "+10", no placeholder coach row).
+    const isRunCard = a.real ? (a.typeLabel === 'Run') : (a.kind === 'run');
+    const _primIdx = (() => {
+      const pat = isRunCard ? /dist/i : /load|weight/i;
+      let i = stats.findIndex(([k]) => pat.test(String(k || '')));
+      if (i < 0) i = stats.findIndex(([, v]) => /\d/.test(String(v)) && /(lb|kg|mi|km)\b/i.test(String(v)));
+      return i < 0 ? 0 : i;
+    })();
+    const heroStat = stats[_primIdx] || null;
+    const secStats = stats.filter((_, i) => i !== _primIdx);
+    const detailsOpen = !!actDetailsOpen[key];
+    const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
+    const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
+    const coachProgram = a.real ? (a.program || '') : '';
+    // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
+    // Sources, in order: my own optimistic co-sign (I'm this athlete's coach and
+    // just reacted) → the post's stamped co-sign (any of their coaches). Honest:
+    // null unless a real coach↔client link exists. `iAmAuthorsCoach` gates my tap.
+    const iAmAuthorsCoach = (myRole === 'trainer' || myRole === 'nutritionist') && !!a.userId && !!coachClientIds && coachClientIds.has(a.userId);
+    const myCoSign = actCoSign[key] || null;
+    const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
+    const coSignIsMine = !!myCoSign;
+    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
+    // Phase 2 — the verb shown on the button is MY chosen expression when I've
+    // reacted (long-press → pick), else the activity-default verb. `applyReaction`
+    // is the single path: tapping (expr=null) toggles the like; picking an
+    // expression always reacts + re-labels — both stay ONE unified count.
+    const myExpr = liked ? (actExpr[key] || null) : null;
+    const paletteOpen = exprOpenKey === key;
+    const palette = bsReactionPalette(cheer);
+    const applyReaction = (expr) => feedApplyReaction(a, key, iAmAuthorsCoach, expr);
+    // Social layer — the people I FOLLOW who reacted/commented surface on the card
+    // (avatars over the like row + their comments inline); everyone else opens on
+    // tap. Real posts: intersect the post's liker-ids / comment authors with my
+    // following set. Demo cards: the illustrative `likers`/`comments` arrays.
+    const followingSet = myFollowingSet;
+    const allLikers = a.real
+      ? (a.likerIds || []).map((id) => { const f = followingSet && followingSet.get(id); return { userId: id, name: f ? f.name : null, role: f ? f.role : 'Client', photo: feedAvatars[id] || null, follows: !!f }; })
+      : (a.likers || []).map((p) => ({ userId: null, name: p.name, role: p.role || 'Client', photo: bsDemoFace(p.name), follows: true }));
+    const followedLikers = allLikers.filter((l) => l.follows);
+    const allComments = a.real ? (a.postComments || []) : (a.comments || []);
+    const localComments = actComments[key] || [];
+    // The count shown ALWAYS matches what opens (fixes "says 6, shows 3"): the
+    // real comments on the post + anything added locally this session.
+    const commentCount = allComments.length + localComments.length;
+    const followedComments = a.real
+      ? allComments.filter((c) => c.userId && followingSet && followingSet.has(c.userId))
+      : allComments.filter((c) => c.follows);
+    const likeFacepile = followedLikers.slice(0, 4);
+    // Full stat set for the detail page (every stat, not the card's 3-up).
+    const detailStats = a.real ? (a.fullStats || stats) : (a.stats || stats);
+    // Open the full-screen activity page (stats focus or comments focus).
+    const openDetail = (focus) => setActivityDetail({
+      a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
+      title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
+      routeObj, showRoute, breakdown: a.breakdown || null,
+      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
+      verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
+    });
+    return (
+      <div style={{ background: card, overflow: 'hidden' }}>
+        <div style={{ height: 1, background: tc }} />
+        <div style={{ padding: '10px 13px 11px' }}>
+          {/* author + activity type — or, when hideAuthor (profile feed), a slim
+              header: the type chip on the right + the relative time on the left
+              (the profile's own card chrome already owns the author identity). */}
+          {hideAuthor ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
+              <span style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
+            </div>
+          ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
+              </div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+            </div>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
+          </div>
+          )}
+          {/* HERO — activity name + the promoted primary metric. Tapping the
+              title/metric/caption (or the route below) opens the full session-
+              details page. */}
+          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
+            {heroStat && (
+              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 9px', marginTop: 7 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: cardInk, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{heroStat[1]}</span>
+                {prDelta && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '3px 7px', borderRadius: 999, lineHeight: 1 }}>↑ {prDelta}</span>}
+                <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{heroStat[0]}</span>
+              </div>
+            )}
+            {/* caption — the human line, unchanged */}
+            {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
+          </div>
+          {/* coach attribution — honest slot: renders ONLY when the post names a
+              program + coach; suppressed entirely for self-coached / opted-out */}
+          {coachLine && (
+            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, padding: '4px 11px', cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Programmed by</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
+            </button>
+          )}
+          {/* GPS route — the REAL polyline when the post carries points;
+              halftone tile in the member's tier color otherwise (endurance hero).
+              Tap opens the full session-details page. */}
+          {routeObj ? (
+            <div onClick={() => openDetail('stats')} style={{ cursor: 'pointer' }}><BSActivityRoutePreview route={routeObj} /></div>
+          ) : showRoute && (
+            <div onClick={() => openDetail('stats')} style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
+              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
+            </div>
+          )}
+          {/* The card stays a glance — the full metric readout lives on the
+              Session-details page (this link / tapping the hero opens it). */}
+          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 11, padding: '10px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc }}>Session details · full activity</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
+          </button>
+          {/* coach co-sign — a solid role-colored badge so one coach co-sign reads
+              heavier than any peer reaction. Renders only on a real coach↔client
+              link (my own, or one stamped on the post); honest-absent otherwise */}
+          {coSign && (
+            <div style={{ marginTop: 11 }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box', cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+              </button>
+            </div>
+          )}
+          {/* phase 2 — expressive palette (opens on a press-and-hold of the
+              reaction). Picking a word re-labels MY reaction but stays the same
+              unified like (one count). All text, no emoji. */}
+          {paletteOpen && (
+            <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
+              {palette.map((w) => {
+                const on = liked && (myExpr || cheer) === w;
+                return (
+                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>{bsFeedIcon('react', 11)}<span>{w}</span></button>
+                );
+              })}
+              <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
+            </div>
+          )}
+          {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
+              above the reaction row. Tap → the full "who reacted" sheet. */}
+          {likeFacepile.length > 0 && (() => {
+            const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
+            const fpLabel = fpNames.length
+              ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
+              : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
+            return (
+              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {likeFacepile.map((l, i) => (
+                    <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                  ))}
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
+              </button>
+            );
+          })()}
+          {/* actions — the reaction verb primary/heaviest; Comment + Share
+              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
+          {(() => {
+            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
+            return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
+            <button
+              onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
+              onPointerUp={() => clearTimeout(lpTimerRef.current)}
+              onPointerLeave={() => clearTimeout(lpTimerRef.current)}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
+              title="Hold for more reactions"
+              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
+            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
+            <span style={{ marginLeft: 'auto' }} />
+            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
+            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
+          </div>
+            );
+          })()}
+          {/* followed comments — people I FOLLOW comment under the card by
+              default (modern row: facet avatar + aligned name/text); the rest
+              open in the full-screen activity page */}
+          {followedComments.length > 0 && (
+            <div style={{ marginTop: 11 }}>
+              {followedComments.slice(0, 2).map((c, i) => (
+                <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
+              ))}
+              {commentCount > Math.min(2, followedComments.length) && (
+                <button onClick={() => openDetail('comments')} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 1, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {commentCount} comments ›</button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+}
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   useBSPresence(); // re-render avatars as people come online / go offline
@@ -10888,242 +11278,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3, stats: [['Distance', '5.1 mi'], ['Avg pace', '9:30/mi'], ['Best pace', '8:58/mi'], ['Time', '48:27'], ['Avg HR', '141 bpm'], ['Max HR', '158 bpm'], ['Cadence', '168 spm'], ['Elevation', '180 ft'], ['Calories', '590'], ['Stride', '1.04 m'], ['Ground', '268 ms'], ['Training', '2.1 · LO']], zones: [['Z1', 22], ['Z2', 58], ['Z3', 16], ['Z4', 4], ['Z5', 0]], trace: [128, 134, 138, 136, 140, 142, 139, 144, 141, 138, 143, 145, 142, 139, 144, 146, 143, 140, 145, 147, 144, 141, 146, 148, 145, 142, 147, 149, 152, 138], cadenceTrace: [162, 165, 167, 168, 166, 169, 168, 170, 169, 167, 170, 171, 169, 167, 170, 172, 170, 168, 171, 172, 171, 169, 172, 173, 171, 170, 172, 174, 173, 168], elevTrace: [60, 64, 70, 78, 74, 68, 76, 84, 80, 72, 80, 92, 88, 80, 76, 84, 96, 90, 82, 88, 98, 92, 86, 94, 102, 96, 88, 80, 72, 64], paceTrace: [600, 588, 582, 590, 578, 585, 575, 583, 590, 580, 572, 581, 588, 574, 582, 570, 579, 586, 572, 580, 588, 575, 583, 590, 576, 584, 578, 586, 572, 580], breakdown: { label: 'Mile splits', rows: [['Mile 1', '9:42/mi', 'Warm-up'], ['Miles 2–3', '9:30/mi', 'Steady'], ['Miles 4–5', '9:24/mi', 'Smooth'], ['Last 0.1', '8:58/mi', 'Strides']] } },
     { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9, stats: [['Top set', '185 lb'], ['Total sets', '24'], ['Avg HR', '132 bpm'], ['Max HR', '158 bpm'], ['Calories', '510'], ['Volume', '12,400 lb']], zones: [['Z1', 34], ['Z2', 38], ['Z3', 20], ['Z4', 7], ['Z5', 1]], trace: [104, 118, 132, 120, 110, 124, 140, 128, 114, 126, 146, 134, 118, 130, 150, 138, 120, 132, 152, 140, 122, 134, 148, 136, 116, 128, 144, 130, 112, 108], breakdown: { label: 'Working sets', rows: [['Back squat', '5 × 5 @ 185', 'RPE 7'], ['Bench', '5 × 5 @ 145', 'RPE 7'], ['Row', '4 × 8 @ 135', 'RPE 8'], ['Accessories', '3 circuits', 'RPE 6']] } },
   ];
-  const ActivityCard = ({ a }) => {
-    // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
-    // tier name + color to it; members keep the client ramp. Real posts resolve the
-    // author's live tier (batched points → tier), with a stable name-hash fallback.
-    const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
-    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : a.tier;
-    const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
-    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
-    const key = a.key || `${a.who}|${a.ago}`;
-    // Seed from the post's live like state; local toggles override. The kudos
-    // count from the row already includes my own like, so subtract the seed
-    // before re-adding the local state (no double count).
-    const liked = actLikes[key] != null ? !!actLikes[key] : !!a.liked;
-    const baseKudos = Math.max(0, (a.kudos || 0) - (a.liked ? 1 : 0));
-    const comments = actComments[key] || [];
-    const cmtOpen = actCmtOpen === key;
-    const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
-    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
-    // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
-    // tally stays one unified count. PR/milestone (a new-best delta, or the demo
-    // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
-    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
-    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
-    const cheer = bsReactionVerb(actType);
-    const stats = a.real ? a.statsRow
-      : Array.isArray(a.stats) ? a.stats
-      : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
-      : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
-      : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
-    const showRoute = a.real ? !!a.route : a.kind === 'run';
-    // Real GPS points (Strava/Garmin imports normalize them server-side) draw
-    // the actual route; the tier-tinted tile is the fallback for routeless flags.
-    const routeObj = a.real && a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
-    const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
-    const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
-    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
-    // Redesign hierarchy: lead with ONE hero metric (load for lifts, distance for
-    // runs) at the existing stat-plate value styling; demote the rest behind a
-    // disclosure. Delta + coach rows are HONEST slots — they render only when the
-    // post actually carries them (no fabricated "+10", no placeholder coach row).
-    const isRunCard = a.real ? (a.typeLabel === 'Run') : (a.kind === 'run');
-    const _primIdx = (() => {
-      const pat = isRunCard ? /dist/i : /load|weight/i;
-      let i = stats.findIndex(([k]) => pat.test(String(k || '')));
-      if (i < 0) i = stats.findIndex(([, v]) => /\d/.test(String(v)) && /(lb|kg|mi|km)\b/i.test(String(v)));
-      return i < 0 ? 0 : i;
-    })();
-    const heroStat = stats[_primIdx] || null;
-    const secStats = stats.filter((_, i) => i !== _primIdx);
-    const detailsOpen = !!actDetailsOpen[key];
-    const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
-    const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
-    const coachProgram = a.real ? (a.program || '') : '';
-    // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
-    // Sources, in order: my own optimistic co-sign (I'm this athlete's coach and
-    // just reacted) → the post's stamped co-sign (any of their coaches). Honest:
-    // null unless a real coach↔client link exists. `iAmAuthorsCoach` gates my tap.
-    const iAmAuthorsCoach = (myRole === 'trainer' || myRole === 'nutritionist') && !!a.userId && !!coachClientIds && coachClientIds.has(a.userId);
-    const myCoSign = actCoSign[key] || null;
-    const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
-    const coSignIsMine = !!myCoSign;
-    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
-    // Phase 2 — the verb shown on the button is MY chosen expression when I've
-    // reacted (long-press → pick), else the activity-default verb. `applyReaction`
-    // is the single path: tapping (expr=null) toggles the like; picking an
-    // expression always reacts + re-labels — both stay ONE unified count.
-    const myExpr = liked ? (actExpr[key] || null) : null;
-    const paletteOpen = exprOpenKey === key;
-    const palette = bsReactionPalette(cheer);
-    const applyReaction = (expr) => feedApplyReaction(a, key, iAmAuthorsCoach, expr);
-    // Social layer — the people I FOLLOW who reacted/commented surface on the card
-    // (avatars over the like row + their comments inline); everyone else opens on
-    // tap. Real posts: intersect the post's liker-ids / comment authors with my
-    // following set. Demo cards: the illustrative `likers`/`comments` arrays.
-    const followingSet = myFollowingSet;
-    const allLikers = a.real
-      ? (a.likerIds || []).map((id) => { const f = followingSet && followingSet.get(id); return { userId: id, name: f ? f.name : null, role: f ? f.role : 'Client', photo: feedAvatars[id] || null, follows: !!f }; })
-      : (a.likers || []).map((p) => ({ userId: null, name: p.name, role: p.role || 'Client', photo: bsDemoFace(p.name), follows: true }));
-    const followedLikers = allLikers.filter((l) => l.follows);
-    const allComments = a.real ? (a.postComments || []) : (a.comments || []);
-    const localComments = actComments[key] || [];
-    // The count shown ALWAYS matches what opens (fixes "says 6, shows 3"): the
-    // real comments on the post + anything added locally this session.
-    const commentCount = allComments.length + localComments.length;
-    const followedComments = a.real
-      ? allComments.filter((c) => c.userId && followingSet && followingSet.has(c.userId))
-      : allComments.filter((c) => c.follows);
-    const likeFacepile = followedLikers.slice(0, 4);
-    // Full stat set for the detail page (every stat, not the card's 3-up).
-    const detailStats = a.real ? (a.fullStats || stats) : (a.stats || stats);
-    // Open the full-screen activity page (stats focus or comments focus).
-    const openDetail = (focus) => setActivityDetail({
-      a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
-      title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
-      routeObj, showRoute, breakdown: a.breakdown || null,
-      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
-      verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
-    });
-    return (
-      <div style={{ background: card, overflow: 'hidden' }}>
-        <div style={{ height: 1, background: tc }} />
-        <div style={{ padding: '10px 13px 11px' }}>
-          {/* author + activity type */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
-              </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
-            </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
-          </div>
-          {/* HERO — activity name + the promoted primary metric. Tapping the
-              title/metric/caption (or the route below) opens the full session-
-              details page. */}
-          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
-            {heroStat && (
-              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 9px', marginTop: 7 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: cardInk, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{heroStat[1]}</span>
-                {prDelta && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '3px 7px', borderRadius: 999, lineHeight: 1 }}>↑ {prDelta}</span>}
-                <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{heroStat[0]}</span>
-              </div>
-            )}
-            {/* caption — the human line, unchanged */}
-            {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
-          </div>
-          {/* coach attribution — honest slot: renders ONLY when the post names a
-              program + coach; suppressed entirely for self-coached / opted-out */}
-          {coachLine && (
-            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, padding: '4px 11px', cursor: 'pointer' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Programmed by</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
-            </button>
-          )}
-          {/* GPS route — the REAL polyline when the post carries points;
-              halftone tile in the member's tier color otherwise (endurance hero).
-              Tap opens the full session-details page. */}
-          {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ cursor: 'pointer' }}><BSActivityRoutePreview route={routeObj} /></div>
-          ) : showRoute && (
-            <div onClick={() => openDetail('stats')} style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
-              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
-            </div>
-          )}
-          {/* The card stays a glance — the full metric readout lives on the
-              Session-details page (this link / tapping the hero opens it). */}
-          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 11, padding: '10px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc }}>Session details · full activity</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
-          </button>
-          {/* coach co-sign — a solid role-colored badge so one coach co-sign reads
-              heavier than any peer reaction. Renders only on a real coach↔client
-              link (my own, or one stamped on the post); honest-absent otherwise */}
-          {coSign && (
-            <div style={{ marginTop: 11 }}>
-              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box', cursor: 'pointer' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
-              </button>
-            </div>
-          )}
-          {/* phase 2 — expressive palette (opens on a press-and-hold of the
-              reaction). Picking a word re-labels MY reaction but stays the same
-              unified like (one count). All text, no emoji. */}
-          {paletteOpen && (
-            <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
-              {palette.map((w) => {
-                const on = liked && (myExpr || cheer) === w;
-                return (
-                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>{bsFeedIcon('react', 11)}<span>{w}</span></button>
-                );
-              })}
-              <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
-            </div>
-          )}
-          {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
-              above the reaction row. Tap → the full "who reacted" sheet. */}
-          {likeFacepile.length > 0 && (() => {
-            const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
-            const fpLabel = fpNames.length
-              ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
-              : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
-            return (
-              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  {likeFacepile.map((l, i) => (
-                    <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
-                  ))}
-                </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
-              </button>
-            );
-          })()}
-          {/* actions — the reaction verb primary/heaviest; Comment + Share
-              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
-          {(() => {
-            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
-            return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
-            <button
-              onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
-              onPointerUp={() => clearTimeout(lpTimerRef.current)}
-              onPointerLeave={() => clearTimeout(lpTimerRef.current)}
-              onContextMenu={(e) => e.preventDefault()}
-              onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
-              title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
-            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
-            <span style={{ marginLeft: 'auto' }} />
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
-          </div>
-            );
-          })()}
-          {/* followed comments — people I FOLLOW comment under the card by
-              default (modern row: facet avatar + aligned name/text); the rest
-              open in the full-screen activity page */}
-          {followedComments.length > 0 && (
-            <div style={{ marginTop: 11 }}>
-              {followedComments.slice(0, 2).map((c, i) => (
-                <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
-              ))}
-              {commentCount > Math.min(2, followedComments.length) && (
-                <button onClick={() => openDetail('comments')} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 1, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {commentCount} comments ›</button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+  // Bundle every closure dep the shared BSActivityCard needs (recompute each
+  // render is fine — it's a plain object). The community feed renders the card
+  // via this ctx; the profile builds its own slim ctx.
+  const feedCtx = {
+    t, cardInk, muted, hair, card,
+    actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
+    exprOpenKey, setExprOpenKey, lpTimerRef, lpFiredRef,
+    tierByUser, avatarByUser, feedAvatars, myRole, coachClientIds, myFollowingSet,
+    setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
@@ -11432,7 +11595,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Support — its own top-level tab: the continuous AI-backed thread.
           if (tab === 'support') {
             return (
-              <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
@@ -11485,7 +11648,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           }
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
-            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div inert={subHidden} style={bsSubStyle(16)}>
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
                 {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, color: sec.color, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
@@ -11521,10 +11684,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
                   preview still shows a full feel. */}
-              {/* Call ActivityCard as a function (not <ActivityCard/>) so it
-                  inlines into this render — rendering it as an element remounts
-                  the card every keystroke (new fn identity), dropping the
-                  comment input's focus/keyboard. */}
+              {/* BSActivityCard is module-level (stable identity) — render it as
+                  an element with the feed's ctx; the comment composer lives in the
+                  full-screen detail page, so the card carries no focus-sensitive
+                  input and won't lose keyboard on re-render. */}
               {(() => {
                 const realMode = loggedIn && postsLive;
                 const cards = realMode ? activityFeed : COMMUNITY_ACTIVITIES;
@@ -11536,7 +11699,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}>{ActivityCard({ a })}</React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} /></React.Fragment>);
               })()}
             </div>
           ) : (
