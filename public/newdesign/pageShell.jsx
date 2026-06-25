@@ -151,7 +151,7 @@ function ssEnsureDb() {
     const s = document.createElement("script"); s.src = src; s.async = true; s.setAttribute("data-ssdb", src);
     s.onload = () => res(); s.onerror = rej; document.head.appendChild(s);
   });
-  _ssDbPromise = (window.supabase && window.supabase.createClient ? Promise.resolve() : load("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"))
+  _ssDbPromise = (window.supabase && window.supabase.createClient ? Promise.resolve() : load("/vendor/supabase-js-2.108.2.umd.js"))
     .then(() => (window.shapeDb && window.shapeDb.client) ? null : load("/supabase.js"))
     .then(() => (window.shapeDb && window.shapeDb.client) ? window.shapeDb : null)
     .catch(() => null);

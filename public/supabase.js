@@ -1,7 +1,8 @@
 // Shape — Supabase client (Phase 1: auth + profiles)
-// Loads the Supabase JS v2 client from CDN and exposes it as window.shapeDb.
-// All pages that need auth should include this file *after* the CDN script:
-//   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+// Expects the Supabase JS v2 client (window.supabase) already loaded, and exposes
+// it as window.shapeDb. Self-hosted same-origin (no third-party CDN / SRI needed).
+// All pages that need auth should include this file *after* the library script:
+//   <script src="/vendor/supabase-js-2.108.2.umd.js"></script>
 //   <script src="supabase.js"></script>
 
 // Cloudflare Turnstile (CAPTCHA) SITE key — PUBLIC, safe to commit (it's
