@@ -963,15 +963,6 @@ function bsProgramWeek() {
   const w = Math.floor((Date.now() - start.getTime()) / 6048e5) + 1;
   return Math.min(52, Math.max(1, w));
 }
-// Day N of the current coaching block — the motivating "DAY 38 OF 84" anchor.
-// Same mock program-start anchor as bsProgramWeek (a real start/length would come
-// from the assigned program); total defaults to a standard 12-week block.
-function bsProgramDay() {
-  const start = new Date(2026, 3, 6); // Apr 6 2026
-  const total = 84; // 12-week block
-  const day = Math.floor((Date.now() - start.getTime()) / 864e5) + 1;
-  return { day: Math.min(total, Math.max(1, day)), total };
-}
 // Program phase per client — training block + nutrition phase, shown in the
 // Eat / Train / home eyebrows. Cached on window so headers read it synchronously;
 // persisted in client_settings (Settings → Preferences), so a coach-set value
@@ -2373,7 +2364,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSMasthead
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        leftKicker={(() => { const { day, total } = bsProgramDay(); return `${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · Day ${day} of ${total}`; })()}
+        leftKicker={`${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} · ${_BS_MON[_now.getMonth()]} ${_now.getDate()} · ${_now.getFullYear()}`}
         rightKicker={`${bsHomeProgram.nutritionPhase || 'Cut'} · W${isoWeek}`}
         trailing={<BSHeaderTools onProfile={onProfile} />}
         showDoubleRule={false}
