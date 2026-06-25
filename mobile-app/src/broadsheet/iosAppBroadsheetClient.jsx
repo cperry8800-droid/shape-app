@@ -8512,7 +8512,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
     actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
-    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    tierByUser: (person.userId ? { [person.userId]: tierKey } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setFollowProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
@@ -9259,7 +9259,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
     actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
-    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    tierByUser: (person.userId ? { [person.userId]: baseTier } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
     setOpenProfile: (p) => setReviewerProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
     ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
@@ -10762,12 +10762,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
-  // Nora's tone is fixed to supportive (no in-thread toggle). The per-message
-  // "Listen" button plays a reply aloud on demand (forces TTS even when the
-  // global voice pref is off); the global voice on/off + tone still live in
-  // Settings → Nora voice.
+  // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
+  // default); the global voice on/off + tone still live in Settings → Nora voice.
+  // (We do NOT force the tone here — that would overwrite the user's own setting
+  // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
   const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
-  React.useEffect(() => { try { window.ShapeVoice && window.ShapeVoice.setTone && window.ShapeVoice.setTone('supportive'); } catch (e) {} }, []);
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
