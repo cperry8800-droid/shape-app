@@ -3333,7 +3333,9 @@ async function getAnalytics() {
 async function getProgress() {
   return cachedClientJson('/api/client/progress');
 }
-window.ShapeAnalytics = { get: getAnalytics, getProgress };
+// MERGE (don't replace) so a `track` already attached by services/analytics.js
+// survives regardless of module load order; analytics.js likewise merges onto this.
+window.ShapeAnalytics = Object.assign(window.ShapeAnalytics || {}, { get: getAnalytics, getProgress });
 
 // Prescribed plan — assigned training + meal plan. Bearer in native, cookie
 // on /m/. Returns null on any failure so callers fall back to demo content.

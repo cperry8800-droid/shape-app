@@ -164,6 +164,80 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-24 — War Room audit: 4 "looks done" items verified — 2 are genuinely incomplete
+Verified four unchecked War Room items (multi-agent: repo code + **live Supabase** + GitHub API).
+**Do not check these off as-is** — accurate status below.
+- **Funnel analytics — NOT done (mobile event wiring is broken).** The migration **IS applied
+  live** (`analytics_events` + `track_event` + `get_funnel` confirmed on prod, service-role-only
+  grants — **no owner DB action needed**); the panel + purge cron are real. BUT the "5
+  consent-gated events" claim is **false**: `mobile-app/src/services/analytics.js:18` does
+  `window.ShapeAnalytics = window.ShapeAnalytics || { track }`, and `shapeBackend.js:3336` already
+  set `window.ShapeAnalytics = { get, getProgress }`, so the `||` short-circuits and **`.track`
+  never attaches** — the 4 mobile events (workout_started / onboarding_started / paywall_viewed /
+  app_opened) silently no-op (confirmed in the built bundle); only the server-side
+  `checkout_started` lands, and nothing client-side is consent-gated. Doc bugs: purge cron is
+  **daily 03:30 UTC** (entry below says hourly); the cohort breakout is **day-range only** (not
+  acquisition-source/coach-role). **✅ FIXED (this change):** `services/analytics.js` now MERGES
+  `track` onto `window.ShapeAnalytics` (and `shapeBackend.js:3336` merges instead of replacing —
+  order-independent), so the 4 mobile events emit; the mobile carrier is now **consent-gated,
+  region-aware** — GPC + an explicit `shape.consent.v1` opt-out always block; with no choice yet it
+  **opt-INs for EEA/UK** (blocked until `accept` — the app has no mobile consent banner, so EEA
+  first-run is never tracked) and opt-OUTs elsewhere, mirroring the web shell's `Europe/*` EEA
+  detection (addresses a Codex review finding). Mobile rebuilt + `public/m` resynced. Remaining
+  (optional): the migration is live but unrecorded in `schema_migrations` — backfill if you want
+  the ledger clean; a proper mobile consent banner would let EEA opt in.
+- **Secret scan (gitleaks) required check — NOT done; `main` has NO branch protection at all.**
+  Classic protection is off; the 2 active rulesets ("Required Checks", "Updated Security") have
+  **empty branch targeting** (`include: []` → match nothing) and **neither contains a
+  `required_status_checks` rule** — `GET /repos/.../rules/branches/main` returns 0 rules. So
+  gitleaks AND Web + Mobile run on PRs but are **advisory, not required**. ⚠ The "required checks
+  gate `main`" claim in "How we work → Review stack" is therefore **inaccurate** — merges are not
+  check-gated today. **✅ FIXED (this change):** enabled **classic branch protection** on `main`
+  requiring `Web (typecheck + build)` · `Mobile (build + public/m sync)` · `Secret scan (gitleaks)`
+  (strict=false, **enforce_admins=true** — genuinely gates everyone incl. admins, since it's a
+  solo-admin repo). Merging on red is now actually impossible; emergency override = toggle off
+  "Include administrators" in Settings → Branches. (The two empty-targeted rulesets are left as-is.)
+- **Supabase Auth rate limits — app side DONE, dashboard owner-only.** The `/api/*` limiter +
+  `rate_limits` table + `check_rate_limit` RPC are live (RPC probe OK). But that guards only OUR
+  `/api/*` routes — NOT Supabase's native auth endpoints (signup/OTP/token) the SDK calls
+  directly. The real GoTrue limits (otp 60 / verify 100 / email_sent 30 / anonymous_users 5 /
+  token_refresh ~1800) are Management-API/dashboard config, **not readable via the MCP tools** —
+  owner must confirm/set in Auth → Rate Limits (`zznufekgjngecelwxndw`).
+- **Auth CAPTCHA — app side DONE (checklist text is STALE), dashboard owner-only.** The
+  login/signup Turnstile wiring IS complete across web (`login.jsx`), mobile (`turnstile.js` +
+  BSLogin), Next (`Turnstile.tsx` + login actions), and consultation — contradicting the
+  `src/lib/warroom.ts` "login/signup client wiring is a follow-up" note (should be updated).
+  Remaining: owner enables CAPTCHA in Auth → Settings + pastes the Turnstile secret + sets
+  `TURNSTILE_SECRET_KEY` env (else `verifyTurnstile` no-ops). Native caveat: add
+  `capacitor://localhost` to the Turnstile widget's allowed hostnames or native logins get rejected.
+- **Net:** 2 need real work (funnel mobile fix · `main` branch protection); 2 are app-complete
+  pending one owner Supabase-dashboard toggle each.
+
+### 2026-06-24 — Mobile: profile ⇄ community activity cards unified (#1406) + profile & chat redesigns (#1404, #1405)
+- **Activity cards unified (#1406).** The profile **"Personal activities"** feed now renders the
+  SAME rich card as the community chat feed. Extracted the community `ActivityCard` to a
+  module-level **`BSActivityCard({ a, ctx, hideAuthor })`** (community render verified
+  behavior-identical: author header · tier pill · co-sign · session-details · reaction verb).
+  The profile feeds it via `bsProfileCardFromPost` + the `itToCard`/`tupleToCard` demo adapters,
+  with **slim fallbacks** for the deep interaction surfaces (session-details / liker / send sheets
+  defer to the community feed via a toast). Per-card author header dropped on the profile (the
+  hero already identifies the person).
+  - **Review-stack fixes folded in** (CodeRabbit + Codex, 4 rounds; CodeRabbit **APPROVED**, CI
+    green): persist the long-press reaction word on both profiles (`actExpr` state + handler);
+    **gate demo activity for ALL signed-in profile views** — own *and* others' — so fabricated
+    field-notes are the signed-out preview only (honest-data; a signed-in view of any real profile
+    shows only that person's real `listByAuthor` posts, a demo persona shows "No activity yet.");
+    filter plain community/chat posts to `null` (no junk Note cards on the profile); preserve +
+    render media (photo / video / link); restore the owner **✎ edit** via `ctx.onEdit`; normalize
+    the comment count (`text || body`, body-only comments preserved).
+  - Also fixed: the **Team sub-tab nav-gap** (7px to match Feed) and the profile **PR-card title**
+    ("Back squat — new PR" — `itToCard` now extracts the lift from the demo tuple).
+- **#1404 — profile instrument-plate redesign** (hero redesign; removed the "Today's move" box;
+  thinned the profile name font). **#1405 — chat sub-tab auto-hide-on-scroll + bracket-frame
+  sub-tab chips + thinner tier hairline.**
+- Branch `feat/unify-activity-cards` **kept** (not deleted) per the new keep-branches convention
+  (post-merge cleanup is now: squash-merge → fast-forward `main` non-destructively; no branch delete).
+
 ### 2026-06-23 — Funnel analytics ("find the biggest drop-off")
 - **Computed 7-step funnel** — signup → onboarding → first workout → first nutrition → paid → day 30 / 90 retention — sourced from event patterns in the product (milestone tables + milestones on `score_ledger`).
 - **Thin `analytics_events` table** — user_id + event name + minimal context properties, consent/GPC-gated at `/api/analytics/track` (client route). The 5 gap events from the funnel are consent-gated on the mobile app (same carrier as other telemetry).
