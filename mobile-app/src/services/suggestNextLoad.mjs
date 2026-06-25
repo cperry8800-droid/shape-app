@@ -65,7 +65,9 @@ export function suggestNextLoad(lift, move) {
       const cap = epleyE1rm(load, reps);
       if (cap != null && cap > e1 * E1RM_CEILING) {
         const denom = reps <= 1 ? 1 : 1 + reps / 30;
-        load = roundToStep((e1 * E1RM_CEILING) / denom, step);
+        // FLOOR to the gym step (not round) so the suggestion never rounds back up
+        // past the ceiling, e.g. e1RM 141 × 5 → raw cap 126.9 → 125 (not 127.5).
+        load = Math.floor(((e1 * E1RM_CEILING) / denom) / step) * step;
         rationale = `capped near your e1RM`;
       }
     }

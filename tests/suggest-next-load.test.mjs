@@ -30,12 +30,16 @@ test('autoreg: blank RPE bumps only when the authored reps were hit', () => {
   assert.equal(missed.load, 100); // only logged 3 of 5 → hold
 });
 
-test('sanity bound: never suggests beyond ~1.05x the current e1RM', () => {
-  // e1RM 100, reps 5 → epley ceiling 105; cap load so load*(1+5/30) <= 105 → 90.
+test('sanity bound: floors the cap so the suggestion never exceeds 1.05x the e1RM', () => {
+  // The capped load (after floor-to-step) must keep epley(load, reps) <= e1*1.05.
   const s = suggestNextLoad({ currentE1rm: 100, unit: 'kg', series: [{ load: 100, reps: 5, rpe: 6 }] }, { reps: '5', l: '100' });
-  // 100*1.025=102.5 → epley(102.5,5)=119.6 > 105 → clamped down to <= 90 (a 2.5 step).
-  assert.ok(s.load <= 90 + 0.001);
   assert.ok(s.load > 0);
+  assert.ok(s.load * (1 + 5 / 30) <= 100 * E1RM_CEILING + 1e-9);
+  // Codex regression: e1RM 141 × 5 → raw cap 126.9 must FLOOR to 125 (not round up to
+  // 127.5, whose epley 148.75 > 141*1.05 = 148.05).
+  const s2 = suggestNextLoad({ currentE1rm: 141, unit: 'kg', series: [{ load: 130, reps: 5, rpe: 6 }] }, { reps: '5', l: '130' });
+  assert.equal(s2.load, 125);
+  assert.ok(s2.load * (1 + 5 / 30) <= 141 * E1RM_CEILING + 1e-9);
 });
 
 test('range reps target the TOP of the range', () => {

@@ -17346,18 +17346,22 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       ? _bsStrength.lifts.find((l) => l.key === String(move.m).trim().toLowerCase())
       : null;
     const s = suggestNextLoad(lift, move);
-    // Only surface the progression-adding suggestions; 'repeat' just echoes the
-    // existing "Last · {move.l}" line, so it adds no information.
-    return s && s.basis !== 'repeat' ? s : null;
+    // Only surface progression-adding suggestions ('repeat' just echoes the "Last ·"
+    // line). The set inputs are lb-only (placeholder 'lb', load_unit defaults to lb),
+    // so suppress a kg suggestion — filling it as lb would corrupt the logged load.
+    return s && s.basis !== 'repeat' && s.unit === 'lb' ? s : null;
   })();
   const _bsFillSuggestion = () => {
     if (!_bsSug) return;
     let i = 0;
     while (i < move.sets && completed[`${moveIdx}-${i}`]) i += 1;
     if (i >= move.sets) i = move.sets - 1;
-    updateSetInput(i, 'load', String(_bsSug.load));
-    const cur = (setInputs[`${moveIdx}-${i}`] || {}).reps;
-    if (_bsSug.reps != null && (cur == null || String(cur) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
+    const cur = setInputs[`${moveIdx}-${i}`] || {};
+    // Don't clobber a load the athlete typed: only fill when the field is still the
+    // pre-filled default (move.l) or empty. Reps only when blank.
+    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === String(move.l || '');
+    if (loadIsDefault) updateSetInput(i, 'load', String(_bsSug.load));
+    if (_bsSug.reps != null && (cur.reps == null || String(cur.reps) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
   };
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
@@ -17377,15 +17381,19 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
   const updateSetInput = (setIdx, field, value) => {
     const k = `${moveIdx}-${setIdx}`;
-    const current = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
-    const next = { ...current, [field]: value };
-    setSetInputs({ ...setInputs, [k]: next });
-    setSetLogs(setLogs.map((entry) => (
+    // Functional updaters so two updates in one handler (e.g. the suggestion chip
+    // filling load AND reps) compose instead of clobbering a stale-closure snapshot.
+    const other = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+    setSetInputs((prev) => {
+      const current = prev[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+      return { ...prev, [k]: { ...current, [field]: value } };
+    });
+    setSetLogs((prev) => prev.map((entry) => (
       entry.key === k
         ? {
             ...entry,
-            actualReps: field === 'reps' ? value : (entry.actualReps ?? next.reps),
-            actualLoad: field === 'load' ? value : (entry.actualLoad ?? next.load),
+            actualReps: field === 'reps' ? value : (entry.actualReps ?? other.reps),
+            actualLoad: field === 'load' ? value : (entry.actualLoad ?? other.load),
           }
         : entry
     )));
