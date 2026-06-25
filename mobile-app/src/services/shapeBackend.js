@@ -4258,6 +4258,8 @@ async function getClientAnalytics() { return cachedClientJson('/api/client/analy
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
 window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
+async function getClientStrength() { return cachedClientJson('/api/client/strength').then((d) => (d && d.ok ? d : null)); }
+window.ShapeStrength = { get: getClientStrength };
 
 // Coach sigil rings — live { habits, clientWorkouts, ownActivity } (0..1 or null)
 // for the signed-in coach (self only; RLS-scoped). Null fields fall back to demo.
