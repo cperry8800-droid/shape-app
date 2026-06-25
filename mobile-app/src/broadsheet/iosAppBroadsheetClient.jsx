@@ -7362,6 +7362,15 @@ function bsBuildZones(p) {
   return null;
 }
 // logged activity instead of the demo cards once people are posting.
+// Normalize a post's comments ONCE so the count and the rendered list agree
+// (CodeRabbit L7483): backend rows may carry `body` instead of `text`, so fold
+// `text || body` into `text` and keep every commentable row — body-only comments
+// are preserved (not dropped) and counted exactly as they render.
+function bsNormComments(comments) {
+  return Array.isArray(comments)
+    ? comments.map((c) => (c ? { ...c, text: c.text || c.body || '' } : c)).filter((c) => c && c.text)
+    : [];
+}
 function bsActivityFromPost(p) {
   if (!p) return null;
   const ws = Array.isArray(p.workoutStats) ? p.workoutStats.filter(Boolean) : null;
@@ -7440,8 +7449,8 @@ function bsActivityFromPost(p) {
     // Liker user-ids (for the followed-likers facepile + the likers sheet) and
     // the real comments (with author ids, for the followed-comments inline view).
     likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
-    postComments: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text) : [],
-    replies: Array.isArray(p.comments) ? p.comments.length : 0,
+    postComments: bsNormComments(p.comments),
+    replies: bsNormComments(p.comments).length,
   };
 }
 // Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
@@ -7496,10 +7505,10 @@ function bsProfileCardFromPost(p, ownerRole) {
     route: false, routeObj: null,
     kudos: typeof p.likes === 'number' ? p.likes : 0,
     likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
-    // Count only commentable rows (with text) so the card's reply count matches
-    // what postComments renders (CodeRabbit L7483).
-    postComments: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text) : [],
-    replies: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text).length : 0,
+    // Count only commentable rows (text||body) so the reply count matches what
+    // postComments renders — body-only comments preserved (CodeRabbit L7483).
+    postComments: bsNormComments(p.comments),
+    replies: bsNormComments(p.comments).length,
   };
 }
 // The body of an activity card (title · body · photo · inline video / video+link
