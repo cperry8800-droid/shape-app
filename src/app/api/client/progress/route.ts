@@ -23,9 +23,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
+  // select('*') (not an explicit column list) so the route keeps working before a
+  // new snapshot column's migration is applied — PostgREST 400s the WHOLE query on
+  // an unknown explicit column, and `snapRows ?? []` would then silently empty every
+  // series/KPI. (Same migration-safety reason as the weigh-ins query below.)
   const { data: snapRows } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, weight_lb, body_fat_pct, resting_hr, sleep_hours, hrv_ms, workout_minutes, protein_g, hydration_l')
+    .select('*')
     .eq('user_id', user.id)
     .order('snapshot_date', { ascending: true })
     .limit(400);
@@ -34,7 +38,7 @@ export async function GET(request: Request) {
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
-  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l') =>
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps') =>
     snaps
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
@@ -70,6 +74,7 @@ export async function GET(request: Request) {
   const volumeSeries = seriesFor('workout_minutes');
   const proteinSeries = seriesFor('protein_g');
   const hydrationSeries = seriesFor('hydration_l');
+  const stepsSeries = seriesFor('steps');
 
   const bodyFats = bodyFatSeries.map((s) => s.value);
   const restingHrs = restingHrSeries.map((s) => s.value);
@@ -79,6 +84,7 @@ export async function GET(request: Request) {
   const restingPrior = avg(restingHrs.slice(-14, -7));
   const sleepAvg = avg(sleeps.slice(-30));
 
+  const stepsLast30 = stepsSeries.slice(-30);
   const kpis = {
     weightChange:
       weightSeries.length >= 2
@@ -93,6 +99,10 @@ export async function GET(request: Request) {
         ? Math.round(restingRecent - restingPrior)
         : null,
     sleepAvg: sleepAvg != null ? Math.round(sleepAvg * 10) / 10 : null,
+    stepsLatest: stepsSeries.length ? Math.round(stepsSeries[stepsSeries.length - 1].value) : null,
+    stepsAvg: stepsLast30.length
+      ? Math.round(stepsLast30.reduce((s, p) => s + p.value, 0) / stepsLast30.length)
+      : null,
   };
 
   // ---- Strength PRs from logged sets --------------------------------------
@@ -171,6 +181,7 @@ export async function GET(request: Request) {
       volume: volumeSeries,
       protein: proteinSeries,
       hydration: hydrationSeries,
+      steps: stepsSeries,
       strength: strengthSeries,
     },
   });

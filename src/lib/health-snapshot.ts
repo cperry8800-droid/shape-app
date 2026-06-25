@@ -21,6 +21,7 @@ export type SnapshotPatch = {
   strain?: number | null;
   workout_minutes?: number | null;
   workout_volume_lb?: number | null;
+  steps?: number | null;
   avg_heart_rate?: number | null;
   max_heart_rate?: number | null;
   calories?: number | null;
