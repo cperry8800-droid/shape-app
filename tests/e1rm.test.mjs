@@ -76,6 +76,28 @@ test('progressionStatus: stalled when no new high for >= STALL_WEEKS', () => {
   assert.equal(r.status, 'stalled');
 });
 
+test('progressionStatus: brand-new lift with all points in recent 14-day window, rising > 2%', () => {
+  const now = Date.parse('2026-05-30');
+  // All points within last 14 days: first point at 10 days ago (e1rm 100), last point today (e1rm 103)
+  // dp = (103 - 100) / 100 = 0.03 = 3% > 2% deadband → progressing
+  const series = [{ date: iso(now, 10), e1rm: 100 }, { date: iso(now, 0), e1rm: 103 }];
+  const r = progressionStatus(series, { now });
+  assert.equal(r.status, 'progressing');
+  assert.ok(r.deltaPct > PROGRESS_DEADBAND);
+  assert.equal(r.priorBest, 100);  // priorBest is set to first when prior array is empty
+});
+
+test('progressionStatus: brand-new lift with all points in recent 14-day window, within ±2%', () => {
+  const now = Date.parse('2026-05-30');
+  // All points within last 14 days: first point at 8 days ago (e1rm 100), last point 2 days ago (e1rm 101)
+  // dp = (101 - 100) / 100 = 0.01 = 1% < 2% deadband → holding
+  const series = [{ date: iso(now, 8), e1rm: 100 }, { date: iso(now, 2), e1rm: 101 }];
+  const r = progressionStatus(series, { now });
+  assert.equal(r.status, 'holding');
+  assert.ok(r.deltaPct <= PROGRESS_DEADBAND);
+  assert.equal(r.priorBest, 100);  // priorBest is set to first when prior array is empty
+});
+
 test('summarizeLift: surfaces current, best and top set', () => {
   const lift = { key: 'bench', name: 'Bench', series: [
     { date: '2026-05-01', e1rm: 100, load: 90, reps: 4, rpe: 8 },
