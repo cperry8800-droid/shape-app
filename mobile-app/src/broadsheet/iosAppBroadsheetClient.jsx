@@ -8495,9 +8495,10 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
   };
   // ctx for the shared BSActivityCard on this profile. Theme + working reactions +
-  // share/repost; SLIM FALLBACKS for the surfaces the profile doesn't host (full
-  // detail page / likers sheet / send-to-DM → a toast pointing to the feed).
-  const slimOpen = () => window.__bsToast?.('Open in the community feed for the full view.', 'info');
+  // share/repost; the detail page / likers sheet / send-to-DM picker + inline
+  // comments are now hosted here too (useBSCardSheets), so the cards behave EXACTLY
+  // like the community feed instead of toasting.
+  const cardSheets = useBSCardSheets();
   const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
   // Owner edit — only on your OWN profile, only on a real (UUID-backed) published
   // post; reopens BSLogActivitySheet with the post's data (kind/privacy/media).
@@ -8509,11 +8510,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const profileCtx = {
     t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
-    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr,
+    actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
     tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
-    setOpenProfile: (p) => setFollowProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
+    setOpenProfile: (p) => setFollowProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
+    ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
   };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
@@ -8960,6 +8962,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
+      {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr })}
 
       {/* dock — Message others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -9248,8 +9251,9 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
   };
   // ctx for the shared card on this profile: theme + working reactions/share/repost;
-  // SLIM FALLBACKS for the surfaces the profile doesn't host (detail/likers/send).
-  const slimOpen = () => window.__bsToast?.('Open in the community feed for the full view.', 'info');
+  // the detail page / likers sheet / send-to-DM picker + inline comments are hosted
+  // here too (useBSCardSheets), so the cards behave EXACTLY like the community feed.
+  const cardSheets = useBSCardSheets();
   const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
   // Owner edit — only on your OWN coach profile, only on a real (UUID-backed) post;
   // reopens BSLogActivitySheet with the post's data (kind/privacy/media).
@@ -9261,11 +9265,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const profileCtx = {
     t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
     card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
-    actLikes, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr,
+    actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
     exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
     tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
-    setOpenProfile: (p) => setReviewerProfile(p), setActivityDetail: slimOpen, setLikerSheetFor: slimOpen, setSendPostFor: slimOpen,
+    setOpenProfile: (p) => setReviewerProfile(p),
     feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
+    ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
   };
   const initials = bsInitials(name) || (person.init || '?');
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
@@ -9531,6 +9536,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
+      {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -10350,11 +10356,96 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   return surface ? createPortal(view, surface) : view;
 }
 
+// Shared host for the three deep-interaction surfaces an activity card opens — the
+// full-screen activity-detail page, the send-to-DM picker, and the "who reacted"
+// sheet — rendered IDENTICALLY to the community feed's inline blocks. The profile
+// feeds (member Terrain + coach Signal) render this so their cards behave exactly
+// like the feed instead of toasting. `applyReaction` keeps a like one unified count
+// wherever it's tapped (card or detail page).
+function BSCardSheetHost({ activityDetail, setActivityDetail, sendPostFor, setSendPostFor, likerSheetFor, setLikerSheetFor, actLikes, actExpr, actComments, applyReaction, setOpenProfile, feedAvatars = {}, draft, setDraft, sendActComment }) {
+  const t = useBS();
+  return (
+    <>
+      {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
+      {activityDetail && (() => {
+        const d = activityDetail;
+        const liked = actLikes[d.key] != null ? !!actLikes[d.key] : !!d.a.liked;
+        const myExpr = liked ? (actExpr[d.key] || null) : null;
+        const baseKudos = Math.max(0, (d.a.kudos || 0) - (d.a.liked ? 1 : 0));
+        const count = baseKudos + (liked ? 1 : 0);
+        const comments = [...(d.a.real ? (d.a.postComments || []) : (d.a.comments || [])), ...(actComments[d.key] || [])];
+        return <BSActivityDetail d={d} liked={liked} count={count} myExpr={myExpr} comments={comments} feedAvatars={feedAvatars}
+          onClose={() => setActivityDetail(null)}
+          onReact={() => applyReaction(d.a, d.key, d.iAmAuthorsCoach, null)}
+          onProfile={setOpenProfile}
+          onOpenLikers={() => setLikerSheetFor({ who: d.who, likers: d.allLikers })}
+          draft={draft} setDraft={setDraft}
+          onSend={() => sendActComment(d.key, d.a.postId || null)} />;
+      })()}
+      {likerSheetFor && createPortal(
+        <div onClick={() => setLikerSheetFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Reactions</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>Who reacted</div>
+            {(likerSheetFor.likers || []).length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, padding: '10px 0' }}>No reactions yet.</div>}
+            {(likerSheetFor.likers || []).map((l, i) => (
+              <button key={i} onClick={() => { if (l.userId || l.name) { setOpenProfile({ who: l.name || 'Shape member', kind: String(l.role || 'client').toUpperCase() === 'TRAINER' ? 'TRAINER' : String(l.role || '').toUpperCase() === 'NUTRITIONIST' ? 'NUTRI' : 'CLIENT', init: bsInitials(l.name || '?'), userId: l.userId || undefined, public: true, photo: l.photo }); setLikerSheetFor(null); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR}`, padding: '10px 2px', cursor: 'pointer', textAlign: 'left' }}>
+                <BSFacetAvatar size={38} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name || 'Shape member'}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{l.role || 'Client'}</div>
+                </div>
+                {l.follows && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>Following</span>}
+              </button>
+            ))}
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
+    </>
+  );
+}
+
+// Owns the activity-card engagement sheets' state (detail / send / likers + inline
+// comments) for a profile feed. Called with the OTHER hooks (no late deps), so it's
+// rules-of-hooks safe; `renderSheets` is called in the main return with the values
+// only available later (the profile's reaction handler + open-profile setter).
+function useBSCardSheets() {
+  const [activityDetail, setActivityDetail] = useStateBSC(null);
+  const [sendPostFor, setSendPostFor] = useStateBSC(null);
+  const [likerSheetFor, setLikerSheetFor] = useStateBSC(null);
+  const [actComments, setActComments] = useStateBSC({});
+  const [actCmtDraft, setActCmtDraft] = useStateBSC('');
+  const sendActComment = (key, postId) => {
+    const body = (actCmtDraft || '').trim();
+    if (!body) return;
+    setActComments((prev) => ({ ...prev, [key]: [...(prev[key] || []), { who: 'You', body }] }));
+    setActCmtDraft('');
+    // Persist ONLY to a real post-backed activity (the explicit postId). Profile
+    // demo cards carry synthetic keys (it-*/act-*) with no postId → local-only,
+    // never a bogus addComment to a non-id key. (The community feed's
+    // key-as-postId fallback is feed-specific and does NOT apply here.)
+    if (postId) { const c0 = window.ShapeCommunity?.addComment?.({ postId, body }); if (c0 && c0.catch) c0.catch(() => {}); }
+  };
+  const ctx = { actComments, actCmtOpen: null, setActivityDetail, setLikerSheetFor, setSendPostFor };
+  const renderSheets = ({ applyReaction, setOpenProfile, actLikes, actExpr, feedAvatars = {} }) => (
+    <BSCardSheetHost
+      activityDetail={activityDetail} setActivityDetail={setActivityDetail}
+      sendPostFor={sendPostFor} setSendPostFor={setSendPostFor}
+      likerSheetFor={likerSheetFor} setLikerSheetFor={setLikerSheetFor}
+      actLikes={actLikes} actExpr={actExpr} actComments={actComments}
+      applyReaction={applyReaction} setOpenProfile={setOpenProfile} feedAvatars={feedAvatars}
+      draft={actCmtDraft} setDraft={setActCmtDraft} sendActComment={sendActComment} />
+  );
+  return { ctx, renderSheets };
+}
+
 // The rich Strava-style activity card — shared by the community feed (BSClientFeed)
 // AND the profile "Personal activities" feed. Module-level + ctx-injected so both
 // surfaces render the SAME card. `ctx` bundles the host's state/handlers; the
 // community feed builds it once per render, the profile builds a slim version
-// (real reactions + share/repost; slim fallbacks for detail/likers/send).
+// (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
 function BSActivityCard({ a, ctx, hideAuthor = false }) {
   const {
