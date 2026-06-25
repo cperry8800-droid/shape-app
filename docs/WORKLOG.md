@@ -166,6 +166,44 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-25 — e1RM (estimated 1-rep max) + strength progression engine (#1420 merged · #1421 in PR)
+- **Roadmap #2.** Turns logged sets into an estimated 1-rep max (Epley `load×(1+reps/30)`)
+  per lift + a **Progressing / Holding / Stalled / Building** verdict.
+- **Phase 1 — analytics engine (#1420, MERGED to `main`).**
+  - Pure tested **`mobile-app/src/services/e1rm.mjs`** (source of truth) + TS twin
+    `src/lib/e1rm.ts` (`epleyE1rm`, `buildLiftSeries`, `progressionStatus`, `summarizeLift`;
+    reps-cap 12, ±2% deadband, 3-week stall). Vectors in `tests/e1rm.test.mjs`.
+  - New RLS-scoped **`GET /api/client/strength`** (session-only, membership-gated by the
+    `/api/client` proxy prefix) → per-lift e1RM + status + trend; `window.ShapeStrength`
+    client helper (shared 60s cache).
+  - e1RM threaded onto the **Overall-tab PR rows** (`/api/client/progress`).
+  - **Mobile Strength instrument page** (`BSStrengthHistory` + `BSStrengthCard` in
+    `iosAppBroadsheetClient.jsx`) — status pills, e1RM trend sparkline, top-set readout,
+    honest empty/"building" states; tappable PR rows.
+  - **Coach e1RM** on key-lift rows (mobile `iosAppBroadsheetPros.jsx` + web
+    `coachClientDetail.jsx`) via **migration `2026-06-25-client-lifts-e1rm.sql`**
+    (widens the `SECURITY DEFINER` `get_client_lifts` with `e1rm`; gate + search_path
+    preserved). **APPLIED to prod** (re-run twice for the review fixes below).
+  - ⚠️ **Key data learning:** the in-app live-session writer (`normalizeWorkoutSetLog`)
+    stores the athlete's actual load/reps/rpe inside **`workout_set_logs.payload`**
+    (`actualLoad`/`actualReps`/`rpe`) and **never populates the `actual_load`/`actual_reps`/
+    `rpe` columns**. So the route + SQL read **payload first, column fallback** (treating a
+    `0` column as missing), and mirror the same payload aliases on both sides for
+    coach⇄client parity. Review also fixed: newest-first set cap (was keeping the oldest
+    5000), auth outside the fail-soft `try`, SQL excludes incomplete sets.
+  - Reviewed subagent-driven (per-task + whole-branch + `/security-review` clean bill);
+    **CodeRabbit-approved**; CI green; squash-merged as `dc9510a4`.
+- **Phase 2 — prescriptive next-load (#1421, IN PR).** Pure tested
+  **`suggestNextLoad.mjs`** (autoregulate off the last session by RPE → bump/hold, e1RM
+  sanity-bound at 1.05×, %-of-e1RM + repeat fallbacks) surfaced as a **tap-to-fill chip in
+  the live session player** (`BSSession`), consuming `window.ShapeStrength`. Client-only —
+  **no endpoint, no migration.** Reviewed per-task + whole-branch (Ready to merge).
+- **Pre-existing bug flagged (separate follow-up):** because the app never writes the
+  `actual_*` columns, **train-volume + the progress strength-series read empty columns at
+  the source** (the e1RM routes now read payload, but the older readers don't). Root fix =
+  populate `actual_load`/`actual_reps`/`rpe`/`load_unit` columns in `normalizeWorkoutSetLog`
+  at write time.
+
 ### 2026-06-25 — Daily steps / NEAT: device-synced steps + ring-instrument history (#1415)
 - **New display-only daily-steps feature** (NEAT). Steps come from a connected watch
   (Apple Health / Garmin sync) — never manual entry, since a person can't know their own

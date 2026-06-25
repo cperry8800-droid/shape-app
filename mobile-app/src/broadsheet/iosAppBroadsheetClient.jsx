@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
+import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -17331,6 +17332,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [setLogs, setSetLogs] = useStateBSC([]);
   const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
+  const _bsStrength = useBSStrength();
 
   React.useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -17338,6 +17340,29 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   }, []);
 
   const move = moves[moveIdx];
+  const _bsSug = (() => {
+    if (!move || !move.m) return null;
+    const lift = (_bsStrength && Array.isArray(_bsStrength.lifts))
+      ? _bsStrength.lifts.find((l) => l.key === String(move.m).trim().toLowerCase())
+      : null;
+    const s = suggestNextLoad(lift, move);
+    // Only surface progression-adding suggestions ('repeat' just echoes the "Last ·"
+    // line). The set inputs are lb-only (placeholder 'lb', load_unit defaults to lb),
+    // so suppress a kg suggestion — filling it as lb would corrupt the logged load.
+    return s && s.basis !== 'repeat' && s.unit === 'lb' ? s : null;
+  })();
+  const _bsFillSuggestion = () => {
+    if (!_bsSug) return;
+    let i = 0;
+    while (i < move.sets && completed[`${moveIdx}-${i}`]) i += 1;
+    if (i >= move.sets) i = move.sets - 1;
+    const cur = setInputs[`${moveIdx}-${i}`] || {};
+    // Don't clobber a load the athlete typed: only fill when the field is still the
+    // pre-filled default (move.l) or empty. Reps only when blank.
+    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === String(move.l || '');
+    if (loadIsDefault) updateSetInput(i, 'load', String(_bsSug.load));
+    if (_bsSug.reps != null && (cur.reps == null || String(cur.reps) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
+  };
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
   const elapsedSec = Math.floor((now - elapsedStart) / 1000);
@@ -17356,15 +17381,19 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
   const updateSetInput = (setIdx, field, value) => {
     const k = `${moveIdx}-${setIdx}`;
-    const current = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
-    const next = { ...current, [field]: value };
-    setSetInputs({ ...setInputs, [k]: next });
-    setSetLogs(setLogs.map((entry) => (
+    // Functional updaters so two updates in one handler (e.g. the suggestion chip
+    // filling load AND reps) compose instead of clobbering a stale-closure snapshot.
+    const other = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+    setSetInputs((prev) => {
+      const current = prev[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+      return { ...prev, [k]: { ...current, [field]: value } };
+    });
+    setSetLogs((prev) => prev.map((entry) => (
       entry.key === k
         ? {
             ...entry,
-            actualReps: field === 'reps' ? value : (entry.actualReps ?? next.reps),
-            actualLoad: field === 'load' ? value : (entry.actualLoad ?? next.load),
+            actualReps: field === 'reps' ? value : (entry.actualReps ?? other.reps),
+            actualLoad: field === 'load' ? value : (entry.actualLoad ?? other.load),
           }
         : entry
     )));
@@ -17535,6 +17564,27 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>
         {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
+
+      {/* Suggested next load (e1RM progression nudge) */}
+      {_bsSug && (
+        <div style={{ padding: `14px ${t.padX}px 0` }}>
+          <button
+            onClick={_bsFillSuggestion}
+            aria-label={`Use suggested load ${_bsSug.load} ${_bsSug.unit}`}
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: 14 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Suggested</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Tap to use →</span>
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load}<span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}> {_bsSug.unit}</span></span>
+              {_bsSug.reps != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>× {_bsSug.reps}</span>}
+            </div>
+            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>{_bsSug.rationale}</div>
+          </button>
+        </div>
+      )}
 
       {/* Plate math */}
       {perSide && (
