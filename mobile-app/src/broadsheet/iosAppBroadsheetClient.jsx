@@ -8778,6 +8778,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
         </div>
       )}
 
+      {isSelf && (
+        <div style={{ padding: '12px 18px 0' }}>
+          <button onClick={onOpenProgress} aria-label="Open your progress" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Progress</div>
+              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Streak · trends · overall · training · nutrition</div>
+            </div>
+            <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
+          </button>
+        </div>
+      )}
+
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
@@ -8790,7 +8802,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div ref={activityRef} />
             <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
-              { key: 'stats', label: 'Stats' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
               { key: 'playlists', label: 'Music' },
@@ -8798,25 +8809,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
                 <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
-              </div>
-            )}
-            {tab === 'stats' && (
-              <div style={{ marginBottom: 22 }}>
-                {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
-                {isSelf
-                  ? <>
-                      <BSMeKpis embedded onOpen={onOpenProgress} />
-                      {/* The full 3-tab Progress hub used to be embedded here as a
-                          second copy — it now lives ONLY on the Progress page. */}
-                      <button onClick={onOpenProgress} style={{ width: '100%', marginTop: 16, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Full progress & trends</div>
-                          <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Overall · Training · Nutrition</div>
-                        </div>
-                        <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
-                      </button>
-                    </>
-                  : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
             {tab === 'climb' && (<>
@@ -18721,7 +18713,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
-              {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
+              {[['Shape Score', () => setShowScore(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '7px 5px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
