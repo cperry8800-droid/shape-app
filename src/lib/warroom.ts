@@ -548,9 +548,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Auth Site URL + redirect URLs set', status: 'manual' },
         { label: 'Phone (Twilio) login configured', status: 'manual' },
         { label: 'Leaked-password protection (HaveIBeenPwned) — ENABLED 2026-06-23 (Auth → Attack Protection, on Supabase Pro). Verified: the auth_leaked_password_protection security advisor cleared', status: 'done' },
-        { label: 'Supabase Auth rate limits (the real login/signup/OTP brute-force gate) — set in Auth → Rate Limits or Management API PATCH config/auth (rate_limit_otp 60 / verify 100 / email_sent 30 / anonymous_users 5; keep token_refresh ~1800). The app /api/* limiter is already live (check_rate_limit + rate_limits table), but credential endpoints hit Supabase directly and bypass the Next app', status: 'manual' },
-        { label: 'Auth CAPTCHA (Cloudflare Turnstile) — enable in Auth → Settings with the secret. The consultation-form CAPTCHA is already wired (src/lib/turnstile.ts + TURNSTILE_SECRET_KEY env + public window.SHAPE_TURNSTILE_SITEKEY in supabase.js); login/signup client wiring is a follow-up once the Turnstile widget + key exist', status: 'manual' },
-        { label: 'Secret scan (gitleaks) → make it a REQUIRED check on main (Settings → Branches). Runs on every PR/push now via ci.yml + .gitleaks.toml (verified 0 leaks); advisory until added to branch protection', status: 'manual' },
+        { label: 'Supabase Auth rate limits — DONE (owner set the dashboard values 2026-06-25: otp 60 / verify 100 / email_sent 30 / anonymous_users 5; token_refresh ~1800). The app /api/* limiter (check_rate_limit + rate_limits table) covers our own routes; these Auth dashboard limits are the real brute-force gate for the native credential endpoints the SDK calls directly', status: 'done' },
+        { label: 'Auth CAPTCHA (Cloudflare Turnstile) — DONE (owner enabled it in Auth → Settings with the secret, 2026-06-25). Wired on every surface: consultation + login/signup across web (login.jsx), mobile (turnstile.js + BSLogin), and Next (Turnstile.tsx + login actions). The old "login/signup wiring is a follow-up" note was stale — that client wiring shipped in #1347-#1352', status: 'done' },
+        { label: 'Secret scan (gitleaks) — DONE. Now a REQUIRED check on main (classic branch protection enabled 2026-06-25, enforce_admins on), alongside Web + Mobile, so merging on red is impossible. Runs on every PR via ci.yml + .gitleaks.toml (0 leaks)', status: 'done' },
       ],
     },
     {
@@ -996,7 +996,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
     {
       section: 'Funnel analytics',
       items: [
-        { label: 'Funnel analytics: analytics_events + track_event + get_funnel migration applied; War Room funnel panel live; 5 gap events emitting (consent-gated); 12-month purge cron', status: 'manual' },
+        { label: 'Funnel analytics — DONE. Migration applied live (analytics_events + track_event + get_funnel, service-role-only); War Room funnel panel live; 12-month purge cron (daily 03:30 UTC). The mobile track() wiring bug (events silently no-op\'d) was fixed in #1407 — the 5 events now emit + are consent-gated (region-aware, fail-closed)', status: 'done' },
       ],
     },
   ];
