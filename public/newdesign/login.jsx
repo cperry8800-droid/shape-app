@@ -97,6 +97,19 @@ function LoginCard() {
         body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }),
       }).catch(() => {});
     }
+    // Claim a website-signup's pending @username on first confirmed login —
+    // mirrors the mobile app's ensureUsernameClaimed. Best-effort + non-blocking:
+    // set_my_username is idempotent + validates server-side, so if it fails (or the
+    // handle was taken meanwhile) it just no-ops and never blocks the login routing.
+    try {
+      const u = session && session.user;
+      const meta = (u && u.user_metadata) || {};
+      const pending = meta.username;
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (sb && pending) {
+        try { await sb.rpc('set_my_username', { p_username: String(pending).replace(/^@/, '') }); } catch (e) {}
+      }
+    } catch (e) {}
     let nextDashboard = role === 'shape_radio' ? '/newdesign/Radio.html'
       : role === 'trainer' ? '/newdesign/TrainerDashboard.html'
       : role === 'nutritionist' ? '/newdesign/NutritionistDashboard.html'
