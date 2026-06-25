@@ -56,10 +56,10 @@
         s.onload = function () { res(); }; s.onerror = rej; document.head.appendChild(s);
       });
     }
-    _db = (window.supabase && window.supabase.createClient ? Promise.resolve() : load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'))
+    _db = (window.supabase && window.supabase.createClient ? Promise.resolve() : load('/vendor/supabase-js-2.108.2.umd.js'))
       .then(function () { return (window.shapeDb && window.shapeDb.client) ? null : load('/supabase.js'); })
       .then(function () { return (window.shapeDb && window.shapeDb.client) ? window.shapeDb : null; })
-      .catch(function () { return null; });
+      .catch(function (e) { try { console.error("[shape] Supabase bundle failed to load", e); } catch (_) {} return null; });
     return _db;
   }
 
