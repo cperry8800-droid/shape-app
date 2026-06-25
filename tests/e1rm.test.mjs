@@ -98,6 +98,36 @@ test('progressionStatus: brand-new lift with all points in recent 14-day window,
   assert.equal(r.priorBest, 100);  // priorBest is set to first when prior array is empty
 });
 
+test('progressionStatus: 3+ sessions all inside the 14-day window verdict (sparse-window path)', () => {
+  const now = Date.parse('2026-05-30');
+  // Three sessions within 14 days, rising 100 → 105 → 112: priorBest is empty, so
+  // the verdict comes from first-vs-last in the recent window (dp = 0.12 > 2%).
+  const series = [
+    { date: iso(now, 12), e1rm: 100 },
+    { date: iso(now, 6), e1rm: 105 },
+    { date: iso(now, 0), e1rm: 112 },
+  ];
+  const r = progressionStatus(series, { now });
+  assert.equal(r.status, 'progressing');
+  assert.equal(r.recentBest, 112);
+  assert.equal(r.priorBest, 100); // first recent point when prior window is empty
+});
+
+test('progressionStatus: a dormant lift (no recent activity) is stalled, not mislabeled', () => {
+  const now = Date.parse('2026-05-30');
+  // All points older than the 14-day recent window; last all-time high was 40 days
+  // ago (> STALL_WEEKS). recentBest is null → the dormant branch returns stalled.
+  const series = [
+    { date: iso(now, 60), e1rm: 100 },
+    { date: iso(now, 50), e1rm: 108 },
+    { date: iso(now, 40), e1rm: 115 },
+  ];
+  const r = progressionStatus(series, { now });
+  assert.ok((now - Date.parse(iso(now, 40))) / (7 * DAY) >= STALL_WEEKS);
+  assert.equal(r.recentBest, null);
+  assert.equal(r.status, 'stalled');
+});
+
 test('summarizeLift: surfaces current, best and top set', () => {
   const lift = { key: 'bench', name: 'Bench', series: [
     { date: '2026-05-01', e1rm: 100, load: 90, reps: 4, rpe: 8 },

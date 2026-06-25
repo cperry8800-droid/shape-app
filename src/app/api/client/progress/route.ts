@@ -16,6 +16,13 @@ function avg(nums: number[]): number | null {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
+// Parse a load/reps value that may be a number or free text ("230", "230 lb", "8").
+function pnum(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  return parseFloat(String(v));
+}
+
 export async function GET(request: Request) {
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);
@@ -107,9 +114,11 @@ export async function GET(request: Request) {
   };
 
   // ---- Strength PRs from logged sets --------------------------------------
+  // The in-app live-session writer stores actuals in `payload` (actualLoad /
+  // actualReps), not the actual_load/actual_reps columns — read both.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('move_name, actual_load, actual_reps, load_unit, created_at, completed')
+    .select('move_name, actual_load, actual_reps, load_unit, payload, created_at, completed')
     .eq('client_id', user.id)
     .order('created_at', { ascending: true })
     .limit(3000);
@@ -125,8 +134,11 @@ export async function GET(request: Request) {
   const prMap = new Map<string, PR>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    const load = pnum(r.actual_load ?? p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
+    const repsN = pnum(r.actual_reps ?? p.actualReps ?? p.reps ?? p.actual_reps);
+    const reps = Number.isFinite(repsN) ? Math.round(repsN) : null;
     const key = String(r.move_name || '').trim();
     if (!key) continue;
     const pr = prMap.get(key);
@@ -134,14 +146,14 @@ export async function GET(request: Request) {
       prMap.set(key, {
         move: key,
         best: load,
-        bestReps: r.actual_reps ?? null,
+        bestReps: reps,
         unit: r.load_unit || 'lb',
         bestAt: r.created_at,
         e1rm: null,
       });
     } else if (load > pr.best) {
       pr.best = load;
-      pr.bestReps = r.actual_reps ?? null;
+      pr.bestReps = reps;
       pr.bestAt = r.created_at;
     }
   }
@@ -159,7 +171,8 @@ export async function GET(request: Request) {
   const weeklyTop = new Map<string, number>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    const load = pnum(r.actual_load ?? p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
     const week = new Date(r.created_at);
     const day = week.getUTCDay();

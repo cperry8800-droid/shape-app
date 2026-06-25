@@ -1,8 +1,9 @@
 // Live data for the mobile Strength / e1RM progression page. Read-only over
-// workout_set_logs (actual_load/actual_reps/rpe/load_unit are real numeric
-// columns added by 2026-05-08-coach-program-tools.sql). RLS scopes every row to
-// the signed-in user; a new account comes back empty. Bearer (native) or cookie
-// (/m/ web) via request-auth, mirroring /api/client/progress.
+// workout_set_logs. The in-app live-session writer (normalizeWorkoutSetLog) stores
+// the athlete's actual load/reps/rpe inside the `payload` jsonb (actualLoad /
+// actualReps / rpe) and does NOT populate the actual_load/actual_reps/rpe columns,
+// so read both — prefer the columns, fall back to payload. RLS scopes every row to
+// the signed-in user. Bearer (native) or cookie (/m/ web) via request-auth.
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
@@ -11,38 +12,63 @@ import { buildLiftSeries, summarizeLift } from '@/lib/e1rm';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request) {
-  try {
-    const supabase = await clientForRequest(request);
-    const user = await currentUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-    }
+// Parse a load/reps value that may be a number or free text ("230", "230 lb", "8").
+function num(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  return parseFloat(String(v));
+}
 
+export async function GET(request: Request) {
+  // Auth runs OUTSIDE the fail-soft block below so an auth-helper failure can never
+  // be masked as a 200 empty success (the endpoint's authentication contract).
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+
+  try {
     const since = new Date(Date.now() - 180 * 86400000).toISOString();
-    const { data: setRows } = await supabase
+    // Fetch the NEWEST rows in the window, then sort ascending for the series — a
+    // plain `ascending` + limit would keep the OLDEST 5000 and drop the latest sets,
+    // staling currentE1rm/status for high-volume clients.
+    const { data: newestRows } = await supabase
       .from('workout_set_logs')
-      .select('move_name, actual_load, actual_reps, rpe, load_unit, completed, created_at')
+      .select('move_name, actual_load, actual_reps, rpe, load_unit, payload, completed, created_at')
       .eq('client_id', user.id)
       .gte('created_at', since)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(5000);
 
-    const rows = (setRows ?? []).map((r) => ({
-      key: String((r as Record<string, unknown>).move_name ?? '').trim().toLowerCase(),
-      name: String((r as Record<string, unknown>).move_name ?? '').trim(),
-      date: String((r as Record<string, unknown>).created_at ?? '').slice(0, 10),
-      load: Number((r as Record<string, unknown>).actual_load),
-      reps: Number((r as Record<string, unknown>).actual_reps),
-      rpe: (r as Record<string, unknown>).rpe == null ? null : Number((r as Record<string, unknown>).rpe),
-      completed: (r as Record<string, unknown>).completed as boolean | undefined,
-    }));
+    const setRows = [...(newestRows ?? [])].sort((a, b) =>
+      String((a as Record<string, unknown>).created_at ?? '').localeCompare(
+        String((b as Record<string, unknown>).created_at ?? '')));
 
-    // load_unit per lift — most recent wins (rows are ascending by date).
+    const rows = setRows.map((r) => {
+      const o = r as Record<string, unknown>;
+      const p = (o.payload ?? {}) as Record<string, unknown>;
+      return {
+        key: String(o.move_name ?? '').trim().toLowerCase(),
+        name: String(o.move_name ?? '').trim(),
+        date: String(o.created_at ?? '').slice(0, 10),
+        // Prefer the columns; fall back to the payload the app actually writes.
+        load: num(o.actual_load ?? p.actualLoad ?? p.load ?? p.actual_load),
+        reps: num(o.actual_reps ?? p.actualReps ?? p.reps ?? p.actual_reps),
+        rpe: ((v) => (v == null ? null : Number(v)))(o.rpe ?? p.rpe ?? null),
+        completed: o.completed as boolean | undefined,
+      };
+    });
+
+    // load_unit per lift — most recent wins (rows are now ascending by date).
     const unitByLift = new Map<string, string>();
-    for (const r of setRows ?? []) {
-      const k = String((r as Record<string, unknown>).move_name ?? '').trim().toLowerCase();
-      if (k) unitByLift.set(k, String((r as Record<string, unknown>).load_unit || 'lb'));
+    for (const r of setRows) {
+      const o = r as Record<string, unknown>;
+      const k = String(o.move_name ?? '').trim().toLowerCase();
+      if (k) {
+        const p = (o.payload ?? {}) as Record<string, unknown>;
+        unitByLift.set(k, String((o.load_unit as string) || (p.unit as string) || 'lb'));
+      }
     }
 
     const now = Date.now();
@@ -56,7 +82,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ ok: true, lifts, generatedAt: new Date(now).toISOString() });
   } catch {
-    // Fail soft — never 500 the page; the client shows the honest empty state.
+    // Fail soft on the DATA path only — never 500 the page; auth is already enforced above.
     return NextResponse.json({ ok: true, lifts: [], generatedAt: new Date().toISOString() });
   }
 }

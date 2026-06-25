@@ -1,7 +1,15 @@
--- Widen get_client_lifts to add an estimated 1-rep max (Epley) per key lift.
--- e1RM uses the real captured columns (actual_load / actual_reps), capped at 12
--- reps and special-cased at 1 rep, mirroring mobile-app/src/services/e1rm.mjs.
--- The existing best/delta/prs/avgRpe/workoutsLogged42d logic is unchanged.
+-- Widen get_client_lifts to add an estimated 1-rep max (Epley) per key lift,
+-- capped at 12 reps and special-cased at 1 rep, mirroring
+-- mobile-app/src/services/e1rm.mjs.
+--
+-- The in-app live-session writer (normalizeWorkoutSetLog) stores the athlete's
+-- ACTUAL load/reps inside the `payload` jsonb (actualLoad / actualReps) and does
+-- NOT populate the actual_load/actual_reps columns, so `load` and the e1RM reps
+-- read both — preferring the columns, then payload, then the prescription
+-- (target) only for `load`. Incomplete sets are excluded (matching the TS engine).
+-- e1RM is computed from ACTUAL reps only (no target fallback), so a set with no
+-- logged reps yields no e1RM rather than a guess.
+--
 -- Gated on is_coach_on_client(uuid). Idempotent (create or replace).
 
 create or replace function public.get_client_lifts(p_user_id uuid)
@@ -32,27 +40,39 @@ begin
     from public.workout_set_logs sl
     where sl.client_id = p_user_id
       and sl.created_at >= now() - interval '30 days'
+      and sl.completed is distinct from false
   ) q
   where rpe is not null;
 
   with sets as (
     select sl.move_name,
            sl.created_at,
-           (regexp_match(coalesce(sl.payload->>'load', sl.target_load, ''), '([0-9]+(?:\.[0-9]+)?)'))[1]::numeric as load,
-           case
-             when sl.actual_load is null or sl.actual_load <= 0 then null
-             when sl.actual_reps is null or sl.actual_reps < 1 or sl.actual_reps > 12 then null
-             when sl.actual_reps <= 1 then round(sl.actual_load::numeric, 1)
-             else round((sl.actual_load * (1 + sl.actual_reps::numeric / 30))::numeric, 1)
-           end as e1rm
+           -- Actual lifted load: column, then payload, then prescription.
+           coalesce(
+             case when sl.actual_load > 0 then sl.actual_load::numeric else null end,
+             (regexp_match(coalesce(sl.payload->>'actualLoad', sl.payload->>'load', sl.target_load, ''), '([0-9]+(?:\.[0-9]+)?)'))[1]::numeric
+           ) as load,
+           -- Actual reps (for e1RM only): column, then payload. No target fallback.
+           coalesce(
+             sl.actual_reps,
+             (regexp_match(coalesce(sl.payload->>'actualReps', ''), '([0-9]+)'))[1]::int
+           ) as reps
     from public.workout_set_logs sl
     where sl.client_id = p_user_id
       and sl.created_at >= now() - interval '90 days'
+      and sl.completed is distinct from false
   ),
   per_move as (
     select move_name,
            max(load) as best,
-           max(e1rm) as best_e1rm,
+           max(
+             case
+               when load is null or load <= 0 then null
+               when reps is null or reps < 1 or reps > 12 then null
+               when reps <= 1 then round(load, 1)
+               else round((load * (1 + reps::numeric / 30)), 1)
+             end
+           ) as best_e1rm,
            max(load) filter (where created_at >= now() - interval '30 days') as best_recent,
            max(load) filter (where created_at <  now() - interval '30 days') as best_prior,
            count(*) as n
