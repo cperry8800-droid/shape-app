@@ -584,20 +584,25 @@ function SignupForm({ role }) {
           // straight to the dashboard, skipping the login path — so provision the
           // account HERE (create the profile, persist DOB → the over_18 trigger,
           // claim the username), mirroring the mobile signUp's post-session steps.
-          try {
-            const u = data && data.user;
-            if (u && u.id) {
-              try {
-                await sb.from("profiles").upsert({
-                  id: u.id, email: u.email,
-                  full_name: (values.firstName + " " + values.lastName).trim(),
-                  role: "client", roles: ["client"],
-                  date_of_birth: values.dob, updated_at: new Date().toISOString(),
-                }, { onConflict: "id" });
-              } catch (e) {}
-              try { await sb.rpc("set_my_username", { p_username: cleanUsername }); } catch (e) {}
-            }
-          } catch (e) {}
+          // The profiles upsert can return { error } WITHOUT throwing, and the
+          // dashboard NEEDS the row — so on failure send them to sign in (the
+          // account exists; Login.html provisions the profile) rather than into a
+          // broken dashboard. The username claim stays best-effort.
+          const u = data && data.user;
+          if (u && u.id) {
+            let pErr = null;
+            try {
+              const res = await sb.from("profiles").upsert({
+                id: u.id, email: u.email,
+                full_name: (values.firstName + " " + values.lastName).trim(),
+                role: "client", roles: ["client"],
+                date_of_birth: values.dob, updated_at: new Date().toISOString(),
+              }, { onConflict: "id" });
+              pErr = res && res.error;
+            } catch (e) { pErr = e; }
+            if (pErr) { setError("Your account was created — please sign in to finish setting up your profile."); return; }
+            try { await sb.rpc("set_my_username", { p_username: cleanUsername }); } catch (e) {}
+          }
           window.location.href = "ClientDashboard.html";
         }
       } catch (err) {

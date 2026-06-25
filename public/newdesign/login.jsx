@@ -114,15 +114,21 @@ function LoginCard() {
           const res = await sb.from('profiles').select('id, username, role, date_of_birth').eq('id', u.id).maybeSingle();
           row = (res && res.data) || null;
         } catch (e) {}
-        if (!row) {
-          const r = meta.role || 'client';
+        // Provision ONLY from a genuine website-signup's metadata (full_name +
+        // role + username + date_of_birth, all set by signup.jsx). Never fabricate
+        // a profile with a placeholder name / assumed role / no DOB for a login
+        // that didn't come through the website signup (e.g. a phone-OTP user, or an
+        // account that should already have a server-created profile) — that would
+        // mint junk client rows and skip the DOB/18+ gate. Otherwise leave it be.
+        const isWebsiteSignup = !!(meta.full_name && meta.role && meta.username && meta.date_of_birth);
+        if (!row && isWebsiteSignup) {
           try {
             await sb.from('profiles').upsert({
               id: u.id,
               email: u.email,
-              full_name: meta.full_name || (u.email ? u.email.split('@')[0] : 'Shape member'),
-              role: r,
-              roles: (Array.isArray(meta.roles) && meta.roles.length) ? meta.roles : [r],
+              full_name: meta.full_name,
+              role: meta.role,
+              roles: (Array.isArray(meta.roles) && meta.roles.length) ? meta.roles : [meta.role],
               updated_at: new Date().toISOString(),
             }, { onConflict: 'id' });
           } catch (e) {}
