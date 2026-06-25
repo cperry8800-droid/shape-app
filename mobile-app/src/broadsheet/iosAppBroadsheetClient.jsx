@@ -9,7 +9,7 @@ import { startTour } from '../../../public/newdesign/spotlightTour.js';
 
 const { useState: useStateBSC } = React;
 const {
-  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
+  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
   BSTabBar, BSFooter, BSLogo, BSPlate,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
@@ -1154,7 +1154,7 @@ function BSLibraryDetail({ item, onBack }) {
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Library</button>
+        <BSBackButton onClick={onBack} label="Library" />
         <BSMeCorner size={28} />
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
@@ -1203,7 +1203,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           <BSMeCorner size={28} />
         </div>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
@@ -1299,7 +1299,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onBack} style={headBtn}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
         <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
       </div>
@@ -3759,7 +3759,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <BSMeCorner size={28} />
       </div>
 
@@ -8634,7 +8634,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       ) : (
         /* Others' public profile (pushed): back + avatar corner. */
         <div style={{ padding: '44px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           {isSelf
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                 <BSSearchCorner size={30} ink={INK} />
@@ -9300,7 +9300,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>
         ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
@@ -12453,13 +12453,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
       {/* Custom header with back chevron — no tab bar on the thread screen */}
       <div style={{ padding: '64px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-            background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}>
-            ← Back
-          </button>
+          <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
@@ -16508,11 +16502,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   return (
     <div style={{ padding: '64px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-          fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
           {!noCorner && <BSMeCorner size={28} />}

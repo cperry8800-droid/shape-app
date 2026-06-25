@@ -1344,8 +1344,25 @@ function BSPhone({ children }) {
 }
 
 // Expose
+// Shared compact "Back" button — ONE consistent size/style for page-level back
+// navigation across the app (top-left of a page header). Replaces the many ad-hoc
+// inline variants (pills, heavy 1px-ink boxes, borderless text) so they all match.
+function BSBackButton({ onClick, label = 'Back', style }) {
+  const t = useBS();
+  return (
+    <button onClick={onClick} aria-label={label} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 7,
+      padding: '4px 9px', cursor: 'pointer', color: t.INK,
+      fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em',
+      textTransform: 'uppercase', lineHeight: 1, flexShrink: 0, ...style,
+    }}>
+      <span aria-hidden style={{ fontSize: 12, lineHeight: 1, marginTop: -1 }}>‹</span>{label}
+    </button>
+  );
+}
 Object.assign(window, {
-  BSContext, BSProvider, useBS,
+  BSContext, BSProvider, useBS, BSBackButton,
   BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
