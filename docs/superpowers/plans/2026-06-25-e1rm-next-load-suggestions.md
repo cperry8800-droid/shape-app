@@ -270,18 +270,23 @@ Then where `move` is defined for the current render (the component already deriv
       ? _bsStrength.lifts.find((l) => l.key === String(move.m).trim().toLowerCase())
       : null;
     const s = suggestNextLoad(lift, move);
-    // Only surface the progression-adding suggestions; 'repeat' just echoes the
-    // existing "Last · {move.l}" line, so it adds no information.
-    return s && s.basis !== 'repeat' ? s : null;
+    // Only surface progression-adding suggestions ('repeat' just echoes the
+    // "Last ·" line). The set inputs are lb-only, so suppress a non-lb suggestion
+    // (filling kg as lb would corrupt the logged load).
+    return s && s.basis !== 'repeat' && s.unit === 'lb' ? s : null;
   })();
   const _bsFillSuggestion = () => {
     if (!_bsSug) return;
     let i = 0;
     while (i < move.sets && completed[`${moveIdx}-${i}`]) i += 1;
     if (i >= move.sets) i = move.sets - 1;
-    updateSetInput(i, 'load', String(_bsSug.load));
-    const cur = (setInputs[`${moveIdx}-${i}`] || {}).reps;
-    if (_bsSug.reps != null && (cur == null || String(cur) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
+    const cur = setInputs[`${moveIdx}-${i}`] || {};
+    // Don't clobber an athlete-typed load: only fill when it's still the pre-filled
+    // default (move.l) or empty; reps only when blank. (updateSetInput uses
+    // functional updaters so the load + reps writes compose, not clobber.)
+    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === String(move.l || '');
+    if (loadIsDefault) updateSetInput(i, 'load', String(_bsSug.load));
+    if (_bsSug.reps != null && (cur.reps == null || String(cur.reps) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
   };
 ```
 
