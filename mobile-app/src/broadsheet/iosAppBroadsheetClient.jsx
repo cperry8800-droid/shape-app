@@ -8468,7 +8468,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
     const isPr = !!it.hot;
     const lift = isPr ? String(it.t || '').replace(/^\s*new pr\s*[—–-]\s*/i, '').trim() : '';
     return {
-      real: false, key: it._k || null, postId: null, who: name, role: 'Client', hot: isPr,
+      real: false, key: it._k || null, postId: null, who: name, role: 'Client', tier: tierKey, hot: isPr,
       kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
       body: it.b || '', ago: it.time || '', city: '', activityType: '',
       stats: it.metric ? [[it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
@@ -9227,7 +9227,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // ([kick, title, body, time] tuples) via a slim adapter.
   const ownerRole = isNutri ? 'Nutritionist' : 'Trainer';
   const tupleToCard = (k, t2, b, time, idx) => ({
-    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, hot: false,
+    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, tier: baseTier, hot: false,
     kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
     city: '', activityType: '', stats: [], likers: [], comments: [],
   });
@@ -10460,7 +10460,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
     // tier name + color to it; members keep the client ramp. Real posts resolve the
     // author's live tier (batched points → tier), with a stable name-hash fallback.
     const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
-    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : a.tier;
+    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : (a.tier || bsPostTier({ who: a.who }));
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
     const key = a.key || `${a.who}|${a.ago}`;
