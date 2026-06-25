@@ -17812,6 +17812,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showHelp, setShowHelp] = useStateBSC(false);
   const [showPrivacy, setShowPrivacy] = useStateBSC(false);
   const [showDataCompliance, setShowDataCompliance] = useStateBSC(false);
+  const [showCodeOfConduct, setShowCodeOfConduct] = useStateBSC(false);
+  const [showConsumerHealth, setShowConsumerHealth] = useStateBSC(false);
+  const [showSubprocessors, setShowSubprocessors] = useStateBSC(false);
   const [showAbout, setShowAbout] = useStateBSC(initialPage === 'about-shape');
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
@@ -18410,6 +18413,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   if (showDataCompliance) {
     return <BSDataCompliancePage onBack={() => setShowDataCompliance(false)} onContact={() => { setShowDataCompliance(false); setShowContact(true); }} />;
   }
+  if (showCodeOfConduct) {
+    return <BSCodeOfConductPage onBack={() => setShowCodeOfConduct(false)} onContact={() => { setShowCodeOfConduct(false); setShowContact(true); }} />;
+  }
+  if (showConsumerHealth) {
+    return <BSConsumerHealthPage onBack={() => setShowConsumerHealth(false)} onContact={() => { setShowConsumerHealth(false); setShowContact(true); }} />;
+  }
+  if (showSubprocessors) {
+    return <BSSubprocessorsPage onBack={() => setShowSubprocessors(false)} onContact={() => { setShowSubprocessors(false); setShowContact(true); }} />;
+  }
   if (showAbout) {
     return <BSAboutPage onBack={() => setShowAbout(false)} />;
   }
@@ -18599,6 +18611,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
         { l: 'Data & compliance', r: 'Legal', action: () => setShowDataCompliance(true) },
+        { l: 'Code of conduct', r: 'Legal', action: () => setShowCodeOfConduct(true) },
+        { l: 'Consumer health data', r: 'Legal', action: () => setShowConsumerHealth(true) },
+        { l: 'Subprocessors', r: 'Legal', action: () => setShowSubprocessors(true) },
       ],
     },
     { title: 'Nutrition', meta: '', rows: nutritionRows },
@@ -20326,6 +20341,117 @@ function BSDataCompliancePage({ onBack, onContact }) {
       </div>
 
       <BSFooter right="Data" />
+    </BSPage>
+  );
+}
+
+// Shared render helpers for the in-app legal summary pages (Code of Conduct,
+// Consumer health data, Subprocessors) — same look as Terms/Privacy/Data.
+function BSLegalSections({ sections }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      {sections.map(([num, title, body], i, arr) => (
+        <div key={num} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: 12, padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function BSLegalActions({ url, onContact }) {
+  const t = useBS();
+  const btn = { borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' };
+  return (
+    <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+      <button onClick={() => { window.location.href = url; }} style={{ ...btn, border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER }}>Open full</button>
+      {onContact && <button onClick={onContact} style={{ ...btn, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK }}>Contact support</button>}
+    </div>
+  );
+}
+
+function BSCodeOfConductPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Who it applies to', 'The Code applies to everyone on Shape — members, trainers, nutritionists, and dietitians — and is incorporated into the Terms of Service.'],
+    ['02', 'Community standards', "Be respectful and honest. No harassment, hate, threats, sexual misconduct, spam, scams, impersonation, or sharing someone else's private information. Keep it lawful and safe."],
+    ['03', 'Coaches — professional conduct', 'Coaches are held to a higher bar: hold real credentials, work within your scope of practice, protect client safety and boundaries, deliver what you sell, never dodge fees off-platform, protect client data, and make no medical claims.'],
+    ['04', 'Clients — conduct', "Treat coaches and members with respect, give honest feedback, and don't misuse the platform, the rewards, or other people's content."],
+    ['05', 'Safety', 'Shape is not an emergency service and is 18+. No dangerous, illegal, or unqualified medical advice. In an emergency, contact local services.'],
+    ['06', 'Reporting & moderation', 'Report anything that crosses a line. We review with evidence and proportionality; outcomes range from a warning to removal.'],
+    ['07', 'Enforcement & ban tiers', 'Most issues follow warning → temporary restriction → removal. Threats, sexual misconduct, fraud, illegal activity, abuse, and credential fraud are zero-tolerance — immediate ban, no refund. No ban evasion or re-registration.'],
+    ['08', 'A living document', 'We update the Code as the community grows; it is reviewed by counsel before launch. Full text on the web.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/code-of-conduct.html" onContact={onContact} />
+      <BSFooter right="Conduct" />
+    </BSPage>
+  );
+}
+
+function BSConsumerHealthPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Scope & who this covers', "Covers \"consumer health data\" under Washington's My Health My Data Act and similar state laws. It supplements our Privacy Policy."],
+    ['02', 'Health data we collect', 'PAR-Q screening, medications, allergies, pregnancy status, medical conditions, injuries, emergency contact, body measurements, weigh-ins, progress photos, weekly check-ins, and wearable recovery data (HR, HRV, sleep).'],
+    ['03', 'Where it comes from', 'From you (what you enter) and, if you connect them, wearables and health services — Apple Health, Strava, Garmin, Whoop, Oura.'],
+    ['04', 'How we use it', 'To run your coaching — show your activity and recovery, let your coach work with you safely, and power the features you use. Never for advertising, and never to train AI models.'],
+    ['05', 'Who we share it with', 'Only the coach(es) you choose (your safety screening is shared so they can work with you safely) and the infrastructure subprocessors that store it. We never sell it.'],
+    ['06', 'Consent', "We ask for your consent before collecting health data, and you can withdraw it any time. Some features won't work without the data they need."],
+    ['07', 'Your rights', 'Access, download, correct, or delete your health data, and withdraw consent, from Settings → Privacy & data or by emailing privacy@theshapecommunity.com.'],
+    ['08', 'Security & access', 'Per-user row-level access and private, signed-URL storage for photos and voice. Only you and your linked coach(es) can see it.'],
+    ['09', 'No sale · no geofencing', 'We do not sell health data and do not use geofencing around health facilities. We recognize the Global Privacy Control signal.'],
+    ['10', 'Changes & contact', 'Material changes are announced in advance. Questions go to privacy@theshapecommunity.com.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/health-data-privacy.html" onContact={onContact} />
+      <BSFooter right="Health" />
+    </BSPage>
+  );
+}
+
+function BSSubprocessorsPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'What a subprocessor is', 'A third party that processes some of your data to help Shape run. Each is bound by contract to use your data only to provide its service to Shape.'],
+    ['02', 'Infrastructure', 'Supabase (database, authentication, file storage), Vercel (web hosting and product analytics), and Cloudflare (DNS, network security, and the Turnstile bot check).'],
+    ['03', 'Payments', 'Stripe (payments and payouts).'],
+    ['04', 'AI & communications', 'OpenAI (the "Nora" assistant, voice transcription, and text-to-speech), Google Firebase Cloud Messaging (push notifications), and Resend (email).'],
+    ['05', 'Optional connections', 'Instacart (only if you send it a grocery list) and the wearable/audio services you choose to connect (Apple Health, Strava, Garmin, Whoop, Oura, Spotify).'],
+    ['06', 'International transfers', 'Where data is processed outside your region, transfers rely on appropriate safeguards such as Standard Contractual Clauses.'],
+    ['07', 'Changes', 'We announce material changes to the subprocessor list in advance. The full list — with the data each receives — is on the web.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The third parties that help run Shape — each bound by contract to use your data only to provide its service.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/subprocessors.html" onContact={onContact} />
+      <BSFooter right="Subprocessors" />
     </BSPage>
   );
 }
