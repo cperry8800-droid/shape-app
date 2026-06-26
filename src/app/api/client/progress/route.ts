@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
-  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger') =>
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger' | 'sleep_efficiency_pct' | 'sleep_quality') =>
     snaps
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
@@ -85,6 +85,8 @@ export async function GET(request: Request) {
   const stepsSeries = seriesFor('steps');
   const energySeries = seriesFor('energy');
   const hungerSeries = seriesFor('hunger');
+  const sleepEfficiencySeries = seriesFor('sleep_efficiency_pct');
+  const sleepQualitySeries = seriesFor('sleep_quality');
 
   const bodyFats = bodyFatSeries.map((s) => s.value);
   const restingHrs = restingHrSeries.map((s) => s.value);
@@ -109,6 +111,9 @@ export async function GET(request: Request) {
         ? Math.round(restingRecent - restingPrior)
         : null,
     sleepAvg: sleepAvg != null ? Math.round(sleepAvg * 10) / 10 : null,
+    sleepLatest: sleepSeries.length ? sleepSeries[sleepSeries.length - 1].value : null,
+    sleepEfficiency: sleepEfficiencySeries.length ? Math.round(sleepEfficiencySeries[sleepEfficiencySeries.length - 1].value) : null,
+    hrvLatest: hrvSeries.length ? Math.round(hrvSeries[hrvSeries.length - 1].value) : null,
     stepsLatest: stepsSeries.length ? Math.round(stepsSeries[stepsSeries.length - 1].value) : null,
     stepsAvg: stepsLast30.length
       ? Math.round(stepsLast30.reduce((s, p) => s + p.value, 0) / stepsLast30.length)
@@ -240,6 +245,7 @@ export async function GET(request: Request) {
       steps: stepsSeries,
       energy: energySeries,
       hunger: hungerSeries,
+      sleepQuality: sleepQualitySeries,
       strength: strengthSeries,
     },
   });
