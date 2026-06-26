@@ -12684,21 +12684,26 @@ const SHAPE_SCORE_PROFILES = {
     total: 1284, goal: 5000, streak: 14, tier: 'Tempo', tierShort: 'TMP', nextTier: 'Form',
     pointsToNext: 716, available: 940, lifetime: 3420, redeemedCount: 7, week: '+36',
     weekRatio: 0.72, streakRatio: 0.64, tierRatio: 0.26, spendRatio: 0.94,
+    // EARN — the real score_ledger mechanisms (matches the RPCs). Keep honest:
+    // only ways that actually credit points are listed.
     activities: [
-      { name: 'Session kept', pts: '+12-18', cap: 'Variable', note: 'With a coach' },
-      { name: 'Workout logged', pts: '+6-10', cap: 'Per log', note: 'Solo or programmed' },
-      { name: 'New PR logged', pts: '+12', cap: 'Per PR', note: 'Any lift or run' },
-      { name: 'Meal logged', pts: '+3', cap: 'Per meal', note: 'Photo, search or voice' },
-      { name: 'Protein target hit', pts: '+5', cap: 'Daily', note: 'Daily nutrition goal' },
-      { name: 'Calories on target', pts: '+3', cap: 'Daily', note: 'Within your range' },
-      { name: 'Sleep target met', pts: '+3', cap: 'Daily', note: '7+ hours, wearable verified' },
-      { name: 'Steps goal', pts: '+2', cap: 'Daily', note: '8,000+ steps' },
-      { name: 'Hydration goal', pts: '+2', cap: 'Daily', note: 'Water target met' },
-      { name: 'Daily check-in', pts: '+2', cap: 'Daily', note: 'Mood & energy' },
-      { name: 'Habit streak', pts: '+2-4', cap: 'Per streak', note: 'Any logged habit' },
-      { name: 'Weekly review', pts: '+15', cap: 'Weekly', note: 'Submitted on time' },
-      { name: 'Program purchased', pts: '+6/wk', cap: 'Active', note: 'Unlocks bonus logging' },
-      { name: 'Meal plan purchased', pts: '+4/wk', cap: 'Active', note: 'Unlocks bonus logging' },
+      { name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
+      { name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
+      { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
+      { name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
+      { name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
+      { name: 'Goal milestone', pts: '+50-200', cap: '25/50/75/100%', note: 'Progress to your goal' },
+      { name: 'Momentum bonus', pts: '+25-100', cap: 'Weekly', note: 'Hold 80+ momentum' },
+      { name: 'Hit your commitment', pts: '+ stake', cap: 'Weekly', note: 'Your 5-50 pt bet' },
+      { name: 'Reach a new tier', pts: '+500-4k', cap: 'One-time', note: 'First time you hit it' },
+    ],
+    // PROTECT YOUR POINTS — the accountability clawback (daily cron). Framed
+    // constructively, never punitively (matches the never-shaming tone).
+    penalties: [
+      { name: 'Skip your weekly check-in', pts: '-7', cap: 'Weekly', note: 'Just check in next week' },
+      { name: 'Miss an assigned workout', pts: '-5', cap: 'Per workout', note: 'Logging can lag a day' },
+      { name: 'Break a habit streak', pts: '-2', cap: 'Per streak', note: 'A 3+ day streak lost' },
+      { name: 'Miss a commitment', pts: '- stake', cap: 'Weekly', note: 'The bet you set' },
     ],
     ledger: [
       ['APR 18', '+14', 'Session kept - Maya Okafor'],
@@ -16900,6 +16905,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   // signed in (null = pre-migration / no-data → section hidden); demo only signed-out.
   const momentum = profile.momentum || null;
   const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
+  const penalties = profile.penalties || (bsIsCoachRole(profile.roleLabel) ? [] : SHAPE_SCORE_PROFILES.client.penalties);
   const tiers = bsIsCoachRole(profile.roleLabel) ? SHAPE_SCORE_TIERS_COACH : SHAPE_SCORE_TIERS;
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
   // Rewards — featured rows from the LIVE store catalogue (same ids the server
@@ -17106,20 +17112,43 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Redeem in the Shape Store →</div>
             </React.Fragment>
           )}
-          {scoreTab === 'points' && activities.map((a, i) => (
-            <div key={a.name} style={{
-              display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
-              padding: '13px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            }}>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
-                <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-                  <span>{a.cap}</span><span>-</span><span>{a.note}</span>
+          {scoreTab === 'points' && (() => {
+            const rust = t.RUST || '#c0533b';
+            const row = (a, i, arr, ptsColor) => (
+              <div key={a.name} style={{
+                display: 'grid', gridTemplateColumns: '1fr 60px', gap: 12,
+                padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              }}>
+                <div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
+                  <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                    <span>{a.cap}</span><span>·</span><span>{a.note}</span>
+                  </div>
                 </div>
+                <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: ptsColor }}>{a.pts}</div>
               </div>
-              <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
-            </div>
-          ))}
+            );
+            return (
+              <React.Fragment>
+                {activities.map((a, i) => row(a, i, activities, t.ACCENT))}
+                {penalties.length > 0 && (
+                  <React.Fragment>
+                    <div style={{ marginTop: 18 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Protect your points</div>
+                      <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${rust})` }} />
+                      <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep what you've earned — a coach can waive any of these.</div>
+                    </div>
+                    {penalties.map((a, i) => row(a, i, penalties, rust))}
+                  </React.Fragment>
+                )}
+                <div style={{ marginTop: 16, padding: '12px 13px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: bsTHexA(t.INK, 0.03) }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 }}>Good to know</div>
+                  <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.</div>
+                </div>
+                <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Spend points in the Shape Store →</div>
+              </React.Fragment>
+            );
+          })()}
           {scoreTab === 'ledger' && ledger.map(([day, pts, label], i) => (
             <div key={`${day}-${label}`} style={{
               display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
