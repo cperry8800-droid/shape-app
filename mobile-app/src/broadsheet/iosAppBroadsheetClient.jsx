@@ -13984,7 +13984,7 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
-  const saveGoal = () => { const n = (v) => (v === '' || v == null ? '' : Number(v)); onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
+  const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
   const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={field} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
