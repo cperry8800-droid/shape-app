@@ -27,6 +27,13 @@ function clamp1to10(v: unknown): number | null {
   return Math.max(1, Math.min(10, n));
 }
 
+// Sleep duration is continuous (not a 1-10 rating). Accept a JSON number in
+// (0, 24]; anything else (null/string/boolean/out-of-range) → absent.
+function sleepHoursOrNull(v: unknown): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0 || v > 24) return null;
+  return Math.round(v * 100) / 100;
+}
+
 export async function POST(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
@@ -39,7 +46,9 @@ export async function POST(request: Request) {
   const hunger = clamp1to10((body as Record<string, unknown>).hunger);
   const stress = clamp1to10((body as Record<string, unknown>).stress);
   const soreness = clamp1to10((body as Record<string, unknown>).soreness);
-  if (mood == null && energy == null && hunger == null && stress == null && soreness == null) {
+  const sleepHours = sleepHoursOrNull((body as Record<string, unknown>).sleepHours);
+  const sleepQuality = clamp1to10((body as Record<string, unknown>).sleepQuality);
+  if (mood == null && energy == null && hunger == null && stress == null && soreness == null && sleepHours == null && sleepQuality == null) {
     return NextResponse.json({ error: 'Nothing to log.' }, { status: 400 });
   }
 
@@ -59,6 +68,8 @@ export async function POST(request: Request) {
   if (hunger != null) patch.hunger = hunger;
   if (stress != null) patch.stress = stress;
   if (soreness != null) patch.soreness = soreness;
+  if (sleepHours != null) patch.sleep_hours = sleepHours;
+  if (sleepQuality != null) patch.sleep_quality = sleepQuality;
 
   if (existing && (existing as { id: string }).id) {
     const { error } = await supabase
@@ -73,5 +84,5 @@ export async function POST(request: Request) {
     if (error) return dbError(error, 'checkin write', 500);
   }
 
-  return NextResponse.json({ ok: true, mood, energy, hunger });
+  return NextResponse.json({ ok: true, mood, energy, hunger, sleepHours, sleepQuality });
 }
