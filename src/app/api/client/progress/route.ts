@@ -167,13 +167,39 @@ export async function GET(request: Request) {
     }
   }
 
-  const prs = [...prMap.values()]
+  let prs = [...prMap.values()]
     .sort((a, b) => b.best - a.best)
     .slice(0, 6)
     .map((p) => {
       const e = epleyE1rm(p.best, p.bestReps);
       return { ...p, e1rm: e == null ? null : Math.round(e * 10) / 10 };
     });
+
+  // Prefer all-time PRs from the aggregate RPC — it scans EVERY logged set, so a
+  // high-volume athlete's old all-time best is never dropped by the newest-3000
+  // window above (which still feeds the recent strength trajectory below). Falls
+  // back to the windowed row-scan until the migration is applied.
+  try {
+    const { data: prRows, error: prErr } = await supabase.rpc('get_my_lift_prs', { p_limit: 12 });
+    if (!prErr && Array.isArray(prRows) && prRows.length) {
+      prs = (prRows as Array<Record<string, unknown>>).slice(0, 6).map((r) => {
+        const best = Number(r.best);
+        const repsN = r.best_reps == null ? null : Number(r.best_reps);
+        const reps = repsN != null && Number.isFinite(repsN) ? repsN : null;
+        const e = epleyE1rm(best, reps);
+        return {
+          move: String(r.move ?? ''),
+          best,
+          bestReps: reps,
+          unit: String(r.unit ?? 'lb'),
+          bestAt: String(r.best_at ?? ''),
+          e1rm: e == null ? null : Math.round(e * 10) / 10,
+        };
+      });
+    }
+  } catch {
+    // keep the windowed row-scan PRs (RPC not yet applied, or a transient error)
+  }
 
   // Strength trajectory: top one-rep-equivalent across all logged sets,
   // bucketed weekly so the chart shows the trend instead of every spike.
