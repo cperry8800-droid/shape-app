@@ -2757,6 +2757,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
+      {/* DAILY CHECK-IN + HYDRATION — energy/hunger tap-rows + water logger */}
+      <div style={{ margin: `0 ${t.padX}px` }}>
+        <BSDailyCheckinCard />
+        <BSHydrationCard />
+      </div>
+
       {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -14868,6 +14874,149 @@ function BSStepsHistory({ onClose }) {
   );
   const portal = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   return portal ? createPortal(overlay, portal) : overlay;
+}
+
+// Daily energy/hunger check-in card — two 1-10 tap-rows; logs via
+// window.ShapeCheckin.log({ energy, hunger }). Reads today's values from
+// window.ShapeProgress.progress() series.energy / series.hunger.
+function BSDailyCheckinCard() {
+  const t = useBS();
+  const teal = '#34d6c5'; const amber = '#e8b14a';
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [energy, setEnergy] = useStateBSC(null);
+  const [hunger, setHunger] = useStateBSC(null);
+  const [logged, setLogged] = useStateBSC(false);
+  const [editing, setEditing] = useStateBSC(false);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    const d = new Date();
+    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on || !p || !p.series) return;
+      const e = (p.series.energy || []).find((s) => s.date === todayIso);
+      const h = (p.series.hunger || []).find((s) => s.date === todayIso);
+      if (e) setEnergy(Math.round(Number(e.value)));
+      if (h) setHunger(Math.round(Number(h.value)));
+      if (e || h) setLogged(true);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  const Row = ({ label, val, set, c }) => (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: val ? c : t.INK50 }}>{val || '—'}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+        {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; const on = (val || 0) >= v; const sel = val === v;
+          return <button key={v} onClick={() => set(v)} aria-label={`${label} ${v} of 10`} style={{ height: 22, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent', cursor: 'pointer', padding: 0 }} />;
+        })}
+      </div>
+    </div>
+  );
+
+  const [saving, setSaving] = useStateBSC(false);
+  const doLog = async () => {
+    if (energy == null && hunger == null || saving) return;
+    // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
+    if (!signedIn) { window.__bsToast?.('Join Shape to save your check-in', 'ok'); return; }
+    setSaving(true);
+    try {
+      await window.ShapeCheckin?.log?.({ energy, hunger });
+      setLogged(true); setEditing(false);   // only after the write succeeds
+    } catch (e) {
+      window.__bsToast?.('Could not save check-in — try again', 'err');
+    } finally { setSaving(false); }
+  };
+
+  const showForm = !logged || editing;
+  return (
+    <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>How are you · today</span>
+        {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK50 }}>Edit</button>}
+      </div>
+      {showForm ? (
+        <>
+          <Row label="Energy" val={energy} set={setEnergy} c={teal} />
+          <Row label="Hunger" val={hunger} set={setHunger} c={amber} />
+          <button onClick={doLog} disabled={(energy == null && hunger == null) || saving} style={{ marginTop: 4, width: '100%', borderRadius: 5, border: 0, background: ((energy == null && hunger == null) || saving) ? t.HAIR : teal, color: '#04201d', cursor: saving ? 'default' : 'pointer', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saving ? 'Saving…' : 'Log today'}</button>
+        </>
+      ) : (
+        <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b> · logged ✓</div>
+      )}
+    </div>
+  );
+}
+
+// Hydration logger card — reads today's intake + target via window.ShapeHydration.get(),
+// renders a progress bar + quick-add chips (metric ml / imperial oz) + undo.
+function BSHydrationCard() {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [val, setVal] = useStateBSC(null);   // liters today
+  const [target, setTarget] = useStateBSC(3.0);
+  const [lastDelta, setLastDelta] = useStateBSC(0);
+  const [busy, setBusy] = useStateBSC(false);
+  const reqSeq = React.useRef(0);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeHydration?.get) return undefined;
+    let on = true;
+    window.ShapeHydration.get().then((d) => { if (on && d && d.ok) { setVal(Number(d.hydrationL) || 0); setTarget(Number(d.targetL) || 3.0); } }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  // Optimistic update + rollback on failure + stale-response guard (reqSeq) + an
+  // in-flight lock (busy) so rapid taps can't overlap. The lock also serializes
+  // the server's read-then-write per device, closing the lost-update window for a
+  // single user. Signed-out preview updates locally only (no write).
+  const add = async (deltaL) => {
+    if (busy) return;
+    const prev = Number(val) || 0;
+    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
+    setVal(optimistic); setLastDelta(deltaL);
+    if (!signedIn || !window.ShapeHydration?.add) return;   // preview/demo — local only
+    const seq = ++reqSeq.current;
+    setBusy(true);
+    try {
+      const d = await window.ShapeHydration.add(deltaL);
+      if (seq === reqSeq.current && d && d.ok) setVal(Number(d.hydrationL) || 0);   // reconcile, ignore stale
+    } catch (e) {
+      if (seq === reqSeq.current) { setVal(prev); setLastDelta(0); }                 // roll back the failed add
+      window.__bsToast?.('Could not log water — try again', 'err');
+    } finally {
+      if (seq === reqSeq.current) setBusy(false);
+    }
+  };
+  const undo = () => { if (lastDelta && !busy) { add(-lastDelta); setLastDelta(0); } };
+
+  const cur = Number(val) || 0;
+  const pct = target > 0 ? Math.min(1, cur / target) : 0;
+  const L = (n) => `${(Math.round(n * 100) / 100)}`;
+  const ML = 0.25, ML2 = 0.5, OZ = 0.2366, OZ2 = 0.4732; // 8oz / 16oz in liters
+  const chips = t.isMetric ? [['+250 ml', ML], ['+500 ml', ML2]] : [['+8 oz', OZ], ['+16 oz', OZ2]];
+  const display = t.isMetric ? `${L(cur)} / ${L(target)} L` : `${Math.round(cur * 33.814)} / ${Math.round(target * 33.814)} oz`;
+
+  return (
+    <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Hydration · today</span>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{val == null ? '—' : display}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}> · {Math.round(pct * 100)}%</span></span>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden', marginBottom: 12 }}>
+        <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {chips.map(([lab, d]) => (
+          <button key={lab} onClick={() => add(d)} disabled={busy} style={{ flex: 1, borderRadius: 5, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1, padding: '11px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
+        ))}
+        <button onClick={undo} disabled={!lastDelta || busy} aria-label="Undo last" style={{ width: 44, borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !busy) ? t.INK : t.INK50, cursor: (lastDelta && !busy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+      </div>
+    </div>
+  );
 }
 
 // Daily steps / NEAT card — today's count vs the user's editable goal (set on the

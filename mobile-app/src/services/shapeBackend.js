@@ -3305,11 +3305,11 @@ window.ShapeActivities = {
 };
 
 // Daily check-in (mood) → /api/client/checkin (upserts today's snapshot).
-async function logCheckin({ mood, stress, soreness } = {}) {
+async function logCheckin({ mood, energy, hunger, stress, soreness } = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/client/checkin`, {
     method: 'POST', credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ mood, stress, soreness }),
+    body: JSON.stringify({ mood, energy, hunger, stress, soreness, date: _localDate() }),
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not save check-in.');
@@ -3953,6 +3953,27 @@ async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
   } catch (e) { return null; }
 }
 window.ShapeMealLog = { log: logMealMacros };
+// Hydration logger — GET today's intake + target; POST a delta (liters).
+async function getHydration() {
+  // Pass the client LOCAL date so the read targets the same snapshot row the
+  // quick-add POST writes (addHydration sends date: _localDate()). Without it the
+  // GET falls back to the server UTC day and the card can read a different day's
+  // row near local midnight.
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/hydration?date=${_localDate()}`, null);
+}
+async function addHydration(deltaL) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/client/hydration`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+    body: JSON.stringify({ deltaL, date: _localDate() }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not log hydration.');
+  invalidateClientMetrics();
+  return d;
+}
+window.ShapeHydration = { get: getHydration, add: addHydration };
 // Manual sleep entry → today's daily_health_snapshot.sleep_hours (SET, not
 // accumulate), so the recovery-readiness signals + the "Log last night's sleep"
 // home directive that asked for it refresh. Mirrors logMealMacros; merges with
