@@ -13982,7 +13982,10 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const [g, setG] = useStateBSC({ ...overall });
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
   const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
-  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[k]} onChange={(e) => setG({ ...g, [k]: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>;
+  // Keep the raw string while editing (so decimals like 76.8 type cleanly);
+  // numeric fields are coerced to Number on save (`saveGoal`).
+  const saveGoal = () => { const n = (v) => (v === '' || v == null ? '' : Number(v)); onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
+  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={field} /></label>;
   const sheet = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
       {/* Title-page header — masthead + hero title (matches the other pages) */}
@@ -14011,7 +14014,7 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
       {/* Pinned footer — squared / clipped CTA */}
       <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 10, background: t.PAPER }}>
         <button onClick={onClose} style={{ padding: '14px 22px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-        <button onClick={() => onSave(g)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
+        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
       </div>
     </div>
   );
