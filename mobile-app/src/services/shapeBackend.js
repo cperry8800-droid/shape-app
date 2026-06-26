@@ -3576,6 +3576,24 @@ async function getClientLifts(userId) {
   return data || null;
 }
 window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts };
+// Batch recent-sleep for a coach's roster (one call) so the triage engine can flag
+// a client's chronic sleep deficit. RLS scopes it to this coach's clients; returns
+// { [clientId]: { sleepHours: { avg7, lastNight, target } } } (empty on any failure).
+async function getRosterSleep(ids) {
+  if (!supabase || !state.user?.id || !Array.isArray(ids) || !ids.length) return {};
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-sleep`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      body: JSON.stringify({ clientIds: ids }),
+    });
+    if (!res.ok) return {};
+    const d = await res.json();
+    return (d && d.recovery) || {};
+  } catch (e) { return {}; }
+}
+window.ShapeRosterSleep = { get: getRosterSleep };
 
 // Coach soundtracks — saved playlists shared with the website Playlists page
 // (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the

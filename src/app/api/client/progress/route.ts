@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { epleyE1rm } from '@/lib/e1rm';
+import { readinessFromSeries } from '@/lib/recovery-readiness';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,10 +47,19 @@ export async function GET(request: Request) {
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
-  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger' | 'sleep_efficiency_pct' | 'sleep_quality') =>
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger' | 'sleep_efficiency_pct' | 'sleep_quality' | 'recovery_score' | 'sleep_deep_min' | 'sleep_rem_min' | 'sleep_light_min' | 'sleep_awake_min' | 'sleep_latency_min' | 'respiratory_rate') =>
     snaps
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
+  // Latest non-null value of a (possibly string) snapshot column, e.g. bed/wake time.
+  const latestVal = (key: string): string | null => {
+    for (let i = snaps.length - 1; i >= 0; i -= 1) {
+      const v = (snaps[i] as Record<string, unknown>)[key];
+      if (v != null) return String(v);
+    }
+    return null;
+  };
+  const lastNum = (arr: Array<{ value: number }>): number | null => (arr.length ? arr[arr.length - 1].value : null);
 
   // Weight + body fat come from the dedicated weigh-in table (what the Goals
   // page's "Log weigh-in" writes) — the snapshot columns have no writer, so
@@ -87,6 +97,13 @@ export async function GET(request: Request) {
   const hungerSeries = seriesFor('hunger');
   const sleepEfficiencySeries = seriesFor('sleep_efficiency_pct');
   const sleepQualitySeries = seriesFor('sleep_quality');
+  const recoverySeries = seriesFor('recovery_score');
+  const sleepDeepSeries = seriesFor('sleep_deep_min');
+  const sleepRemSeries = seriesFor('sleep_rem_min');
+  const sleepLightSeries = seriesFor('sleep_light_min');
+  const sleepAwakeSeries = seriesFor('sleep_awake_min');
+  const sleepLatencySeries = seriesFor('sleep_latency_min');
+  const respiratorySeries = seriesFor('respiratory_rate');
 
   const bodyFats = bodyFatSeries.map((s) => s.value);
   const restingHrs = restingHrSeries.map((s) => s.value);
@@ -95,6 +112,16 @@ export async function GET(request: Request) {
   const restingRecent = avg(restingHrs.slice(-7));
   const restingPrior = avg(restingHrs.slice(-14, -7));
   const sleepAvg = avg(sleeps.slice(-30));
+
+  // Recovery readiness (0-100) from tonight's sleep + cardio vs a trailing baseline,
+  // plus the wearable's own recovery score when present. null when there's no sleep.
+  const readiness = readinessFromSeries({
+    sleep: sleepSeries,
+    sleepEfficiency: sleepEfficiencySeries,
+    restingHr: restingHrSeries,
+    hrv: hrvSeries,
+    recovery: recoverySeries,
+  });
 
   const stepsLast30 = stepsSeries.slice(-30);
   const kpis = {
@@ -118,6 +145,16 @@ export async function GET(request: Request) {
     stepsAvg: stepsLast30.length
       ? Math.round(stepsLast30.reduce((s, p) => s + p.value, 0) / stepsLast30.length)
       : null,
+    readiness: readiness ? readiness.score : null,
+    readinessLabel: readiness ? readiness.band.label : null,
+    respiratoryLatest: lastNum(respiratorySeries),
+    sleepLatencyLatest: lastNum(sleepLatencySeries),
+    // Latest night's stage minutes (null when no device exposes stages — honest "—").
+    sleepStages: (sleepDeepSeries.length || sleepRemSeries.length || sleepLightSeries.length)
+      ? { deep: lastNum(sleepDeepSeries), rem: lastNum(sleepRemSeries), light: lastNum(sleepLightSeries), awake: lastNum(sleepAwakeSeries) }
+      : null,
+    bedTime: latestVal('sleep_start'),
+    wakeTime: latestVal('sleep_end'),
   };
 
   // ---- Strength PRs from logged sets --------------------------------------
@@ -247,6 +284,13 @@ export async function GET(request: Request) {
       energy: energySeries,
       hunger: hungerSeries,
       sleepQuality: sleepQualitySeries,
+      recovery: recoverySeries,
+      sleepDeep: sleepDeepSeries,
+      sleepRem: sleepRemSeries,
+      sleepLight: sleepLightSeries,
+      sleepAwake: sleepAwakeSeries,
+      sleepLatency: sleepLatencySeries,
+      respiratory: respiratorySeries,
       strength: strengthSeries,
     },
   });

@@ -84,6 +84,15 @@ async function coachClients(role) {
 async function coachRecords(role) {
   const clients = await coachClients(role);
   if (!clients.length) return [];
+  // Batch the roster's recent sleep in ONE call (RLS-scoped to this coach's clients)
+  // so the engine's sleep-recovery rule can flag a chronic deficit in the "who needs
+  // you" feed. Best-effort — {} on any failure, so triage never blocks on it.
+  let sleepByClient = {};
+  try {
+    if (window.ShapeRosterSleep && window.ShapeRosterSleep.get) {
+      sleepByClient = (await window.ShapeRosterSleep.get(clients.map((c) => c.id))) || {};
+    }
+  } catch (e) { /* ignore */ }
   return pooled(clients, 4, async (c) => {
     const [stats, lifts, goalsDoc, checkins] = await Promise.all([
       window.ShapeClientStats && window.ShapeClientStats.get ? window.ShapeClientStats.get(c.id).catch(() => null) : null,
@@ -91,7 +100,7 @@ async function coachRecords(role) {
       window.ShapeGoalsApi && window.ShapeGoalsApi.getForClient ? window.ShapeGoalsApi.getForClient(c.id).catch(() => null) : null,
       window.ShapeClientKit && window.ShapeClientKit.checkins ? window.ShapeClientKit.checkins(c.id, 2).catch(() => null) : null,
     ]);
-    return recordFromCoachData({ id: c.id, name: c.name, stats, lifts, goalsDoc, checkins }, deps());
+    return recordFromCoachData({ id: c.id, name: c.name, stats, lifts, goalsDoc, checkins, recovery: sleepByClient[c.id] || null }, deps());
   });
 }
 

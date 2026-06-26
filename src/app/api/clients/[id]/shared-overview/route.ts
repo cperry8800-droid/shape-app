@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { readinessFromSeries } from '@/lib/recovery-readiness';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -202,21 +203,38 @@ export async function GET(
   // Newest-first then reverse to chronological: a client with >30 snapshot rows
   // must keep their RECENT sleep (an ascending limit(30) would return the OLDEST
   // 30 and report stale latest/avg7/trend).
+  // select('*') (not an explicit column list) so the route keeps working before the
+  // sleep-detail migration is applied — PostgREST 400s the WHOLE query on an unknown
+  // explicit column, which would null out the coach's sleep view entirely.
   const { data: snapRowsDesc } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, sleep_hours, sleep_efficiency_pct, resting_hr, hrv_ms')
+    .select('*')
     .eq('user_id', clientId)
     .order('snapshot_date', { ascending: false })
     .limit(30);
   const snapRows = (snapRowsDesc ?? []).slice().reverse();
+  const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+  const colSeries = (key: string) => snapRows
+    .filter((r) => (r as Record<string, unknown>)[key] != null)
+    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>)[key]) }));
   // Filter to rows that actually carry a sleep_hours value, then source BOTH the
-  // hours and the recovery trio (efficiency/RHR/HRV) from the SAME latest sleep
-  // row — RHR/HRV are measured during that night's sleep, so they belong to the
-  // night `latest` reports, not a newer snapshot that may lack sleep.
+  // hours and the recovery trio (efficiency/RHR/HRV) + the stage detail from the
+  // SAME latest sleep row — RHR/HRV/stages are measured during that night's sleep,
+  // so they belong to the night `latest` reports, not a newer snapshot that may lack sleep.
   const sleepRows = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null);
   const sl = sleepRows.map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
   const lastSleep = sleepRows[sleepRows.length - 1] as Record<string, unknown> | undefined;
   const last7 = sl.slice(-7).map((p) => p.value);
+  // Recovery readiness (0-100) from tonight's signals vs a trailing baseline.
+  const readiness = readinessFromSeries({
+    sleep: sl,
+    sleepEfficiency: colSeries('sleep_efficiency_pct'),
+    restingHr: colSeries('resting_hr'),
+    hrv: colSeries('hrv_ms'),
+    recovery: colSeries('recovery_score'),
+  });
+  const stageMin = lastSleep ? { deep: num(lastSleep.sleep_deep_min), rem: num(lastSleep.sleep_rem_min), light: num(lastSleep.sleep_light_min), awake: num(lastSleep.sleep_awake_min) } : null;
+  const hasStages = !!(stageMin && (stageMin.deep != null || stageMin.rem != null || stageMin.light != null));
   const sleep = sl.length ? {
     latest: sl[sl.length - 1].value,
     avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
@@ -224,6 +242,12 @@ export async function GET(
     efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
     rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
     hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,
+    rested: lastSleep && lastSleep.sleep_quality != null ? Math.round(Number(lastSleep.sleep_quality)) : null,
+    latency: lastSleep ? num(lastSleep.sleep_latency_min) : null,
+    respiratory: lastSleep ? num(lastSleep.respiratory_rate) : null,
+    stages: hasStages ? stageMin : null,
+    readiness: readiness ? readiness.score : null,
+    readinessLabel: readiness ? readiness.band.label : null,
   } : null;
 
   return NextResponse.json({

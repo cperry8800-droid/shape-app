@@ -293,20 +293,33 @@ function CoachClientDetailPage() {
           {data.sleep && (() => {
             const s = data.sleep;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
+            const rc = s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
             const cells = [
               ["LAST NIGHT", fmtH(s.latest)],
               ["7-DAY AVG", s.avg7 == null ? "—" : `${Number(s.avg7)}h`],
               ["EFFICIENCY", s.efficiency == null ? "—" : `${s.efficiency}%`],
               ["RESTING HR", s.rhr == null ? "—" : `${s.rhr}`],
               ["HRV", s.hrv == null ? "—" : `${s.hrv}`],
+              ["RESTED", s.rested == null ? "—" : `${s.rested}/10`],
+              ["LATENCY", s.latency == null ? "—" : `${s.latency}m`],
+              ["RESPIRATORY", s.respiratory == null ? "—" : `${s.respiratory}/min`],
             ];
+            const st = s.stages;
             return (
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                   <CKSecHead>SLEEP · RECOVERY</CKSecHead>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+                {s.readiness != null && (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>READINESS</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>/100</span>
+                    {s.readinessLabel && <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: rc }}>{s.readinessLabel}</span>}
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                   {cells.map(([l, v]) => (
                     <div key={l} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{l}</div>
@@ -314,6 +327,11 @@ function CoachClientDetailPage() {
                     </div>
                   ))}
                 </div>
+                {st && (
+                  <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", color: "rgba(242,237,228,0.7)" }}>
+                    STAGES · {[st.deep != null ? `Deep ${st.deep}m` : null, st.rem != null ? `REM ${st.rem}m` : null, st.light != null ? `Light ${st.light}m` : null].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                )}
                 {Array.isArray(s.series7) && s.series7.filter((p) => p && p.value != null).length >= 2 && (
                   <div style={{ marginTop: 14 }}>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>7-DAY TREND</div>

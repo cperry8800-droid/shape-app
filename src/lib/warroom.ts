@@ -247,6 +247,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/coach/credentials/document', 'POST'],
   ['/api/coach/review-note', 'POST'],
   ['/api/coach/rings', 'GET'],
+  ['/api/coach/roster-sleep', 'POST'],
   ['/api/coach/score', 'GET'],
   ['/api/coach/soundtracks', 'GET,POST,PATCH,DELETE'],
   ['/api/coaches/reviews', 'GET,POST'],
@@ -809,7 +810,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Sleep-logging redesign (Tier 1, #1430): daily sleep folded into the check-in card — device-first (read-only hours + efficiency/RHR/HRV when a wearable synced today, else editable manual-hour chips) + an always-on 1–10 Rested rating → daily_health_snapshot.sleep_quality; persists via /api/client/checkin (await+rollback); BSSleepSheet retired. MIGRATION 2026-06-26-sleep-quality.sql — APPLIED + verified live', status: 'done' },
         { label: 'Sleep → engine: pure tested sleepRecoveryFromProgress wired into selfRecord so the (previously dead) recovery directive fires for real signed-in members', status: 'done' },
         { label: 'Coach objective sleep: /api/clients/[id]/shared-overview returns sleep (latest hours + 7d trend + efficiency/RHR/HRV, RLS-scoped via providers_read_subscriber_snapshots) → web coachClientDetail + mobile coach profile (#1430)', status: 'done' },
-        { label: 'Sleep fast-follow (deferred from #1430): sleep stages (deep/REM/light) · bed/wake + latency · respiratory rate · a canonical recovery-readiness score · a coach sleep-triage rule', status: 'manual' },
+        { label: 'Sleep fast-follow (deferred from #1430) — BUILT: sleep STAGES (deep/REM/light/awake) · bed/wake + LATENCY · RESPIRATORY rate captured from Oura v2 sync into daily_health_snapshot (MIGRATION 2026-06-26-sleep-detail.sql — OWNER must apply; other providers leave them null → honest "—"). Canonical recovery-READINESS score (pure recoveryReadiness.mjs + recovery-readiness.ts twin, tested) on the check-in card + a new mobile BSSleepHistory detail page (stages bar, bed/wake, latency, respiratory, readiness ring, sparklines) + the coach view (shared-overview + web/mobile). Coach SLEEP-TRIAGE rule: dashSignals ruleSleepRecovery flags sleep_low (7d avg >1.5h under target) → directive + the coach "who needs you" feed (roster sleep batched via /api/coach/roster-sleep). Remaining: Apple HealthKit stages need native iOS extraction; Garmin respiratory not in the webhook schema', status: 'manual' },
       ],
     },
     {
