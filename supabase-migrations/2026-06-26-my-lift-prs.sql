@@ -44,17 +44,26 @@ as $$
   valid as (
     select * from sets where load is not null and load > 0
   ),
+  normed as (
+    -- normalize to lb ONLY for ranking, so a mixed kg/lb history picks the truly
+    -- heaviest set and orders moves correctly; the original load + unit are returned.
+    select *, (case when lower(unit) = 'kg' then load * 2.20462 else load end) as load_lb
+    from valid
+  ),
   best as (
     -- the single heaviest set per move (ties broken by most recent), all-time.
     select distinct on (move)
-      move, load as best, reps as best_reps, unit, created_at as best_at
-    from valid
-    order by move, load desc, created_at desc
+      move, load as best, load_lb, reps as best_reps, unit, created_at as best_at
+    from normed
+    order by move, load_lb desc, created_at desc
   )
   select move, best, best_reps, unit, best_at
   from best
-  order by best desc
+  order by load_lb desc
   limit greatest(1, least(coalesce(p_limit, 12), 100));
 $$;
 
+-- Default Postgres grants EXECUTE to PUBLIC; revoke it so only authenticated
+-- callers (scoped to auth.uid() inside the function) can run it.
+revoke execute on function public.get_my_lift_prs(int) from public;
 grant execute on function public.get_my_lift_prs(int) to authenticated;
