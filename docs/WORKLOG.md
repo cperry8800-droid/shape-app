@@ -149,12 +149,14 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-06-25.md`](HANDOFF-2026-06-25.md)** —
-> Daily steps / NEAT shipped end-to-end (#1415: device-synced backend + ring-instrument
-> history + editable goal + alive-ring animations), strategy/marketing docs (#1416), and
-> this WORKLOG/War-Room update (#1418). `main` clean, zero open PRs, `staging` reset.
-> (Prior: [`docs/HANDOFF-2026-06-22.md`](HANDOFF-2026-06-22.md) — compliance Waves 3+4,
-> Code of Conduct + ToS, grocery web redesign; legal copy DRAFT pending counsel.)
+> **Latest session handoff: [`docs/HANDOFF-2026-06-26.md`](HANDOFF-2026-06-26.md)** —
+> Sleep-logging redesign shipped end-to-end (#1430: device-first sleep on the home
+> check-in card + revived engine recovery directive + coach objective-sleep readout;
+> `sleep_quality` migration **APPLIED + verified live**), uniform top-header avatars
+> (#1431), all-time-PR aggregate RPC (#1429), e1RM web parity (#1427), check-in/grocery
+> polish (#1428). `main` clean; both feature branches kept.
+> (Prior: [`docs/HANDOFF-2026-06-25.md`](HANDOFF-2026-06-25.md) — daily steps/NEAT (#1415);
+> [`docs/HANDOFF-2026-06-22.md`](HANDOFF-2026-06-22.md) — compliance Waves 3+4.)
 >
 > **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
@@ -165,6 +167,56 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-06-26 — Sleep-logging redesign (#1430) · uniform header avatars (#1431) · all-time-PR RPC (#1429) · e1RM web parity (#1427) · check-in & grocery polish (#1428)
+- **Sleep-logging redesign (#1430, Tier 1).** Daily sleep folded into the home
+  **"How are you · today"** check-in card, **device-first**: when a wearable synced sleep
+  today the card shows a read-only `Xh Ym · NN% efficient · RHR · HRV` snapshot; otherwise
+  **editable** manual-hour chips (reversible, tap-again-to-clear, never falsely labeled
+  "Synced from your device"). Always a 1–10 **Rested** tap-row → new
+  **`daily_health_snapshot.sleep_quality`** column (migration `2026-06-26-sleep-quality.sql`,
+  **APPLIED + verified live**). Saved with energy/hunger via `/api/client/checkin`
+  (await + rollback; `sleepHoursOrNull` 0<h≤24 validator). **The dead engine sleep directive
+  is revived** — pure, TDD'd `sleepRecoveryFromProgress` (in `signalsMap.mjs`) feeds real
+  sleep into `selfRecord`, so signed-in members finally get the recovery lever (it was
+  hardcoded `null`). **Coaches see objective sleep** — `/api/clients/[id]/shared-overview`
+  returns `sleep` (latest hours + 7-day trend + efficiency/RHR/HRV, RLS-scoped via the
+  existing `providers_read_subscriber_snapshots` policy — no extra migration), rendered on
+  the web client page (`coachClientDetail.jsx`, reuses `CKTrend`) + the mobile coach profile
+  (`iosAppBroadsheetPros.jsx`). **`BSSleepSheet` retired**; the home sleep directive scrolls
+  to the card. Built **subagent-driven** (7 TDD tasks, per-task spec+quality reviews + an
+  opus whole-branch review). **CodeRabbit/Codex caught + I fixed 3 real bugs** before merge:
+  the coach query returned the *oldest* 30 snapshots (now newest-30 then reversed), manual
+  sleep was mislabeled "Synced" + locked after reload (now `sleepSynced` is gated on TODAY's
+  device-only metrics read per-day from `series.sleepEfficiency`/`restingHr`/`hrv`), and the
+  coach overview effect leaked one client's sleep onto the next (now resets + ignores stale
+  responses). CodeRabbit **APPROVED**. **Fast-follow (out of scope):** sleep stages
+  (deep/REM/light), bed/wake + latency, respiratory rate, a recovery-readiness score, a
+  coach sleep-triage rule. *(Note: `window.ShapeSleep.log` + `/api/client/sleep-log` are now
+  an uncalled dead path — a follow-up cleanup.)*
+- **Uniform top-header avatars (#1431).** The "your own" avatar in each page's top-header
+  corner rendered at inconsistent sizes (34 on the 5 main tabs + both coach mastheads, but
+  28 on detail/Store pages, 26/30 elsewhere). New single **`BS_HEADER_AVATAR = 34`** constant
+  drives `BSSearchCorner`/`BSHeaderTools`/`BSMeCorner` defaults + every per-call override is
+  removed; the Terrain/Signal + coach mastheads have their **whole corner cluster** (search ·
+  edit pencil · settings gear · self avatar) normalized to 34 so each row stays balanced — so
+  the Store + all detail/sub pages now match the main tabs. Every touched avatar still uses
+  the self helpers (`bsMyTierColor`/`bsMyInitials`/`bsMyPhoto`) + opens `shape:openProfile`;
+  **untouched:** feed/chat/list/facepile avatars, the big profile HERO portraits, the Settings
+  identity-card avatar.
+- **All-time strength PRs via aggregate RPC (#1429).** `get_my_lift_prs(p_limit)` (migration
+  `2026-06-26-my-lift-prs.sql`, applied) so the client Progress PR rows reflect the **all-time**
+  best per lift instead of the newest-3000-sets window; kg normalized to lb before ranking;
+  PUBLIC execute revoked (`auth.uid()`-scoped, security definer).
+- **e1RM web parity (#1427).** Progress-route set cap fixed to keep the **newest** sets (was
+  oldest) + e1RM on the client Progress **PR rows** + a **website client Strength page**
+  (`DprSpark` sparkline + status pills) — the website now matches the mobile e1RM engine.
+- **Check-in & grocery polish (#1428).** Compacted the home check-in card (tap targets kept
+  ≥ the WCAG 2.5.8 AA 24px floor) and lightened/modernized the collapsible grocery aisle
+  headers (lighter weight, hairline rule, calmer chevron/count).
+- All squash-merged to `main` (branches kept); each CI-green (Web · Mobile · gitleaks) +
+  CodeRabbit-reviewed; #1430 + #1431 overlapped the two broadsheet files + `public/m`, so the
+  second (#1430) was merged into main + its bundle rebuilt fresh before merge.
 
 ### 2026-06-26 — Daily check-in + hydration (#1422) · title-font unify + full-page goal sheets (#1423) · home compaction + bigger steps numbers (#1424) · collapsible grocery aisles (#1425)
 - **Daily wellness cards (#1422).** Two home cards: **`BSDailyCheckinCard`**
