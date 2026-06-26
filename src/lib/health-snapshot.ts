@@ -32,6 +32,8 @@ export type SnapshotPatch = {
   weight_lb?: number | null;
   body_fat_pct?: number | null;
   mood?: number | null;
+  energy?: number | null;
+  hunger?: number | null;
   stress?: number | null;
   soreness?: number | null;
 };

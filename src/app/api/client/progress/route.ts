@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
-  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps') =>
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger') =>
     snaps
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
@@ -83,6 +83,8 @@ export async function GET(request: Request) {
   const proteinSeries = seriesFor('protein_g');
   const hydrationSeries = seriesFor('hydration_l');
   const stepsSeries = seriesFor('steps');
+  const energySeries = seriesFor('energy');
+  const hungerSeries = seriesFor('hunger');
 
   const bodyFats = bodyFatSeries.map((s) => s.value);
   const restingHrs = restingHrSeries.map((s) => s.value);
@@ -206,6 +208,8 @@ export async function GET(request: Request) {
       protein: proteinSeries,
       hydration: hydrationSeries,
       steps: stepsSeries,
+      energy: energySeries,
+      hunger: hungerSeries,
       strength: strengthSeries,
     },
   });
