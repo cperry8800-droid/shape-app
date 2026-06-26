@@ -806,6 +806,10 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Migration: 2026-06-25-client-lifts-e1rm.sql (widens get_client_lifts with e1rm) — APPLIED + verified live (advisors 0 ERROR)', status: 'done' },
         { label: 'Daily energy/hunger check-in card (BSDailyCheckinCard, 1–10) + dedicated hydration logger (BSHydrationCard, +250/500 ml quick-add + undo) — GET/POST /api/client/hydration + migration 2026-06-25-daily-energy-hunger.sql (APPLIED + verified live); shipped #1422', status: 'done' },
         { label: 'RESEARCH GAP (differentiators) — menstrual-cycle awareness (wearables have it; NO coaching platform surfaces it) · weekend-vs-weekday adherence split (recognized failure pattern, no platform computes it) · coach-set compliance variance band (Trainerize-style)', status: 'manual' },
+        { label: 'Sleep-logging redesign (Tier 1, #1430): daily sleep folded into the check-in card — device-first (read-only hours + efficiency/RHR/HRV when a wearable synced today, else editable manual-hour chips) + an always-on 1–10 Rested rating → daily_health_snapshot.sleep_quality; persists via /api/client/checkin (await+rollback); BSSleepSheet retired. MIGRATION 2026-06-26-sleep-quality.sql — APPLIED + verified live', status: 'done' },
+        { label: 'Sleep → engine: pure tested sleepRecoveryFromProgress wired into selfRecord so the (previously dead) recovery directive fires for real signed-in members', status: 'done' },
+        { label: 'Coach objective sleep: /api/clients/[id]/shared-overview returns sleep (latest hours + 7d trend + efficiency/RHR/HRV, RLS-scoped via providers_read_subscriber_snapshots) → web coachClientDetail + mobile coach profile (#1430)', status: 'done' },
+        { label: 'Sleep fast-follow (deferred from #1430): sleep stages (deep/REM/light) · bed/wake + latency · respiratory rate · a canonical recovery-readiness score · a coach sleep-triage rule', status: 'manual' },
       ],
     },
     {
