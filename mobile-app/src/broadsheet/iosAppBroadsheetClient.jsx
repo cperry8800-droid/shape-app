@@ -14904,15 +14904,15 @@ function BSDailyCheckinCard() {
   }, [signedIn]);
 
   const Row = ({ label, val, set, c }) => (
-    <div style={{ marginBottom: 7 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+    <div style={{ marginBottom: 5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
         <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: val ? c : t.INK50 }}>{val || '—'}</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3 }}>
         {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; const on = (val || 0) >= v; const sel = val === v;
-          // Slim bar (compact look) inside a taller transparent hit area (comfortable tap target on phones).
-          return <button key={v} onClick={() => set(v)} aria-label={`${label} ${v} of 10`} style={{ height: 30, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><span aria-hidden style={{ flex: 1, height: 16, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent' }} /></button>;
+          // Chunky bar (compact look) inside a comfortable tap target (>= the WCAG 2.5.8 AA 24px floor).
+          return <button key={v} onClick={() => set(v)} aria-label={`${label} ${v} of 10`} style={{ height: 26, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><span aria-hidden style={{ flex: 1, height: 20, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent' }} /></button>;
         })}
       </div>
     </div>
@@ -14935,7 +14935,7 @@ function BSDailyCheckinCard() {
   const showForm = !logged || editing;
   return (
     <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 11, marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>How are you · today</span>
         {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK50 }}>Edit</button>}
       </div>
@@ -14943,7 +14943,7 @@ function BSDailyCheckinCard() {
         <>
           <Row label="Energy" val={energy} set={setEnergy} c={teal} />
           <Row label="Hunger" val={hunger} set={setHunger} c={amber} />
-          <button onClick={doLog} disabled={(energy == null && hunger == null) || saving} style={{ marginTop: 3, width: '100%', borderRadius: 5, border: 0, background: ((energy == null && hunger == null) || saving) ? t.HAIR : teal, color: '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saving ? 'Saving…' : 'Log today'}</button>
+          <button onClick={doLog} disabled={(energy == null && hunger == null) || saving} style={{ marginTop: 2, width: '100%', borderRadius: 5, border: 0, background: ((energy == null && hunger == null) || saving) ? t.HAIR : teal, color: '#04201d', cursor: saving ? 'default' : 'pointer', padding: '9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saving ? 'Saving…' : 'Log today'}</button>
         </>
       ) : (
         <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b> · logged ✓</div>
@@ -18366,12 +18366,12 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
           const open = openAisles.has(aisle.aisle);
           return (
             <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: filledAisleNames.length > 1 ? 12 : 18 }}>
-              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${aisle.aisle}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 0 7px', border: 0, borderBottom: `2px solid ${t.INK}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ display: 'flex', alignItems: 'baseline', gap: 9, minWidth: 0 }}>
-                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: afull ? rust : t.INK50, flexShrink: 0, width: 11 }}>{open ? '▾' : '▸'}</span>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
+              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${aisle.aisle}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0 10px', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, color: afull ? rust : t.INK50, flexShrink: 0, width: 10 }}>{open ? '▾' : '▸'}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
                 </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: afull ? rust : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: afull ? rust : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
               </button>
               {open && aisle.items.map((it, ii) => {
                 const k = `${ai}-${ii}`; const on = checked.has(k);
