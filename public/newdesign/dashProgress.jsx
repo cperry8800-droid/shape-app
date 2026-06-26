@@ -81,6 +81,12 @@ const DPR_DEMO = (() => {
       { move: "Bench press", best: 200, bestReps: 3, unit: "lb", bestAt: dprAgo(40) },
       { move: "Overhead press", best: 135, bestReps: 5, unit: "lb", bestAt: dprAgo(61) },
     ],
+    lifts: [
+      { name: "Back squat", currentE1rm: 298, bestE1rm: 298, status: "progressing", unit: "lb", topSet: { load: 265, reps: 5 }, series: [255, 262, 270, 278, 285, 290, 298].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+      { name: "Bench press", currentE1rm: 218, bestE1rm: 222, status: "holding", unit: "lb", topSet: { load: 200, reps: 3 }, series: [210, 214, 222, 219, 216, 220, 218].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+      { name: "Deadlift", currentE1rm: 366, bestE1rm: 372, status: "stalled", unit: "lb", topSet: { load: 345, reps: 2 }, series: [372, 370, 368, 366, 367, 365, 366].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+      { name: "Overhead press", currentE1rm: 152, bestE1rm: 152, status: "building", unit: "lb", topSet: { load: 135, reps: 5 }, series: [148, 152].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+    ],
     measurements: [
       { site: "waist", unit: "cm", series: [{ on: dprAgo(56), value: 88 }, { on: dprAgo(28), value: 86 }, { on: dprAgo(2), value: 84 }] },
       { site: "chest", unit: "cm", series: [{ on: dprAgo(56), value: 104 }, { on: dprAgo(2), value: 103 }] },
@@ -128,6 +134,28 @@ function DprChart({ points, height = 180, color = DPR_TEAL, gradId = "g" }) {
       ))}
       <path d={area} fill={`url(#${gradId})`} />
       <path d={path} fill="none" stroke={color} strokeWidth="2" />
+    </svg>
+  );
+}
+
+// ── Strength / e1RM progression (web mirror of the mobile Strength page) ──
+const DPR_STR_STATUS = {
+  progressing: { c: DPR_GREEN, label: "Progressing" },
+  holding: { c: DPR_TEAL, label: "Holding" },
+  stalled: { c: DPR_AMBER, label: "Stalled" },
+  building: { c: DPR_INK50, label: "Building" },
+};
+// Tiny e1RM trend line for a per-lift row.
+function DprSpark({ points, color = DPR_TEAL }) {
+  const pts = (points || []).map(Number).filter((v) => isFinite(v));
+  if (pts.length < 2) return null;
+  const W = 72, H = 24, pad = 2;
+  const max = Math.max(...pts), min = Math.min(...pts), range = max - min || 1;
+  const step = (W - pad * 2) / (pts.length - 1);
+  const d = pts.map((v, i) => (i ? "L" : "M") + (pad + i * step).toFixed(1) + "," + (H - pad - ((v - min) / range) * (H - pad * 2)).toFixed(1)).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }} aria-hidden="true">
+      <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -333,6 +361,7 @@ function ClientProgressPage() {
   const [kit, setKit] = React.useState(null);
   const [photos, setPhotos] = React.useState(null);
   const [dash, setDash] = React.useState(null);
+  const [strength, setStrength] = React.useState(null);
   const [source, setSource] = React.useState(null); // null=loading · 'live' · 'demo'
   const [trend, setTrend] = React.useState("weight");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -341,14 +370,15 @@ function ClientProgressPage() {
     let on = true;
     const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     (async () => {
-      const [pg, ck, ph, db] = await Promise.all([
-        j("/api/client/progress"), j("/api/client/checkin-kit"), j("/api/client/progress-photos"), j("/api/client/dashboard"),
+      const [pg, ck, ph, db, st] = await Promise.all([
+        j("/api/client/progress"), j("/api/client/checkin-kit"), j("/api/client/progress-photos"), j("/api/client/dashboard"), j("/api/client/strength"),
       ]);
       if (!on) return;
       if (pg && pg.ok) setProgress(pg);
       if (ck && ck.ok) setKit(ck);
       if (ph && ph.ok) setPhotos(ph.photos || []);
       if (db && db.kpis) setDash(db);
+      if (st && st.ok) setStrength(st);
       setSource((pg && pg.ok) || (db && db.kpis) ? "live" : "demo");
     })();
     return () => { on = false; };
@@ -392,6 +422,7 @@ function ClientProgressPage() {
   // ── Below-the-fold data ──
   const series = live && progress && progress.series ? progress.series : DPR_DEMO.series;
   const prs = live ? ((progress && progress.prs) || []) : DPR_DEMO.prs;
+  const lifts = live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts;
   const activeTab = DPR_TREND_TABS.find((t) => t.k === trend) || DPR_TREND_TABS[0];
   const activeSeries = (series[activeTab.k] || []).map((s) => Number(s.value)).filter((v) => isFinite(v));
   const latestVal = activeSeries.length ? activeSeries[activeSeries.length - 1] : null;
@@ -533,13 +564,48 @@ function ClientProgressPage() {
             <span style={{ color: DPR_GREEN, fontSize: 11 }}>▲</span>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.move}</div>
-              <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>{dprDate(p.bestAt)}</div>
+              <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>{dprDate(p.bestAt)}{p.e1rm != null ? <span style={{ color: DPR_TEAL }}> · e1RM {Math.round(p.e1rm)}</span> : ""}</div>
             </div>
             <span style={{ fontFamily: serif, fontSize: 18 }}>{Math.round(p.best)} <span style={{ fontSize: 11, color: DPR_INK50 }}>{p.unit}</span></span>
             <span style={{ fontFamily: DPR_MONO, fontSize: 10.5, color: DPR_TEAL }}>{p.bestReps != null ? "× " + p.bestReps : ""}</span>
           </div>
         )) : (
           <div style={{ fontSize: 12.5, color: DPR_INK50, padding: "12px 0" }}>No logged sets yet — your heaviest lifts collect here as you train.</div>
+        )}
+      </div>
+    ) },
+
+    { key: "strength", title: "Strength · e1RM", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span className="dash-eyebrow" style={{ color: DPR_TEAL }}>Strength · estimated 1RM</span>
+          <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{lifts.length ? lifts.length + " lifts" : ""}</span>
+        </div>
+        <div className="dash-ledger" style={{ "--dac": DPR_TEAL, marginTop: 9 }} />
+        {lifts.length ? lifts.map((l, i) => {
+          const st = DPR_STR_STATUS[l.status] || DPR_STR_STATUS.building;
+          const e1 = l.currentE1rm != null ? Math.round(l.currentE1rm) : null;
+          const best = l.bestE1rm != null ? Math.round(l.bestE1rm) : null;
+          const trend = (l.series || []).map((s) => Number(s.e1rm));
+          const top = l.topSet;
+          return (
+            <div key={l.name || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{l.name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: DPR_MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: st.c, border: "1px solid " + st.c, borderRadius: 999, padding: "2px 7px" }}>{st.label}</span>
+                  {top ? <span style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.04em", textTransform: "uppercase", color: DPR_INK50 }}>top {Math.round(top.load)} {l.unit} × {top.reps}</span> : null}
+                </div>
+              </div>
+              <div style={{ width: 72, opacity: trend.filter((v) => isFinite(v)).length >= 2 ? 1 : 0 }}><DprSpark points={trend} color={st.c} /></div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: serif, fontSize: 18, lineHeight: 1 }}>{e1 != null ? e1 : "—"} <span style={{ fontSize: 10, color: DPR_INK50 }}>e1RM</span></div>
+                {best != null && e1 != null && best > e1 ? <div style={{ fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.04em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>best {best}</div> : null}
+              </div>
+            </div>
+          );
+        }) : (
+          <div style={{ fontSize: 12.5, color: DPR_INK50, padding: "12px 0" }}>Log a few sets and your per-lift estimated 1RM, trend, and progression status appear here.</div>
         )}
       </div>
     ) },
