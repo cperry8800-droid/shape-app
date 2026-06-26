@@ -118,11 +118,15 @@ export async function GET(request: Request) {
   // ---- Strength PRs from logged sets --------------------------------------
   // The in-app live-session writer stores actuals in `payload` (actualLoad /
   // actualReps), not the actual_load/actual_reps columns — read both.
+  // Newest-first cap: order DESCENDING then limit, so a high-volume client keeps
+  // their LATEST sets — a plain ascending + limit keeps the OLDEST 3000 and drops
+  // recent PRs. The PR + weekly-trajectory math below is order-independent (it takes
+  // maxes per move / per week), so no re-sort is needed. Mirrors /api/client/strength.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
     .select('move_name, actual_load, actual_reps, load_unit, payload, created_at, completed')
     .eq('client_id', user.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(3000);
 
   type PR = {

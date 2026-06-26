@@ -533,7 +533,7 @@ function ClientProgressPage() {
             <span style={{ color: DPR_GREEN, fontSize: 11 }}>▲</span>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.move}</div>
-              <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>{dprDate(p.bestAt)}</div>
+              <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>{dprDate(p.bestAt)}{p.e1rm != null ? <span style={{ color: DPR_TEAL }}> · e1RM {Math.round(p.e1rm)}</span> : ""}</div>
             </div>
             <span style={{ fontFamily: serif, fontSize: 18 }}>{Math.round(p.best)} <span style={{ fontSize: 11, color: DPR_INK50 }}>{p.unit}</span></span>
             <span style={{ fontFamily: DPR_MONO, fontSize: 10.5, color: DPR_TEAL }}>{p.bestReps != null ? "× " + p.bestReps : ""}</span>
