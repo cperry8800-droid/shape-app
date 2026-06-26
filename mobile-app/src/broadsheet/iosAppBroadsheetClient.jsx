@@ -4,6 +4,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
+import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -12689,6 +12690,7 @@ const SHAPE_SCORE_PROFILES = {
     activities: [
       { name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
       { name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
+      { name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
       { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
       { name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
       { name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
@@ -15262,6 +15264,7 @@ function BSStepsCard() {
   const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
   const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
   const hit = todayKnown && val >= TARGET;
+  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET); // today's running Shape Steps → points
   const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
   const openHistory = () => setHistory(true);
   return (
@@ -15285,6 +15288,13 @@ function BSStepsCard() {
             <div style={{ marginTop: 8, height: 5, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
               <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent, boxShadow: hit ? `0 0 8px ${accent}` : 'none' }} />
             </div>
+            {todayKnown && (
+              <div style={{ marginTop: 7, display: 'flex', alignItems: 'baseline', gap: 6, paddingTop: 7, borderTop: `1px solid ${t.HAIR}` }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>Shape Steps</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stepPts.shapeSteps}</span>
+                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: stepPts.total > 0 ? accent : t.INK50 }}>{stepPts.total > 0 ? `+${stepPts.total} pts${stepPts.bonus > 0 ? ' · goal' : ''}` : 'Walk 5k for +1'}</span>
+              </div>
+            )}
             <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
