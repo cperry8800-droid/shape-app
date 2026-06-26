@@ -17632,6 +17632,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       targetLoad: move.l,
       actualReps: actual.reps,
       actualLoad: actual.load,
+      // RPE was captured into setInputs but dropped here, so the rpe column never
+      // got a value; carry it (+ the lifter's unit) through to the set log.
+      rpe: actual.rpe,
+      unit: t.isMetric ? 'kg' : 'lb',
       startedAt: new Date(setStartedAt).toISOString(),
       finishedAt: new Date(endedAt).toISOString(),
       setDurationSeconds: duration,
