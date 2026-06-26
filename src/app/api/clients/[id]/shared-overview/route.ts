@@ -196,6 +196,36 @@ export async function GET(
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
 
+  // Objective sleep for the coach (share-gated like the other reads — the
+  // providers_read_subscriber_snapshots RLS policy lets an active coach read
+  // this client's snapshot rows directly under their own session).
+  // Newest-first then reverse to chronological: a client with >30 snapshot rows
+  // must keep their RECENT sleep (an ascending limit(30) would return the OLDEST
+  // 30 and report stale latest/avg7/trend).
+  const { data: snapRowsDesc } = await supabase
+    .from('daily_health_snapshot')
+    .select('snapshot_date, sleep_hours, sleep_efficiency_pct, resting_hr, hrv_ms')
+    .eq('user_id', clientId)
+    .order('snapshot_date', { ascending: false })
+    .limit(30);
+  const snapRows = (snapRowsDesc ?? []).slice().reverse();
+  // Filter to rows that actually carry a sleep_hours value, then source BOTH the
+  // hours and the recovery trio (efficiency/RHR/HRV) from the SAME latest sleep
+  // row — RHR/HRV are measured during that night's sleep, so they belong to the
+  // night `latest` reports, not a newer snapshot that may lack sleep.
+  const sleepRows = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null);
+  const sl = sleepRows.map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
+  const lastSleep = sleepRows[sleepRows.length - 1] as Record<string, unknown> | undefined;
+  const last7 = sl.slice(-7).map((p) => p.value);
+  const sleep = sl.length ? {
+    latest: sl[sl.length - 1].value,
+    avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
+    series7: sl.slice(-7),
+    efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
+    rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
+    hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,
+  } : null;
+
   return NextResponse.json({
     client: clientProfile
       ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
@@ -215,5 +245,6 @@ export async function GET(
     programPhases: programRow
       ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
       : null,
+    sleep,
   });
 }

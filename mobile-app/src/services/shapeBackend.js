@@ -3305,11 +3305,11 @@ window.ShapeActivities = {
 };
 
 // Daily check-in (mood) → /api/client/checkin (upserts today's snapshot).
-async function logCheckin({ mood, energy, hunger, stress, soreness } = {}) {
+async function logCheckin({ mood, energy, hunger, stress, soreness, sleepHours, sleepQuality } = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/client/checkin`, {
     method: 'POST', credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ mood, energy, hunger, stress, soreness, date: _localDate() }),
+    body: JSON.stringify({ mood, energy, hunger, stress, soreness, sleepHours, sleepQuality, date: _localDate() }),
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not save check-in.');

@@ -2596,13 +2596,20 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     if (window.ShapeClientStats?.getLifts) window.ShapeClientStats.getLifts(clientUid).then(d => setCLifts(d || null)).catch(() => {});
   }, [clientUid]);
   // Care team — the OTHER coach(es) on this shared client (trainer ↔ nutritionist).
+  // The same overview fetch also carries the client's objective sleep (coach read).
   const [careTeam, setCareTeam] = useStateBSP(null);
   const [careLoaded, setCareLoaded] = useStateBSP(false);
+  const [sleepRec, setSleepRec] = useStateBSP(null); // objective sleep + recovery
   useEffectBSP(() => {
-    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return; }
+    // Reset per client + ignore a stale response, so navigating A→B never shows
+    // client A's care team / sleep on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCareLoaded(false);
+    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
+    let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setCareLoaded(true); })
-      .catch(() => setCareLoaded(true));
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
+      .catch(() => { if (!ignore) setCareLoaded(true); });
+    return () => { ignore = true; };
   }, [clientUid]);
   // Check-in kit (coach read): latest weekly check-in, health screening, girths.
   const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [] });
@@ -2952,6 +2959,31 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   ) : null)}
                 </div>
               )}
+            </div>
+          </div>
+        );
+      })()}
+      {sleepRec && (() => {
+        const s = sleepRec;
+        const cells = [
+          ['Last night', s.latest != null ? `${Number(s.latest)}h` : '—'],
+          ['7-day avg', s.avg7 != null ? `${Number(s.avg7)}h` : '—'],
+          ['Efficiency', s.efficiency != null ? `${s.efficiency}%` : '—'],
+          ['Resting HR', s.rhr != null ? `${s.rhr}` : '—'],
+          ['HRV', s.hrv != null ? `${s.hrv}` : '—'],
+        ];
+        return (
+          <div>
+            <Section eyebrow="SLEEP" title="Sleep · recovery" />
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, background: t.PAPER2, padding: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {cells.map(([l, v]) => (
+                  <div key={l}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: v === '—' ? t.INK50 : t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         );
