@@ -166,7 +166,48 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-06-25 — e1RM (estimated 1-rep max) + strength progression engine (#1420 merged · #1421 in PR)
+### 2026-06-26 — Daily check-in + hydration (#1422) · title-font unify + full-page goal sheets (#1423) · home compaction + bigger steps numbers (#1424) · collapsible grocery aisles (#1425)
+- **Daily wellness cards (#1422).** Two home cards: **`BSDailyCheckinCard`**
+  ("How are you · today" — Energy + Hunger 1–10 tap-rows, once/day →
+  `daily_health_snapshot.energy`/`hunger` via `/api/client/checkin`, now
+  energy/hunger-aware) and **`BSHydrationCard`** ("Hydration · today" — bar toward
+  `hydration_target_l` + **+250 / +500 ml** (or +8/+16 oz) quick-add + undo) via the
+  **new `GET/POST /api/client/hydration`** (signed delta clamped ≥0). **Migration
+  `2026-06-25-daily-energy-hunger.sql`** (energy/hunger smallint, 1–10 CHECK) —
+  **APPLIED + verified live.** Review-hardened (Codex P1+P2 + 6 CodeRabbit Major):
+  checkin route now ignores null fields (was coercing `null`→1, writing a rating
+  never set); hydration `deltaL` validated (JSON number within ±2 L); snapshot
+  read-errors surfaced (no fabricated `0`); `addHydration` throws on failure +
+  invalidates only after success; both cards await the write, roll back on failure,
+  ignore stale responses, and lock taps in-flight (closes the single-user
+  lost-update window); check-in flips to "logged" only after the write; signed-out
+  preview nudges to join instead of faking "logged ✓". CodeRabbit **APPROVED**.
+- **Title font unified to Space Grotesk (#1423).** Every page/card **title** now
+  uses `t.DISPLAY` (Space Grotesk — the chat "Community" header font) instead of the
+  hardcoded `'Newsreader'` serif: the 12 client `SERIF` consts + the 7 coach
+  mastheads. **Left serif on purpose:** the **home page**, the splash/auth branding,
+  the rotated SHAPE watermark, and the official-chat italic bubble. Both **goal edit
+  sheets** (`BSOverallEditSheet` + the primary-goal picker) became **full-page**
+  title-page panels — masthead + hero title, hidden scrollbars (`.bs-hide-scroll`),
+  hidden number steppers (`.bs-no-spin`), accent focus rings (`.bs-field` +
+  `--bs-accent`), squared fields/chips, clipped Save CTA. Review fixes: raw-string
+  decimal entry (coerce on save) + a NaN guard before `onSave`.
+- **Home compaction + bigger steps numbers (#1424).** Tightened the home agenda
+  plates (Today/Meals/Workout), the Habits plate, and the check-in + hydration cards
+  (less padding/margins/row-height; title 21→19, directive 24→22) — denser, hierarchy
+  unchanged. Enlarged the steps-history ring-calendar numbers (month value 7→9.5,
+  in-ring day 8→10, 3-month avg 13→15). Review fix: the 1–10 selectors keep a slim
+  16px look but a comfortable 30px tap area (transparent button wrapping the bar).
+- **Collapsible grocery aisles (#1425).** `BSGrocery` aisles are now dropdowns —
+  multi-aisle lists start as a compact index (chevron + aisle + `done/total`), tap a
+  header to expand; single-aisle lists (recipe lists) open by default; **Expand /
+  Collapse all** + auto-expand the aisle an item lands in (typed or voice). An
+  87-item weekly plan collapses to ~5 header rows with Send-to-Instacart in view.
+  CodeRabbit **APPROVED**.
+- All four squash-merged to `main` (branches kept); each CI-green (Web · Mobile ·
+  gitleaks) + CodeRabbit-reviewed; previewed in a headless browser before shipping.
+
+### 2026-06-25 — e1RM (estimated 1-rep max) + strength progression engine (#1420 · #1421 merged)
 - **Roadmap #2.** Turns logged sets into an estimated 1-rep max (Epley `load×(1+reps/30)`)
   per lift + a **Progressing / Holding / Stalled / Building** verdict.
 - **Phase 1 — analytics engine (#1420, MERGED to `main`).**
