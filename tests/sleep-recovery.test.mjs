@@ -26,3 +26,20 @@ test('fewer than 7 points still averages what exists', () => {
   assert.equal(r.sleepHours.lastNight, 8);
   assert.equal(r.sleepHours.avg7, 7);
 });
+
+test('drops non-positive / non-finite / missing-value points (lastNight from filtered, not raw tail)', () => {
+  const r = sleepRecoveryFromProgress({ series: { sleep: [
+    { date: 'a', value: 6 }, { date: 'b', value: 0 }, { date: 'c', value: NaN },
+    { date: 'd', value: -1 }, { date: 'e' /* missing value */ }, { date: 'f', value: 8 },
+  ] } });
+  assert.equal(r.sleepHours.lastNight, 8); // last finite-positive value, junk tail ignored
+  assert.equal(r.sleepHours.avg7, 7);      // mean of [6, 8]
+});
+
+test('avg7 averages only the last 7 of a longer series', () => {
+  // 9 points; the two leading 1s must fall outside the last-7 window
+  const sleep = [1, 1, 7, 7, 7, 7, 7, 7, 7].map((v, i) => ({ date: `d${i}`, value: v }));
+  const r = sleepRecoveryFromProgress({ series: { sleep } });
+  assert.equal(r.sleepHours.lastNight, 7);
+  assert.equal(r.sleepHours.avg7, 7);
+});
