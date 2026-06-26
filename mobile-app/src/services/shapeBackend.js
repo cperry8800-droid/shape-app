@@ -3974,27 +3974,6 @@ async function addHydration(deltaL) {
   return d;
 }
 window.ShapeHydration = { get: getHydration, add: addHydration };
-// Manual sleep entry → today's daily_health_snapshot.sleep_hours (SET, not
-// accumulate), so the recovery-readiness signals + the "Log last night's sleep"
-// home directive that asked for it refresh. Mirrors logMealMacros; merges with
-// any device-synced metrics for the day rather than overwriting them.
-async function logSleep({ hours } = {}) {
-  if (!supabase || !state.user?.id) return null;
-  const h = Number(hours);
-  if (!Number.isFinite(h) || h <= 0 || h > 24) return null;
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/sleep-log`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
-      body: JSON.stringify({ hours: h, date: _localDate() }),
-    });
-    if (!res.ok) return null;
-    invalidateClientMetrics();
-    return res.json();
-  } catch (e) { return null; }
-}
-window.ShapeSleep = { log: logSleep };
 // Goal-milestone Shape points: the RPC checks the Overall goal trajectory
 // against the latest weigh-in and credits any newly reached 25/50/75/goal
 // milestone into score_ledger (idempotent — same pattern as award_tier_bonuses).
