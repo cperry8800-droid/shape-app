@@ -205,17 +205,21 @@ export async function GET(
     .eq('user_id', clientId)
     .order('snapshot_date', { ascending: true })
     .limit(30);
-  const sl = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null)
-    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
-  const last = (snapRows ?? [])[(snapRows ?? []).length - 1] as Record<string, unknown> | undefined;
+  // Filter to rows that actually carry a sleep_hours value, then source BOTH the
+  // hours and the recovery trio (efficiency/RHR/HRV) from the SAME latest sleep
+  // row — RHR/HRV are measured during that night's sleep, so they belong to the
+  // night `latest` reports, not a newer snapshot that may lack sleep.
+  const sleepRows = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null);
+  const sl = sleepRows.map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
+  const lastSleep = sleepRows[sleepRows.length - 1] as Record<string, unknown> | undefined;
   const last7 = sl.slice(-7).map((p) => p.value);
   const sleep = sl.length ? {
     latest: sl[sl.length - 1].value,
     avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
     series7: sl.slice(-7),
-    efficiency: last && last.sleep_efficiency_pct != null ? Math.round(Number(last.sleep_efficiency_pct)) : null,
-    rhr: last && last.resting_hr != null ? Math.round(Number(last.resting_hr)) : null,
-    hrv: last && last.hrv_ms != null ? Math.round(Number(last.hrv_ms)) : null,
+    efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
+    rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
+    hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,
   } : null;
 
   return NextResponse.json({
