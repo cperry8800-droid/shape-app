@@ -1,6 +1,6 @@
 // Shape — Supabase client (Phase 1: auth + profiles)
 // Expects the Supabase JS v2 client (window.supabase) already loaded, and exposes
-// it as window.shapeDb. Self-hosted same-origin (no third-party CDN / SRI needed).
+// it as window.shapeDb. Self-hosted same-origin; the pinned vendor bundle is SRI-protected.
 // All pages that need auth should include this file *after* the library script:
 //   <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 //   <script src="supabase.js"></script>
