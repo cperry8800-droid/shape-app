@@ -18146,6 +18146,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       : [{ aisle: 'Items', items: [] }];
     aisles[0] = { ...aisles[0], items: [...aisles[0].items, item] };
     onUpdate({ ...list, aisles });
+    setOpenAisles((prev) => new Set(prev).add(aisles[0].aisle));   // reveal the aisle the new item landed in
     setNewName(''); setNewQty('');
   };
   const removeItem = (ai, ii) => {
@@ -18165,6 +18166,18 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     if (next.has(k)) next.delete(k); else next.add(k);
     setChecked(next);
   };
+  // Collapsible aisles — the list can run long, so each aisle is a dropdown. A
+  // single-aisle list opens by default; multi-aisle lists start collapsed (a
+  // compact index of aisles) — tap a header to reveal its items.
+  const filledAisleNames = list.aisles.filter((a) => a.items.length).map((a) => a.aisle);
+  const [openAisles, setOpenAisles] = useStateBSC(() => new Set(filledAisleNames.length <= 1 ? filledAisleNames : []));
+  React.useEffect(() => {
+    const names = list.aisles.filter((a) => a.items.length).map((a) => a.aisle);
+    setOpenAisles(new Set(names.length <= 1 ? names : []));
+  }, [list.id || list.name]);
+  const toggleAisle = (name) => setOpenAisles((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+  const allAislesOpen = filledAisleNames.length > 0 && filledAisleNames.every((n) => openAisles.has(n));
+  const toggleAllAisles = () => setOpenAisles(allAislesOpen ? new Set() : new Set(filledAisleNames));
   const total = allKeys.length;
   const done = checked.size;
   const pct = Math.round((done / total) * 100);
@@ -18217,6 +18230,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
     items.forEach((it, n2) => { const ai = findAisle(it.n); aisles[ai].items.push({ id: `voice-${Date.now()}-${n2}`, n: it.n, q: it.q, meals: list.name, have: false }); });
     onUpdate({ ...list, aisles });
+    const _touched = new Set(items.map((it) => bsGroceryAisleFor(it.n)));   // reveal aisles the spoken items landed in
+    setOpenAisles((prev) => { const n = new Set(prev); _touched.forEach((x) => n.add(x)); return n; });
     window.__bsToast?.(`Added ${items.length} item${items.length === 1 ? '' : 's'} from voice`, 'ok');
   };
   const voiceTap = async () => {
@@ -18337,17 +18352,28 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
           </div>
         )}
 
-        {/* The checklist — every aisle inline (the list is the hero, no tab filter) */}
+        {/* Expand / collapse every aisle at once */}
+        {total > 0 && filledAisleNames.length > 1 && (
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={toggleAllAisles} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rust, padding: '4px 0' }}>{allAislesOpen ? 'Collapse all ▴' : 'Expand all ▾'}</button>
+          </div>
+        )}
+
+        {/* The checklist — each aisle is a collapsible dropdown (tap the header) */}
         {list.aisles.map((aisle, ai) => {
           if (!aisle.items.length) return null;
           const adone = aisleDoneCount(ai), afull = adone >= aisle.items.length;
+          const open = openAisles.has(aisle.aisle);
           return (
-            <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, paddingBottom: 7, borderBottom: `2px solid ${t.INK}` }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: afull ? rust : t.INK50 }}>{adone}/{aisle.items.length}</span>
-              </div>
-              {aisle.items.map((it, ii) => {
+            <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: filledAisleNames.length > 1 ? 12 : 18 }}>
+              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${aisle.aisle}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 0 7px', border: 0, borderBottom: `2px solid ${t.INK}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 9, minWidth: 0 }}>
+                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: afull ? rust : t.INK50, flexShrink: 0, width: 11 }}>{open ? '▾' : '▸'}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: afull ? rust : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
+              </button>
+              {open && aisle.items.map((it, ii) => {
                 const k = `${ai}-${ii}`; const on = checked.has(k);
                 return (
                   <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '13px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
