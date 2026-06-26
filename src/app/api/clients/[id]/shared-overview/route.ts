@@ -196,6 +196,28 @@ export async function GET(
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
 
+  // Objective sleep for the coach (share-gated like the other reads — the
+  // providers_read_subscriber_snapshots RLS policy lets an active coach read
+  // this client's snapshot rows directly under their own session).
+  const { data: snapRows } = await supabase
+    .from('daily_health_snapshot')
+    .select('snapshot_date, sleep_hours, sleep_efficiency_pct, resting_hr, hrv_ms')
+    .eq('user_id', clientId)
+    .order('snapshot_date', { ascending: true })
+    .limit(30);
+  const sl = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null)
+    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
+  const last = (snapRows ?? [])[(snapRows ?? []).length - 1] as Record<string, unknown> | undefined;
+  const last7 = sl.slice(-7).map((p) => p.value);
+  const sleep = sl.length ? {
+    latest: sl[sl.length - 1].value,
+    avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
+    series7: sl.slice(-7),
+    efficiency: last && last.sleep_efficiency_pct != null ? Math.round(Number(last.sleep_efficiency_pct)) : null,
+    rhr: last && last.resting_hr != null ? Math.round(Number(last.resting_hr)) : null,
+    hrv: last && last.hrv_ms != null ? Math.round(Number(last.hrv_ms)) : null,
+  } : null;
+
   return NextResponse.json({
     client: clientProfile
       ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
@@ -215,5 +237,6 @@ export async function GET(
     programPhases: programRow
       ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
       : null,
+    sleep,
   });
 }
