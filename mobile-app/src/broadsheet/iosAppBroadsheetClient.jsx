@@ -8817,12 +8817,16 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {isSelf && (
         <div style={{ padding: '12px 18px 0' }}>
-          <button onClick={onOpenProgress} aria-label="Open your progress" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
+          <button onClick={onOpenProgress} aria-label="Open your progress" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 10, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(INK, 0.04), padding: '13px 14px' }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Progress</div>
-              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Streak · trends · overall · training · nutrition</div>
+              <div style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>Progress<span style={{ color: c }}>.</span></div>
+              <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {['Streak', 'Trends', 'Overall', 'Training', 'Nutrition'].map((x) => (
+                  <span key={x} style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 3, padding: '2px 6px' }}>{x}</span>
+                ))}
+              </div>
             </div>
-            <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
+            <span aria-hidden style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.16)}`, display: 'grid', placeItems: 'center', color: c, fontSize: 16, fontWeight: 700, flexShrink: 0 }}>›</span>
           </button>
         </div>
       )}
@@ -14774,7 +14778,7 @@ function BSStepsHistory({ onClose }) {
         </div>
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Your Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
         </div>
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 44px' }}>
@@ -14788,7 +14792,7 @@ function BSStepsHistory({ onClose }) {
                 size: 168, sw: 9, frac: todayHas ? todayV / TARGET : 0, hit: todayHas && todayV >= TARGET, ticks: true, live: true,
                 center: (
                   <>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Steps · Today</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Shape Steps · Today</div>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, letterSpacing: '-0.035em', color: t.INK, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{todayHas ? todayV.toLocaleString() : '—'}</div>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: todayHas && todayV >= TARGET ? accent : t.INK50, fontWeight: 700 }}>{todayHas ? `${Math.round((todayV / TARGET) * 100)}% · goal ${TARGET.toLocaleString()}` : `No steps yet today · goal ${TARGET.toLocaleString()}`}</div>
                   </>
@@ -15228,6 +15232,7 @@ function BSHydrationCard() {
 function BSStepsCard() {
   const t = useBS();
   const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const BSPlate = window.BSPlate;
   const TARGET = useBSStepGoal();
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [steps, setSteps] = useStateBSC(null);
@@ -15253,29 +15258,37 @@ function BSStepsCard() {
   const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
   const hit = todayKnown && val >= TARGET;
   const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
+  const openHistory = () => setHistory(true);
   return (
-    <div style={{ margin: '0 18px 10px', boxSizing: 'border-box', border: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderRadius: 6, padding: '10px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Steps · Today</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Goal {TARGET.toLocaleString()}</span>
-      </div>
-      {hasData ? (
-        <div onClick={() => setHistory(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHistory(true); } }} role="button" tabIndex={0} aria-label="Open steps history" style={{ cursor: 'pointer' }}>
-          <div style={{ marginTop: 3, display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{todayKnown ? val.toLocaleString() : '—'}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>steps</span>
-          </div>
-          <div style={{ marginTop: 7, height: 4, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
-            <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent }} />
-          </div>
-          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
-          </div>
+    <div style={{ margin: '0 18px 10px', boxSizing: 'border-box' }}>
+      <BSPlate
+        c={accent} notch={12} spine={3} tick={hasData && todayKnown} bracket pad="12px 14px 12px 17px"
+        onClick={hasData ? openHistory : undefined}
+        onKeyDown={hasData ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } } : undefined}
+        tabIndex={hasData ? 0 : undefined} role={hasData ? 'button' : undefined} ariaLabel="Open steps history"
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Shape Steps · Today</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Goal {TARGET.toLocaleString()}</span>
         </div>
-      ) : (
-        <button onClick={openDevices} style={{ marginTop: 4, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.05em', color: accent, fontWeight: 700 }}>Connect a watch to track steps →</button>
-      )}
+        {hasData ? (
+          <>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{todayKnown ? val.toLocaleString() : '—'}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>steps</span>
+            </div>
+            <div style={{ marginTop: 8, height: 5, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
+              <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent, boxShadow: hit ? `0 0 8px ${accent}` : 'none' }} />
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
+            </div>
+          </>
+        ) : (
+          <button onClick={openDevices} style={{ marginTop: 5, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.05em', color: accent, fontWeight: 700 }}>Connect a watch to track steps →</button>
+        )}
+      </BSPlate>
       {history && <BSStepsHistory onClose={() => setHistory(false)} />}
     </div>
   );

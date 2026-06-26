@@ -53,6 +53,9 @@
         var ex = document.querySelector('script[data-ssdb="' + src + '"]');
         if (ex) { ex.addEventListener('load', function () { res(); }); ex.addEventListener('error', rej); return; }
         var s = document.createElement('script'); s.src = src; s.async = true; s.setAttribute('data-ssdb', src);
+        // SRI on the pinned, immutable supabase-js vendor bundle (matches the static
+        // <script integrity> tags); /supabase.js is our own mutable same-origin wrapper.
+        if (src.indexOf('/vendor/supabase-js-') === 0) { s.integrity = 'sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p'; s.crossOrigin = 'anonymous'; }
         s.onload = function () { res(); }; s.onerror = rej; document.head.appendChild(s);
       });
     }
