@@ -8,7 +8,7 @@
 // ShapeGoalsApi / ShapeProgress / …) and exposes `window.ShapeSignals` for the
 // UI to consume in Phase 2. Nothing renders yet — this is the foundation.
 import '../../../public/newdesign/dashSignals.js'; // → window.DashSignals
-import { recordFromCoachData, recordFromSelfData } from './signalsMap.mjs';
+import { recordFromCoachData, recordFromSelfData, sleepRecoveryFromProgress } from './signalsMap.mjs';
 
 const engine = () => (typeof window !== 'undefined' && window.DashSignals) || null;
 const deps = () => { const e = engine(); return { goalsFromDoc: e && e.goalsFromDoc }; };
@@ -46,13 +46,14 @@ async function selfRecord() {
   const SP = (typeof window !== 'undefined' && window.ShapeProgress) || null;
   const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
   const name = (typeof window !== 'undefined' && typeof window.bsMyName === 'function') ? window.bsMyName() : 'You';
-  const [nutrition, train, weighIns, goalsDoc, checkins, prog] = await Promise.all([
+  const [nutrition, train, weighIns, goalsDoc, checkins, prog, progress] = await Promise.all([
     SP && SP.nutrition ? SP.nutrition().catch(() => null) : null,
     SP && SP.train ? SP.train().catch(() => null) : null,
     window.ShapeWeighIns && window.ShapeWeighIns.list ? window.ShapeWeighIns.list().catch(() => null) : null,
     window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals('client_goals').catch(() => null) : null,
     window.ShapeCheckins && window.ShapeCheckins.list ? window.ShapeCheckins.list().catch(() => null) : null,
     window.ShapeProgramApi && window.ShapeProgramApi.get ? window.ShapeProgramApi.get().catch(() => null) : null,
+    SP && SP.progress ? SP.progress().catch(() => null) : null,
   ]);
   // Fold train's streak into the nutrition object the mapper reads.
   const nut = Object.assign({}, nutrition || {});
@@ -62,7 +63,11 @@ async function selfRecord() {
   // it WINS in buildDirective. Signed-out preview seeds the demo sleep lever.
   const signedIn = !!uid;
   const coachDirective = signedIn ? ((prog && prog.detail && prog.detail.directive) || null) : DEMO_SLEEP_DIRECTIVE;
-  const recovery = signedIn ? null : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } };
+  // Real sleep drives the engine's recovery lever for signed-in members
+  // (signed-out keeps the demo seed so the preview still shows the lever).
+  const recovery = signedIn
+    ? sleepRecoveryFromProgress(progress)
+    : { sleepHours: { avg7: 6.2, lastNight: null, target: 7.5 } };
   return recordFromSelfData({ uid, name, nutrition: nut, weighIns: Array.isArray(weighIns) ? weighIns : (weighIns && weighIns.weighIns) || null, goalsDoc, checkins, recovery, coachDirective }, deps());
 }
 

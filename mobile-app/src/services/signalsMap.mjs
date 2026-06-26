@@ -110,6 +110,19 @@ export function recordFromSelfData(raw = {}, deps = {}) {
   return rec;
 }
 
+// Build the engine's recovery.sleepHours from the progress rollup's sleep series
+// (the same `series.sleep` the progress route returns). null when there is no
+// real sleep data — never fabricated. Target is the engine default (7.5h).
+export function sleepRecoveryFromProgress(progress) {
+  const pts = (progress && progress.series && Array.isArray(progress.series.sleep)) ? progress.series.sleep : [];
+  const vals = pts.map((p) => Number(p && p.value)).filter((v) => Number.isFinite(v) && v > 0);
+  if (!vals.length) return null;
+  const lastNight = vals[vals.length - 1];
+  const last7 = vals.slice(-7);
+  const avg7 = last7.reduce((a, b) => a + b, 0) / last7.length;
+  return { sleepHours: { avg7, lastNight, target: 7.5 } };
+}
+
 // ── shared helpers ──────────────────────────────────────────────────────────
 function applyGoals(rec, goalsDoc, deps) {
   if (!goalsDoc) return;
