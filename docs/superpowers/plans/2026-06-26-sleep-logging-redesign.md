@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Branch:** all work on `feat/sleep-logging-redesign` (already created off `origin/main`).
-- **Stale-base rule:** before ANY edit run `git fetch origin main && git rev-parse --short HEAD origin/main`; if drifted, `git reset --hard origin/main` first.
+- **Branch safety:** all work stays on `feat/sleep-logging-redesign`, already rebased on the latest `origin/main` (includes #1429). Do NOT switch branches, fetch, or `git reset` — the branch carries its own committed spec, plan, and prior-task commits that a reset to `main` would destroy. Just edit and commit on the current HEAD.
 - **One migration only:** `daily_health_snapshot.sleep_quality smallint` with a `1..10` CHECK. Owner runs it; everything must no-op gracefully until applied (the routes already `select('*')`, which is PostgREST-migration-safe).
 - **Tier 1 scope.** OUT OF SCOPE (do NOT build): sleep stages (deep/REM/light), bed/wake times, latency, respiratory rate; a canonical recovery-readiness score; a coach sleep-triage rule. These are a documented fast-follow.
 - **Theme tokens only** on mobile (`const t = useBS()`; `t.INK/PAPER/RULE/HAIR/MONO/DISPLAY/INK50/INK70/BLUE/ACCENT`). No hardcoded ink/paper.
