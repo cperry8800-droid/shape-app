@@ -436,6 +436,7 @@ async function getCurrentSession() {
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
   if (user) { try { window.ShapeMomentum?.check?.().catch(() => {}); } catch (e) {} } // grant any earned weekly momentum bonus (idempotent; no-op pre-migration)
+  if (user) { try { window.ShapeStepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit Shape Steps points for completed days (idempotent; no-op pre-migration)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);
@@ -4053,6 +4054,21 @@ async function awardMomentumBonus() {
   } catch (e) { return null; }
 }
 window.ShapeMomentum = { check: awardMomentumBonus };
+
+// Shape Steps points: the RPC credits +1 per 5,000 steps (capped at +4/day) plus a
+// +3 goal-hit bonus, once per COMPLETED day, from the device-synced step count
+// (idempotent — same pattern as award_my_goal_milestones). Returns [{ day, points }]
+// for the days credited by THIS call, or [] on no-op / pre-migration.
+async function awardStepPoints() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase.rpc('award_step_points');
+    if (error || !Array.isArray(data) || !data.length) return [];
+    invalidateClientMetrics();
+    return data;
+  } catch (e) { return []; }
+}
+window.ShapeStepPoints = { check: awardStepPoints };
 
 // Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
 // sees their own row); writes through set/accept RPCs. All no-op pre-migration.
