@@ -14835,6 +14835,13 @@ function BSStepsHistory({ onClose }) {
   return portal ? createPortal(overlay, portal) : overlay;
 }
 
+// Sleep duration → "Xh Ym", rounding total minutes ONCE so e.g. 7.9917h reads
+// "8h 0m" rather than "7h 60m".
+function bsSleepHM(h) {
+  const total = Math.round(Number(h) * 60);
+  return `${Math.floor(total / 60)}h ${total % 60}m`;
+}
+
 // Daily energy/hunger check-in card — two 1-10 tap-rows; logs via
 // window.ShapeCheckin.log({ energy, hunger }). Reads today's values from
 // window.ShapeProgress.progress() series.energy / series.hunger.
@@ -14848,6 +14855,7 @@ function BSDailyCheckinCard() {
   const [sleepHours, setSleepHours] = useStateBSC(null);   // today's logged/synced hours (number)
   const [rested, setRested] = useStateBSC(null);           // today's 1-10 rested rating
   const [sleepMeta, setSleepMeta] = useStateBSC(null);     // { efficiency, rhr, hrv } from a wearable, when present
+  const [sleepSynced, setSleepSynced] = useStateBSC(false); // true only when hours came from a device sync (read-only), not a manual pick
   const [logged, setLogged] = useStateBSC(false);
   const [editing, setEditing] = useStateBSC(false);
   React.useEffect(() => {
@@ -14865,7 +14873,7 @@ function BSDailyCheckinCard() {
       // Sleep — device-first hours + the 1-10 rested rating, today's points.
       const sToday = (p.series.sleep || []).find((s) => s.date === todayIso);
       const qToday = (p.series.sleepQuality || []).find((s) => s.date === todayIso);
-      if (sToday) setSleepHours(Number(sToday.value));
+      if (sToday) { setSleepHours(Number(sToday.value)); setSleepSynced(true); }
       if (qToday) setRested(Math.round(Number(qToday.value)));
       // efficiency/RHR/HRV are "latest" KPIs — only show them as a today readout when sleep synced today.
       if (sToday && p.kpis) setSleepMeta({ efficiency: p.kpis.sleepEfficiency ?? null, rhr: p.kpis.restingHr ?? null, hrv: p.kpis.hrvLatest ?? null });
@@ -14918,22 +14926,23 @@ function BSDailyCheckinCard() {
           <div style={{ marginTop: 7, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
-              {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{Math.floor(sleepHours)}h {Math.round((sleepHours % 1) * 60)}m</span>}
+              {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
             </div>
-            {sleepHours != null ? (
-              // synced or already-logged → read-only recovery snapshot
+            {sleepSynced ? (
+              // device-synced → read-only recovery snapshot (hours shown above)
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
-                {sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null}
-                {sleepMeta && sleepMeta.rhr != null ? `${sleepMeta.efficiency != null ? ' · ' : ''}RHR ${sleepMeta.rhr}` : null}
-                {sleepMeta && sleepMeta.hrv != null ? ` · HRV ${sleepMeta.hrv}` : null}
-                {(!sleepMeta || (sleepMeta.efficiency == null && sleepMeta.rhr == null && sleepMeta.hrv == null)) ? 'Logged' : null}
+                {[
+                  sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null,
+                  sleepMeta && sleepMeta.rhr != null ? `RHR ${sleepMeta.rhr}` : null,
+                  sleepMeta && sleepMeta.hrv != null ? `HRV ${sleepMeta.hrv}` : null,
+                ].filter(Boolean).join(' · ') || 'Synced from your device'}
               </div>
             ) : (
-              // nothing synced → manual hours: chips
+              // not synced → manual hours chips: stay visible, selectable, tap-again to clear
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => (
-                  <button key={h} onClick={() => setSleepHours(h)} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
-                ))}
+                {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
+                  <button key={h} onClick={() => setSleepHours(sel ? null : h)} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                ); })}
               </div>
             )}
             <div style={{ marginTop: 8 }}>
@@ -14943,7 +14952,7 @@ function BSDailyCheckinCard() {
           <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: '100%', borderRadius: 5, border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: '#04201d', cursor: saving ? 'default' : 'pointer', padding: '9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saving ? 'Saving…' : 'Log today'}</button>
         </>
       ) : (
-        <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{Math.floor(sleepHours)}h {Math.round((sleepHours % 1) * 60)}m</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
       )}
     </div>
   );
