@@ -14778,7 +14778,7 @@ function BSStepsHistory({ onClose }) {
         </div>
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Your Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
         </div>
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 44px' }}>
