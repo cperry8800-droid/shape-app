@@ -14906,7 +14906,8 @@ function BSDailyCheckinCard() {
   const [saving, setSaving] = useStateBSC(false);
   const doLog = async () => {
     if (energy == null && hunger == null || saving) return;
-    if (!signedIn) { setLogged(true); setEditing(false); return; }   // preview/demo — local only, no write
+    // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
+    if (!signedIn) { window.__bsToast?.('Join Shape to save your check-in', 'ok'); return; }
     setSaving(true);
     try {
       await window.ShapeCheckin?.log?.({ energy, hunger });
