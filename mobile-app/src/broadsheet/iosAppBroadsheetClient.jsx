@@ -168,10 +168,12 @@ function useBSPresence() {
   return v;
 }
 
+const BS_HEADER_AVATAR = 34; // canonical top-header avatar (+ paired search/pencil/gear) size
+
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
 // in without prop-threading. Always sits to the LEFT of the profile avatar.
-function BSSearchCorner({ size = 34, ink = null }) {
+function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null }) {
   const t = useBS();
   // `ink` matches the profile mastheads' pencil/gear chrome (tinted fill +
   // 0.3-alpha border + 14px glyph) so the corner buttons read as one set.
@@ -197,7 +199,7 @@ function useBSIdentityTick() {
     return () => window.removeEventListener('shape:identity', f);
   }, []);
 }
-function BSHeaderTools({ onProfile, size = 34 }) {
+function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -210,7 +212,7 @@ function BSHeaderTools({ onProfile, size = 34 }) {
 // Top-right tools for sub-pages — search + the profile avatar (taps through to
 // Settings/profile via a window event, handled in BSClientAppInner), so a page
 // needn't thread props. Drop it into a page's back-button row, right-aligned.
-function BSMeCorner({ size = 30 }) {
+function BSMeCorner({ size = BS_HEADER_AVATAR }) {
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1156,7 +1158,7 @@ function BSLibraryDetail({ item, onBack }) {
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <BSBackButton onClick={onBack} label="Library" />
-        <BSMeCorner size={28} />
+        <BSMeCorner />
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1205,7 +1207,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <BSBackButton onClick={onBack} />
-          <BSMeCorner size={28} />
+          <BSMeCorner />
         </div>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
         <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
@@ -3791,7 +3793,7 @@ function BSMealPreview({ meal, onBack, onLog }) {
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <BSBackButton onClick={onBack} />
-        <BSMeCorner size={28} />
+        <BSMeCorner />
       </div>
 
       {/* Hero photo — clipped instrument plate (falls back to a halftone if the image fails) */}
@@ -8652,11 +8654,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <BSSearchCorner size={30} ink={INK} />
-              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
               </button>
             </div>
@@ -8668,13 +8670,13 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           <BSBackButton onClick={onBack} />
           {isSelf
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <BSSearchCorner size={30} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
               </div>
-            : <BSMeCorner size={30} />}
+            : <BSMeCorner />}
         </div>
       )}
       {/* Identity heading — tier/streak + name + handle·goal + follows, above the
@@ -9325,11 +9327,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                 <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <BSSearchCorner size={30} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
                 </button>
               </div>
@@ -9342,13 +9344,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
               ? <>
-                  <BSSearchCorner size={30} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </>
-              : <BSMeCorner size={30} />}
+              : <BSMeCorner />}
           </div>
         </div>
         )}
@@ -10190,7 +10192,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>Vol. 1 · No. 1</div>
           </div>
-          <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} size={30} />
+          <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
@@ -11569,7 +11571,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <BSHeaderTools onProfile={onProfile} size={32} />
+          <BSHeaderTools onProfile={onProfile} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
@@ -14809,7 +14811,7 @@ function BSStepsHistory({ onClose }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <BSMeCorner size={28} />
+          <BSMeCorner />
         </div>
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
@@ -15342,7 +15344,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headInfo.eyebrow}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
-            <BSMeCorner size={26} />
+            <BSMeCorner />
           </div>
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
@@ -17256,7 +17258,7 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
         <BSBackButton onClick={onBack} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
-          {!noCorner && <BSMeCorner size={28} />}
+          {!noCorner && <BSMeCorner />}
         </div>
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
@@ -20757,7 +20759,7 @@ function BSAboutPage({ onBack }) {
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>About · Shape</span>
-          <BSMeCorner size={30} />
+          <BSMeCorner />
         </div>
       </div>
 
@@ -21340,3 +21342,4 @@ function BSHelpPage({ onBack, onContact }) {
 }
 
 Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}
