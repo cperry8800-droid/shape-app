@@ -25,10 +25,13 @@ update public.workout_set_logs s set
     nullif(substring(coalesce(s.payload->>'actualReps', s.payload->>'reps', '')
                      from '([0-9]+)'), '')
   )::integer,
-  rpe = least(10, greatest(0, (
-    nullif(substring(coalesce(s.payload->>'rpe', '')
-                     from '([0-9]+(?:\.[0-9]+)?)'), '')
-  )::numeric(3,1))),
+  -- A CASE (not greatest/least over the parsed value): greatest(0, NULL) returns 0
+  -- in Postgres, which would FABRICATE rpe=0 for every row with no parseable RPE
+  -- (and historical payloads carry no rpe at all). Keep NULL when unparseable.
+  rpe = case
+    when nullif(substring(coalesce(s.payload->>'rpe', '') from '([0-9]+(?:\.[0-9]+)?)'), '') is null then null
+    else least(10, greatest(0, (substring(coalesce(s.payload->>'rpe', '') from '([0-9]+(?:\.[0-9]+)?)'))::numeric(3,1)))
+  end,
   load_unit = case
     when lower(coalesce(s.payload->>'unit', s.payload->>'loadUnit', '')) like '%kg%' then 'kg'
     when lower(coalesce(s.payload->>'actualLoad', s.payload->>'targetLoad', '')) like '%kg%' then 'kg'

@@ -26,8 +26,9 @@ export async function POST(request: Request) {
 
   const supabase = await clientForRequest(request);
   const since = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
-  // select('*') for migration-safety (the route never names a column that might
-  // not exist yet); we only read sleep_hours here.
+  // Explicit column list is safe here: user_id / snapshot_date / sleep_hours all
+  // predate the 2026-06-26 sleep-detail migration (which only ADDS the sleep_*_min /
+  // latency / respiratory / start / end columns), so PostgREST won't 400 pre-migration.
   const { data } = await supabase
     .from('daily_health_snapshot')
     .select('user_id, snapshot_date, sleep_hours')
