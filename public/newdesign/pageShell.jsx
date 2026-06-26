@@ -149,6 +149,9 @@ function ssEnsureDb() {
     const existing = document.querySelector('script[data-ssdb="' + src + '"]');
     if (existing) { existing.addEventListener("load", () => res()); existing.addEventListener("error", rej); return; }
     const s = document.createElement("script"); s.src = src; s.async = true; s.setAttribute("data-ssdb", src);
+    // SRI on the pinned, immutable supabase-js vendor bundle (matches the static
+    // <script integrity> tags); /supabase.js is our own mutable same-origin wrapper.
+    if (src.indexOf("/vendor/supabase-js-") === 0) { s.integrity = "sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p"; s.crossOrigin = "anonymous"; }
     s.onload = () => res(); s.onerror = rej; document.head.appendChild(s);
   });
   _ssDbPromise = (window.supabase && window.supabase.createClient ? Promise.resolve() : load("/vendor/supabase-js-2.108.2.umd.js"))
