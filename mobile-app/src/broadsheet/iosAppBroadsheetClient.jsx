@@ -241,6 +241,13 @@ function bsMarkTourSeen() {
   try { window.shapeDb?.saveUserGoals?.('client_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
 }
 
+// One-time "How Shape Score works" intro — own seen-flag (separate user_goals kind
+// so it never clobbers client_onboarding.tourSeen).
+function bsMarkScoreIntroSeen() {
+  try { localStorage.setItem('shape.scoreIntroSeen', '1'); } catch (e) {}
+  try { window.shapeDb?.saveUserGoals?.('client_score_intro', { seen: true, at: new Date().toISOString() }); } catch (e) {}
+}
+
 function BSOnboardingTour({ onClose, onNavigate }) {
   const t = useBS();
   React.useEffect(() => {
@@ -264,6 +271,75 @@ function BSOnboardingTour({ onClose, onNavigate }) {
   return null;
 }
 
+// First-launch "How Shape Score works" explainer — a one-time full-screen panel
+// shown as soon as a new account opens the app (before the app tour). Explains the
+// one-number idea, the tier ladder, the main ways to earn, that consistency
+// compounds, that points are spendable, and (gently) that lapsing dips the number.
+function BSScoreIntro({ onClose, onOpenScore }) {
+  const t = useBS();
+  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const rust = t.RUST || '#c0533b';
+  _bsScrollTopOnMount();
+  const tierColor = (n) => (typeof bsTierColor === 'function' ? bsTierColor(n) : accent);
+  const dismiss = () => { bsMarkScoreIntroSeen(); onClose && onClose(); };
+  const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent };
+  const sec = (label, color) => (
+    <div style={{ marginTop: 18, marginBottom: 8 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: color || t.INK70 }}>{label}</div>
+      <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${color || accent})` }} />
+    </div>
+  );
+  const earn = [['Weekly check-in', '+15'], ['Log a workout', '+10'], ['Daily steps', '+1 / 5k'], ['New PR · community post', '+12 · +5'], ['Goal milestone', '+50-200'], ['Momentum (hold 80+)', '+25-100']];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+        </div>
+        <button onClick={dismiss} aria-label="Skip" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>SKIP</button>
+      </div>
+      <div style={{ padding: '0 18px 28px' }}>
+        <div style={eyebrow}>Welcome · Shape Score</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', margin: '6px 0 10px', lineHeight: 1.05 }}>How your Shape <span style={{ fontStyle: 'italic', color: accent }}>Score</span> works.</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>One number for showing up. Everything you log feeds it — and it climbs as you stay consistent. Here's the gist.</div>
+
+        {sec('Climb the tiers')}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginBottom: 10 }}>Earn points to climb — and your tier <b style={{ color: t.INK }}>never goes down</b> once you reach it.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {SHAPE_SCORE_TIERS.map((tr) => (
+            <div key={tr.name} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 9, alignItems: 'center' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: tierColor(tr.name) }} />
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{tr.name}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, marginLeft: 7 }}>{tr.range}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'right' }}>{tr.perk}</span>
+            </div>
+          ))}
+        </div>
+
+        {sec('Ways to earn')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {earn.map(([k, p]) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK }}>{k}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: accent }}>{p}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 9 }}><b style={{ color: t.INK }}>Consistency compounds</b> — hold your momentum and the weekly bonus grows.</div>
+
+        {sec('Spend what you earn')}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Turn points into real rewards — session credit, gear and more — in the <b style={{ color: t.INK }}>Shape Store</b>. Spending never lowers your rank.</div>
+
+        {sec('Protect your points', rust)}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep them. Skip a committed check-in or workout and the number dips a little — a coach can always waive it, and you never drop below 0.</div>
+
+        <button onClick={dismiss} style={{ marginTop: 24, width: '100%', borderRadius: 6, border: 0, background: accent, color: '#04201d', cursor: 'pointer', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Got it</button>
+        <button onClick={() => { bsMarkScoreIntroSeen(); if (onOpenScore) onOpenScore(); if (onClose) onClose(); }} style={{ marginTop: 9, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent }}>See my score →</button>
+      </div>
+    </div>
+  );
+}
+
 function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const sheet = useBSSheet();
   const [tab, setTab] = useStateBSC(initialTab);
@@ -275,6 +351,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
   const [identityVersion, setIdentityVersion] = useStateBSC(0); // bumped on profile save → re-render avatars now
   const [showTour, setShowTour] = useStateBSC(false); // first-run app tour overlay
+  const [showScoreIntro, setShowScoreIntro] = useStateBSC(false); // first-run "how Shape Score works" explainer
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { setSettingsStart('edit-profile'); setShowSettings(true); };
@@ -377,6 +454,33 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
 
+  // First-run Shape Score explainer: auto-show ONCE for newly-created accounts that
+  // haven't seen it (its own seen-flag) — shown before the app tour so a new member
+  // understands the scoring system as soon as they're in.
+  React.useEffect(() => {
+    let alive = true;
+    let done = false;
+    try { done = localStorage.getItem('shape.scoreIntroSeen') === '1'; } catch (e) {}
+    if (done) return undefined;
+    const NEW_MS = 24 * 60 * 60 * 1000;
+    const decide = () => {
+      if (!alive || done) return;
+      const u = window.ShapeAuth?.getCachedState?.().user;
+      if (!u) return;
+      const created = u.created_at ? Date.parse(u.created_at) : NaN;
+      if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return;
+      done = true;
+      if (window.shapeDb?.getUserGoals) {
+        window.shapeDb.getUserGoals('client_score_intro')
+          .then(d => { if (!alive) return; if (d && d.seen) { try { localStorage.setItem('shape.scoreIntroSeen', '1'); } catch (e) {} } else setShowScoreIntro(true); })
+          .catch(() => { if (alive) setShowScoreIntro(true); });
+      } else { setShowScoreIntro(true); }
+    };
+    decide();
+    const tid = setTimeout(decide, 1200);
+    return () => { alive = false; clearTimeout(tid); };
+  }, []);
+
   // First-run app tour: auto-show ONLY for newly-created accounts (created in the
   // last 24h) that haven't seen it — localStorage fast-path + cloud user_goals so
   // it doesn't re-appear across devices. Replayable anytime via `shape:startTour`.
@@ -392,6 +496,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (!u) return; // signed out / not resolved yet — the tour is for new accounts
       const created = u.created_at ? Date.parse(u.created_at) : NaN;
       if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return; // existing account
+      // Let the one-time Shape Score intro go first — the tour auto-shows once the
+      // intro has been seen (a later launch), so the two never stack.
+      try { if (localStorage.getItem('shape.scoreIntroSeen') !== '1') return; } catch (e) {}
       done = true; // guard the retry below from double-firing
       if (window.shapeDb?.getUserGoals) {
         window.shapeDb.getUserGoals('client_onboarding')
@@ -510,6 +617,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       />
       <BSRadioPrompt />
       {showSearch && <BSUniversalSearch onClose={() => setShowSearch(false)} />}
+      {showScoreIntro && <BSScoreIntro onClose={() => setShowScoreIntro(false)} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
   );
