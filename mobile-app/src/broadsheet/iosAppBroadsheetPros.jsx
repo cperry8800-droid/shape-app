@@ -2601,10 +2601,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [careLoaded, setCareLoaded] = useStateBSP(false);
   const [sleepRec, setSleepRec] = useStateBSP(null); // objective sleep + recovery
   useEffectBSP(() => {
-    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return; }
+    // Reset per client + ignore a stale response, so navigating A→B never shows
+    // client A's care team / sleep on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCareLoaded(false);
+    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
+    let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
-      .catch(() => setCareLoaded(true));
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
+      .catch(() => { if (!ignore) setCareLoaded(true); });
+    return () => { ignore = true; };
   }, [clientUid]);
   // Check-in kit (coach read): latest weekly check-in, health screening, girths.
   const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [] });

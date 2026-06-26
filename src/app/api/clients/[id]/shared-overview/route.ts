@@ -199,12 +199,16 @@ export async function GET(
   // Objective sleep for the coach (share-gated like the other reads — the
   // providers_read_subscriber_snapshots RLS policy lets an active coach read
   // this client's snapshot rows directly under their own session).
-  const { data: snapRows } = await supabase
+  // Newest-first then reverse to chronological: a client with >30 snapshot rows
+  // must keep their RECENT sleep (an ascending limit(30) would return the OLDEST
+  // 30 and report stale latest/avg7/trend).
+  const { data: snapRowsDesc } = await supabase
     .from('daily_health_snapshot')
     .select('snapshot_date, sleep_hours, sleep_efficiency_pct, resting_hr, hrv_ms')
     .eq('user_id', clientId)
-    .order('snapshot_date', { ascending: true })
+    .order('snapshot_date', { ascending: false })
     .limit(30);
+  const snapRows = (snapRowsDesc ?? []).slice().reverse();
   // Filter to rows that actually carry a sleep_hours value, then source BOTH the
   // hours and the recovery trio (efficiency/RHR/HRV) from the SAME latest sleep
   // row — RHR/HRV are measured during that night's sleep, so they belong to the

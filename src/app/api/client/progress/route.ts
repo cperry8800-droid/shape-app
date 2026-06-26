@@ -238,6 +238,7 @@ export async function GET(request: Request) {
       bodyFat: bodyFatSeries,
       restingHr: restingHrSeries,
       sleep: sleepSeries,
+      sleepEfficiency: sleepEfficiencySeries,
       hrv: hrvSeries,
       volume: volumeSeries,
       protein: proteinSeries,

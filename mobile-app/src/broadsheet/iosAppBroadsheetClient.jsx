@@ -14873,10 +14873,22 @@ function BSDailyCheckinCard() {
       // Sleep — device-first hours + the 1-10 rested rating, today's points.
       const sToday = (p.series.sleep || []).find((s) => s.date === todayIso);
       const qToday = (p.series.sleepQuality || []).find((s) => s.date === todayIso);
-      if (sToday) { setSleepHours(Number(sToday.value)); setSleepSynced(true); }
+      // Device-only recovery metrics for TODAY (a manual log never writes these),
+      // read per-day from the series — their presence is the only honest signal
+      // that the hours came from a wearable vs. a manual pick the user can re-edit.
+      const effToday = (p.series.sleepEfficiency || []).find((s) => s.date === todayIso);
+      const rhrToday = (p.series.restingHr || []).find((s) => s.date === todayIso);
+      const hrvToday = (p.series.hrv || []).find((s) => s.date === todayIso);
+      const meta = { efficiency: effToday ? Math.round(Number(effToday.value)) : null, rhr: rhrToday ? Math.round(Number(rhrToday.value)) : null, hrv: hrvToday ? Math.round(Number(hrvToday.value)) : null };
+      const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+      if (sToday) {
+        setSleepHours(Number(sToday.value));
+        // Read-only "synced" ONLY when a wearable's metrics are present today —
+        // hours alone (which a manual save also writes) stay editable + unlabeled.
+        setSleepSynced(hasDeviceMeta);
+        if (hasDeviceMeta) setSleepMeta(meta);
+      }
       if (qToday) setRested(Math.round(Number(qToday.value)));
-      // efficiency/RHR/HRV are "latest" KPIs — only show them as a today readout when sleep synced today.
-      if (sToday && p.kpis) setSleepMeta({ efficiency: p.kpis.sleepEfficiency ?? null, rhr: p.kpis.restingHr ?? null, hrv: p.kpis.hrvLatest ?? null });
     }).catch(() => {});
     return () => { on = false; };
   }, [signedIn]);
