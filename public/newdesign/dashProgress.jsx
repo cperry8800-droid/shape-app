@@ -582,14 +582,14 @@ function ClientProgressPage() {
           <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{lifts.length ? lifts.length + " lifts" : ""}</span>
         </div>
         <div className="dash-ledger" style={{ "--dac": DPR_TEAL, marginTop: 9 }} />
-        {lifts.length ? lifts.slice(0, 6).map((l, i) => {
+        {lifts.length ? lifts.map((l, i) => {
           const st = DPR_STR_STATUS[l.status] || DPR_STR_STATUS.building;
           const e1 = l.currentE1rm != null ? Math.round(l.currentE1rm) : null;
           const best = l.bestE1rm != null ? Math.round(l.bestE1rm) : null;
           const trend = (l.series || []).map((s) => Number(s.e1rm));
           const top = l.topSet;
           return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+            <div key={l.name || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 500 }}>{l.name}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, flexWrap: "wrap" }}>
