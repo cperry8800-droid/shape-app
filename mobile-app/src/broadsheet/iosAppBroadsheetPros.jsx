@@ -2965,17 +2965,30 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       })()}
       {sleepRec && (() => {
         const s = sleepRec;
+        const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? accent : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
         const cells = [
           ['Last night', s.latest != null ? `${Number(s.latest)}h` : '—'],
           ['7-day avg', s.avg7 != null ? `${Number(s.avg7)}h` : '—'],
           ['Efficiency', s.efficiency != null ? `${s.efficiency}%` : '—'],
           ['Resting HR', s.rhr != null ? `${s.rhr}` : '—'],
           ['HRV', s.hrv != null ? `${s.hrv}` : '—'],
+          ['Rested', s.rested != null ? `${s.rested}/10` : '—'],
+          ['Latency', s.latency != null ? `${s.latency}m` : '—'],
+          ['Respiratory', s.respiratory != null ? `${s.respiratory}/min` : '—'],
         ];
+        const stages = s.stages;
         return (
           <div>
             <Section eyebrow="SLEEP" title="Sleep · recovery" />
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, background: t.PAPER2, padding: 14 }}>
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${s.readiness != null ? rc : accent}`, background: t.PAPER2, padding: 14 }}>
+              {s.readiness != null && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${t.RULE}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Readiness</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: rc, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.readiness}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>/100</span>
+                  {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 {cells.map(([l, v]) => (
                   <div key={l}>
@@ -2984,6 +2997,11 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   </div>
                 ))}
               </div>
+              {stages && (
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK70 }}>
+                  Stages · {[stages.deep != null ? `Deep ${stages.deep}m` : null, stages.rem != null ? `REM ${stages.rem}m` : null, stages.light != null ? `Light ${stages.light}m` : null].filter(Boolean).join(' · ') || '—'}
+                </div>
+              )}
             </div>
           </div>
         );

@@ -1981,15 +1981,44 @@ async function publishSensorWorkoutLog({ log, privacy = 'community' } = {}) {
   });
 }
 
+// Parse a possibly free-text load/reps/rpe value ("230", "230 lb", "8", a "3-5"
+// rep range) to its leading number — matching the readers' parseFloat() behavior —
+// or null when there's no number to read ("bodyweight", ""): honest, never a 0.
+function _setLogNum(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (v == null) return null;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+// Resolve the load unit: an explicit unit field wins, else sniff the load string
+// ("100 kg" → kg), else 'lb' — the column is NOT NULL default 'lb', so we never
+// write null.
+function _setLogUnit(entry) {
+  const explicit = entry.unit || entry.loadUnit || entry.load_unit;
+  if (explicit) return String(explicit).toLowerCase().includes('kg') ? 'kg' : 'lb';
+  const ls = `${entry.actualLoad ?? entry.targetLoad ?? ''}`.toLowerCase();
+  return ls.includes('kg') ? 'kg' : 'lb';
+}
+
 function normalizeWorkoutSetLog(entry = {}, fallbackIndex = 0) {
   const startedAt = entry.startedAt || entry.started_at || null;
   const finishedAt = entry.finishedAt || entry.finished_at || entry.capturedAt || null;
+  // Populate the actual_load/actual_reps/rpe/load_unit COLUMNS at write time — not
+  // just the payload jsonb — so the train-volume + strength/progress readers that
+  // read the columns directly (some without a payload fallback) see real numbers.
+  const actualLoad = _setLogNum(entry.actualLoad ?? entry.actual_load ?? entry.load);
+  const actualReps = _setLogNum(entry.actualReps ?? entry.actual_reps ?? entry.reps);
+  const rpe = _setLogNum(entry.rpe);
   return {
     move_index: Number.isFinite(Number(entry.moveIndex)) ? Number(entry.moveIndex) : fallbackIndex,
     move_name: String(entry.moveName || entry.exercise || entry.move || 'Exercise').trim(),
     set_number: Math.max(1, Number(entry.setNumber || entry.set || 1)),
     target_reps: entry.targetReps ? String(entry.targetReps) : null,
     target_load: entry.targetLoad ? String(entry.targetLoad) : null,
+    actual_reps: actualReps != null ? Math.round(actualReps) : null,
+    actual_load: actualLoad != null ? Math.round(actualLoad * 100) / 100 : null,
+    rpe: rpe != null ? Math.max(0, Math.min(10, Math.round(rpe * 10) / 10)) : null,
+    load_unit: _setLogUnit(entry),
     started_at: startedAt,
     finished_at: finishedAt,
     set_duration_seconds: Math.max(0, Number(entry.setDurationSeconds || entry.durationSeconds || 0)),
@@ -2253,10 +2282,12 @@ async function saveWorkoutSessionLog({
         setNumber: entry.setNumber,
         targetReps: entry.targetReps,
         targetLoad: entry.targetLoad,
-        // The ACTUAL lifted load/reps captured in the live session — these drive
-        // the detail page's per-set breakdown.
+        // The ACTUAL lifted load/reps/RPE captured in the live session — these
+        // drive the detail page's per-set breakdown.
         actualReps: entry.actualReps != null ? entry.actualReps : null,
         actualLoad: entry.actualLoad != null ? entry.actualLoad : null,
+        rpe: entry.rpe != null ? entry.rpe : null,
+        unit: entry.unit || null,
         startedAt: entry.startedAt,
         finishedAt: entry.finishedAt || entry.capturedAt,
         capturedAt: entry.capturedAt,
@@ -3545,6 +3576,24 @@ async function getClientLifts(userId) {
   return data || null;
 }
 window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts };
+// Batch recent-sleep for a coach's roster (one call) so the triage engine can flag
+// a client's chronic sleep deficit. RLS scopes it to this coach's clients; returns
+// { [clientId]: { sleepHours: { avg7, lastNight, target } } } (empty on any failure).
+async function getRosterSleep(ids) {
+  if (!supabase || !state.user?.id || !Array.isArray(ids) || !ids.length) return {};
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-sleep`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      body: JSON.stringify({ clientIds: ids }),
+    });
+    if (!res.ok) return {};
+    const d = await res.json();
+    return (d && d.recovery) || {};
+  } catch (e) { return {}; }
+}
+window.ShapeRosterSleep = { get: getRosterSleep };
 
 // Coach soundtracks — saved playlists shared with the website Playlists page
 // (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the
@@ -3974,27 +4023,6 @@ async function addHydration(deltaL) {
   return d;
 }
 window.ShapeHydration = { get: getHydration, add: addHydration };
-// Manual sleep entry → today's daily_health_snapshot.sleep_hours (SET, not
-// accumulate), so the recovery-readiness signals + the "Log last night's sleep"
-// home directive that asked for it refresh. Mirrors logMealMacros; merges with
-// any device-synced metrics for the day rather than overwriting them.
-async function logSleep({ hours } = {}) {
-  if (!supabase || !state.user?.id) return null;
-  const h = Number(hours);
-  if (!Number.isFinite(h) || h <= 0 || h > 24) return null;
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/sleep-log`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
-      body: JSON.stringify({ hours: h, date: _localDate() }),
-    });
-    if (!res.ok) return null;
-    invalidateClientMetrics();
-    return res.json();
-  } catch (e) { return null; }
-}
-window.ShapeSleep = { log: logSleep };
 // Goal-milestone Shape points: the RPC checks the Overall goal trajectory
 // against the latest weigh-in and credits any newly reached 25/50/75/goal
 // milestone into score_ledger (idempotent — same pattern as award_tier_bonuses).

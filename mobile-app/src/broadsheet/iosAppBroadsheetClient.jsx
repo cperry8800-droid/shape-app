@@ -14778,7 +14778,7 @@ function BSStepsHistory({ onClose }) {
         </div>
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Your Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
         </div>
       </div>
       <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 44px' }}>
@@ -14848,6 +14848,171 @@ function bsSleepHM(h) {
   return `${Math.floor(total / 60)}h ${total % 60}m`;
 }
 
+// Sleep detail / history page — the recovery-readiness ring, last night's stage
+// breakdown (deep/REM/light/awake), bed/wake window, latency + respiratory rate,
+// and the trend sparklines. Device-sourced (currently Oura); fields a wearable
+// doesn't expose render an honest "—". Opened from the check-in card.
+function BSSleepHistory({ onClose }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5');
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [p, setP] = useStateBSC(null);
+  _bsScrollTopOnMount();
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((d) => { if (on) setP(d || {}); }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  const series = (p && p.series) || {};
+  const kpis = (p && p.kpis) || {};
+  const sleepPts = Array.isArray(series.sleep) ? series.sleep : [];
+  const hasSleep = sleepPts.length > 0;
+  const lastOf = (arr) => (Array.isArray(arr) && arr.length ? Number(arr[arr.length - 1].value) : null);
+  const sleepLast = lastOf(series.sleep);
+  const rested = lastOf(series.sleepQuality);
+  const readiness = kpis.readiness != null ? Number(kpis.readiness) : null;
+  const band = kpis.readinessLabel || null;
+  const stages = kpis.sleepStages || null;
+  const eff = kpis.sleepEfficiency != null ? Number(kpis.sleepEfficiency) : null;
+  const rhr = kpis.restingHr != null ? Number(kpis.restingHr) : null;
+  const hrv = kpis.hrvLatest != null ? Number(kpis.hrvLatest) : null;
+  const latency = kpis.sleepLatencyLatest != null ? Number(kpis.sleepLatencyLatest) : null;
+  const resp = kpis.respiratoryLatest != null ? Number(kpis.respiratoryLatest) : null;
+  const fmtTime = (iso) => { if (!iso) return null; const d = new Date(iso); return isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+  const bed = fmtTime(kpis.bedTime); const wake = fmtTime(kpis.wakeTime);
+  const readinessColor = readiness == null ? t.INK50 : readiness >= 80 ? teal : readiness >= 60 ? blue : readiness >= 40 ? (t.AMBER || '#e8b14a') : (t.RUST || '#c0533b');
+
+  // Sleep-hours sparkline (last 14 nights).
+  const spark = (pts, color) => {
+    const vals = (Array.isArray(pts) ? pts : []).map((s) => Number(s.value)).filter((v) => Number.isFinite(v)).slice(-14);
+    if (vals.length < 2) return null;
+    const min = Math.min(...vals), max = Math.max(...vals), rng = max - min || 1;
+    const d = vals.map((v, i) => [(i / (vals.length - 1)) * 150, 34 - ((v - min) / rng) * 28 - 3]).map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    return <svg viewBox="0 0 150 34" width="100%" height="34" preserveAspectRatio="none" style={{ display: 'block' }}><path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  };
+
+  const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 };
+  const plate = { borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(blue, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 13, marginBottom: 12 };
+  const tile = (label, val, unit) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ ...eyebrow, fontSize: 8, color: t.INK50 }}>{label}</div>
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: val == null ? t.INK50 : t.INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{val == null ? '—' : val}{val != null && unit ? <span style={{ fontSize: 10, color: t.INK50, marginLeft: 2 }}>{unit}</span> : null}</div>
+    </div>
+  );
+  // Stage breakdown bar (deep/rem/light/awake minutes → proportional segments).
+  const STAGES = [['Deep', stages && stages.deep, '#3a4f8a'], ['REM', stages && stages.rem, blue], ['Light', stages && stages.light, bsTHexA(blue, 0.45)], ['Awake', stages && stages.awake, t.INK50]];
+  const stageTotal = STAGES.reduce((a, [, m]) => a + (Number.isFinite(Number(m)) ? Number(m) : 0), 0);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 10px' }}>
+        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK }}>← BACK</button>
+        <BSMeCorner />
+      </div>
+      <div style={{ padding: '0 18px 90px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: blue, marginBottom: 6 }}>RECOVERY · SLEEP</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: blue }}>sleep.</span></div>
+
+        {!signedIn && (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '20px 0' }}>Sign in to see your sleep & recovery detail.</div>
+        )}
+        {signedIn && !hasSleep && (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '20px 0' }}>
+            No sleep data yet. Connect a sleep tracker (Oura, Apple Health, Garmin or Whoop) and your nightly sleep, stages and recovery readiness will show here.
+            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }} style={{ display: 'block', marginTop: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Connect a device →</button>
+          </div>
+        )}
+
+        {signedIn && hasSleep && (
+          <>
+            {/* Recovery readiness hero */}
+            <div style={{ ...plate, borderLeft: `3px solid ${bsTHexA(readinessColor, 0.7)}` }}>
+              <div style={eyebrow}>Recovery readiness · today</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, color: readinessColor, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{readiness == null ? '—' : readiness}</span>
+                {readiness != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>/ 100</span>}
+                {band && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: readinessColor }}>{band}</span>}
+              </div>
+              <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                <div style={{ width: `${readiness == null ? 0 : Math.max(2, Math.min(100, readiness))}%`, height: '100%', borderRadius: 999, background: readinessColor }} />
+              </div>
+              <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>
+                {readiness == null ? 'Readiness needs a night of sleep data to score.'
+                  : readiness >= 80 ? 'Primed — your body is well recovered. A good day to push.'
+                  : readiness >= 60 ? 'Ready — recovered enough to train as planned.'
+                  : readiness >= 40 ? 'Run down — ease the intensity and prioritize tonight’s sleep.'
+                  : 'Depleted — recovery is low. Favor rest, easy movement and an early night.'}
+              </div>
+            </div>
+
+            {/* Last night */}
+            <div style={plate}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                <span style={eyebrow}>Last night</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: blue }}>{sleepLast != null ? bsSleepHM(sleepLast) : '—'}</span>
+              </div>
+              {(bed || wake) && (
+                <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, marginBottom: 10 }}>{bed || '—'} <span style={{ color: t.INK50 }}>→</span> {wake || '—'}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10 }}>
+                {tile('Rested', rested, '/10')}
+                {tile('Efficiency', eff, '%')}
+                {tile('Latency', latency, 'm')}
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                {tile('Resting HR', rhr, '')}
+                {tile('HRV', hrv, 'ms')}
+                {tile('Respiratory', resp, '/min')}
+              </div>
+            </div>
+
+            {/* Stage breakdown */}
+            <div style={plate}>
+              <div style={eyebrow}>Sleep stages · last night</div>
+              {stageTotal > 0 ? (
+                <>
+                  <div style={{ display: 'flex', height: 12, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: t.HAIR }}>
+                    {STAGES.map(([lab, m, col]) => { const mn = Number.isFinite(Number(m)) ? Number(m) : 0; return mn > 0 ? <div key={lab} title={`${lab} ${mn}m`} style={{ width: `${(mn / stageTotal) * 100}%`, background: col }} /> : null; })}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
+                    {STAGES.map(([lab, m, col]) => (
+                      <div key={lab} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: col }} />
+                        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK70 }}>{lab}</span>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 700, color: m == null ? t.INK50 : t.INK }}>{m == null ? '—' : `${m}m`}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.45, marginTop: 8 }}>Sleep stages need a wearable that tracks them (e.g. Oura). Your hours + rest are shown above.</div>
+              )}
+            </div>
+
+            {/* Trends */}
+            <div style={plate}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <span style={eyebrow}>Sleep · last 14 nights</span>
+                {kpis.sleepAvg != null && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>avg {kpis.sleepAvg}h</span>}
+              </div>
+              {spark(series.sleep, blue) || <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>Not enough nights yet.</div>}
+              {Array.isArray(series.recovery) && series.recovery.length >= 2 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ ...eyebrow, marginBottom: 6 }}>Device recovery score</div>
+                  {spark(series.recovery, readinessColor)}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Daily energy/hunger check-in card — two 1-10 tap-rows; logs via
 // window.ShapeCheckin.log({ energy, hunger }). Reads today's values from
 // window.ShapeProgress.progress() series.energy / series.hunger.
@@ -14864,6 +15029,9 @@ function BSDailyCheckinCard() {
   const [sleepSynced, setSleepSynced] = useStateBSC(false); // true only when hours came from a device sync (read-only), not a manual pick
   const [logged, setLogged] = useStateBSC(false);
   const [editing, setEditing] = useStateBSC(false);
+  const [readiness, setReadiness] = useStateBSC(null);       // 0-100 recovery readiness (kpis.readiness)
+  const [readinessLabel, setReadinessLabel] = useStateBSC(null);
+  const [detail, setDetail] = useStateBSC(false);            // sleep history overlay open
   React.useEffect(() => {
     if (!signedIn || !window.ShapeProgress?.progress) return undefined;
     let on = true;
@@ -14871,6 +15039,7 @@ function BSDailyCheckinCard() {
     const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     window.ShapeProgress.progress().then((p) => {
       if (!on || !p || !p.series) return;
+      if (p.kpis) { if (p.kpis.readiness != null) setReadiness(Number(p.kpis.readiness)); if (p.kpis.readinessLabel) setReadinessLabel(p.kpis.readinessLabel); }
       const e = (p.series.energy || []).find((s) => s.date === todayIso);
       const h = (p.series.hunger || []).find((s) => s.date === todayIso);
       if (e) setEnergy(Math.round(Number(e.value)));
@@ -14972,6 +15141,16 @@ function BSDailyCheckinCard() {
       ) : (
         <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
       )}
+      {/* Recovery readiness + entry to the full sleep detail page. */}
+      {signedIn && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
+            {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
+          </span>
+          <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
+        </div>
+      )}
+      {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
     </div>
   );
 }
@@ -17645,6 +17824,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       targetLoad: move.l,
       actualReps: actual.reps,
       actualLoad: actual.load,
+      // RPE was captured into setInputs but dropped here, so the rpe column never
+      // got a value; carry it (+ the lifter's unit) through to the set log.
+      rpe: actual.rpe,
+      unit: t.isMetric ? 'kg' : 'lb',
       startedAt: new Date(setStartedAt).toISOString(),
       finishedAt: new Date(endedAt).toISOString(),
       setDurationSeconds: duration,

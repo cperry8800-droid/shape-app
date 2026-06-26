@@ -57,6 +57,7 @@
     LEDGER_OVER_PCT: 10,      // avg kcal ≥ target+10% = ledger blown (nutritionist feed)
     PROTEIN_UNDER_PCT: 15,    // avg protein ≤ target−15% = under target (nutritionist feed)
     GOAL_SLIP_DAYS: 7,        // projected goal date moving ≥ this many days later wk/wk flags
+    SLEEP_DEFICIT_H: 1.5,     // 7-day avg sleep MORE than this under target = severe deficit (triage flag)
     GOAL_RECENT_DAYS: 56,     // pace window — fit only the last 8 weeks of history
     GOAL_MIN_SPAN_DAYS: 7,    // need at least a week of history before projecting
     GOAL_FAR_DAYS: 365,       // past this, the ETA reads "1y+ at this pace", not a date
@@ -450,6 +451,20 @@
     return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week" };
   }
 
+  // Recovery rule: a 7-day average sleep MORE than SLEEP_DEFICIT_H hours under
+  // target (a severe chronic deficit — roughly under 6h for a 7.5h target) becomes a
+  // first-class triage flag for the coach + the member's directive. A milder shortfall
+  // is left to the gentle cross-domain "sleep is the lever" narrative (buildDirective
+  // step 3), so this only escalates the genuinely concerning case — no alert fatigue.
+  // Uses recoveryRead (needs rec.recovery); a single short night never flags.
+  function ruleSleepRecovery(c) {
+    var rr = recoveryRead(c);
+    if (!rr || rr.avg == null) return null;
+    if (rr.target - rr.avg <= THRESHOLDS.SLEEP_DEFICIT_H) return null;
+    var avgR = Math.round(rr.avg * 10) / 10;
+    return { key: "sleep_low", label: "Sleep low", reason: "Averaging " + avgR + "h sleep vs a " + rr.target + "h target — recovery is running down" };
+  }
+
   // ── Evaluation + triage ───────────────────────────────────────────────────
 
   // evaluateClient(record, now, role) -> { flags, severity }
@@ -466,6 +481,7 @@
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
     if ((f = ruleGoalSlip(c, now))) flags.push(f);
+    if ((f = ruleSleepRecovery(c))) flags.push(f);
     if (disciplineForRole(role) === "nutrition") {
       if ((f = ruleLedgerBlown(c))) flags.push(f);
       if ((f = ruleProteinUnder(c))) flags.push(f);
@@ -487,6 +503,7 @@
   // flags never escalate the viewer.
   var FLAG_DISCIPLINE = {
     streak_broken: "training",
+    sleep_low: "recovery",     // recovery → owned by the trainer (disciplineOwner)
     ledger_blown: "nutrition",
     protein_under: "nutrition",
     food_gap: "general",       // basic logging adherence — either pro nudges it
@@ -915,7 +932,7 @@
     return ({
       checkin_overdue: "checkin", streak_broken: "training", food_gap: "nutrition",
       ledger_blown: "nutrition", protein_under: "nutrition", goal_slip: "goal",
-      score_drop: "score", contact_gap: "contact",
+      score_drop: "score", contact_gap: "contact", sleep_low: "sleep",
     })[key] || null;
   }
 
@@ -925,7 +942,7 @@
   // further the longer it's been missed.
   var DIRECTIVE_PRIORITY = {
     checkin_overdue: 100, contact_gap: 80, goal_slip: 60, food_gap: 55,
-    ledger_blown: 50, protein_under: 45, streak_broken: 40, score_drop: 30,
+    ledger_blown: 50, protein_under: 45, streak_broken: 40, sleep_low: 35, score_drop: 30,
   };
   function flagPriority(f) {
     if (!f) return 0;
