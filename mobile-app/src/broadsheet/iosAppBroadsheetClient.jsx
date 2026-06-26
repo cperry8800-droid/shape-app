@@ -14911,7 +14911,8 @@ function BSDailyCheckinCard() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
         {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; const on = (val || 0) >= v; const sel = val === v;
-          return <button key={v} onClick={() => set(v)} aria-label={`${label} ${v} of 10`} style={{ height: 18, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent', cursor: 'pointer', padding: 0 }} />;
+          // Slim bar (compact look) inside a taller transparent hit area (comfortable tap target on phones).
+          return <button key={v} onClick={() => set(v)} aria-label={`${label} ${v} of 10`} style={{ height: 30, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><span aria-hidden style={{ flex: 1, height: 16, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent' }} /></button>;
         })}
       </div>
     </div>
