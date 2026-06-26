@@ -6486,7 +6486,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
 // profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
 // each person is a live link to their public profile (onOpenProfile).
 function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, ownerPhoto, onClose, onOpenProfile }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
   const [list, setList] = useStateBSC(null);
   const [avatars, setAvatars] = useStateBSC({});
   const [group, setGroup] = useStateBSC('all'); // all | coaches | members
@@ -6684,7 +6684,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
   const uid = userId || (isSelf ? ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || null) : null);
@@ -6794,7 +6794,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
 function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   return (
     <div style={{ paddingBottom: 13, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontFamily: MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
@@ -6895,7 +6895,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   const COOK = '#d8a23a';
   const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
   const showDot = activity ? true : (online === undefined ? live : online);
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   // The gem's inner window is dark on dark papers (keeps the established look) but
   // on a LIGHT paper a black gem reads as a blob and dark initials vanish — so on
@@ -7056,7 +7056,7 @@ function bsLinkHref(key, val) {
 }
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const cu = custom || {};
   c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
@@ -7540,7 +7540,7 @@ function bsProfileCardFromPost(p, ownerRole) {
 // cards · workout stats · metric) — shared by both profile feeds.
 function BSActivityBody({ it, c, INK, card }) {
   const tt = useBS();
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const TEAL = tt.isLight ? '#0a8f87' : '#34d6c5';
   return (
     <>
@@ -7561,7 +7561,7 @@ function BSActivityBody({ it, c, INK, card }) {
 // Terrain profile. Pick a type (Note / Photo / Video / Workout / Link), fill it
 // in, and it publishes to your public feed + profile via ShapeCommunity.createPost.
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
   const ed = editPost || null;
   const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : 'note';
@@ -7772,7 +7772,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 }
 
 function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
   const [bio, setBio] = useStateBSC(init.bio || '');
   const [songUrl, setSongUrl] = useStateBSC((init.song && init.song.url) || '');
@@ -8189,7 +8189,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). TEAL accent is constant.
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const BSPlate = window.BSPlate;
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
@@ -9064,7 +9064,7 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
 function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [offerTab, setOfferTab] = useStateBSC('All');
@@ -13980,27 +13980,38 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC({ ...overall });
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
-  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input type="number" value={g[k]} onChange={(e) => setG({ ...g, [k]: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>;
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
+  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[k]} onChange={(e) => setG({ ...g, [k]: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>;
   const sheet = (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Edit · Goal</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-            <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+      {/* Title-page header — masthead + hero title (matches the other pages) */}
+      <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>{num('start')}{num('now')}{num('target')}</div>
-          <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={3} style={{ ...field, resize: 'vertical', fontSize: 14, lineHeight: 1.4 }} /></label>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => onSave(g)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Edit · Goal</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></h1>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      </div>
+      {/* Scrollable form — scrollbar hidden */}
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-field" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+          <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-field" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input className="bs-field" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 11 }}>{num('start')}{num('now')}{num('target')}</div>
+        <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ ...field, resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
+      </div>
+      {/* Pinned footer — squared / clipped CTA */}
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 10, background: t.PAPER }}>
+        <button onClick={onClose} style={{ padding: '14px 22px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+        <button onClick={() => onSave(g)} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
       </div>
     </div>
   );
@@ -15245,11 +15256,24 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           always returns here). Saves to client_goals.primaryGoal and mirrors
           the profile's client_identity.goal so the edit-profile chips agree. */}
       {editPrimary && createPortal(
-        <div onClick={() => setEditPrimary(false)} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Edit · Overall goal</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your primary <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+          {/* Title-page header — masthead + hero title */}
+          <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {BSLogo && <BSLogo size={16} color={t.INK} />}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+              </div>
+              <button onClick={() => setEditPrimary(false)} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Edit · Overall goal</div>
+            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your primary <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></h1>
+            <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+          </div>
+          {/* Scrollable chip body — scrollbar hidden */}
+          <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 13 }}>Pick one · syncs with your profile</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
               {['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'].map((g) => {
                 const on = (data.primaryGoal || '') === g;
                 return (
@@ -15263,12 +15287,14 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
                     } catch (e) {}
                     setEditPrimary(false);
                     window.__bsToast?.(`Goal set · ${g}`, 'ok');
-                  }} style={{ padding: '9px 14px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+                  }} style={{ padding: '11px 15px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
                 );
               })}
             </div>
-            <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Syncs with your profile · pick to save</div>
-            <button onClick={() => setEditPrimary(false)} style={{ marginTop: 14, width: '100%', padding: '13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Close</button>
+          </div>
+          {/* Pinned footer */}
+          <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: t.PAPER }}>
+            <button onClick={() => setEditPrimary(false)} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Close</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -15290,7 +15316,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
   const t = useBS();
   // Follow the paper theme so the card reads on light papers too (was fixed cream).
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace";
   // Signed in → real points + REAL composite bars (honest '—' when a pillar is
   // too sparse to score); the demo 1284 / 88·74·62·92 is the signed-out preview only.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
@@ -15348,7 +15374,7 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const t = useBS();
   // Follow the paper theme so the goal text reads on light papers too.
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
   const [g, setG] = useStateBSC(null);
   React.useEffect(() => {
     let on = true;

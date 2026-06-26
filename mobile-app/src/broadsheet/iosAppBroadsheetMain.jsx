@@ -126,6 +126,9 @@ function ensureSkyStyles() {
   @media (prefers-reduced-motion: reduce) { .bs-sky-tw,.bs-aurora,.bs-shoot,.bs-shape-mark,.bs-mark-edge{ animation:none!important; } }
   .bs-hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
   .bs-hide-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .bs-no-spin::-webkit-inner-spin-button, .bs-no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .bs-no-spin { -moz-appearance: textfield; appearance: textfield; }
+  .bs-field:focus, .bs-field:focus-visible { border-color: var(--bs-accent, #34d6c5); box-shadow: inset 0 0 0 1px var(--bs-accent, #34d6c5); }
   `;
   const el = document.createElement('style');
   el.textContent = css;

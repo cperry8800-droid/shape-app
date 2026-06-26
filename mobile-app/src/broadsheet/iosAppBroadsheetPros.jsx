@@ -1791,7 +1791,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
         <BSBackButton onClick={onBack} />
       </div>
-      <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
   );
 }
@@ -2779,7 +2779,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
         <BSBackButton onClick={onBack} />
       </div>
-      <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {first} <span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
@@ -4763,7 +4763,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR SPOTIFY</div>
             <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
           <div style={{ marginTop: 16 }}>
             {list.length === 0 ? (
@@ -4794,7 +4794,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR APPLE MUSIC</div>
             <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
           <div style={{ marginTop: 16 }}>
             {list.length === 0 ? (
@@ -4829,7 +4829,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Import a <span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Import a <span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
           <div style={{ marginTop: 22 }}>
             {/* Pick straight from the coach's connected Spotify — no link to paste.
                 Hidden when VITE_SPOTIFY_LIBRARY_PICKER=off (pre Extended Quota). */}
@@ -4961,7 +4961,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
-        <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
         </>)}
 
@@ -5096,7 +5096,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
-              <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
+              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
