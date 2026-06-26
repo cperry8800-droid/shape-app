@@ -18,6 +18,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function clamp1to10(v: unknown): number | null {
+  // null/undefined/empty/boolean = "field absent" — the daily card submits the
+  // unset row as null, and Number(null) is 0, which would otherwise clamp to 1
+  // and write a rating the user never set. Treat all non-numeric inputs as absent.
+  if (v == null || v === '' || typeof v === 'boolean') return null;
   const n = Math.round(Number(v));
   if (!Number.isFinite(n)) return null;
   return Math.max(1, Math.min(10, n));

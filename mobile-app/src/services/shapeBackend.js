@@ -3968,8 +3968,10 @@ async function addHydration(deltaL) {
     headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
     body: JSON.stringify({ deltaL, date: _localDate() }),
   });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not log hydration.');
   invalidateClientMetrics();
-  return res.ok ? res.json() : null;
+  return d;
 }
 window.ShapeHydration = { get: getHydration, add: addHydration };
 // Manual sleep entry → today's daily_health_snapshot.sleep_hours (SET, not

@@ -14903,10 +14903,17 @@ function BSDailyCheckinCard() {
     </div>
   );
 
-  const doLog = () => {
-    if (energy == null && hunger == null) return;
-    try { window.ShapeCheckin?.log?.({ energy, hunger }); } catch (e) {}
-    setLogged(true); setEditing(false);
+  const [saving, setSaving] = useStateBSC(false);
+  const doLog = async () => {
+    if (energy == null && hunger == null || saving) return;
+    if (!signedIn) { setLogged(true); setEditing(false); return; }   // preview/demo — local only, no write
+    setSaving(true);
+    try {
+      await window.ShapeCheckin?.log?.({ energy, hunger });
+      setLogged(true); setEditing(false);   // only after the write succeeds
+    } catch (e) {
+      window.__bsToast?.('Could not save check-in — try again', 'err');
+    } finally { setSaving(false); }
   };
 
   const showForm = !logged || editing;
@@ -14920,7 +14927,7 @@ function BSDailyCheckinCard() {
         <>
           <Row label="Energy" val={energy} set={setEnergy} c={teal} />
           <Row label="Hunger" val={hunger} set={setHunger} c={amber} />
-          <button onClick={doLog} disabled={energy == null && hunger == null} style={{ marginTop: 4, width: '100%', borderRadius: 5, border: 0, background: (energy == null && hunger == null) ? t.HAIR : teal, color: '#04201d', cursor: 'pointer', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Log today</button>
+          <button onClick={doLog} disabled={(energy == null && hunger == null) || saving} style={{ marginTop: 4, width: '100%', borderRadius: 5, border: 0, background: ((energy == null && hunger == null) || saving) ? t.HAIR : teal, color: '#04201d', cursor: saving ? 'default' : 'pointer', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saving ? 'Saving…' : 'Log today'}</button>
         </>
       ) : (
         <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b> · logged ✓</div>
@@ -14938,6 +14945,8 @@ function BSHydrationCard() {
   const [val, setVal] = useStateBSC(null);   // liters today
   const [target, setTarget] = useStateBSC(3.0);
   const [lastDelta, setLastDelta] = useStateBSC(0);
+  const [busy, setBusy] = useStateBSC(false);
+  const reqSeq = React.useRef(0);
   React.useEffect(() => {
     if (!signedIn || !window.ShapeHydration?.get) return undefined;
     let on = true;
@@ -14945,13 +14954,29 @@ function BSHydrationCard() {
     return () => { on = false; };
   }, [signedIn]);
 
-  const add = (deltaL) => {
-    const cur = Number(val) || 0;
-    const next = Math.max(0, Math.round((cur + deltaL) * 1000) / 1000);
-    setVal(next); setLastDelta(deltaL);
-    try { window.ShapeHydration?.add?.(deltaL).then((d) => { if (d && d.ok) setVal(Number(d.hydrationL) || 0); }); } catch (e) {}
+  // Optimistic update + rollback on failure + stale-response guard (reqSeq) + an
+  // in-flight lock (busy) so rapid taps can't overlap. The lock also serializes
+  // the server's read-then-write per device, closing the lost-update window for a
+  // single user. Signed-out preview updates locally only (no write).
+  const add = async (deltaL) => {
+    if (busy) return;
+    const prev = Number(val) || 0;
+    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
+    setVal(optimistic); setLastDelta(deltaL);
+    if (!signedIn || !window.ShapeHydration?.add) return;   // preview/demo — local only
+    const seq = ++reqSeq.current;
+    setBusy(true);
+    try {
+      const d = await window.ShapeHydration.add(deltaL);
+      if (seq === reqSeq.current && d && d.ok) setVal(Number(d.hydrationL) || 0);   // reconcile, ignore stale
+    } catch (e) {
+      if (seq === reqSeq.current) { setVal(prev); setLastDelta(0); }                 // roll back the failed add
+      window.__bsToast?.('Could not log water — try again', 'err');
+    } finally {
+      if (seq === reqSeq.current) setBusy(false);
+    }
   };
-  const undo = () => { if (lastDelta) { add(-lastDelta); setLastDelta(0); } };
+  const undo = () => { if (lastDelta && !busy) { add(-lastDelta); setLastDelta(0); } };
 
   const cur = Number(val) || 0;
   const pct = target > 0 ? Math.min(1, cur / target) : 0;
@@ -14971,9 +14996,9 @@ function BSHydrationCard() {
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         {chips.map(([lab, d]) => (
-          <button key={lab} onClick={() => add(d)} style={{ flex: 1, borderRadius: 5, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: 'pointer', padding: '11px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
+          <button key={lab} onClick={() => add(d)} disabled={busy} style={{ flex: 1, borderRadius: 5, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1, padding: '11px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
         ))}
-        <button onClick={undo} disabled={!lastDelta} aria-label="Undo last" style={{ width: 44, borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: lastDelta ? t.INK : t.INK50, cursor: lastDelta ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+        <button onClick={undo} disabled={!lastDelta || busy} aria-label="Undo last" style={{ width: 44, borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !busy) ? t.INK : t.INK50, cursor: (lastDelta && !busy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
       </div>
     </div>
   );

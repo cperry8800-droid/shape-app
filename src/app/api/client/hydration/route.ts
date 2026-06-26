@@ -43,12 +43,13 @@ export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const today = clientLocalDay(new URL(request.url).searchParams.get('date'));
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('daily_health_snapshot')
     .select('hydration_l')
     .eq('user_id', user.id)
     .eq('snapshot_date', today)
     .maybeSingle();
+  if (error) return dbError(error, 'hydration read', 500);
   const targetL = await readTargetL(supabase, user.id);
   const hydrationL = Number((data as { hydration_l?: number } | null)?.hydration_l ?? 0) || 0;
   return NextResponse.json({ ok: true, hydrationL, targetL, date: today });
@@ -61,19 +62,25 @@ export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
-  const deltaL = Number((body as Record<string, unknown>).deltaL);
-  if (!Number.isFinite(deltaL) || deltaL === 0) {
-    return NextResponse.json({ error: 'A nonzero deltaL is required.' }, { status: 400 });
+  // Validate the delta: must be a JSON number (not a boolean/string), nonzero,
+  // and within a sane single-tap magnitude. Quick-adds are <=0.5 L and undo
+  // negates them, so ±2 L is a generous ceiling that still rejects impossible
+  // totals from a malformed client.
+  const rawDelta = (body as Record<string, unknown>).deltaL;
+  const deltaL = typeof rawDelta === 'number' ? rawDelta : NaN;
+  if (!Number.isFinite(deltaL) || deltaL === 0 || Math.abs(deltaL) > 2) {
+    return NextResponse.json({ error: 'deltaL must be a nonzero number within ±2 L.' }, { status: 400 });
   }
 
   const supabase = await clientForRequest(request);
   const today = clientLocalDay((body as Record<string, unknown>).date);
-  const { data: existing } = await supabase
+  const { data: existing, error: readErr } = await supabase
     .from('daily_health_snapshot')
     .select('id, hydration_l')
     .eq('user_id', user.id)
     .eq('snapshot_date', today)
     .maybeSingle();
+  if (readErr) return dbError(readErr, 'hydration read', 500);
 
   const cur = Number((existing as { hydration_l?: number } | null)?.hydration_l ?? 0) || 0;
   const next = Math.max(0, Math.round((cur + deltaL) * 1000) / 1000); // clamp >=0, mL precision
