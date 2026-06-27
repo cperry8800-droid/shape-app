@@ -17344,7 +17344,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const credit = store.credit || { session: 0, nutrition: 0 };
   // Merch cart — persisted so it survives leaving the Store. Only physical merch
   // bundles into one shipment; credit/service stay single-item redemptions.
-  React.useEffect(() => { try { const r = JSON.parse(localStorage.getItem('shape.storeCart') || '{}'); if (r && typeof r === 'object') setCart(r); } catch (e) {} }, []);
+  React.useEffect(() => { try { const r = JSON.parse(localStorage.getItem('shape.storeCart') || '{}'); if (r && typeof r === 'object') { const clean = {}; Object.entries(r).forEach(([id, q]) => { const p = BS_STORE_PRODUCTS.find((x) => x.id === id); const n = Math.floor(Number(q)); if (p && p.cat === 'Shape Merch' && n > 0) clean[id] = Math.min(9, n); }); setCart(clean); } } catch (e) {} }, []);
   React.useEffect(() => { try { localStorage.setItem('shape.storeCart', JSON.stringify(cart)); } catch (e) {} }, [cart]);
   const cartLines = Object.entries(cart).map(([id, qty]) => ({ p: BS_STORE_PRODUCTS.find((x) => x.id === id), qty: Number(qty) || 0 })).filter((l) => l.p && l.qty > 0);
   const cartCount = cartLines.reduce((a, l) => a + l.qty, 0);
@@ -17458,7 +17458,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
   // The cart checkout is its own full-screen view.
   if (checkoutOpen) {
-    return <BSStoreCheckout t={t} lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} onQty={setQty} onBack={() => setCheckoutOpen(false)} onPlace={placeOrder} />;
+    return <BSStoreCheckout t={t} lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} notice={notice} onQty={setQty} onBack={() => setCheckoutOpen(false)} onPlace={placeOrder} />;
   }
 
   return (
@@ -17603,8 +17603,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       <BSFooter right="Store" />
       {/* Sticky cart bar — bundles all merch into one shipment at checkout */}
       {cartCount > 0 && (
-        <div style={{ position: 'sticky', bottom: 0, zIndex: 20, padding: `10px ${t.padX}px calc(10px + env(safe-area-inset-bottom, 0px))`, background: `linear-gradient(180deg, transparent, ${t.PAPER} 28%)` }}>
-          <button onClick={() => setCheckoutOpen(true)} style={{ width: '100%', minHeight: 50, borderRadius: 14, border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', fontFamily: t.BODY, fontWeight: 700, fontSize: 14 }}>
+        <div style={{ position: 'sticky', bottom: 0, zIndex: 20, padding: `10px ${t.padX}px calc(10px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
+          <button onClick={() => { setNotice(''); setCheckoutOpen(true); }} style={{ width: '100%', minHeight: 50, borderRadius: 14, border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', fontFamily: t.BODY, fontWeight: 700, fontSize: 14 }}>
             <span>Cart · {cartCount} item{cartCount !== 1 ? 's' : ''}</span>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{cartTotal.toLocaleString()} pts · Review →</span>
           </button>
@@ -17651,10 +17651,10 @@ function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
 
 // (b) Merch cart checkout — review lines + qty, enter ONE shipping address, see
 // the points total + the balance it leaves, place the order (one shipment).
-function BSStoreCheckout({ t, lines, total, balance, busy, onQty, onBack, onPlace }) {
+function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack, onPlace }) {
   const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();
+  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
   const after = (balance || 0) - total;
   const short = after < 0;
   const canPlace = lines.length > 0 && validShip && !short && !busy;
@@ -17704,21 +17704,26 @@ function BSStoreCheckout({ t, lines, total, balance, busy, onQty, onBack, onPlac
             {/* Shipping — one address for the whole order */}
             <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 700, color: t.INK50, margin: '20px 0 4px' }}>Ship to</div>
             <span style={lbl}>Full name</span>
-            <input value={f.name} onChange={set('name')} placeholder="Full name" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+            <input value={f.name} onChange={set('name')} placeholder="Full name" aria-label="Full name" maxLength={120} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
             <span style={lbl}>Address</span>
-            <input value={f.line1} onChange={set('line1')} placeholder="Street address" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-            <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder="Apt, suite (optional)" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} /></div>
+            <input value={f.line1} onChange={set('line1')} placeholder="Street address" aria-label="Street address" maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+            <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder="Apt, suite (optional)" aria-label="Apartment or suite (optional)" maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} /></div>
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 9, marginTop: 9 }}>
-              <input value={f.city} onChange={set('city')} placeholder="City" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-              <input value={f.region} onChange={set('region')} placeholder="State" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+              <input value={f.city} onChange={set('city')} placeholder="City" aria-label="City" maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+              <input value={f.region} onChange={set('region')} placeholder="State" aria-label="State or region" maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 9 }}>
-              <input value={f.postal} onChange={set('postal')} placeholder="ZIP" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
-              <input value={f.country} onChange={set('country')} placeholder="Country" style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+              <input value={f.postal} onChange={set('postal')} placeholder="ZIP" aria-label="ZIP or postal code" maxLength={20} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+              <input value={f.country} onChange={set('country')} placeholder="Country" aria-label="Country" maxLength={60} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
             </div>
             <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>Free shipping · points only.</div>
 
-            <button onClick={() => canPlace && onPlace(f)} disabled={!canPlace} style={{ width: '100%', minHeight: 52, marginTop: 18, borderRadius: 14, border: 0, background: canPlace ? t.ACCENT : t.RULE, color: canPlace ? t.PAPER : t.INK50, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 700, cursor: canPlace ? 'pointer' : 'default' }}>
+            {/* Surface a checkout error here — the store-page notice is hidden behind this view */}
+            {!!notice && (
+              <div style={{ marginTop: 14, borderRadius: 12, border: `1px solid ${t.RUST}66`, background: `${t.RUST}14`, padding: '11px 14px', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{notice}</div>
+            )}
+
+            <button onClick={() => canPlace && onPlace(f)} disabled={!canPlace} style={{ width: '100%', minHeight: 52, marginTop: 14, borderRadius: 14, border: 0, background: canPlace ? t.ACCENT : t.RULE, color: canPlace ? t.PAPER : t.INK50, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 700, cursor: canPlace ? 'pointer' : 'default' }}>
               {busy ? 'Placing order…' : short ? 'Not enough points' : `Place order · ${total.toLocaleString()} pts`}
             </button>
           </>

@@ -270,7 +270,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   const roleCats = isCoach ? ["Shape Merch", "Coach Tools"] : ["Shape Merch", "Training", "Nutrition", "Shape Perks"];
 
   // Merch cart (one shipment) — persisted across visits.
-  useEStore(() => { try { const r = JSON.parse(localStorage.getItem("shape.storeCart") || "{}"); if (r && typeof r === "object") setCart(r); } catch (_) {} }, []);
+  useEStore(() => { try { const r = JSON.parse(localStorage.getItem("shape.storeCart") || "{}"); if (r && typeof r === "object") { const clean = {}; Object.entries(r).forEach(([id, q]) => { const p = allProducts.find((x) => x.itemId === id); const n = Math.floor(Number(q)); if (p && p.cat === "Shape Merch" && n > 0) clean[id] = Math.min(9, n); }); setCart(clean); } } catch (_) {} }, []);
   useEStore(() => { try { localStorage.setItem("shape.storeCart", JSON.stringify(cart)); } catch (_) {} }, [cart]);
   const cartLines = Object.entries(cart).map(([id, qty]) => ({ p: allProducts.find((x) => x.itemId === id), qty: Number(qty) || 0 })).filter((l) => l.p && l.qty > 0);
   const cartCount = cartLines.reduce((a, l) => a + l.qty, 0);
@@ -321,6 +321,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
         const boost = await redeemLeadBoostRemote({ role: roleHint, days: product.days });
         const duration = Number(boost?.days || product.days || 0);
         setNotice(`Lead Boost is live for ${duration} days (${roleHint}). Marketplace ranking has been updated.`);
+        if (onRedeemed) onRedeemed(); // refresh balance/affordability after the spend
       } catch (err) {
         setNotice((err && err.message) || "Lead Boost redemption failed. Please try again.");
       } finally { setBusy(""); setConfirmFor(null); }
@@ -373,7 +374,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
     else if (sort === "High to low") arr = [...arr].sort((a, b) => b.cost - a.cost);
     else if (sort === "New") arr = [...arr].sort((a, b) => (b.tag === "New" ? 1 : 0) - (a.tag === "New" ? 1 : 0));
     return arr;
-  }, [allProducts, cat, sort, query, affordable, isCoach]);
+  }, [allProducts, cat, sort, query, affordable, isCoach, balance]);
 
   return (
     <>
@@ -416,13 +417,13 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
         </div>
       </section>
       {cartCount > 0 && (
-        <button onClick={() => setCheckoutOpen(true)} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
+        <button onClick={() => { setNotice(""); setCheckoutOpen(true); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
           <span>Cart · {cartCount} item{cartCount !== 1 ? "s" : ""}</span>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{cartTotal.toLocaleString()} pts · Review →</span>
         </button>
       )}
       {confirmFor && <ConfirmModal item={confirmFor} balance={balance} busy={busy === (confirmFor.itemId || confirmFor.name)} onCancel={() => { if (!busy) setConfirmFor(null); }} onConfirm={() => confirmRedeem(confirmFor)} />}
-      {checkoutOpen && <CheckoutModal lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} onQty={setQty} onClose={() => { if (!checkoutBusy) setCheckoutOpen(false); }} onPlace={doCheckout} />}
+      {checkoutOpen && <CheckoutModal lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} notice={notice} onQty={setQty} onClose={() => { if (!checkoutBusy) setCheckoutOpen(false); }} onPlace={doCheckout} />}
     </>
   );
 }
@@ -459,10 +460,10 @@ function ConfirmModal({ item, balance, busy, onCancel, onConfirm }) {
 
 // (b) Cart checkout — review lines + qty, enter ONE shipping address, see the
 // points total + the balance it leaves, place the order (one shipment).
-function CheckoutModal({ lines, total, balance, busy, onQty, onClose, onPlace }) {
+function CheckoutModal({ lines, total, balance, busy, notice, onQty, onClose, onPlace }) {
   const [f, setF] = useSStore({ name: "", line1: "", line2: "", city: "", region: "", postal: "", country: "US" });
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();
+  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
   const after = (balance || 0) - total;
   const short = after < 0;
   const canPlace = lines.length > 0 && validShip && !short && !busy;
@@ -502,19 +503,22 @@ function CheckoutModal({ lines, total, balance, busy, onQty, onClose, onPlace })
             </div>
             <div style={{ fontFamily: sans, fontSize: 12, fontWeight: 700, color: "rgba(242,237,228,0.6)", letterSpacing: "0.08em", textTransform: "uppercase", margin: "4px 0 12px" }}>Ship to</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <input value={f.name} onChange={set("name")} placeholder="Full name" style={field} />
-              <input value={f.line1} onChange={set("line1")} placeholder="Address" style={field} />
-              <input value={f.line2} onChange={set("line2")} placeholder="Apt, suite (optional)" style={field} />
+              <input value={f.name} onChange={set("name")} placeholder="Full name" aria-label="Full name" maxLength={120} style={field} />
+              <input value={f.line1} onChange={set("line1")} placeholder="Address" aria-label="Street address" maxLength={200} style={field} />
+              <input value={f.line2} onChange={set("line2")} placeholder="Apt, suite (optional)" aria-label="Apartment or suite (optional)" maxLength={200} style={field} />
               <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
-                <input value={f.city} onChange={set("city")} placeholder="City" style={field} />
-                <input value={f.region} onChange={set("region")} placeholder="State" style={field} />
+                <input value={f.city} onChange={set("city")} placeholder="City" aria-label="City" maxLength={100} style={field} />
+                <input value={f.region} onChange={set("region")} placeholder="State" aria-label="State or region" maxLength={100} style={field} />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <input value={f.postal} onChange={set("postal")} placeholder="ZIP" style={field} />
-                <input value={f.country} onChange={set("country")} placeholder="Country" style={field} />
+                <input value={f.postal} onChange={set("postal")} placeholder="ZIP" aria-label="ZIP or postal code" maxLength={20} style={field} />
+                <input value={f.country} onChange={set("country")} placeholder="Country" aria-label="Country" maxLength={60} style={field} />
               </div>
             </div>
             <div style={{ marginTop: 8, fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.5)" }}>Free shipping · points only.</div>
+            {!!notice && (
+              <div style={{ marginTop: 14, borderRadius: 10, border: "1px solid rgba(232,119,90,0.45)", background: "rgba(232,119,90,0.12)", padding: "11px 14px", fontFamily: sans, fontSize: 13, fontWeight: 600, color: INK }}>{notice}</div>
+            )}
             <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
               <button onClick={onClose} disabled={busy} style={{ padding: "13px 22px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>Keep shopping</button>
               <button onClick={() => canPlace && onPlace(f)} disabled={!canPlace} style={{ flex: 1, padding: "13px 20px", borderRadius: 999, border: 0, background: canPlace ? TEAL : "rgba(242,237,228,0.1)", color: canPlace ? "#04201d" : "rgba(242,237,228,0.45)", fontFamily: sans, fontSize: 13.5, fontWeight: 700, cursor: canPlace ? "pointer" : "not-allowed" }}>{busy ? "Placing order…" : short ? "Not enough points" : `Place order · ${total.toLocaleString()} pts`}</button>

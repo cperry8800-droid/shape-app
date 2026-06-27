@@ -35,7 +35,8 @@ type ShipTo = {
 function parseShipping(input: unknown): ShipTo | null {
   if (!input || typeof input !== 'object') return null;
   const s = input as Record<string, unknown>;
-  const str = (k: string) => String(s[k] ?? '').trim();
+  // Cap each field so a malformed/oversized address can't bloat the row/email.
+  const str = (k: string) => String(s[k] ?? '').trim().slice(0, 200);
   const ship: ShipTo = {
     name: str('name'),
     line1: str('line1'),
@@ -112,7 +113,12 @@ export async function POST(request: Request) {
   for (const raw of rawItems) {
     const r = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
     const id = String(r.itemId ?? '').trim();
-    const qty = Math.max(1, Math.min(MAX_QTY, Math.floor(Number(r.qty ?? 1)) || 1));
+    // Reject a malformed quantity outright (0 / negative / non-integer / Infinity)
+    // rather than silently coercing it into a charged purchase.
+    const qty = Number(r.qty ?? 1);
+    if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
+      return NextResponse.json({ error: 'invalid_quantity' }, { status: 400 });
+    }
     const item = findStoreItem(id);
     if (!item) return NextResponse.json({ error: 'Unknown item.' }, { status: 404 });
     if (item.locked) return NextResponse.json({ error: 'This reward is tier-locked.' }, { status: 403 });
