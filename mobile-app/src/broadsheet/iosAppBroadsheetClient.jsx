@@ -7236,6 +7236,27 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
 function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
 function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
 function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
+// Physical date of an activity as MM/DD — for the profile feed's date gutter.
+// Prefers a real timestamp; else derives the date from the relative `ago`
+// string (bsAgoShort's "2h"/"3d"/"Jun 24" output, incl. demo cards).
+function bsAgoToDate(ago) {
+  if (!ago) return null;
+  const s = String(ago).trim();
+  let m;
+  if ((m = s.match(/^(\d+)\s*m$/i))) return new Date(Date.now() - (+m[1]) * 60000);
+  if ((m = s.match(/^(\d+)\s*h$/i))) return new Date(Date.now() - (+m[1]) * 3600000);
+  if ((m = s.match(/^(\d+)\s*d$/i))) return new Date(Date.now() - (+m[1]) * 86400000);
+  if ((m = s.match(/^(\d+)\s*w$/i))) return new Date(Date.now() - (+m[1]) * 604800000);
+  const dt = new Date(`${s} ${new Date().getFullYear()}`); // "Jun 24" → this year
+  return isNaN(dt.getTime()) ? null : dt;
+}
+function bsCardDateLabel(a) {
+  if (!a) return '';
+  let d = a.created_at ? new Date(a.created_at) : null;
+  if (!d || isNaN(d.getTime())) d = bsAgoToDate(a.ago || a.time);
+  if (!d || isNaN(d.getTime())) return '';
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
 // Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
 // shared by the member (Terrain) and coach (Signal) profile feeds so both render
 // the same rich types.
@@ -7565,6 +7586,7 @@ function bsActivityFromPost(p) {
     typeLabel: isRun ? 'Run' : 'Workout',
     title,
     body: p.note || '',
+    created_at: p.created_at || null,
     ago: bsAgoShort(p.created_at) || p.time || '',
     city: p.sourceProviderLabel ? `via ${p.sourceProviderLabel}` : '',
     statsRow,
@@ -7637,6 +7659,7 @@ function bsProfileCardFromPost(p, ownerRole) {
     // Edit affordance — reopen the composer with the post's kind + privacy.
     editKind: p.kind || null,
     privacy: p.privacy || null,
+    created_at: p.created_at || null,
     ago: bsAgoShort(p.created_at) || p.time || '',
     city: '',
     statsRow: [], fullStats: [],
@@ -9083,7 +9106,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 {feedEff.map((a, i) => (
                   <div key={a.key || i} style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
                     {/* The activity's date in a tight left gutter — replaces the timeline diamond. */}
-                    <div style={{ flex: '0 0 16px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, color: (a.hot || a.delta) ? TEAL : bsTHexA(INK, 0.45) }}>{a.ago || '—'}</div>
+                    <div style={{ flex: '0 0 30px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, fontVariantNumeric: 'tabular-nums', color: (a.hot || a.delta) ? TEAL : bsTHexA(INK, 0.45) }}>{bsCardDateLabel(a) || '—'}</div>
                     {/* The SAME rich card the community chat feed renders, with the
                         author header hidden (the profile owns the identity). */}
                     <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
@@ -9660,7 +9683,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
               {coachFeedEff.map((a, i) => (
                 <div key={a.key || i} style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
                   {/* The activity's date in a tight left gutter — replaces the timeline dot. */}
-                  <div style={{ flex: '0 0 16px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, color: bsTHexA(c, 0.6) }}>{a.ago || '—'}</div>
+                  <div style={{ flex: '0 0 30px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, fontVariantNumeric: 'tabular-nums', color: bsTHexA(c, 0.6) }}>{bsCardDateLabel(a) || '—'}</div>
                   {/* The SAME rich card the community chat feed renders, author header hidden. */}
                   <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
