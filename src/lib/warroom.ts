@@ -847,7 +847,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Signup username step with debounced live availability (mobile create-account covers client + coach roles; website signup forms client/trainer/nutritionist); choice rides user_metadata and is claimed at signup or first confirmed login', status: 'done' },
         { label: 'Profile @handles prefer the real username (Settings identity seed + Terrain/Signal heroes)', status: 'done' },
         { label: 'Migration applied on Supabase: 2026-06-09-usernames.sql', status: 'done' },
-        { label: 'Website client signup still an application stub (collects but does not create the auth account) — username goes live there when that flow does', status: 'pending' },
+        { label: 'Website client signup creates a REAL Supabase auth account (signup.jsx submitApplication client path: validates name/email/password + 18+ DOB gate + Terms + Turnstile, calls auth.signUp with username/dob/role metadata, then check-inbox or provisions profile + set_my_username → dashboard) — username goes live there; coach roles stay applications', status: 'done' },
       ],
     },
     {
