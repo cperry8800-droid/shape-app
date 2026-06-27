@@ -2815,55 +2815,53 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
         const openHabits = selDayHabits.filter(h => !h.done); // completed habits leave the card
         return (
-          <BSPlate c={t.GREEN} tick bracket pad="11px 16px 11px 22px" data-tour="hero-habits" role="button" ariaLabel="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 9px`, textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {done}/{selDayHabits.length} done</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
-              Daily <span style={{ fontStyle: 'italic', color: t.GREEN }}>habits.</span>
+          <div data-tour="hero-habits" role="button" aria-label="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 9px`, textAlign: 'left', borderRadius: 16, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '15px 16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, lineHeight: 1.1, letterSpacing: '-0.02em', color: t.INK }}>Daily habits</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 3 }}>{selDayHabits.length === 0 ? 'Nothing tracked yet' : `${done} of ${selDayHabits.length} done today`}</div>
+              </div>
+              {possible > 0 && (
+                <span style={{ flexShrink: 0, padding: '5px 11px', borderRadius: 999, background: `${t.GREEN}1f`, color: t.GREEN, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>+{pts} / {possible} pts</span>
+              )}
             </div>
             {/* Transient credit after checking a habit — the points land, the row leaves */}
             {habitFlash && (
-              <div style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT }}>✓ +{habitFlash.pts} pts → Shape Score</div>
+              <div style={{ marginTop: 11, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: `${t.ACCENT}1f`, color: t.ACCENT, fontFamily: t.BODY, fontSize: 12, fontWeight: 700 }}>✓ +{habitFlash.pts} pts added to your Shape Score</div>
             )}
             {selDayHabits.length === 0 ? (
-              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
-                No habits yet — tap to add your first one.
+              <div style={{ marginTop: 11, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
+                Tap to add your first habit.
               </div>
             ) : openHabits.length === 0 ? (
-              <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
-                All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today. ✓
+              <div style={{ marginTop: 12, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
+                All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today.
               </div>
             ) : (
-              <div style={{ marginTop: 11 }}>
-                {/* Compact to one tight group — first 3 open habits, check off inline;
-                    the full list lives in the Habits view via "View →". */}
+              <div style={{ marginTop: 12 }}>
+                {/* First 3 open habits — check off inline; the full list lives in Habits via "View all". */}
                 {openHabits.slice(0, 3).map((h, i, arr) => {
                   const avoid = h.type === 'avoid';
                   const pillC = avoid ? t.RUST : t.GREEN;
+                  const last = i === arr.length - 1 && openHabits.length <= 3;
                   return (
-                    <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 24px', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: (i === arr.length - 1 && openHabits.length <= 3) ? 0 : `1px solid ${t.HAIR}` }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
-                      </div>
-                      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${pillC}`, background: `${pillC}10`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 9.5, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
+                    <div key={`${h.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
+                      <span style={{ flexShrink: 0, fontFamily: t.BODY, fontSize: 11, fontWeight: 700, color: pillC, background: `${pillC}1f`, padding: '3px 9px', borderRadius: 999 }}>{avoid ? 'Avoid' : 'Do'}</span>
+                      <div style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+                      <span style={{ flexShrink: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
+                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
                     </div>
                   );
                 })}
                 {openHabits.length > 3 && (
-                  <div style={{ padding: '8px 0 1px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>+ {openHabits.length - 3} more · view all →</div>
+                  <div style={{ padding: '9px 0 1px', fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, fontWeight: 600 }}>+{openHabits.length - 3} more</div>
                 )}
               </div>
             )}
-            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${t.GREEN}`, background: 'transparent', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>View →</span>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ flexShrink: 0, padding: '8px 15px', borderRadius: 10, background: `${t.GREEN}1a`, color: t.GREEN, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700 }}>View all →</span>
             </div>
-          </BSPlate>
+          </div>
         );
       })()}
 
@@ -19924,23 +19922,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           (() => {
             const teal = t.isLight ? '#0a8f87' : '#34d6c5';
             const acc = bsMyTierColor(); // avatar + form accent follow my Shape Score tier (not a chosen color)
-            const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
-            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
-            const sectionHead = (txt) => <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(acc, 0.85), margin: '18px 0 11px', display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 1.5, background: acc, borderRadius: 2 }} />{txt}</div>;
+            const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, letterSpacing: 0, textTransform: 'none', color: t.INK70, marginBottom: 6 };
+            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.035), borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s, background 0.15s' };
+            const sectionHead = (txt) => <div style={{ fontFamily: t.BODY, fontSize: 12, fontWeight: 700, letterSpacing: 0, textTransform: 'none', color: t.INK50, margin: '22px 0 11px' }}>{txt}</div>;
             const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
             return (
             <div>
-              {/* Form header */}
-              <div style={{ marginBottom: 4 }}>
-                <BSEyebrow color={acc}>Edit · Profile</BSEyebrow>
-                <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Your <span style={{ fontStyle: 'italic', color: acc }}>profile.</span></div>
-              </div>
               {sectionHead('Photo & avatar')}
               {/* Avatar (tap ✎ to change the photo — no separate button) + the
                   tier-color note. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                 <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
-                <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ minWidth: 0, fontFamily: t.BODY, fontSize: 12, fontWeight: 500, color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
                   {bsMyTier()} tier color
                 </div>
@@ -19952,7 +19945,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'inline-flex', border: `1px solid ${t.RULE}`, borderRadius: 999, overflow: 'hidden', background: t.PAPER2 }}>
                   {[['photo', 'Photo'], ['initials', 'Initials']].map(([val, label]) => {
                     const on = (draft.avatarMode || 'photo') === val;
-                    return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
+                    return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, letterSpacing: 0 }}>{label}</button>;
                   })}
                 </div>
               </div>
@@ -19988,7 +19981,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {pronounOpts.map(p => {
                     const on = draft.pronouns === p;
-                    return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{p}</button>;
+                    return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '9px 15px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.BODY, fontSize: 13, fontWeight: 500, letterSpacing: 0 }}>{p}</button>;
                   })}
                 </div>
               </div>
@@ -20001,14 +19994,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
               </label>
 
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 9, marginTop: 4 }}>
                 <button onClick={cancelEdit} style={{ borderRadius: 999,
-                  flex: '0 0 auto', padding: '13px 22px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+                  flex: '0 0 auto', padding: '14px 24px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer',
+                  fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 600,
                 }}>Cancel</button>
                 <button onClick={saveEdit} style={{ borderRadius: 999,
-                  flex: 1, padding: '13px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+                  flex: 1, padding: '14px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
+                  fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 700,
                 }}>Save changes</button>
               </div>
             </div>
