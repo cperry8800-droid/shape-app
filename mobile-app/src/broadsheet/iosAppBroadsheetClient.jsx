@@ -17458,7 +17458,7 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
   // The cart checkout is its own full-screen view.
   if (checkoutOpen) {
-    return <BSStoreCheckout t={t} lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} ptsPerUsd={SHAPE_PTS_PER_USD} onQty={setQty} onBack={() => setCheckoutOpen(false)} onPlace={placeOrder} />;
+    return <BSStoreCheckout t={t} lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} onQty={setQty} onBack={() => setCheckoutOpen(false)} onPlace={placeOrder} />;
   }
 
   return (
@@ -17610,14 +17610,14 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
           </button>
         </div>
       )}
-      {confirmFor && <BSRedeemConfirmSheet t={t} item={confirmFor} balance={balance} busy={busyId === confirmFor.id} ptsPerUsd={SHAPE_PTS_PER_USD} onCancel={() => !busyId && setConfirmFor(null)} onConfirm={() => doRedeem(confirmFor)} />}
+      {confirmFor && <BSRedeemConfirmSheet t={t} item={confirmFor} balance={balance} busy={busyId === confirmFor.id} onCancel={() => !busyId && setConfirmFor(null)} onConfirm={() => doRedeem(confirmFor)} />}
     </BSPage>
   );
 }
 
 // (a) One-tap confirm before a single-item redemption (credit / service / lead
 // boost). Shows the cost + the balance it leaves so a tap is deliberate.
-function BSRedeemConfirmSheet({ t, item, balance, busy, ptsPerUsd, onCancel, onConfirm }) {
+function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
   const after = Math.max(0, (balance || 0) - item.cost);
   const Row = ({ label, value, accent }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '7px 0' }}>
@@ -17651,7 +17651,7 @@ function BSRedeemConfirmSheet({ t, item, balance, busy, ptsPerUsd, onCancel, onC
 
 // (b) Merch cart checkout — review lines + qty, enter ONE shipping address, see
 // the points total + the balance it leaves, place the order (one shipment).
-function BSStoreCheckout({ t, lines, total, balance, busy, ptsPerUsd, onQty, onBack, onPlace }) {
+function BSStoreCheckout({ t, lines, total, balance, busy, onQty, onBack, onPlace }) {
   const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
   const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();

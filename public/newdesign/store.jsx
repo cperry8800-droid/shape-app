@@ -249,7 +249,6 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   const [checkoutBusy, setCheckoutBusy] = useSStore(false);
   const roleHint = useMStore(() => getRoleHint(), []);
   const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
-  const isMerch = (p) => p.cat === "Shape Merch";
   // Role-correct catalogue: coaches redeem Coach Tools (Lead Boost) + merch; clients
   // redeem session/meal/perk rewards + merch. Resolve the real role from profiles.role.
   const [isCoach, setIsCoach] = useSStore(false);
