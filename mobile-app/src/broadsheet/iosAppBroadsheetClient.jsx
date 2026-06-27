@@ -2455,7 +2455,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       nutrition: { head: 'Log a meal today.', cta: ["I'll log a meal →", () => goEat()], c: _teal, stakes: 'keep your momentum going' },
       goal:      { head: 'Your goal pace slipped.', cta: ["I'll weigh in →", () => setGoalsPage(true)], c: t.AMBER },
       score:     { head: 'Grab a win today.', cta: ["I'll grab a win →", () => setHabitsPage(true)], c: t.AMBER },
-      sleep:     { head: "Log last night's sleep.", cta: ["I'll log my sleep →", () => { try { document.querySelector('[data-bs-checkin]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }], c: t.AMBER },
+      // `sleep` deliberately omitted — logging last night's sleep is consolidated
+      // into the "How are you · today" check-in card below (its Sleep · last night
+      // row + recovery readiness), so it never spawns a separate directive box.
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
@@ -2858,8 +2860,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 )}
               </div>
             )}
-            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tap a box to check off · card opens habits</span>
+            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${t.GREEN}`, background: 'transparent', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>View →</span>
             </div>
           </BSPlate>
