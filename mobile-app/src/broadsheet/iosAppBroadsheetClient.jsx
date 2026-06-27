@@ -9077,17 +9077,17 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   </button>
                 )}
               </div>
-              <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
-                <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
+              <div style={{ marginTop: 16 }}>
                 {feedEff.length === 0 && (
                   <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
                 {feedEff.map((a, i) => (
-                  <div key={a.key || i} style={{ position: 'relative', marginBottom: 12 }}>
-                    <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${(a.hot || a.delta) ? TEAL : c}` }} /></div>
+                  <div key={a.key || i} style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
+                    {/* The activity's date in a tight left gutter — replaces the timeline diamond. */}
+                    <div style={{ flex: '0 0 16px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, color: (a.hot || a.delta) ? TEAL : bsTHexA(INK, 0.45) }}>{a.ago || '—'}</div>
                     {/* The SAME rich card the community chat feed renders, with the
                         author header hidden (the profile owns the identity). */}
-                    <div style={{ ...card, overflow: 'hidden' }}>
+                    <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
                       <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                     </div>
                   </div>
@@ -9654,16 +9654,16 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                 </button>
               )}
             </div>
-            <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
-              <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
+            <div style={{ marginTop: 16 }}>
               {coachFeedEff.length === 0 && (
                 <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
               )}
               {coachFeedEff.map((a, i) => (
-                <div key={a.key || i} style={{ position: 'relative', marginBottom: 12 }}>
-                  <div style={{ position: 'absolute', left: -22, top: 16, width: 9, height: 9, borderRadius: 999, background: c, boxShadow: `0 0 0 3px ${BG}, 0 0 10px ${bsTHexA(c, 0.6)}` }} />
+                <div key={a.key || i} style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
+                  {/* The activity's date in a tight left gutter — replaces the timeline dot. */}
+                  <div style={{ flex: '0 0 16px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, color: bsTHexA(c, 0.6) }}>{a.ago || '—'}</div>
                   {/* The SAME rich card the community chat feed renders, author header hidden. */}
-                  <div style={{ ...card, overflow: 'hidden' }}>
+                  <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                   </div>
                 </div>
