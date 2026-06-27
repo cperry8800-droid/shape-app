@@ -16955,7 +16955,7 @@ function BSCommitmentCard() {
         {!c ? (
           <React.Fragment>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>Put points on a weekly target — hit it for a bonus, miss it and lose the stake.</div>
-            <button onClick={() => { if (signedIn) setSheet(true); }} style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment' : 'Sign in to commit'}</button>
+            <button onClick={() => { if (signedIn) setSheet(true); else if (window.bsRequireAccount) window.bsRequireAccount('set a weekly commitment'); }} style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment' : 'Sign in to commit'}</button>
           </React.Fragment>
         ) : (
           <React.Fragment>
@@ -17144,9 +17144,11 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const val = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
         const hit = val >= 80;
+        const preview = !profile.live; // signed-out → demo bar; tapping prompts sign-in
+        const reqAuth = () => { try { window.bsRequireAccount && window.bsRequireAccount('build your momentum'); } catch (e) {} };
         return (
           <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
-            <BSPlate c={teal} tick bracket pad="12px 14px">
+            <BSPlate c={teal} tick bracket pad="12px 14px" onClick={preview ? reqAuth : undefined} onKeyDown={preview ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reqAuth(); } }) : undefined} role={preview ? 'button' : undefined} tabIndex={preview ? 0 : undefined} ariaLabel={preview ? 'Sign in to build your momentum' : undefined}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Momentum</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
@@ -17164,7 +17166,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                       : `✓ +${momentum.points || 25} banked this week`)
                   : hit ? 'At the line · hold it to bank this week' : 'Reach 80 for a weekly bonus — grows to +100'}
               </div>
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
+              {preview
+                ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>Sign in to start building your momentum →</div>
+                : <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>}
             </BSPlate>
           </div>
         );
