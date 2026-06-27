@@ -149,14 +149,20 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-06-26.md`](HANDOFF-2026-06-26.md)** —
-> Sleep-logging redesign shipped end-to-end (#1430: device-first sleep on the home
-> check-in card + revived engine recovery directive + coach objective-sleep readout;
-> `sleep_quality` migration **APPLIED + verified live**), uniform top-header avatars
-> (#1431), all-time-PR aggregate RPC (#1429), e1RM web parity (#1427), check-in/grocery
-> polish (#1428). `main` clean; both feature branches kept.
-> (Prior: [`docs/HANDOFF-2026-06-25.md`](HANDOFF-2026-06-25.md) — daily steps/NEAT (#1415);
-> [`docs/HANDOFF-2026-06-22.md`](HANDOFF-2026-06-22.md) — compliance Waves 3+4.)
+> **Latest session handoff: [`docs/HANDOFF-2026-06-27.md`](HANDOFF-2026-06-27.md)** —
+> Big session, all shipped to `main` + verified live: sleep fast-follow (#1433 —
+> stages/latency/respiratory from Oura, a tested recovery-READINESS score, a mobile
+> sleep-detail page, coach surfacing + a dashSignals sleep-triage rule; also folded in
+> the dead-sleep-log removal + the workout_set_logs `actual_*` write-time fix +
+> backfill), supabase-js **SRI** (#1434), Steps/Progress **card redesign** + "Shape steps"
+> rename (#1435), an **accurate + complete Shape Score legend** (#1438), **Shape Steps →
+> points** (#1439) + a **CRITICAL** repair of the award-RPC dedupe (a partial-index bug
+> that blocked ALL point-awarding), and a first-launch **"How Shape Score works"
+> explainer** (#1440). **All migrations APPLIED + verified live** (sleep-detail,
+> backfill-workout-set-log-columns, step-points, score-ledger-dedupe-fix). `main` clean;
+> branches kept.
+> (Prior: [`docs/HANDOFF-2026-06-26.md`](HANDOFF-2026-06-26.md) — sleep-logging redesign #1430;
+> [`docs/HANDOFF-2026-06-25.md`](HANDOFF-2026-06-25.md) — daily steps/NEAT #1415.)
 >
 > **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
 > `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
@@ -167,6 +173,76 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-06-27 — Sleep fast-follow (#1433) · supabase-js SRI (#1434) · Steps/Progress redesign (#1435) · accurate Shape Score legend (#1438) · Shape Steps → points + award-RPC dedupe fix (#1439) · onboarding score explainer (#1440)
+- **Sleep fast-follow (#1433).** The deferred #1430 follow-up, end-to-end (honest "—"
+  where a provider doesn't expose a field). MIGRATION `2026-06-26-sleep-detail.sql`
+  (**APPLIED + verified live**) adds `sleep_deep/rem/light/awake_min`,
+  `sleep_latency_min`, `respiratory_rate`, `sleep_start/end` to `daily_health_snapshot`;
+  Oura v2 sync captures them (main nightly sleep only, so naps don't pollute stages);
+  `SnapshotPatch` widened (+ `sleep_quality`). **Recovery-readiness score** — pure tested
+  `mobile-app/src/services/recoveryReadiness.mjs` (+ `src/lib/recovery-readiness.ts` twin):
+  0-100 blend of duration-vs-target / efficiency / RHR & HRV vs a trailing baseline /
+  device recovery score, null when nothing to score. Progress + `clients/[id]/shared-overview`
+  routes expose the series + a computed `readiness` KPI (both `select('*')` for
+  migration-safety). UI: a recovery snippet on the home check-in card + a new mobile
+  **`BSSleepHistory`** detail page (readiness ring, stage bar, bed/wake, latency,
+  respiratory, sparklines, honest empty states); coach readiness lead + detail on web
+  `coachClientDetail.jsx` (`?v=20260626b`) + mobile coach card. **Coach sleep-triage** —
+  `dashSignals ruleSleepRecovery` flags `sleep_low` when 7d-avg sleep is >1.5h under
+  target (severe; milder shortfalls keep the gentle cross-domain narrative) → directive +
+  the coach "who needs you" feed, fed by a one-query RLS-scoped `/api/coach/roster-sleep`.
+  Tests: `recovery-readiness` (11) + `dash-sleep-triage` (5). Title later trimmed
+  "Your Shape steps." → "Shape steps." Also folded into this branch:
+  - **Removed the dead manual sleep-log path** (`POST /api/client/sleep-log` +
+    `window.ShapeSleep.log`, retired with BSSleepSheet in #1430).
+  - **Fixed `workout_set_logs.actual_*`**: the live-session writer only filled the
+    `payload` jsonb, never the `actual_load/actual_reps/rpe/load_unit` COLUMNS the
+    train-volume + strength readers read. `normalizeWorkoutSetLog` now populates them at
+    write time (free-text/kg-lb parse; `load_unit` NOT NULL → 'lb'); `BSSession` now
+    persists the captured RPE + unit; train-route gains a payload fallback; MIGRATION
+    `2026-06-26-backfill-workout-set-log-columns.sql` (**APPLIED**) fills historical rows
+    (rpe kept NULL when unparseable — a `greatest(0,NULL)=0` fabrication bug was caught + fixed).
+- **supabase-js SRI (#1434).** Added `integrity` (sha384) + `crossorigin` to the
+  self-hosted `vendor/supabase-js-2.108.2.umd.js` across 54 static tags + the 2 dynamic
+  loaders (`pageShell.jsx` SiteSearch + `siteSearch.js`); `?v=` bumped on the referencing
+  pages. Closes the #1413 SRI deferral. (Mobile is npm-bundled — out of scope.)
+- **Steps / Progress card redesign (#1435).** The Me-page **Shape Steps** card is now a
+  `BSPlate` instrument (clipped notch, accent spine, live tick, bigger tabular number,
+  goal-hit glow); the **Progress** card is a polished quiet nav card (accent spine, chip
+  breadcrumb, padded chevron). Renamed "Steps" → **Shape Steps** on the card + history.
+- **Accurate + complete Shape Score legend (#1438).** The "how you earn" legend was
+  hardcoded + partly fictional (listed unimplemented earns; no penalties). Replaced with
+  the real `score_ledger` catalog on mobile (Points tab) + website `score.jsx` — every
+  EARN, a **"Protect your points"** losses section (missed check-in -7 / workout -5 /
+  habit streak -2 / commitment -stake, never-shaming, "a coach can waive"), the spend
+  link, and the rules (0-floor, -30/wk cap, tier never demotes, spending doesn't lower
+  rank). Fixed a dark-on-dark contrast bug on `score.jsx`; `Score.html ?v=15`.
+- **Shape Steps → points (#1439).** 5,000 steps = 1 Shape Step = +1 pt; daily goal hit =
+  +3 (20k/day anti-farm cap → max +7/day). Pure tested `shapeSteps.mjs` + MIGRATION
+  `2026-06-26-step-points.sql` `award_step_points()` (SECURITY DEFINER, auth.uid()-scoped,
+  hardcoded rates, credits COMPLETED days idempotently); fired on session resolve via
+  `window.ShapeStepPoints.check`; live "N Shape Steps · +N pts" on the card + a real legend row.
+  - **CRITICAL FIX — MIGRATION `2026-06-26-score-ledger-dedupe-fix.sql` (APPLIED + verified).**
+    `score_ledger_dedupe_idx` was PARTIAL, but every award RPC (goal milestone, momentum,
+    tier bonus, PR wall, check-in, community, accountability penalties, commitments, store
+    redeem) uses `ON CONFLICT (user_id, source_kind, source_id) DO NOTHING` WITHOUT the
+    predicate — Postgres rejects that against a partial index (42P10), so EVERY award would
+    error + never credit. Unsurfaced only because no award had fired on real data yet.
+    Recreated the index as a PLAIN unique index (NULLs distinct → null-source rows still
+    never conflict) so the existing inference works; verified live (42P10 → expected FK).
+    `award_step_points` uses the bare `ON CONFLICT DO NOTHING` so it's correct either way.
+- **First-launch Shape Score explainer (#1440).** New accounts get a one-time
+  **`BSScoreIntro`** full-screen panel on first open (before the app tour): the one-number
+  idea, the tier ladder (tier never demotes), the main ways to earn, that consistency/
+  momentum compounds, spendable points, and a gentle "protect your points." Gated on a
+  new-account window + its own `client_score_intro` seen-flag; the app tour waits until
+  the intro is seen so the two never stack.
+- Each squash-merged to `main` (branches kept), CI-green (Web · Mobile · gitleaks). The
+  sleep branch was reconciled onto main (steps redesign landed first) by rebuilding
+  `public/m` from the merged source. War Room: registered `/api/coach/roster-sleep`,
+  flipped the sleep fast-follow + backlog tasks (Shape Steps points, legend completeness,
+  onboarding explainer) — note the legend/onboarding tasks are now BUILT.
 
 ### 2026-06-26 — Sleep-logging redesign (#1430) · uniform header avatars (#1431) · all-time-PR RPC (#1429) · e1RM web parity (#1427) · check-in & grocery polish (#1428)
 - **Sleep-logging redesign (#1430, Tier 1).** Daily sleep folded into the home
