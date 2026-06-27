@@ -3425,6 +3425,19 @@ async function redeemStoreItem(itemId, shipping) {
   if (!res.ok) throw new Error(data.error || 'Redemption failed.');
   return data;
 }
+// Cart checkout — redeem MULTIPLE merch items in one order (one shipment).
+// items: [{ itemId, qty }]. Server re-prices + redeems atomically.
+async function checkoutStoreCart(items, shipping) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/store/checkout`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ items, shipping }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Checkout failed.');
+  return data;
+}
 // Coach-only — activate a marketplace Lead Boost (separate from item redemption).
 async function redeemLeadBoost(role, days) {
   const res = await fetch(`${apiBaseUrl || ''}/api/lead-boosts`, {
@@ -3437,7 +3450,7 @@ async function redeemLeadBoost(role, days) {
   if (!res.ok) throw new Error(data.error || 'Lead Boost failed.');
   return data;
 }
-window.ShapeStore = { get: getStore, redeem: redeemStoreItem, redeemLeadBoost };
+window.ShapeStore = { get: getStore, redeem: redeemStoreItem, checkout: checkoutStoreCart, redeemLeadBoost };
 
 window.ShapeNotifications = {
   list: listNotifications,
