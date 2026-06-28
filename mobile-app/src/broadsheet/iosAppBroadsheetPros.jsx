@@ -1501,7 +1501,20 @@ function useBSProRoster(role) {
     if (!S || !S.triageLive) return undefined;
     S.triageLive(role).then((feed) => {
       if (!on) return;
-      if (Array.isArray(feed) && feed.length) setLive(feed.map((r) => bsRowFromTriage(r, role, t)));
+      if (!Array.isArray(feed) || !feed.length) return;
+      const rows = feed.map((r) => bsRowFromTriage(r, role, t));
+      setLive(rows);
+      // Fire one batch weekend-split fetch and merge each client's split as _wknd.
+      // Degrades silently (ShapeRosterWeekend.get always resolves).
+      const W = (typeof window !== 'undefined' && window.ShapeRosterWeekend) || null;
+      if (W && W.get) {
+        W.get(rows.map((r) => r.userId)).then((res) => {
+          if (!on) return;
+          const split = (res && res.split) || {};
+          if (!Object.keys(split).length) return;
+          setLive(rows.map((r) => (split[r.userId] ? { ...r, _wknd: split[r.userId] } : r)));
+        }).catch(() => {});
+      }
     }).catch(() => {});
     return () => { on = false; };
   }, [role]);
@@ -1671,6 +1684,9 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: actionable ? col : t.INK50, lineHeight: 1.3 }}>{sig.directive}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
+                            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', color: t.RUST, border: `1px solid ${t.RUST}66`, borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>WKND −{Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp))}</span>
+                          )}
                           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '5px 9px', whiteSpace: 'nowrap' }}>{sig.label}</span>
                           <span style={{ color: t.INK50, fontSize: 16, lineHeight: 1 }}>›</span>
                         </div>
@@ -2561,6 +2577,35 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
   return target ? createPortal(sheet, target) : sheet;
 }
 
+function ProWeekendPlate({ split }) {
+  const t = useBS();
+  const BSPlate = typeof window !== 'undefined' && window.BSPlate;
+  if (!BSPlate || !split || split.status !== 'ok') return null;
+  const dims = split.dimensions || {};
+  const present = ['nutrition', 'habits'].map((k) => [k, dims[k]]).filter(([, d]) => d);
+  if (!present.length) return null;
+  const worst = split.worstDimension;
+  const move = worst === 'nutrition'
+    ? 'Set a weekend check-in or a lighter weekend nutrition target.'
+    : worst === 'habits'
+      ? 'Add a weekend-specific habit reminder.'
+      : 'Set one weekend anchor habit.';
+  return (
+    <BSPlate c={'#c0533b'} spine={3}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>WEEKEND PATTERN</div>
+      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+        {present.map(([k, d]) => (
+          <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, fontFamily: t.MONO, fontSize: 11, fontVariantNumeric: 'tabular-nums', color: t.INK }}>
+            <span>{k === 'nutrition' ? 'Nutrition' : 'Habits'}</span>
+            <span style={{ color: d.flagged ? t.RUST : t.INK70 }}>wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}</span>
+          </div>
+        ))}
+      </div>
+      {worst && <div style={{ fontSize: 12, color: t.INK70, marginTop: 8 }}>{move}</div>}
+    </BSPlate>
+  );
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2609,6 +2654,17 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     window.ShapeCareTeam.overview(clientUid)
       .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
       .catch(() => { if (!ignore) setCareLoaded(true); });
+    return () => { ignore = true; };
+  }, [clientUid]);
+  // Weekend-adherence split for THIS client — reset per-client, ignore stale.
+  const [wkndSplit, setWkndSplit] = useStateBSP(null);
+  useEffectBSP(() => {
+    setWkndSplit(null);
+    if (!clientUid || !window.ShapeRosterWeekend?.get) return undefined;
+    let ignore = false;
+    window.ShapeRosterWeekend.get([clientUid])
+      .then(res => { if (ignore) return; const s = res && res.split && res.split[clientUid]; setWkndSplit(s || null); })
+      .catch(() => {});
     return () => { ignore = true; };
   }, [clientUid]);
   // Check-in kit (coach read): latest weekly check-in, health screening, girths.
@@ -3188,6 +3244,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
         </div>
       )}
+      {wkndSplit && <div style={{ marginTop: 12 }}><ProWeekendPlate split={wkndSplit} /></div>}
       {clientUid && (
         <div>
           <Section eyebrow="SCREENING" title="Health profile" />

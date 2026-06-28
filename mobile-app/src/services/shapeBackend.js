@@ -4,6 +4,7 @@ import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } 
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
 import { mergePostPatch } from './communityPostPatch.mjs';
+import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -3609,6 +3610,24 @@ async function getRosterSleep(ids) {
 }
 window.ShapeRosterSleep = { get: getRosterSleep };
 
+// Batch weekend-adherence split for a coach's roster (one call per roster view).
+// POSTs { clientIds } to /api/coach/roster-weekend; degrades to an empty split so
+// the roster never blocks on this auxiliary data.
+async function rosterWeekendGet(clientIds) {
+  const ids = Array.isArray(clientIds) ? clientIds.filter(Boolean) : [];
+  // '' apiBaseUrl is valid same-origin config (see setTimezone) — gate on the token only.
+  if (!ids.length || !state.session?.access_token) return { ok: true, split: {} };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-weekend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ clientIds: ids }),
+    });
+    return res.ok ? await res.json() : { ok: true, split: {} };
+  } catch { return { ok: true, split: {} }; }
+}
+window.ShapeRosterWeekend = { get: rosterWeekendGet };
+
 // Coach soundtracks — saved playlists shared with the website Playlists page
 // (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the
 // signed-in coach's session is used; returns null when signed out / offline so
@@ -4083,6 +4102,25 @@ async function awardStepPoints() {
 }
 window.ShapeStepPoints = { check: awardStepPoints };
 
+// Opportunistic, non-throwing: mirror the authenticated-fetch pattern used by
+// postProConsole (there is NO generic postJson helper in this file).
+async function setTimezone(tz) {
+  if (!tz || typeof tz !== 'string') return { ok: false };
+  // apiBaseUrl is '' on same-origin (/m/ web) builds — that's valid, not "missing
+  // config" — so gate only on the bearer token and use the `${apiBaseUrl || ''}`
+  // URL form the rest of the file uses for same-origin calls.
+  if (!state.session?.access_token) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/timezone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ tz }),
+    });
+    return res.ok ? { ok: true } : { ok: false };
+  } catch { return { ok: false }; }
+}
+window.ShapeProfile = { ...(window.ShapeProfile || {}), setTimezone };
+
 // Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
 // sees their own row); writes through set/accept RPCs. All no-op pre-migration.
 function _commitWeekMonday() {
@@ -4335,7 +4373,23 @@ async function getClientProgress() { return cachedClientJson('/api/client/progre
 async function getClientAnalytics() { return cachedClientJson('/api/client/analytics').then((d) => (d && d.has_data ? d : null)); }
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
+async function getClientHabits() { return cachedClientJson('/api/client/habits'); }
 window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
+
+// Member self-path weekend adherence split. Fetches the already-cached habits +
+// progress payloads, builds weekly buckets client-side, and returns the split.
+// Returns null on any error so the Weekends card renders nothing.
+async function weekendSplitSelf() {
+  try {
+    const [habits, progress] = await Promise.all([getClientHabits(), getClientProgress()]);
+    // device-local calendar day as YYYY-MM-DD (en-CA renders ISO order); no
+    // cross-package import of local-day.ts needed.
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+    const buckets = buildSelfWeekendBuckets(habits || { habits: [] }, progress || { series: {} }, { todayLocal });
+    return computeWeekendSplit(buckets);
+  } catch { return null; }
+}
+window.ShapeProgress = { ...(window.ShapeProgress || {}), weekendSplit: weekendSplitSelf };
 async function getClientStrength() { return cachedClientJson('/api/client/strength').then((d) => (d && d.ok ? d : null)); }
 window.ShapeStrength = { get: getClientStrength };
 

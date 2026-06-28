@@ -174,6 +174,56 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-28 — Weekend-vs-weekday adherence split (differentiator A, #1449) + Progress-hub simplification
+- **First community differentiator, v1 (nutrition + habits).** Surfaces how a member's
+  adherence drops on weekends vs weekdays — descriptive + never-shaming for the member,
+  one concrete move for the coach. Built **brainstorm → spec → plan → subagent-driven
+  execution** (spec `docs/superpowers/specs/2026-06-27-weekend-adherence-split-design.md`,
+  plan `docs/superpowers/plans/2026-06-27-weekend-adherence-split.md`); a multi-agent
+  hardening + anchor-mapping + plan-verification pass ran before any code, and an Opus
+  whole-branch review after.
+- **Pure tz-free module** `mobile-app/src/services/weekendSplit.mjs` (+ `src/lib/weekendSplit.ts`
+  hand-mirrored twin, 16 tests). Takes PRE-BUCKETED weekly counts (no `Intl`/DST inside — all
+  tz resolution is upstream) and applies a **statistical flag gate**: `gap ≥ 15pp AND ≥ 1.65·SE
+  AND positive in ≥ 60% of weeks` — so a one-off bad weekend at the 3-weekend floor can't fire a
+  false "you're slipping." Per-dimension flagging only; **composite is display-only**;
+  `worstDimension` is ranked by **lower-CI bound** (not raw gap). Absent dimensions render
+  nothing (never a fabricated 0%). 8-week window clamped to first activity (a brand-new account
+  doesn't read empty days as a cliff). Nutrition "logged" needs a real-food signal (protein ≥ 10g,
+  not a hydration-only snapshot row); habits = daily-cadence, non-archived only.
+- **Member**: a **Weekends card** in the Progress hub Overall tab, computed CLIENT-SIDE over the
+  already-cached `/api/client/progress` + `/api/client/habits` (`window.ShapeProgress.weekendSplit`
+  in `shapeBackend.js`) — no bespoke self endpoint.
+- **Coach**: **MIGRATION `2026-06-27-roster-weekend-split.sql`** — `SECURITY DEFINER`
+  `get_roster_weekend_split(uuid[])` that gates EVERY client through the
+  is-coach-on-client subscription check (a coach only ever sees their own roster), buckets Sat/Sun
+  in each member's tz, day-based nutrition denominators, EXCLUDES archived habits (twin parity
+  with `/api/client/habits`). `POST /api/coach/roster-weekend` runs the twin per client → a quiet
+  **`WKND −N` roster chip** (`iosAppBroadsheetPros.jsx`) on flagged clients + a client-detail
+  **"Weekend pattern" plate** with a directive keyed off the worst dimension.
+- **Per-user timezone**: **MIGRATION `2026-06-27-client-timezone.sql`** — `client_profiles.timezone`
+  (IANA) + a backfill from `user_scheduled_reminders.tz`; `POST /api/client/timezone` captures it
+  opportunistically on app open (`BSClientAppInner`). Where unknown, the coach chip is suppressed
+  (no UTC mislabeling); the member card uses the device zone.
+- **Progress-hub simplification (folded in)**: deleted the **dead `BSMeKpis`** component (zero
+  refs); removed the bare-adherence **Insights grid** from the Overall tab (matches the website
+  `dashProgress.jsx` "no bare adherence % to clients" rule) — **weekly points preserved** as a KPI
+  tile; both PR cards kept (they're not duplicates — Overall carries the e1RM line).
+- **Review caught + fixed** (Opus whole-branch): the RPC originally counted archived habits, so a
+  coach's habits number could differ from the member's own — added `archived_at is null` to all
+  three `user_habits` joins. Self↔coach number parity + the SECURITY DEFINER owner gate both
+  verified against the source.
+- **⚠ Migrations APPLIED + verified live (2026-06-28)** — `client_profiles.timezone` column present,
+  `get_roster_weekend_split` is SECURITY DEFINER, RPC smoke-tested (full CTE chain runs; returns 0
+  to an unauthorized caller). Apply order matters: **timezone first, then the RPC** (the RPC reads
+  the tz column). **PR #1449** — CI green (Web · Mobile · gitleaks); awaiting squash-merge.
+  *(Windows note re-confirmed: rebuild `public/m` from PowerShell — the Git Bash build mangles
+  `VITE_BASE=/m/` → `/`, which failed the Mobile sync check until rebuilt correctly.)*
+- **Fast-follows**: training dimension (needs a `client_workouts.scheduled_date` column + backfill);
+  a per-member change-from-baseline guard (v2 alarm-fatigue mitigation); calibrate `FLAG_GAP_PP`
+  against the live weekend-gap distribution. Remaining differentiators (War Room): menstrual-cycle
+  awareness, coach-set compliance variance band.
+
 ### 2026-06-27 — Sleep fast-follow (#1433) · supabase-js SRI (#1434) · Steps/Progress redesign (#1435) · accurate Shape Score legend (#1438) · Shape Steps → points + award-RPC dedupe fix (#1439) · onboarding score explainer (#1440)
 - **Sleep fast-follow (#1433).** The deferred #1430 follow-up, end-to-end (honest "—"
   where a provider doesn't expose a field). MIGRATION `2026-06-26-sleep-detail.sql`
