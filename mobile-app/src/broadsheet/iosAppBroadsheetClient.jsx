@@ -516,6 +516,19 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
 
+  // Capture the device timezone once per login so coach-side SQL can bucket each
+  // member's Sat/Sun in their own zone (weekend-vs-weekday adherence split).
+  // identityVersion bumps on shape:identity (login / profile save), so this fires
+  // once on mount and again when the auth state settles — the `signedIn` guard
+  // ensures we only post for a real account, never for a signed-out preview.
+  const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+  React.useEffect(() => {
+    if (!signedIn) return;            // only persist for a real account
+    let tz = 'UTC';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { tz = 'UTC'; }
+    if (tz && tz !== 'UTC') { window.ShapeProfile?.setTimezone?.(tz); }
+  }, [signedIn]);
+
   // Required one-time health profile (PAR-Q screening) for signed-in clients —
   // checked after auth resolves; 'unknown' renders the app normally so the
   // gate never flashes for members who already completed it.

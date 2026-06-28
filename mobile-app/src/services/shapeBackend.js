@@ -4083,6 +4083,22 @@ async function awardStepPoints() {
 }
 window.ShapeStepPoints = { check: awardStepPoints };
 
+// Opportunistic, non-throwing: mirror the authenticated-fetch pattern used by
+// postProConsole (there is NO generic postJson helper in this file).
+async function setTimezone(tz) {
+  if (!tz || typeof tz !== 'string') return { ok: false };
+  if (!apiBaseUrl || !state.session?.access_token) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/timezone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ tz }),
+    });
+    return res.ok ? { ok: true } : { ok: false };
+  } catch { return { ok: false }; }
+}
+window.ShapeProfile = { ...(window.ShapeProfile || {}), setTimezone };
+
 // Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
 // sees their own row); writes through set/accept RPCs. All no-op pre-migration.
 function _commitWeekMonday() {
