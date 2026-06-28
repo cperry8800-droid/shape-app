@@ -49,7 +49,7 @@ as $$
           coalesce((select min(d.snapshot_date) from public.daily_health_snapshot d
                     where d.user_id = w.client_id and d.snapshot_date > w.today_local - 56 and d.snapshot_date <= w.today_local), w.today_local),
           coalesce((select min(uhc.done_on) from public.user_habit_completions uhc
-                    join public.user_habits uh on uh.id = uhc.habit_id and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday')
+                    join public.user_habits uh on uh.id = uhc.habit_id and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday') and uh.archived_at is null
                     where uh.user_id = w.client_id and uhc.done_on > w.today_local - 56 and uhc.done_on <= w.today_local), w.today_local)
         )
       ) as start_local
@@ -77,7 +77,7 @@ as $$
   daily_habits as (
     select a.client_id, count(*) as n_daily
     from activity a
-    join public.user_habits h on h.user_id = a.client_id and lower(coalesce(h.cadence,'daily')) in ('daily','everyday')
+    join public.user_habits h on h.user_id = a.client_id and lower(coalesce(h.cadence,'daily')) in ('daily','everyday') and h.archived_at is null
     group by a.client_id
   ),
   hab as (
@@ -92,7 +92,7 @@ as $$
     left join (
       select uh.user_id, uhc.done_on, count(*) as done
       from public.user_habit_completions uhc
-      join public.user_habits uh on uh.id = uhc.habit_id and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday')
+      join public.user_habits uh on uh.id = uhc.habit_id and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday') and uh.archived_at is null
       group by uh.user_id, uhc.done_on
     ) c on c.user_id = dy.client_id and c.done_on = dy.day
     group by dy.client_id, date_trunc('week', dy.day)
