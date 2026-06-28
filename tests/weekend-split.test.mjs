@@ -90,10 +90,13 @@ test('SQL RPC mirrors the nutrition protein floor (drift guard)', () => {
   // can't silently leave the SQL behind.
   const sqlPath = fileURLToPath(new URL('../supabase-migrations/2026-06-27-roster-weekend-split.sql', import.meta.url));
   const sql = readFileSync(sqlPath, 'utf8');
-  assert.ok(
-    sql.includes(`protein_g,0) >= ${NUTRITION_PROTEIN_FLOOR_G}`),
-    `roster-weekend-split.sql must filter protein_g >= ${NUTRITION_PROTEIN_FLOOR_G} (NUTRITION_PROTEIN_FLOOR_G)`,
-  );
+  // Check EVERY protein-floor predicate (weekday_num + weekend_num), so one filter
+  // drifting while the other stays at 10 can't slip through.
+  const floors = [...sql.matchAll(/protein_g,0\)\s*>=\s*(\d+)/g)].map((m) => Number(m[1]));
+  assert.ok(floors.length >= 2, 'expected both weekday + weekend protein-floor filters in the RPC');
+  for (const f of floors) {
+    assert.equal(f, NUTRITION_PROTEIN_FLOOR_G, `every SQL protein floor must equal NUTRITION_PROTEIN_FLOOR_G (${NUTRITION_PROTEIN_FLOOR_G})`);
+  }
 });
 
 test('buildSelfWeekendBuckets: weekday-only protein logging yields a weekend gap', () => {
