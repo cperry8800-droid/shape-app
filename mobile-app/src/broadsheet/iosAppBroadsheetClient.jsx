@@ -20980,6 +20980,70 @@ function BSClientNextPlate() {
     </div>
   );
 }
+// BSWeekendsCard — member weekday-vs-weekend adherence split in the Progress
+// hub Overall tab. Reads window.ShapeProgress.weekendSplit() (Task 4). All
+// states handled: null/insufficient → nothing; building → gentle plate;
+// ok flagged → headline gap + upside; ok steady → holds steady.
+// Signed-out / !isSelf → render nothing (no fabricated numbers).
+function BSWeekendsCard({ isSelf }) {
+  const t = useBS();
+  const BSPlate = window.BSPlate;
+  const [data, setData] = React.useState(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeProgress?.weekendSplit) return;
+    let alive = true;
+    window.ShapeProgress.weekendSplit().then((d) => { if (alive) setData(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [isSelf]);
+
+  // Absent / too-thin → render nothing (honest empty: no card at all).
+  if (!isSelf || !data || data.status === 'insufficient') return null;
+
+  const dims = data.dimensions || {};
+  const present = ['nutrition', 'habits'].map((k) => [k, dims[k]]).filter(([, d]) => d);
+  if (data.status === 'building' || !present.length) {
+    return (
+      <div style={{ marginBottom: 18 }}>
+        <BSPlate c={t.ACCENT}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>WEEKENDS</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, marginTop: 4 }}>Still learning your weekend pattern.</div>
+          <div style={{ fontSize: 12, color: t.INK70, marginTop: 6 }}>A few more weekends of logging and this fills in.</div>
+        </BSPlate>
+      </div>
+    );
+  }
+
+  const flagged = present.find(([, d]) => d.flagged);
+  const label = (k) => (k === 'nutrition' ? 'Nutrition' : 'Habits');
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const headline = flagged
+    ? `Your weekends run ${Math.round(flagged[1].gapPp)} pts under your weekdays on ${label(flagged[0]).toLowerCase()}.`
+    : 'Your weekends hold steady with your weekdays.';
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <BSPlate c={flagged ? teal : t.ACCENT}>
+        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>WEEKENDS</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, marginTop: 4 }}>{headline}</div>
+        <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+          {present.map(([k, d]) => (
+            <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'baseline' }}>
+              <span style={{ fontSize: 13, color: t.INK }}>{label(k)}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}%
+              </span>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}
+              </span>
+            </div>
+          ))}
+        </div>
+        {flagged && <div style={{ fontSize: 12, color: t.INK70, marginTop: 8 }}>Closing that gap is your easiest win this month.</div>}
+      </BSPlate>
+    </div>
+  );
+}
+
 function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -21051,6 +21115,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
           </div>
         </div>
       )}
+      <BSWeekendsCard isSelf={signedIn} />
       <div style={{ ...card, marginBottom: 18 }}>
         <Eyebrow>Trends</Eyebrow>
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 12 }}>
