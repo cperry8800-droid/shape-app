@@ -3610,6 +3610,23 @@ async function getRosterSleep(ids) {
 }
 window.ShapeRosterSleep = { get: getRosterSleep };
 
+// Batch weekend-adherence split for a coach's roster (one call per roster view).
+// POSTs { clientIds } to /api/coach/roster-weekend; degrades to an empty split so
+// the roster never blocks on this auxiliary data.
+async function rosterWeekendGet(clientIds) {
+  const ids = Array.isArray(clientIds) ? clientIds.filter(Boolean) : [];
+  if (!ids.length || !apiBaseUrl || !state.session?.access_token) return { ok: true, split: {} };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/coach/roster-weekend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ clientIds: ids }),
+    });
+    return res.ok ? await res.json() : { ok: true, split: {} };
+  } catch { return { ok: true, split: {} }; }
+}
+window.ShapeRosterWeekend = { get: rosterWeekendGet };
+
 // Coach soundtracks — saved playlists shared with the website Playlists page
 // (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the
 // signed-in coach's session is used; returns null when signed out / offline so
