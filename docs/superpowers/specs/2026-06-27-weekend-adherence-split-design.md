@@ -371,10 +371,14 @@ Decisions, corrected by grounding:
 - **Status:** `< MIN_WEEKENDS` weekends → `insufficient`; young account → `building`.
 - **Window:** 8-week cutoff excludes older buckets.
 
-### 12.2 Twin parity (`weekendSplit-parity.test.mjs`) — NEW pattern
-- Imports **both** `weekendSplit.mjs` and `weekendSplit.ts`, asserts `deepEqual` over a
-  shared fixture set. (Grounding confirmed **no** cross-twin parity test exists today — the
-  convention is comment-only "KEEP IN SYNC"; this establishes the real guard.)
+### 12.2 Twin convention (matches `scoreDerive`/`e1rm`)
+- The test runner is Node's built-in (`node --test tests/*.test.mjs`); it **cannot import a
+  `.ts` file**, so — exactly like every existing twin — the `.mjs` is the **unit-tested
+  source of truth** and `src/lib/weekendSplit.ts` is a **hand-mirrored** twin kept in sync by
+  review (header comment names the source `.mjs` + its test file). All constants (§4.4) are
+  exported from the `.mjs` and re-declared verbatim in the `.ts`; the fixture suite (§12.1)
+  lives on the `.mjs`. There is no separate runnable cross-twin test (none exists for
+  `scoreDerive`/`e1rm` either — the repo deliberately keeps the two app builds independent).
 
 ### 12.3 Upstream bucketing tests (where tz/DST actually lives)
 - Self-path bucket builder + the SQL RPC: a DST-transition weekend
