@@ -4,6 +4,7 @@ import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } 
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
 import { mergePostPatch } from './communityPostPatch.mjs';
+import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -4351,7 +4352,23 @@ async function getClientProgress() { return cachedClientJson('/api/client/progre
 async function getClientAnalytics() { return cachedClientJson('/api/client/analytics').then((d) => (d && d.has_data ? d : null)); }
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
+async function getClientHabits() { return cachedClientJson('/api/client/habits'); }
 window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
+
+// Member self-path weekend adherence split. Fetches the already-cached habits +
+// progress payloads, builds weekly buckets client-side, and returns the split.
+// Returns null on any error so the Weekends card renders nothing.
+async function weekendSplitSelf() {
+  try {
+    const [habits, progress] = await Promise.all([getClientHabits(), getClientProgress()]);
+    // device-local calendar day as YYYY-MM-DD (en-CA renders ISO order); no
+    // cross-package import of local-day.ts needed.
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+    const buckets = buildSelfWeekendBuckets(habits || { habits: [] }, progress || { series: {} }, { todayLocal });
+    return computeWeekendSplit(buckets);
+  } catch { return null; }
+}
+window.ShapeProgress = { ...(window.ShapeProgress || {}), weekendSplit: weekendSplitSelf };
 async function getClientStrength() { return cachedClientJson('/api/client/strength').then((d) => (d && d.ok ? d : null)); }
 window.ShapeStrength = { get: getClientStrength };
 
