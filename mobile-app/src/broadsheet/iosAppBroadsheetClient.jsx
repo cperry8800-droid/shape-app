@@ -15932,67 +15932,6 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   );
 }
 
-// Inline training/nutrition KPI summary on the Me profile — a compact strip of
-// real numbers (ShapeProgress) with demo fallback; taps into the full progress
-// hub. Keeps Me about "you + your numbers" without the full hub inline.
-function BSMeKpis({ onOpen = () => {}, embedded = false }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [d, setD] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!window.ShapeProgress) return undefined;
-    let on = true;
-    Promise.all([
-      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
-      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
-      window.ShapeProgress.nutrition ? window.ShapeProgress.nutrition().catch(() => null) : null,
-    ]).then(([prog, train, nutr]) => { if (on) setD({ prog, train, nutr }); }).catch(() => {});
-    return () => { on = false; };
-  }, []);
-  // Merge live ShapeProgress over the base — exactly like BSClientProgress — so the
-  // numbers match the full progress page. Signed in → zeroed base (no demo numbers
-  // on a real profile); signed-out preview → demo base.
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const PB = signedIn ? BSPROG_EMPTY : BSPROG_DEMO;
-  const O = { kpis: { ...PB.overall.kpis, ...((d && d.prog && d.prog.kpis) || {}) } };
-  const TR = { stats: { ...PB.train.stats, ...((d && d.train && d.train.stats) || {}) }, prs: (d && d.train && d.train.prs) || PB.train.prs };
-  const NU = { ...PB.nutri, ...((d && d.nutr) || {}), today: { ...PB.nutri.today, ...((d && d.nutr && d.nutr.today) || {}) } };
-  const k = O.kpis;
-  const wc = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v || 0))} lb`;
-  const cards = [
-    { l: 'Sessions / wk', v: String(TR.stats.thisWeekCount ?? 0), c: t.RUST },
-    { l: 'PRs', v: String((TR.prs || []).length), c: t.RUST },
-    { l: '7d volume', v: `${Math.round((TR.stats.volume7dLb || 0) / 1000)}k`, c: t.RUST },
-    { l: 'Protein', v: `${Math.round(NU.today.protein || 0)}g`, c: teal },
-    { l: 'Adherence', v: `${Math.round(((NU.adherentDays7 || 0) / 7) * 100)}%`, c: teal },
-    { l: 'Weight Δ', v: wc(k.weightChange), c: '#8a5cf6' },
-    { l: 'Body fat', v: `${(k.bodyFatLatest || 0).toFixed(1)}%`, c: '#8a5cf6' },
-    { l: 'Sleep', v: `${k.sleepAvg || 0} h`, c: '#8a5cf6' },
-  ];
-  return (
-    <div style={{ padding: embedded ? '6px 0 2px' : '8px 18px 4px' }}>
-      <div style={{ padding: '0 0 10px' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), fontWeight: 700 }}>Your progress</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {cards.map((s) => (
-          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `2.5px solid ${s.c}`, background: bsTHexA(t.INK, 0.04), padding: '10px 9px 10px 11px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
-            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.c, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.l}</div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// The Me tab is PROFILE-FIRST: your living Terrain profile + score/goal/stats.
-// The header gear opens the single merged Settings screen (BSSettings) via the
-// shape:openProfile event; the goal card + Stats tab open the goal/progress pages.
-// ── WEEKLY CHECK-IN — the coaching-standard weekly ritual ────────────────────
-// Ratings (1–10) + wins/struggles/question + optional weight, girth
-// measurements and front/side/back progress photos. One per week (upserts on
-// the week's Monday); a linked coach reads it on the client profile.
 const BS_CHECKIN_RATINGS = [
   ['trainingAdherence', 'Training adherence', '#c0533b'],
   ['nutritionAdherence', 'Nutrition adherence', '#d8b25a'],
@@ -21104,17 +21043,8 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
         { k: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', l: 'Body fat', sub: kpis.bodyFatFirst != null ? `from ${kpis.bodyFatFirst.toFixed(1)}%` : null },
         { k: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', l: 'Resting HR', sub: kpis.restingHrDelta != null ? `${kpis.restingHrDelta > 0 ? '+' : kpis.restingHrDelta < 0 ? '−' : ''}${Math.abs(kpis.restingHrDelta)} vs prior wk` : null },
         { k: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', l: 'Sleep', sub: '30-day avg' },
+        { k: ana && ana.kpis && ana.kpis.weekly_points != null ? `${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}` : '—', l: 'Weekly points', sub: 'this week' },
       ])}
-      {ana && ana.kpis && (
-        <div style={{ ...card, marginBottom: 18 }}>
-          <Eyebrow>Insights · this week</Eyebrow>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[[`${ana.kpis.workout_adherence_pct}%`, 'Workout adherence'], [`${ana.kpis.macro_adherence_pct}%`, 'Macro adherence'], [ana.kpis.avg_sleep_label, 'Avg sleep'], [`${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}`, 'Weekly points']].map((m, i) => (
-              <div key={i}><div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{m[0]}</div><div style={{ fontFamily: t.BODY, fontSize: 10.5, color: t.INK50, marginTop: 5 }}>{m[1]}</div></div>
-            ))}
-          </div>
-        </div>
-      )}
       <BSWeekendsCard isSelf={signedIn} />
       <div style={{ ...card, marginBottom: 18 }}>
         <Eyebrow>Trends</Eyebrow>
