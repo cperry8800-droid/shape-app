@@ -2597,7 +2597,7 @@ function ProWeekendPlate({ split }) {
         {present.map(([k, d]) => (
           <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, fontFamily: t.MONO, fontSize: 11, fontVariantNumeric: 'tabular-nums', color: t.INK }}>
             <span>{k === 'nutrition' ? 'Nutrition' : 'Habits'}</span>
-            <span style={{ color: d.flagged ? t.RUST : t.INK70 }}>wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}% · −{Math.abs(Math.round(d.gapPp))}</span>
+            <span style={{ color: d.flagged ? t.RUST : t.INK70 }}>wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}</span>
           </div>
         ))}
       </div>

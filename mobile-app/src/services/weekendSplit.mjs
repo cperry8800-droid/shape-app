@@ -130,9 +130,10 @@ export function buildSelfWeekendBuckets(habitsPayload, progressPayload, { todayL
   const doneByDay = new Map(); // day → count of daily habits completed
   for (const h of daily) {
     // /api/client/habits returns each habit's completion dates as `history`.
-    for (const done of (h.history || [])) {
-      const d = String(done);
-      if (winSet.has(d)) doneByDay.set(d, (doneByDay.get(d) || 0) + 1);
+    // De-dupe per habit so a repeated date can't push a day's numerator above
+    // dailyCount (the DB enforces unique(habit_id, done_on), but be defensive).
+    for (const done of new Set((h.history || []).map(String))) {
+      if (winSet.has(done)) doneByDay.set(done, (doneByDay.get(done) || 0) + 1);
     }
   }
 

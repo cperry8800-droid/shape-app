@@ -524,9 +524,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
   React.useEffect(() => {
     if (!signedIn) return;            // only persist for a real account
-    let tz = 'UTC';
-    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { tz = 'UTC'; }
-    if (tz && tz !== 'UTC') { window.ShapeProfile?.setTimezone?.(tz); }
+    // Persist the device's RESOLVED zone — including a genuine 'UTC' (London/
+    // Reykjavik); only skip when detection fails, so real-UTC members aren't
+    // permanently suppressed on the coach path.
+    let tz = null;
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { tz = null; }
+    if (tz) { window.ShapeProfile?.setTimezone?.(tz); }
   }, [signedIn]);
 
   // Required one-time health profile (PAR-Q screening) for signed-in clients —
@@ -20952,7 +20955,11 @@ function BSWeekendsCard({ isSelf }) {
     );
   }
 
-  const flagged = present.find(([, d]) => d.flagged);
+  // Lead with the module's RANKED worst dimension (lower-CI bound), not array
+  // order — so when both are flagged the headline names the stronger signal.
+  const flagged = data.worstDimension
+    ? (present.find(([k]) => k === data.worstDimension) || null)
+    : null;
   const label = (k) => (k === 'nutrition' ? 'Nutrition' : 'Habits');
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const headline = flagged

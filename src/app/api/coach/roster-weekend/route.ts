@@ -19,8 +19,12 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const body = await readJson<{ clientIds?: unknown }>(request, { allowEmpty: true });
   if (!body.ok) return body.response;
+  // Keep only UUID-shaped ids — the RPC's uuid[] arg rejects anything else, and a
+  // single bad element ("[object Object]") would error the whole batch into the
+  // quiet empty-split fallback, losing weekend data for every client in it.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const ids = Array.isArray(body.data?.clientIds)
-    ? [...new Set((body.data!.clientIds as unknown[]).map(String).filter(Boolean))].slice(0, 200)
+    ? [...new Set((body.data!.clientIds as unknown[]).map(String).filter((s) => UUID.test(s)))].slice(0, 200)
     : [];
   if (!ids.length) return NextResponse.json({ ok: true, split: {} });
 

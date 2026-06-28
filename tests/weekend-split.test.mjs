@@ -4,6 +4,8 @@
 // it. Run: node --test
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   computeWeekendSplit, buildSelfWeekendBuckets,
   MIN_WEEKENDS, FLAG_GAP_PP, MIN_DIM_DAYS, NUTRITION_PROTEIN_FLOOR_G, SE_Z, CONSISTENCY, STATUS,
@@ -79,6 +81,19 @@ test('constants are exported and stable', () => {
   assert.equal(MIN_DIM_DAYS.nutrition, 12);
   assert.equal(MIN_DIM_DAYS.habits, 12);
   assert.equal(NUTRITION_PROTEIN_FLOOR_G, 10);
+});
+
+test('SQL RPC mirrors the nutrition protein floor (drift guard)', () => {
+  // The protein floor is the one constant hardcoded separately in the coach SQL
+  // (the module can't import a JS constant into Postgres). Read the migration and
+  // assert it matches NUTRITION_PROTEIN_FLOOR_G, so changing the constant alone
+  // can't silently leave the SQL behind.
+  const sqlPath = fileURLToPath(new URL('../supabase-migrations/2026-06-27-roster-weekend-split.sql', import.meta.url));
+  const sql = readFileSync(sqlPath, 'utf8');
+  assert.ok(
+    sql.includes(`protein_g,0) >= ${NUTRITION_PROTEIN_FLOOR_G}`),
+    `roster-weekend-split.sql must filter protein_g >= ${NUTRITION_PROTEIN_FLOOR_G} (NUTRITION_PROTEIN_FLOOR_G)`,
+  );
 });
 
 test('buildSelfWeekendBuckets: weekday-only protein logging yields a weekend gap', () => {

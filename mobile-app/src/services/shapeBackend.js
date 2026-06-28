@@ -3615,9 +3615,10 @@ window.ShapeRosterSleep = { get: getRosterSleep };
 // the roster never blocks on this auxiliary data.
 async function rosterWeekendGet(clientIds) {
   const ids = Array.isArray(clientIds) ? clientIds.filter(Boolean) : [];
-  if (!ids.length || !apiBaseUrl || !state.session?.access_token) return { ok: true, split: {} };
+  // '' apiBaseUrl is valid same-origin config (see setTimezone) — gate on the token only.
+  if (!ids.length || !state.session?.access_token) return { ok: true, split: {} };
   try {
-    const res = await fetch(`${apiBaseUrl}/api/coach/roster-weekend`, {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-weekend`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
       body: JSON.stringify({ clientIds: ids }),
@@ -4105,9 +4106,12 @@ window.ShapeStepPoints = { check: awardStepPoints };
 // postProConsole (there is NO generic postJson helper in this file).
 async function setTimezone(tz) {
   if (!tz || typeof tz !== 'string') return { ok: false };
-  if (!apiBaseUrl || !state.session?.access_token) return { ok: false };
+  // apiBaseUrl is '' on same-origin (/m/ web) builds — that's valid, not "missing
+  // config" — so gate only on the bearer token and use the `${apiBaseUrl || ''}`
+  // URL form the rest of the file uses for same-origin calls.
+  if (!state.session?.access_token) return { ok: false };
   try {
-    const res = await fetch(`${apiBaseUrl}/api/client/timezone`, {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/timezone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
       body: JSON.stringify({ tz }),

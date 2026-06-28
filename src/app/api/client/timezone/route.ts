@@ -18,6 +18,10 @@ export async function POST(request: Request) {
   if (!body.ok) return body.response;
   const tz = String(body.data?.tz ?? '').trim().slice(0, 64);
   if (!IANA.test(tz)) return NextResponse.json({ error: 'invalid_tz' }, { status: 400 });
+  // Shape check isn't enough — reject a well-formed but nonexistent zone
+  // ("Area/Nowhere") so we never persist a value that breaks tz bucketing later.
+  // The runtime throws on an unknown IANA zone, validating against the real db.
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); } catch { return NextResponse.json({ error: 'invalid_tz' }, { status: 400 }); }
 
   const supabase = await clientForRequest(request);
   // client_profiles is keyed by user_id (PK); `data` defaults to '{}' and a

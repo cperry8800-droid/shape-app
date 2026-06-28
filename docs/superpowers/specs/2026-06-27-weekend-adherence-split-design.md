@@ -123,11 +123,13 @@ DimResult = {
 ```
 
 `status`:
-- `insufficient` — fewer than `MIN_WEEKENDS` (3) weekends of data overall, OR every
-  dimension absent. Surfaces render **nothing** (no chip, no card body).
-- `building` — has data but a dimension hasn't crossed its minimum denominator yet;
-  account younger than the window. Member card may show a gentle "still learning your
-  pattern" state; **no flag, no chip**.
+- `insufficient` — fewer than `MIN_WEEKENDS` (3) weekends of data overall. Surfaces
+  render **nothing** (no chip, no card body).
+- `building` — has `≥ MIN_WEEKENDS` weekends of data but no dimension has crossed its
+  minimum denominator yet (every dimension still absent), or the account is younger than
+  the window. Member card may show a gentle "still learning your pattern" state;
+  **no flag, no chip**. (A weak-but-present dimension whose CI straddles 0 stays `ok` +
+  `flagged:false` — it is NOT downgraded to `insufficient`.)
 - `ok` — at least one present dimension; may or may not be `flagged`.
 
 > **Return-shape note (hardened):** sibling rollups use `has_data:boolean` / null
@@ -281,10 +283,10 @@ A Sat/Sun-morning time-bound nudge is deferred (§10) and gated on a separate de
 
 - **No canonical per-user timezone exists.** `tz` lives only in
   `user_scheduled_reminders.tz` (default `'UTC'`, only set if reminders configured).
-- **Add `profiles.timezone` (IANA `text`)**, written opportunistically on every app open
+- **Add `client_profiles.timezone` (IANA `text`)**, written opportunistically on every app open
   (client already knows its zone), backfilled from `user_scheduled_reminders.tz` /
   notification settings where present.
-- **Roster bucketing uses each member's `profiles.timezone`.** Where it is unknown/default,
+- **Roster bucketing uses each member's `client_profiles.timezone`.** Where it is unknown/default,
   the **chip is suppressed** (we do not guess UTC and mislabel evening-Americas/Europe
   activity). Member self-path already has the device zone, so the member card works
   regardless.
@@ -348,7 +350,7 @@ Decisions, corrected by grounding:
 | Add a tight KPI/adherence grid to Overall | Web banned bare adherence %; converge with streaks/wins instead |
 | Composite "blend of three" can trigger the flag | Dimensions incommensurable → composite is display-only |
 | `client_workouts.scheduled_date` exists | No such column → training deferred |
-| Per-user timezone is stored | Only `user_scheduled_reminders.tz` → add `profiles.timezone` |
+| Per-user timezone is stored | Only `user_scheduled_reminders.tz` → add `client_profiles.timezone` |
 | Coach roster = `roster-sleep` `.in()` clone | RLS blocks habits/workouts → `SECURITY DEFINER` RPC |
 | Nutrition = any row that day | Row touched by hydration/steps/sync → meaningful-food floor |
 | DST handled by a module unit test | tz/DST belongs upstream; module is tz-free |
@@ -402,7 +404,7 @@ Decisions, corrected by grounding:
 
 ## 13. Build sequence (for the implementation plan)
 
-1. Migration: `profiles.timezone` (IANA) + opportunistic client write + backfill.
+1. Migration: `client_profiles.timezone` (IANA) + opportunistic client write + backfill.
 2. `weekendSplit.mjs` + constants + unit tests (statistical gate first, TDD).
 3. `weekendSplit.ts` twin + parity test.
 4. Self-path bucket builder over cached client JSON (local-day) + `signalsMap` wiring.

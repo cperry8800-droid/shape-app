@@ -28,10 +28,14 @@ as $$
         and (t.owner_id = auth.uid() or n.owner_id = auth.uid())
     )
   ),
+  -- Only clients with a CAPTURED timezone — never fabricate a UTC bucketing
+  -- choice for a member whose real zone is unknown (honest-data). Unknown-tz
+  -- clients drop out → no rows → the route computes 'insufficient' → no chip.
   tz as (
-    select a.client_id, coalesce(cp.timezone, 'UTC') as zone
+    select a.client_id, cp.timezone as zone
     from allowed a
-    left join public.client_profiles cp on cp.user_id = a.client_id
+    join public.client_profiles cp on cp.user_id = a.client_id
+    where cp.timezone is not null
   ),
   win as (  -- per client, the local "today" and the 56-day floor
     select client_id, zone,
@@ -93,6 +97,9 @@ as $$
       select uh.user_id, uhc.done_on, count(*) as done
       from public.user_habit_completions uhc
       join public.user_habits uh on uh.id = uhc.habit_id and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday') and uh.archived_at is null
+      -- Scope the aggregate to THIS roster's clients (≤200) instead of grouping
+      -- every completion in the table on a hot endpoint, then discarding most.
+      where uh.user_id in (select client_id from activity)
       group by uh.user_id, uhc.done_on
     ) c on c.user_id = dy.client_id and c.done_on = dy.day
     group by dy.client_id, date_trunc('week', dy.day)
