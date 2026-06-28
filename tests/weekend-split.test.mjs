@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computeWeekendSplit, buildSelfWeekendBuckets,
-  MIN_WEEKENDS, FLAG_GAP_PP, SE_Z, CONSISTENCY, STATUS,
+  MIN_WEEKENDS, FLAG_GAP_PP, MIN_DIM_DAYS, NUTRITION_PROTEIN_FLOOR_G, SE_Z, CONSISTENCY, STATUS,
 } from '../mobile-app/src/services/weekendSplit.mjs';
 
 // helper: build N weeks of identical buckets for one dimension
@@ -36,8 +36,10 @@ test('a perfectly consistent member does not flag (gap ~0)', () => {
   assert.equal(r.worstDimension, null);
 });
 
-test('two solid weekends + one outlier does NOT flag (consistency gate)', () => {
-  // weekday always 5/5; weekend: 2/2,2/2,2/2,2/2,2/2,0/2 → small avg gap, low positive-week share
+test('two solid weekends + one outlier does NOT flag (statistical + consistency gates)', () => {
+  // weekday always 5/5; weekend: 2/2 ×5 then 0/2. Avg gap ≈16.7pp (above the 15 floor),
+  // but blocked by BOTH gates: the SE gate (16.7 < 1.65·SE) AND consistency (the gap is
+  // positive in only 1 of 6 weeks, since 2/2-vs-5/5 weeks have a gap of exactly 0).
   const nutrition = [wk(0,5,5,2,2),wk(1,5,5,2,2),wk(2,5,5,2,2),wk(3,5,5,2,2),wk(4,5,5,2,2),wk(5,5,5,0,2)];
   const r = computeWeekendSplit({ nutrition, habits: [] });
   assert.equal(r.dimensions.nutrition.flagged, false);
@@ -71,6 +73,12 @@ test('constants are exported and stable', () => {
   assert.equal(FLAG_GAP_PP, 15);
   assert.equal(SE_Z, 1.65);
   assert.equal(CONSISTENCY, 0.60);
+  // These two are also hardcoded in the get_roster_weekend_split SQL (the 12-day
+  // weekend-side floor and the 10g meaningful-food floor) — assert them so a value
+  // change here surfaces the SQL drift.
+  assert.equal(MIN_DIM_DAYS.nutrition, 12);
+  assert.equal(MIN_DIM_DAYS.habits, 12);
+  assert.equal(NUTRITION_PROTEIN_FLOOR_G, 10);
 });
 
 test('buildSelfWeekendBuckets: weekday-only protein logging yields a weekend gap', () => {
