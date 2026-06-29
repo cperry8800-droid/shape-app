@@ -458,7 +458,7 @@ async function countRouteFiles(dir: string): Promise<number> {
 
 async function buildInventory(): Promise<WarRoomSnapshot['inventory']> {
   const root = process.cwd();
-  const fallback = { apiRoutes: 80, migrations: 45, mobileBuild: true, mobileAssets: 0 };
+  const fallback = { apiRoutes: 139, migrations: 138, mobileBuild: true, mobileAssets: 0 };
   try {
     const apiRoutes = (await countRouteFiles(path.join(root, 'src/app/api'))) || fallback.apiRoutes;
     let migrations = fallback.migrations;
@@ -557,6 +557,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Supabase Auth rate limits — DONE (owner set the dashboard values 2026-06-25: otp 60 / verify 100 / email_sent 30 / anonymous_users 5; token_refresh ~1800). The app /api/* limiter (check_rate_limit + rate_limits table) covers our own routes; these Auth dashboard limits are the real brute-force gate for the native credential endpoints the SDK calls directly', status: 'done' },
         { label: 'Auth CAPTCHA (Cloudflare Turnstile) — DONE (owner enabled it in Auth → Settings with the secret, 2026-06-25). Wired on every surface: consultation + login/signup across web (login.jsx), mobile (turnstile.js + BSLogin), and Next (Turnstile.tsx + login actions). The old "login/signup wiring is a follow-up" note was stale — that client wiring shipped in #1347-#1352', status: 'done' },
         { label: 'Secret scan (gitleaks) — DONE. Now a REQUIRED check on main (classic branch protection enabled 2026-06-25, enforce_admins on), alongside Web + Mobile, so merging on red is impossible. Runs on every PR via ci.yml + .gitleaks.toml (0 leaks)', status: 'done' },
+      ],
+    },
+    {
+      section: 'Reliability — Today plate · CLS sweep · race hardening (2026-06-29)',
+      items: [
+        { label: 'TODAY instrument plate (#1451): the mobile home\'s two cards (BSDailyCheckinCard + BSHydrationCard) consolidated into ONE teal BSTodayCard — Energy/Hunger/Rested as tap-to-set 1–10 gauges over 44px zones, device-first sleep, hydration folds in as dot-progress + quick-add (stays live), collapses to a one-line summary when logged. Web parity: DashTodayCard (dash-plate at the top of the client home) posts to the SAME /api/client/checkin + /api/client/hydration. No schema change', status: 'done' },
+        { label: 'CUMULATIVE LAYOUT SHIFT sweep (#1452/#1453, website + mobile): preconnect on 18 marketing pages + a metrics-matched fallback @font-face for all three tiers (Fraunces→Times, Space Grotesk→Arial, JetBrains Mono→Courier; size-adjust/ascent/descent from @capsizecss/metrics) wired into the shared serif/sans/mono stacks — kills the swap reflow on headers/sub-heads/body; community media → aspect-ratio 4/3; nav/splash/radio logos get aspect-ratio from real PNG dims; GridStack dashboard → min-height 60vh', status: 'done' },
+        { label: 'RACE-CONDITION hardening (#1454–#1459): a multi-agent audit found 10 read-then-write / check-then-act races; fixed across 5 PRs, each with a route fallback so deploy-vs-migration order doesn\'t matter. Atomic-write RPCs add_hydration + add_meal_macros (INSERT…ON CONFLICT DO UPDATE col=col+delta, clamp INSIDE the RPC); merge_program_detail + set_program_detail (atomic || merge of only the patched keys — no whole-doc clobber between co-coaches); league_assign_cohort (per-(week,tier) advisory lock, fills cohorts under the 24 cap); device-sync upsert + coach/recipe-review + lead-boost unique indexes; client-side stale-response + cache + busy-lock guards', status: 'done' },
+        { label: 'CodeRabbit caught 2 real Critical auth vulns I introduced + I fixed them: league self-promote (RPC now service-role-ONLY, route-mediated via the admin client + a currentUser gate) and program-detail subfield forge (the client_programs_discipline_guard trigger now enforces directive+goals = coach-only on EVERY write path, before the self-bypass). On re-review CodeRabbit resolved every thread', status: 'done' },
+        { label: 'Apply-time fixes (#1459) + LIVE security gap closed: write-idempotency.sql is now to_regclass-guarded (it 42P01\'d on a DB lacking the coach_lead_boosts feature table); and league_assign_cohort was STILL executable by authenticated because Supabase default privileges auto-grant EXECUTE and `revoke … from public` alone leaves the authenticated/anon grants — the self-promote vuln was open in prod. Revoked live (verified service_role-only) + corrected the migration to `revoke … from public, authenticated, anon`', status: 'done' },
+        { label: 'MIGRATIONS — all 4 APPLIED + verified live on Supabase (2026-06-29): atomic-daily-snapshot-accumulators, atomic-program-detail-merge, league-cohort-atomic, write-idempotency. Plus the deferred lead-boost step closed — owner ran 2026-05-08-lead-boosts.sql then re-ran write-idempotency.sql; the coach_lead_boosts_active_uniq partial unique index ((provider_id) WHERE status=\'active\') is verified live. CI green + CodeRabbit clean on every PR; branches kept', status: 'done' },
       ],
     },
     {
