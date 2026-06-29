@@ -149,7 +149,16 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-06-27.md`](HANDOFF-2026-06-27.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-06-29.md`](HANDOFF-2026-06-29.md)** —
+> Big session, all shipped to `main` + verified live: the consolidated **"Today"** home
+> card (check-in + hydration, mobile + web, #1451), a **Cumulative Layout Shift** sweep
+> (preconnect + metrics-matched fallback fonts + reserved media dims, #1452/#1453), and a
+> **race-condition hardening** sweep (10 races, 4 atomic-write migrations, #1454–#1459) —
+> including an apply-time **live security fix** (`league_assign_cohort` was still
+> `authenticated`-callable → self-promote vuln; revoked to `service_role` only + verified).
+> All 4 migrations APPLIED + verified live.
+>
+> (Prior: [`docs/HANDOFF-2026-06-27.md`](HANDOFF-2026-06-27.md) —
 > Big session, all shipped to `main` + verified live: sleep fast-follow (#1433 —
 > stages/latency/respiratory from Oura, a tested recovery-READINESS score, a mobile
 > sleep-detail page, coach surfacing + a dashSignals sleep-triage rule; also folded in
@@ -173,6 +182,52 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-06-29 — Race-condition hardening sweep (#1454–#1459) + apply-time security fix
+- **Audited the async write/read layer for race conditions** (multi-agent fan-out, two
+  passes — the first rate-limited, the re-run fully sequential) and fixed **10 confirmed
+  races** across 5 PRs. Each touched route keeps a **fallback** so deploy order vs the
+  migrations doesn't matter; all migrations are idempotent.
+- **#1454 — atomic snapshot accumulators.** `/api/client/hydration` + `/api/nutrition/meal-log`
+  did SELECT→compute-in-JS→UPDATE, so two concurrent writers (phone + `/m/` web, or a tap
+  racing a retry) could lose an increment. New `add_hydration` / `add_meal_macros` RPCs do the
+  add inside one upsert (ON CONFLICT DO UPDATE under the row lock). Migration
+  `2026-06-29-atomic-daily-snapshot-accumulators.sql`.
+- **#1455 — atomic `client_programs.detail` merge.** Four writers (goals route, AI directive
+  override, client self-write, `set_program_detail`) read-modify-wrote the whole `{training,
+  nutrition, goals, directive}` JSONB doc → a care-team trainer + nutritionist could silently
+  clobber each other's section. New `merge_program_detail` (atomic `||` merge of only the
+  patched keys) + `set_program_detail` rewritten to merge inside its upsert. Migration
+  `2026-06-29-atomic-program-detail-merge.sql`.
+- **#1456 — atomic league cohort.** `assignCohort` read counts then picked "first cohort <24"
+  then wrote separately → at a week boundary, concurrent joins all piled into cohort 0
+  (overflow, corrupting promote/relegate). New `league_assign_cohort` under a per-(week,tier)
+  advisory lock. Migration `2026-06-29-league-cohort-atomic.sql`.
+- **#1457 — server idempotency.** Device-sync `upsertSnapshot` → `.upsert(onConflict)`; coach +
+  recipe reviews get unique `(user, slug)` indexes + upsert (no more duplicate reviews skewing
+  the public average); lead-boost gets a partial unique index (one active boost/provider).
+  Migration `2026-06-29-write-idempotency.sql`.
+- **#1458 — client-side guards.** `BSTerrainProfile` + `BSSignalCoachProfile` getPublicProfile
+  effects now reset `live` + use an `on` cleanup flag (tapping profile A then B no longer lets a
+  slow A response overwrite B); MusicKit promise cleared on rejection; `_followCache`/`_avatarCache`
+  cleared on sign-out (no cross-user leak); coach-review submit gets an in-flight lock.
+- **CodeRabbit caught 2 real Critical auth vulns I'd introduced + I fixed them:** the league RPC
+  let a user self-promote to any tier (now **service-role-only**, route-mediated); the
+  `merge_program_detail` RPC let a client patch coach-only `directive`/`goals` (the
+  `client_programs_discipline_guard` trigger now enforces directive+goals = coach-only on EVERY
+  write path, before the self-bypass). Plus fallback read-error guards + a goals-GET owner/coach
+  check + DB-boundary macro clamps. On re-review CodeRabbit **resolved every thread**.
+- **⚠ Apply-time fixes (#1459).** Running the migrations surfaced two real issues, both fixed:
+  (1) `write-idempotency.sql` hard-referenced optional feature tables → **42P01** on a DB without
+  `coach_lead_boosts` (the lead-boosts table wasn't created); each block is now `to_regclass`-guarded.
+  (2) **Live security gap:** `create or replace function` + Supabase's default privileges meant
+  `league_assign_cohort` was STILL executable by `authenticated` after `revoke … from public` — the
+  self-promote vuln was open in prod. Fixed live (revoked from `authenticated`+`anon`; verified only
+  `service_role` can call it) and corrected the migration file.
+- **All migrations APPLIED + verified live (2026-06-29)** — every RPC/index present, the
+  discipline trigger enforces directive/goals coach-only, and `league_assign_cohort` is callable by
+  `service_role` only (authenticated=false, anon=false). CI green + CodeRabbit clean on every PR;
+  branches kept.
 
 ### 2026-06-29 — Cumulative Layout Shift sweep (website + mobile, #1452)
 - **Audited + fixed CLS** (content moving after first paint) across both surfaces via a
