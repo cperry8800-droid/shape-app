@@ -19,9 +19,11 @@ import { clientLocalDay } from '@/lib/local-day';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Accept only a real, finite, non-negative JSON number. Number() would coerce null /
+// false / '' to 0 (a fabricated zero-value snapshot), so reject non-numbers outright.
 function asNum(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null;
+  return v;
 }
 
 // 'PGRST202' (function not in schema cache) / '42883' (undefined_function) => the
@@ -59,12 +61,15 @@ export async function POST(request: Request) {
   if (!isMissingFunction(rpcErr)) return dbError(rpcErr, 'meal log write', 500);
 
   // ── Fallback (pre-migration): legacy read-then-write. ──
-  const { data: existing } = await supabase
+  const { data: existing, error: readErr } = await supabase
     .from('daily_health_snapshot')
     .select('calories, protein_g, carbs_g, fat_g, hydration_l')
     .eq('user_id', user.id)
     .eq('snapshot_date', today)
     .maybeSingle();
+  // A failed read must not be treated as "no row" and turned into an insert that masks
+  // the error / writes a wrong baseline.
+  if (readErr) return dbError(readErr, 'meal log read', 500);
 
   const add = (cur: unknown, inc: number | null) =>
     inc == null ? (cur == null ? null : Number(cur)) : Number(cur || 0) + inc;

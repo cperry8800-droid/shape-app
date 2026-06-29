@@ -56,15 +56,25 @@ declare
 begin
   if v_uid is null then raise exception 'not authenticated'; end if;
 
+  -- DB-boundary validation: this RPC is executable by `authenticated`, so a direct
+  -- caller bypasses the API's asNum guard. Clamp every supplied macro to >= 0 (a NULL
+  -- field stays "unchanged") and drop NaN, so a direct caller can't decrement / poison
+  -- their snapshot via the conflict-update path below.
+  p_kcal      := case when p_kcal      is null or p_kcal      <> p_kcal      then null else greatest(0, p_kcal)      end;
+  p_protein   := case when p_protein   is null or p_protein   <> p_protein   then null else greatest(0, p_protein)   end;
+  p_carbs     := case when p_carbs     is null or p_carbs     <> p_carbs     then null else greatest(0, p_carbs)     end;
+  p_fat       := case when p_fat       is null or p_fat       <> p_fat       then null else greatest(0, p_fat)       end;
+  p_hydration := case when p_hydration is null or p_hydration <> p_hydration then null else greatest(0, round(p_hydration, 3)) end;
+
   insert into public.daily_health_snapshot as d
       (user_id, snapshot_date, calories, protein_g, carbs_g, fat_g, hydration_l)
     values (
       v_uid, p_date,
-      case when p_kcal      is null then null else greatest(0, p_kcal) end,
-      case when p_protein   is null then null else greatest(0, p_protein) end,
-      case when p_carbs     is null then null else greatest(0, p_carbs) end,
-      case when p_fat       is null then null else greatest(0, p_fat) end,
-      case when p_hydration is null then null else greatest(0, round(p_hydration, 3)) end
+      p_kcal,
+      p_protein,
+      p_carbs,
+      p_fat,
+      p_hydration
     )
   on conflict (user_id, snapshot_date) do update set
     calories    = case when p_kcal      is null then d.calories    else coalesce(d.calories, 0)    + p_kcal      end,
