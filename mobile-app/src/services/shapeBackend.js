@@ -3555,10 +3555,12 @@ async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail 
     if (mErr) {
       if (mErr.code === 'PGRST202' || mErr.code === '42883') {
         let existing = {};
-        try {
-          const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
-          if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
-        } catch (e) { /* first write — no existing row */ }
+        // maybeSingle() returns read errors in-band — don't merge from {} on a failed
+        // read, which would erase the sibling sections. (A genuine first write returns
+        // data:null with no error, so existing stays {}.)
+        const { data: cur, error: curErr } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
+        if (curErr) throw curErr;
+        if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
         payload.detail = { ...existing, ...selfDetail };
       } else { throw mErr; }
     }

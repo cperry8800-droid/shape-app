@@ -111,7 +111,7 @@ export async function writeOverride(
   coachId: string,
   override: Record<string, unknown> | null,
 ): Promise<{ before: unknown; after: unknown }> {
-  const { data } = await supabase
+  const { data, error: readErr } = await supabase
     .from('client_programs')
     .select('detail')
     .eq('user_id', clientId)
@@ -124,6 +124,9 @@ export async function writeOverride(
   const { error } = await supabase.rpc('merge_program_detail', { p_client_id: clientId, p_patch: { directive: override } });
   if (error) {
     if (error.code === 'PGRST202' || error.code === '42883') {
+      // The fallback rewrites the whole detail from `detail`; if the baseline read
+      // failed, refuse rather than clobber training/nutrition/goals with {} + directive.
+      if (readErr) throw new Error(`directive override read failed: ${readErr.message}`);
       const nextDetail = { ...detail, directive: override };
       const { error: upErr } = await supabase
         .from('client_programs')

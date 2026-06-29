@@ -76,7 +76,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
-  // RLS: returns the row only to the client themself or an active coach.
+  // Explicit owner-or-coach gate (not just RLS, which would silently 200 with null for
+  // an unauthorized caller).
+  if (user.id !== clientId) {
+    const { data: coachOnClient } = await supabase.rpc('is_coach_on_client', { p_client_id: clientId });
+    if (coachOnClient !== true) return NextResponse.json({ error: 'Not authorized.' }, { status: 403 });
+  }
   const { data } = await supabase
     .from('client_programs')
     .select('detail')
@@ -125,11 +130,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (error) {
     // ── Fallback (pre-migration): legacy read-then-write. ──
-    const { data: row } = await supabase
+    const { data: row, error: readErr } = await supabase
       .from('client_programs')
       .select('detail')
       .eq('user_id', clientId)
       .maybeSingle();
+    // Don't write from an unknown baseline: a failed read would erase sibling sections.
+    if (readErr) return dbError(readErr, 'client goals read', 500);
     const detail = { ...((row?.detail ?? {}) as Record<string, unknown>), goals };
     const { error: upErr } = await supabase
       .from('client_programs')

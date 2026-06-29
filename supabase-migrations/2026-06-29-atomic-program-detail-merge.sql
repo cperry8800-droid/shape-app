@@ -93,3 +93,66 @@ end;
 $$;
 
 grant execute on function public.set_program_detail(uuid, text, text, jsonb) to authenticated;
+
+-- ── Harden the discipline guard so detail.directive + detail.goals are COACH-ONLY on
+--    EVERY write path (the new merge_program_detail RPC AND any direct upsert). Without
+--    this, a client could patch their own detail.directive (the coach's authoritative
+--    override the engine trusts) or detail.goals (coach-set, client-viewed) — RLS scopes
+--    rows, not JSONB subfields, and the prior guard only covered training/nutrition.
+--    The directive/goals check runs BEFORE the self-bypass; training/nutrition keep the
+--    existing self-or-discipline-coach rule. ──
+create or replace function public.client_programs_discipline_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_training_changed boolean;
+  v_nutrition_changed boolean;
+  v_directive_changed boolean;
+  v_goals_changed boolean;
+begin
+  -- A non-request context (no JWT: migrations / service role) is trusted.
+  if v_uid is null then return new; end if;
+
+  if tg_op = 'INSERT' then
+    v_training_changed  := (new.training_phase is not null) or (new.detail ? 'training');
+    v_nutrition_changed := (new.nutrition_phase is not null) or (new.detail ? 'nutrition');
+    v_directive_changed := new.detail ? 'directive';
+    v_goals_changed     := new.detail ? 'goals';
+  else
+    v_training_changed  := (new.training_phase  is distinct from old.training_phase)
+                           or ((new.detail -> 'training')  is distinct from (old.detail -> 'training'));
+    v_nutrition_changed := (new.nutrition_phase is distinct from old.nutrition_phase)
+                           or ((new.detail -> 'nutrition') is distinct from (old.detail -> 'nutrition'));
+    v_directive_changed := (new.detail -> 'directive') is distinct from (old.detail -> 'directive');
+    v_goals_changed     := (new.detail -> 'goals')     is distinct from (old.detail -> 'goals');
+  end if;
+
+  -- directive + goals are coach-only — even the client themself may not set them.
+  if v_directive_changed and not public.is_coach_on_client(new.user_id) then
+    raise exception 'Only a coach may set the directive.' using errcode = '42501';
+  end if;
+  if v_goals_changed and not public.is_coach_on_client(new.user_id) then
+    raise exception 'Only a coach may set goals.' using errcode = '42501';
+  end if;
+
+  -- The client editing their OWN training/nutrition is fine.
+  if v_uid = new.user_id then
+    return new;
+  end if;
+
+  if v_training_changed and not public.is_discipline_coach_on_client(new.user_id, 'trainer') then
+    raise exception 'Only the client''s trainer can change the training program.'
+      using errcode = '42501';
+  end if;
+  if v_nutrition_changed and not public.is_discipline_coach_on_client(new.user_id, 'nutritionist') then
+    raise exception 'Only the client''s nutritionist can change the nutrition program.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
