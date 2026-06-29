@@ -1159,6 +1159,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
   const [liveReviews, setLiveReviews] = useStateBSM2([]);
   const [revRating, setRevRating] = useStateBSM2(0);
   const [revText, setRevText] = useStateBSM2('');
+  const [revPosting, setRevPosting] = useStateBSM2(false);
   const avgRev = liveReviews.length ? Math.round((liveReviews.reduce((s, r) => s + (r.rating || 0), 0) / liveReviews.length) * 10) / 10 : null;
   useEffectBSM2(() => {
     let c = false;
@@ -1169,11 +1170,13 @@ function BSCoachDetailPublic({ coach, onBack }) {
     return () => { c = true; };
   }, [coachSlug]);
   const submitReview = () => {
-    if (!revRating) return;
+    if (!revRating || revPosting) return;   // in-flight lock: a double-tap can't post twice
+    setRevPosting(true);
     fetch('/api/coaches/reviews', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ coach: coachSlug, kind: coachKind, rating: revRating, text: revText }) })
       .then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))))
       .then(d => { if (d && d.review) { setLiveReviews(prev => [d.review, ...prev]); setRevRating(0); setRevText(''); window.__bsToast?.('Review posted', 'ok'); } })
-      .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); });
+      .catch(err => { window.__bsToast?.(err && err.error ? err.error : 'Could not post review', 'err'); })
+      .finally(() => setRevPosting(false));
   };
   const last = coach.name.split(' ').slice(1).join(' ') || p.role;
   const firstName = p.first;
@@ -1547,7 +1550,7 @@ function BSCoachDetailPublic({ coach, onBack }) {
               <textarea value={revText} onChange={(e) => setRevText(e.target.value)} placeholder="Share how it went…" rows={2}
                 style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '8px 10px', fontFamily: t.DISPLAY, fontSize: 13.5, resize: 'vertical', outline: 'none' }} />
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                <button onClick={submitReview} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: revRating ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Post review</button>
+                <button onClick={submitReview} disabled={!revRating || revPosting} style={{ borderRadius: t.RADIUS_SM, padding: '8px 16px', background: revRating ? t.INK : t.SURFACE, color: revRating ? t.PAPER : t.INK50, border: 0, cursor: (revRating && !revPosting) ? 'pointer' : 'default', opacity: revPosting ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{revPosting ? 'Posting…' : 'Post review'}</button>
               </div>
             </BSProfileCard>
             {liveReviews.map(rv => (

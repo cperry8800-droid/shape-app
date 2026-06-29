@@ -8358,7 +8358,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const [actExpr, setActExpr] = useStateBSC({});
   const profLpTimerRef = React.useRef(null);
   const profLpFiredRef = React.useRef(false);
-  React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
   // others read it from the public-profile RPC (`custom`).
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
@@ -9249,7 +9249,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   }, [sigFeedAuthorId]);
   React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
   useBSPresence();
-  React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
   // Live sigil rings for your own coach profile (habits / client workouts / own activity).
   React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
