@@ -174,6 +174,33 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-29 — "Today" instrument plate: daily check-in + hydration consolidated (mobile + web, #1451)
+- **One plate replaces two home cards.** The mobile home's separate **`BSDailyCheckinCard`**
+  (energy/hunger/sleep/rested) + **`BSHydrationCard`** are now a single teal **`BSTodayCard`**
+  `BSPlate` (clipped notch · spine · live tick · bracket). Energy / Hunger / Rested are tap-to-set
+  1–10 **gauges** (filled bar + end-anchor knob over 10 invisible tap zones — same 1–10 values,
+  **no migration**); Sleep stays device-first (read-only recovery snapshot when a wearable synced,
+  else manual hour chips); Hydration folds in as **dot-progress + quick-add** that **stays live**
+  even after the check-in collapses to its one-line summary; recovery readiness + the sleep-detail
+  door sit in the footer. Data flow (`/api/client/checkin`, `/api/client/hydration`,
+  `window.ShapeProgress`) unchanged.
+- **Web parity — first time on the website.** New **`DashTodayCard`** (`dashClient.jsx`) — a
+  `dash-plate` widget at the top of the client home `DashGrid`, after the Score card — mirrors the
+  mobile plate, posting to the same `/api/client/checkin` + `/api/client/hydration` (cookie session)
+  and seeding today's values from `/api/client/progress`. `dashClient.jsx?v=20260629a` across the 8
+  loader pages. (Web is metric-only ml; mobile honors the unit pref.)
+- **Built brainstorm-approved → adversarial multi-agent review** (sequential 5-dimension pass —
+  correctness · house-style · parity · states/a11y · honesty — each finding independently
+  refute-verified). Caught + fixed: **(1)** a demo-vs-live leak — the web `live` flag flips
+  false→true after the dashboard resolves, so a reset-on-live effect now drops the demo seeds (no
+  fabricated "logged ✓" for a real member); **(2)** the web hydration GET omitted `?date=`, so it
+  read the **server UTC day** near local midnight while the POST + mobile use the local day — now
+  sends `?date=localDay()`; **(3)** `aria-pressed`/`aria-label` added to gauge tap zones + sleep
+  chips; **(4)** the hydration readout no longer fabricates "· 0%" when the value is unknown (honest
+  "—"); **(5)** the small text buttons (Edit / Sleep detail / Trends) bumped to the ≥24px tap floor.
+- Verified: both JSX parse-check · `tsc --noEmit` · mobile build + `public/m` synced (diff clean) ·
+  342/342 tests. **PR #1451**.
+
 ### 2026-06-28 — Weekend-vs-weekday adherence split (differentiator A, #1449) + Progress-hub simplification
 - **First community differentiator, v1 (nutrition + habits).** Surfaces how a member's
   adherence drops on weekends vs weekdays — descriptive + never-shaming for the member,
