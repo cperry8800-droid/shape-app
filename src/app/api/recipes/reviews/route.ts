@@ -89,13 +89,17 @@ export async function POST(request: Request) {
     /* profile lookup is best-effort */
   }
 
-  const { data, error } = await supabase
-    .from('recipe_reviews')
-    .insert({ recipe_slug: slug, user_id: user.id, author_name: authorName, rating, body: text })
-    .select('id, rating, body, author_name, created_at')
-    .single();
+  // Upsert so a re-submit updates the user's single review instead of inserting a
+  // duplicate that skews the recipe's average. Falls back to insert until the
+  // unique-index migration is applied.
+  const payload = { recipe_slug: slug, user_id: user.id, author_name: authorName, rating, body: text };
+  const cols = 'id, rating, body, author_name, created_at';
+  let { data, error } = await supabase.from('recipe_reviews').upsert(payload, { onConflict: 'user_id,recipe_slug' }).select(cols).single();
+  if (error && error.code === '42P10') {
+    ({ data, error } = await supabase.from('recipe_reviews').insert(payload).select(cols).single());
+  }
   if (error) {
-    console.error('recipe review insert failed:', error);
+    console.error('recipe review write failed:', error);
     return NextResponse.json({ error: 'Could not save your review.' }, { status: 500 });
   }
   return NextResponse.json({ review: shape(data as ReviewRow) });
