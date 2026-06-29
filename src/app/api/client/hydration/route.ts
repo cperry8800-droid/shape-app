@@ -15,6 +15,13 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_TARGET_L = 3.0;
 
+// PostgREST 'PGRST202' (function not in the schema cache) / Postgres '42883'
+// (undefined_function) => the atomic-increment migration isn't applied yet; fall back
+// to the legacy read-then-write so the route keeps working before + after deploy.
+function isMissingFunction(err: { code?: string } | null | undefined): boolean {
+  return err?.code === 'PGRST202' || err?.code === '42883';
+}
+
 // Best-effort read of the user's hydration target from user_goals; 3.0 L
 // default. The mobile Settings → Nutrition stores hydration_target_l in
 // user_goals(kind='client_nutrition_prefs').data, keyed by 'hydration_target_l'
@@ -74,6 +81,19 @@ export async function POST(request: Request) {
 
   const supabase = await clientForRequest(request);
   const today = clientLocalDay((body as Record<string, unknown>).date);
+
+  // Atomic increment via RPC — the ON CONFLICT DO UPDATE adds under the row lock, so
+  // two concurrent writers (phone + /m/ web, or a tap racing a retry) can't lose an
+  // increment (no read-then-write window). Falls back below if the migration is absent.
+  const { data: rpcVal, error: rpcErr } = await supabase.rpc('add_hydration', { p_delta: deltaL, p_date: today });
+  if (!rpcErr) {
+    const targetL = await readTargetL(supabase, user.id);
+    return NextResponse.json({ ok: true, hydrationL: Number(rpcVal) || 0, targetL, date: today });
+  }
+  if (!isMissingFunction(rpcErr)) return dbError(rpcErr, 'hydration write', 500);
+
+  // ── Fallback (pre-migration): legacy read-then-write. Racy across concurrent
+  //    writers, but functional until add_hydration() is applied. ──
   const { data: existing, error: readErr } = await supabase
     .from('daily_health_snapshot')
     .select('id, hydration_l')

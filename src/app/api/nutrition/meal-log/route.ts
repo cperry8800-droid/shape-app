@@ -24,6 +24,12 @@ function asNum(v: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+// 'PGRST202' (function not in schema cache) / '42883' (undefined_function) => the
+// atomic-accumulate migration isn't applied yet; fall back to read-then-write.
+function isMissingFunction(err: { code?: string } | null | undefined): boolean {
+  return err?.code === 'PGRST202' || err?.code === '42883';
+}
+
 export async function POST(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
@@ -43,6 +49,16 @@ export async function POST(request: Request) {
   const supabase = await clientForRequest(request);
   const today = clientLocalDay((body as Record<string, unknown>).date);
 
+  // Atomic accumulate via RPC — each macro adds inside one upsert (ON CONFLICT DO
+  // UPDATE under the row lock), so concurrent meal logs / a log racing a hydration
+  // quick-add can't lose an increment. A NULL field is left unchanged (same as before).
+  const { error: rpcErr } = await supabase.rpc('add_meal_macros', {
+    p_kcal: kcal, p_protein: protein, p_carbs: carbs, p_fat: fat, p_hydration: hydrationL, p_date: today,
+  });
+  if (!rpcErr) return NextResponse.json({ ok: true, day: today });
+  if (!isMissingFunction(rpcErr)) return dbError(rpcErr, 'meal log write', 500);
+
+  // ── Fallback (pre-migration): legacy read-then-write. ──
   const { data: existing } = await supabase
     .from('daily_health_snapshot')
     .select('calories, protein_g, carbs_g, fat_g, hydration_l')
