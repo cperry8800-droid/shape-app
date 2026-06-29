@@ -449,6 +449,10 @@ async function getCurrentSession() {
 async function signOut() {
   if (supabase) await supabase.auth.signOut();
   invalidateClientMetrics();
+  // Clear viewer-relative caches so the next account never sees the previous user's
+  // follow state / avatars (these are keyed by target id but hold viewer-relative data).
+  for (const k in _followCache) delete _followCache[k];
+  for (const k in _avatarCache) delete _avatarCache[k];
   return setCached({ user: null, session: null, profile: null });
 }
 
@@ -2819,6 +2823,9 @@ function loadMusicKit() {
     s.onerror = () => reject(new Error('Could not load Apple MusicKit.'));
     document.head.appendChild(s);
   });
+  // On failure, clear the cached promise so a later call can retry instead of
+  // re-returning the rejected one (script onerror / no-window / load timeout).
+  _musicKitPromise.catch(() => { _musicKitPromise = null; });
   return _musicKitPromise;
 }
 
