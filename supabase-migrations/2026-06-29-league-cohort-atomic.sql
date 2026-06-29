@@ -67,5 +67,8 @@ $$;
 -- logic, so the RPC must NOT be callable directly by a user (who could self-promote to
 -- 'inferno' or pick an arbitrary week). The route (which auth-gates the member via
 -- currentUser) invokes it with the service-role admin client.
-revoke all on function public.league_assign_cohort(uuid, text, text, text) from public;
+-- NOTE: revoke from authenticated + anon explicitly — Supabase's default privileges
+-- auto-grant EXECUTE to those roles on function create, so `revoke from public` alone
+-- leaves them able to call it.
+revoke all on function public.league_assign_cohort(uuid, text, text, text) from public, authenticated, anon;
 grant execute on function public.league_assign_cohort(uuid, text, text, text) to service_role;
