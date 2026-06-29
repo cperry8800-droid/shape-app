@@ -305,11 +305,13 @@ function DashTodayCard({ live }) {
         const e = find("energy"), h = find("hunger");
         if (e) setEnergy(Math.round(Number(e.value)));
         if (h) setHunger(Math.round(Number(h.value)));
-        if (e || h) setLogged(true);
         const s = find("sleep"), q = find("sleepQuality");
         const eff = find("sleepEfficiency"), rhr = find("restingHr"), hrv = find("hrv");
         const meta = { efficiency: eff ? Math.round(Number(eff.value)) : null, rhr: rhr ? Math.round(Number(rhr.value)) : null, hrv: hrv ? Math.round(Number(hrv.value)) : null };
         const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+        // Logged from a MANUAL signal only — energy/hunger, the rested rating, or
+        // manually-entered sleep hours — never a passive device sync alone.
+        if (e || h || q || (s && !hasDeviceMeta)) setLogged(true);
         if (s) { setSleepHours(Number(s.value)); setSleepSynced(hasDeviceMeta); if (hasDeviceMeta) setSleepMeta(meta); }
         if (q) setRested(Math.round(Number(q.value)));
       })
@@ -383,14 +385,14 @@ function DashTodayCard({ live }) {
           <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50 }}>{label}</span>
           <span style={{ fontFamily: serif, fontSize: 18, lineHeight: 1, color: val ? c : ink50 }}>{val || "—"}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> /10</span></span>
         </div>
-        <div style={{ position: "relative", height: 26 }}>
+        <div style={{ position: "relative", height: 44 }}>
           <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: 9, borderRadius: 999, background: "rgba(242,237,228,0.08)", overflow: "hidden" }}>
             <div style={{ width: (pct * 100) + "%", height: "100%", background: c, transition: "width .16s ease" }} />
           </div>
           {[...Array(9)].map((_, i) => (<div key={i} aria-hidden="true" style={{ position: "absolute", left: (((i + 1) / 10) * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 1, height: 9, background: PAPER, opacity: 0.6 }} />))}
           {val ? <div aria-hidden="true" style={{ position: "absolute", left: (pct * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 13, height: 13, borderRadius: 999, background: c, border: "2px solid " + PAPER, boxShadow: "0 0 6px " + c }} /> : null}
           <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "repeat(10,1fr)" }}>
-            {[...Array(10)].map((_, i) => { const v = i + 1; return <button key={v} onClick={() => set(v)} aria-pressed={val === v ? "true" : "false"} aria-label={label + " " + v + " of 10"} style={{ height: "100%", minHeight: 26, border: 0, background: "transparent", cursor: "pointer", padding: 0 }} />; })}
+            {[...Array(10)].map((_, i) => { const v = i + 1; return <button key={v} onClick={() => set(v)} aria-pressed={val === v ? "true" : "false"} aria-label={label + " " + v + " of 10"} style={{ height: "100%", minHeight: 44, border: 0, background: "transparent", cursor: "pointer", padding: 0 }} />; })}
           </div>
         </div>
       </div>

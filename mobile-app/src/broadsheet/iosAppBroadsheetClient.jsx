@@ -15203,7 +15203,6 @@ function BSTodayCard() {
       const h = (p.series.hunger || []).find((s) => s.date === todayIso);
       if (e) setEnergy(Math.round(Number(e.value)));
       if (h) setHunger(Math.round(Number(h.value)));
-      if (e || h) setLogged(true);
       // Sleep — device-first hours + the 1-10 rested rating, today's points.
       const sToday = (p.series.sleep || []).find((s) => s.date === todayIso);
       const qToday = (p.series.sleepQuality || []).find((s) => s.date === todayIso);
@@ -15214,6 +15213,11 @@ function BSTodayCard() {
       const hrvToday = (p.series.hrv || []).find((s) => s.date === todayIso);
       const meta = { efficiency: effToday ? Math.round(Number(effToday.value)) : null, rhr: rhrToday ? Math.round(Number(rhrToday.value)) : null, hrv: hrvToday ? Math.round(Number(hrvToday.value)) : null };
       const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+      // A check-in counts as logged from a MANUAL signal: energy/hunger, the rested
+      // rating, or manually-entered sleep hours — never a passive device sync alone
+      // (so sleep/rested-only check-ins stay collapsed after reload, but a wearable
+      // syncing sleep doesn't fake a "logged ✓" the member never tapped).
+      if (e || h || qToday || (sToday && !hasDeviceMeta)) setLogged(true);
       if (sToday) {
         setSleepHours(Number(sToday.value));
         setSleepSynced(hasDeviceMeta);
@@ -15242,10 +15246,13 @@ function BSTodayCard() {
   // locally only (no write).
   const addWater = async (deltaL) => {
     if (hydBusy) return;
+    // Signed-in but the live writer is missing → fail closed: never show an optimistic
+    // value that can't persist (honest data). Signed-out preview stays local-only below.
+    if (signedIn && !window.ShapeHydration?.add) { window.__bsToast?.('Hydration is unavailable — try again', 'err'); return; }
     const prev = Number(hyd) || 0;
     const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
     setHyd(optimistic); setLastDelta(deltaL);
-    if (!signedIn || !window.ShapeHydration?.add) return;   // preview/demo — local only
+    if (!signedIn) return;   // preview/demo — local only
     const seq = ++hydSeq.current;
     setHydBusy(true);
     try {
@@ -15268,9 +15275,11 @@ function BSTodayCard() {
     if (nothingSet || saving) return;
     // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
     if (!signedIn) { window.__bsToast?.('Join Shape to save your check-in', 'ok'); return; }
+    // Live writer missing → fail closed: don't await an undefined call as "success".
+    if (!window.ShapeCheckin?.log) { window.__bsToast?.('Check-in is unavailable — try again', 'err'); return; }
     setSaving(true);
     try {
-      await window.ShapeCheckin?.log?.({ energy, hunger, sleepHours, sleepQuality: rested });
+      await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
       setLogged(true); setEditing(false);   // only after the write succeeds
     } catch (e) {
       window.__bsToast?.('Could not save check-in — try again', 'err');
@@ -15286,8 +15295,8 @@ function BSTodayCard() {
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
         </div>
-        {/* gauge track (fill + segment ticks + end-anchor) inside a comfortable tap row */}
-        <div style={{ position: 'relative', height: 26 }}>
+        {/* gauge track (fill + segment ticks + end-anchor) inside a 44px tap row (track stays centered) */}
+        <div style={{ position: 'relative', height: 44 }}>
           <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 9, borderRadius: 999, background: t.HAIR, border: `1px solid ${t.RULE}`, overflow: 'hidden' }}>
             <div style={{ width: `${pct * 100}%`, height: '100%', background: c, transition: 'width .16s ease' }} />
           </div>
@@ -15297,7 +15306,7 @@ function BSTodayCard() {
           {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
           <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
             {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; return (
-              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 26, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
+              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 44, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
             ); })}
           </div>
         </div>
