@@ -228,6 +228,11 @@ changelog whenever something ships.
   discipline trigger enforces directive/goals coach-only, and `league_assign_cohort` is callable by
   `service_role` only (authenticated=false, anon=false). CI green + CodeRabbit clean on every PR;
   branches kept.
+- **Lead-boost index — deferred follow-up now closed (2026-06-29):** the `coach_lead_boosts` block of
+  `write-idempotency.sql` was skipped at apply time because that feature table didn't exist. The owner
+  later ran `2026-05-08-lead-boosts.sql` (creates `coach_lead_boosts`) then re-ran `write-idempotency.sql`;
+  the `coach_lead_boosts_active_uniq` partial unique index (`(provider_id) WHERE status='active'`) is now
+  verified live. Every `write-idempotency` block is active.
 
 ### 2026-06-29 — Cumulative Layout Shift sweep (website + mobile, #1452)
 - **Audited + fixed CLS** (content moving after first paint) across both surfaces via a
