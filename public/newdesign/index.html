@@ -150,7 +150,7 @@
   nav:before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--teal) 30%,var(--rust) 70%,transparent);opacity:.5}
   .navr{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;max-width:1480px;padding:10px 44px 10px 44px}
   .brand{display:flex;align-items:center;line-height:0;margin-left:16px}
-  .brand img{height:60px;width:auto;display:block;object-fit:contain}
+  .brand img{height:60px;width:auto;aspect-ratio:3696/1782;display:block;object-fit:contain}
   .nlinks{display:flex;gap:16px;align-items:center;justify-content:center;font-family:var(--sans);font-size:12px;font-weight:400;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.6);white-space:nowrap;transform:translateX(clamp(0px,(100vw - 1300px)*0.5,72px))}
   .nlinks>a{transition:color .16s}.nlinks>a:hover{color:var(--cream)}
   /* Signed in, the auth cluster is much wider (hi · dashboard · sign out) —
@@ -175,7 +175,7 @@
   .nauth .login{font-family:var(--sans);font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55);transition:color .16s;white-space:nowrap}
   .nauth .login:hover{color:var(--cream)}
   .nradio{display:inline-flex;align-items:center;flex:none}
-  .nradio img{width:178px;height:auto;max-width:none;display:block}
+  .nradio img{width:178px;height:auto;aspect-ratio:1647/116;max-width:none;display:block}
   .ncta{font-family:var(--sans);font-size:11.5px;font-weight:400;letter-spacing:.04em;text-transform:lowercase;border:1px solid var(--cream);padding:8px 15px;border-radius:999px;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease;white-space:nowrap}
   .ncta:hover{background:var(--cream);color:var(--ink-d);transform:translateY(-1px);box-shadow:0 6px 22px -8px rgba(245,239,225,0.4)}
 
@@ -395,7 +395,7 @@
   #shape-intro .im .e1,#shape-intro .im .e2{stroke-dasharray:38 97;animation:bsMarkEdge 3.2s linear infinite}
   #shape-intro .im .e2{animation-delay:-1.6s}
   #shape-intro .ik{font-family:var(--mono);font-size:clamp(24px,4.5vw,52px);letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;color:#fff;opacity:0;transform:translateY(10px);animation:siUp .9s .25s cubic-bezier(.2,.7,.2,1) forwards}
-  #shape-intro .it{display:block;height:clamp(28px,4.5vw,48px);width:auto;max-width:none;margin:20px 0 0;
+  #shape-intro .it{display:block;height:clamp(28px,4.5vw,48px);width:auto;aspect-ratio:270/38;max-width:none;margin:20px 0 0;
     opacity:0;filter:blur(18px) brightness(0) invert(1);transform:scale(1.04);animation:siReveal 1.5s .35s cubic-bezier(.16,1,.3,1) forwards;will-change:opacity,filter,transform}
   body.intro-lock{overflow:hidden}
   #shape-intro.go{opacity:0;transform:translateY(-4%) scale(1.05);filter:blur(10px);pointer-events:none}

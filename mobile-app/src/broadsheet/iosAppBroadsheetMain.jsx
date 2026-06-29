@@ -1119,7 +1119,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <BSNightSky />
         <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(40px, calc(env(safe-area-inset-top, 0px) + 24px)) 24px calc(28px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16 }}>
-          <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', alignSelf: 'flex-start', marginLeft: -12 }} />
+          <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 110, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -12 }} />
           <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2ee0c4', fontWeight: 700 }}>Verify email</div>
           <div style={{ fontFamily: `'Newsreader', Georgia, serif`, fontWeight: 500, fontSize: 38, lineHeight: 0.95, letterSpacing: '-0.05em', color: CREAM }}>Check your<br/><span style={{ fontStyle: 'italic', color: '#2ee0c4' }}>inbox.</span></div>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.5, color: 'rgba(244,239,230,0.8)' }}>
@@ -1143,7 +1143,7 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       )}
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: 'max(20px, calc(env(safe-area-inset-top, 0px) + 12px)) 22px calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5 }}>
         {/* Logo lockup — top-left */}
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', display: 'block', marginLeft: -13, marginTop: -50, filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', aspectRatio: '3696 / 1782', display: 'block', marginLeft: -13, marginTop: -50, filter: 'brightness(1.3) contrast(1.12) drop-shadow(0 0 12px rgba(46,224,196,0.4))' }} />
 
         {/* Eyebrow + heading */}
         <div style={{ marginTop: 48 }}>
@@ -1324,7 +1324,7 @@ function BSPaywall({ t, signedIn, onJoin, onSignIn, onPreview, onLogout }) {
   return (
     <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: t.PAPER, color: t.INK }}>
       <div style={{ minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '22px 26px 34px' }}>
-        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', alignSelf: 'flex-start', marginLeft: -4, marginTop: 30, filter: t.isLight ? 'brightness(0)' : 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
+        <img src={`${import.meta.env.BASE_URL}shape-logo.png?v=2`} alt="Shape" style={{ width: 132, height: 'auto', aspectRatio: '3696 / 1782', alignSelf: 'flex-start', marginLeft: -4, marginTop: 30, filter: t.isLight ? 'brightness(0)' : 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
         <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal }}>Shape membership</div>
         <h1 style={{ fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', lineHeight: 0.98, margin: '12px 0 0' }}>Shape is for <span style={{ fontStyle: 'italic', color: teal }}>members.</span></h1>
