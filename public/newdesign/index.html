@@ -18,12 +18,17 @@
 <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="/supabase.js"></script>
 <style>
+  /* Metrics-matched fallback fonts (CLS: the local fallback occupies the web font's
+     space, so the swap doesn't reflow headers/sub-heads/body). @capsizecss metrics. */
+  @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
+  @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
+  @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
   :root{
     --paper:#1a1612;--paper-2:#211c16;--ink-d:#0b0e0c;
     --cream:#f5efe1;--cream-2:rgba(245,239,225,0.66);--cream-3:rgba(245,239,225,0.4);
     --teal:#0ac5a8;--teal-b:#2ee0c4;--rust:#d2693f;
     --line:rgba(245,239,225,0.14);--line-2:rgba(245,239,225,0.07);
-    --serif:'Fraunces',serif;--sans:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;
+    --serif:'Fraunces','Fraunces Fallback',serif;--sans:'Space Grotesk','Space Grotesk Fallback',sans-serif;--mono:'JetBrains Mono','JetBrains Mono Fallback',monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
@@ -1142,7 +1147,7 @@
 <!-- Universal search ⌕ in the nav — reuses pageShell's SiteSearch (the index
      page has its own static header, so the React component is mounted into
      the #shape-nav-search slot instead of coming via the shared Header). -->
-<script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260626a"></script>
+<script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260629a"></script>
 <script type="text/babel" data-presets="react">
 (function(){
   var el = document.getElementById('shape-nav-search');
