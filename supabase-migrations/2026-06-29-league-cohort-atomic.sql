@@ -40,6 +40,7 @@ begin
     select cohort, count(*)::int n
     from public.league_members
     where season_week = p_week and tier = p_tier
+      and user_id <> p_user_id   -- exclude the caller so a repeat call is idempotent
     group by cohort
   )
   select g.c into v_cohort
@@ -62,4 +63,9 @@ begin
 end;
 $$;
 
-grant execute on function public.league_assign_cohort(uuid, text, text, text) to authenticated;
+-- Route-mediated ONLY: the tier/week come from the server's join + promote/relegate
+-- logic, so the RPC must NOT be callable directly by a user (who could self-promote to
+-- 'inferno' or pick an arbitrary week). The route (which auth-gates the member via
+-- currentUser) invokes it with the service-role admin client.
+revoke all on function public.league_assign_cohort(uuid, text, text, text) from public;
+grant execute on function public.league_assign_cohort(uuid, text, text, text) to service_role;

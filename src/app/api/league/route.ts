@@ -147,12 +147,14 @@ export async function POST(request: Request) {
     const week = isoWeekKey();
     // Atomic claim under the per-(week,tier) advisory lock, so concurrent joins at a
     // week boundary can't all pile into cohort 0. Falls back to the legacy path until
-    // the migration is applied.
-    const claimed = await claimCohort(supabase, user.id, week, 'ember', null);
+    // the migration is applied. The RPC is service-role-only (the tier is server-set,
+    // never client-chosen), so it runs through the admin client; this route already
+    // auth-gated the member via currentUser above.
+    const admin = createAdminClient();
+    const claimed = await claimCohort(admin, user.id, week, 'ember', null);
     if (claimed != null) {
       return NextResponse.json({ ok: true, joined: true, tier: 'ember', cohort: claimed, week });
     }
-    const admin = createAdminClient();
     const cohort = await assignCohort(admin, week, 'ember');
     const { error } = await supabase.from('league_members').upsert({
       user_id: user.id, tier: 'ember', cohort, season_week: week, settled_week: null,
