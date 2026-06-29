@@ -536,7 +536,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           {p.kind === "streak"  && <StreakStat p={p} />}
         </>)}
         {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
-        {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
+        {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
         {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(242,237,228,0.08)" }} />}
         {Array.isArray(p.mentions) && p.mentions.length > 0 && (
           <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)" }}>
