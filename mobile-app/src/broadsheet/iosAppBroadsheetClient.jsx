@@ -2881,11 +2881,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      {/* DAILY CHECK-IN + HYDRATION — energy/hunger tap-rows + water logger */}
-      <div style={{ margin: `0 ${t.padX}px` }}>
-        <BSDailyCheckinCard />
-        <BSHydrationCard />
-      </div>
+      {/* TODAY — daily check-in (energy/hunger/sleep/rested) + hydration, one plate */}
+      <BSTodayCard />
 
       {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
       {(() => {
@@ -15166,22 +15163,31 @@ function BSSleepHistory({ onClose }) {
   );
 }
 
-// Daily energy/hunger check-in card — two 1-10 tap-rows; logs via
-// window.ShapeCheckin.log({ energy, hunger }). Reads today's values from
-// window.ShapeProgress.progress() series.energy / series.hunger.
-function BSDailyCheckinCard() {
+// Today instrument plate — the home daily check-in + hydration, consolidated into
+// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
+// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
+// when a wearable synced last night, else manual hour chips). Hydration folds in as a
+// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
+// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
+// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
+function BSTodayCard() {
   const t = useBS();
-  const teal = '#34d6c5'; const amber = '#e8b14a';
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const BSPlate = window.BSPlate;
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const amber = t.isLight ? '#b9802a' : '#e8b14a';
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+
+  // ── check-in state ──
   const [energy, setEnergy] = useStateBSC(null);
   const [hunger, setHunger] = useStateBSC(null);
   const [sleepHours, setSleepHours] = useStateBSC(null);   // today's logged/synced hours (number)
   const [rested, setRested] = useStateBSC(null);           // today's 1-10 rested rating
   const [sleepMeta, setSleepMeta] = useStateBSC(null);     // { efficiency, rhr, hrv } from a wearable, when present
-  const [sleepSynced, setSleepSynced] = useStateBSC(false); // true only when hours came from a device sync (read-only), not a manual pick
+  const [sleepSynced, setSleepSynced] = useStateBSC(false); // true only when hours came from a device sync (read-only)
   const [logged, setLogged] = useStateBSC(false);
   const [editing, setEditing] = useStateBSC(false);
+  const [saving, setSaving] = useStateBSC(false);
   const [readiness, setReadiness] = useStateBSC(null);       // 0-100 recovery readiness (kpis.readiness)
   const [readinessLabel, setReadinessLabel] = useStateBSC(null);
   const [detail, setDetail] = useStateBSC(false);            // sleep history overlay open
@@ -15197,22 +15203,23 @@ function BSDailyCheckinCard() {
       const h = (p.series.hunger || []).find((s) => s.date === todayIso);
       if (e) setEnergy(Math.round(Number(e.value)));
       if (h) setHunger(Math.round(Number(h.value)));
-      if (e || h) setLogged(true);
       // Sleep — device-first hours + the 1-10 rested rating, today's points.
       const sToday = (p.series.sleep || []).find((s) => s.date === todayIso);
       const qToday = (p.series.sleepQuality || []).find((s) => s.date === todayIso);
-      // Device-only recovery metrics for TODAY (a manual log never writes these),
-      // read per-day from the series — their presence is the only honest signal
-      // that the hours came from a wearable vs. a manual pick the user can re-edit.
+      // Device-only recovery metrics for TODAY (a manual log never writes these) —
+      // their presence is the only honest signal that the hours came from a wearable.
       const effToday = (p.series.sleepEfficiency || []).find((s) => s.date === todayIso);
       const rhrToday = (p.series.restingHr || []).find((s) => s.date === todayIso);
       const hrvToday = (p.series.hrv || []).find((s) => s.date === todayIso);
       const meta = { efficiency: effToday ? Math.round(Number(effToday.value)) : null, rhr: rhrToday ? Math.round(Number(rhrToday.value)) : null, hrv: hrvToday ? Math.round(Number(hrvToday.value)) : null };
       const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+      // A check-in counts as logged from a MANUAL signal: energy/hunger, the rested
+      // rating, or manually-entered sleep hours — never a passive device sync alone
+      // (so sleep/rested-only check-ins stay collapsed after reload, but a wearable
+      // syncing sleep doesn't fake a "logged ✓" the member never tapped).
+      if (e || h || qToday || (sToday && !hasDeviceMeta)) setLogged(true);
       if (sToday) {
         setSleepHours(Number(sToday.value));
-        // Read-only "synced" ONLY when a wearable's metrics are present today —
-        // hours alone (which a manual save also writes) stay editable + unlabeled.
         setSleepSynced(hasDeviceMeta);
         if (hasDeviceMeta) setSleepMeta(meta);
       }
@@ -15221,157 +15228,181 @@ function BSDailyCheckinCard() {
     return () => { on = false; };
   }, [signedIn]);
 
-  const Row = ({ label, val, set, c }) => (
-    <div style={{ marginBottom: 5 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: val ? c : t.INK50 }}>{val || '—'}</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3 }}>
-        {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; const on = (val || 0) >= v; const sel = val === v;
-          // Chunky bar (compact look) inside a comfortable tap target (>= the WCAG 2.5.8 AA 24px floor).
-          return <button key={v} onClick={() => set(v)} aria-label={`${label} ${v} of 10`} style={{ height: 26, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><span aria-hidden style={{ flex: 1, height: 20, borderRadius: 3, border: `1px solid ${sel ? c : t.RULE}`, background: on ? (sel ? c : `${c}66`) : 'transparent' }} /></button>;
-        })}
-      </div>
-    </div>
-  );
+  // ── hydration state (always live) ──
+  const [hyd, setHyd] = useStateBSC(null);   // liters today
+  const [hydTarget, setHydTarget] = useStateBSC(3.0);
+  const [lastDelta, setLastDelta] = useStateBSC(0);
+  const [hydBusy, setHydBusy] = useStateBSC(false);
+  const hydSeq = React.useRef(0);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeHydration?.get) return undefined;
+    let on = true;
+    window.ShapeHydration.get().then((d) => { if (on && d && d.ok) { setHyd(Number(d.hydrationL) || 0); setHydTarget(Number(d.targetL) || 3.0); } }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
 
-  const [saving, setSaving] = useStateBSC(false);
+  // Optimistic update + rollback on failure + stale-response guard (hydSeq) + an
+  // in-flight lock (hydBusy) so rapid taps can't overlap. Signed-out preview updates
+  // locally only (no write).
+  const addWater = async (deltaL) => {
+    if (hydBusy) return;
+    // Signed-in but the live writer is missing → fail closed: never show an optimistic
+    // value that can't persist (honest data). Signed-out preview stays local-only below.
+    if (signedIn && !window.ShapeHydration?.add) { window.__bsToast?.('Hydration is unavailable — try again', 'err'); return; }
+    const prev = Number(hyd) || 0;
+    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
+    setHyd(optimistic); setLastDelta(deltaL);
+    if (!signedIn) return;   // preview/demo — local only
+    const seq = ++hydSeq.current;
+    setHydBusy(true);
+    try {
+      const d = await window.ShapeHydration.add(deltaL);
+      if (seq === hydSeq.current && d && d.ok) setHyd(Number(d.hydrationL) || 0);   // reconcile, ignore stale
+    } catch (e) {
+      if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); }                 // roll back the failed add
+      window.__bsToast?.('Could not log water — try again', 'err');
+    } finally {
+      if (seq === hydSeq.current) setHydBusy(false);
+    }
+  };
+  const undoWater = () => { if (lastDelta && !hydBusy) { addWater(-lastDelta); setLastDelta(0); } };
+
+  // ── derived ──
+  const nothingSet = energy == null && hunger == null && sleepHours == null && rested == null;
+  const showForm = !logged || editing;
+
   const doLog = async () => {
-    if ((energy == null && hunger == null && sleepHours == null && rested == null) || saving) return;
+    if (nothingSet || saving) return;
     // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
     if (!signedIn) { window.__bsToast?.('Join Shape to save your check-in', 'ok'); return; }
+    // Live writer missing → fail closed: don't await an undefined call as "success".
+    if (!window.ShapeCheckin?.log) { window.__bsToast?.('Check-in is unavailable — try again', 'err'); return; }
     setSaving(true);
     try {
-      await window.ShapeCheckin?.log?.({ energy, hunger, sleepHours, sleepQuality: rested });
+      await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
       setLogged(true); setEditing(false);   // only after the write succeeds
     } catch (e) {
       window.__bsToast?.('Could not save check-in — try again', 'err');
     } finally { setSaving(false); }
   };
 
-  const nothingSet = energy == null && hunger == null && sleepHours == null && rested == null;
-  const showForm = !logged || editing;
-  return (
-    <div data-bs-checkin style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 11, marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>How are you · today</span>
-        {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK50 }}>Edit</button>}
-      </div>
-      {showForm ? (
-        <>
-          <Row label="Energy" val={energy} set={setEnergy} c={teal} />
-          <Row label="Hunger" val={hunger} set={setHunger} c={amber} />
-          {/* SLEEP — device-first hours + an always-on 1-10 rested rating */}
-          <div style={{ marginTop: 7, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
-              {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
-            </div>
-            {sleepSynced ? (
-              // device-synced → read-only recovery snapshot (hours shown above)
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
-                {[
-                  sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null,
-                  sleepMeta && sleepMeta.rhr != null ? `RHR ${sleepMeta.rhr}` : null,
-                  sleepMeta && sleepMeta.hrv != null ? `HRV ${sleepMeta.hrv}` : null,
-                ].filter(Boolean).join(' · ') || 'Synced from your device'}
-              </div>
-            ) : (
-              // not synced → manual hours chips: stay visible, selectable, tap-again to clear
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                  <button key={h} onClick={() => setSleepHours(sel ? null : h)} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
-                ); })}
-              </div>
-            )}
-            <div style={{ marginTop: 8 }}>
-              <Row label="Rested" val={rested} set={setRested} c={blue} />
-            </div>
-          </div>
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: '100%', borderRadius: 5, border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: '#04201d', cursor: saving ? 'default' : 'pointer', padding: '9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{saving ? 'Saving…' : 'Log today'}</button>
-        </>
-      ) : (
-        <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
-      )}
-      {/* Recovery readiness + entry to the full sleep detail page. */}
-      {signedIn && (
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
-            {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
-          </span>
-          <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
+  // ── gauge (tap-to-set 1–10, filled with an end-anchor knob over 10 tap zones) ──
+  const Gauge = ({ label, val, set, c }) => {
+    const pct = Math.max(0, Math.min(1, (val || 0) / 10));
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
         </div>
-      )}
-      {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
-    </div>
-  );
-}
-
-// Hydration logger card — reads today's intake + target via window.ShapeHydration.get(),
-// renders a progress bar + quick-add chips (metric ml / imperial oz) + undo.
-function BSHydrationCard() {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [val, setVal] = useStateBSC(null);   // liters today
-  const [target, setTarget] = useStateBSC(3.0);
-  const [lastDelta, setLastDelta] = useStateBSC(0);
-  const [busy, setBusy] = useStateBSC(false);
-  const reqSeq = React.useRef(0);
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeHydration?.get) return undefined;
-    let on = true;
-    window.ShapeHydration.get().then((d) => { if (on && d && d.ok) { setVal(Number(d.hydrationL) || 0); setTarget(Number(d.targetL) || 3.0); } }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-
-  // Optimistic update + rollback on failure + stale-response guard (reqSeq) + an
-  // in-flight lock (busy) so rapid taps can't overlap. The lock also serializes
-  // the server's read-then-write per device, closing the lost-update window for a
-  // single user. Signed-out preview updates locally only (no write).
-  const add = async (deltaL) => {
-    if (busy) return;
-    const prev = Number(val) || 0;
-    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
-    setVal(optimistic); setLastDelta(deltaL);
-    if (!signedIn || !window.ShapeHydration?.add) return;   // preview/demo — local only
-    const seq = ++reqSeq.current;
-    setBusy(true);
-    try {
-      const d = await window.ShapeHydration.add(deltaL);
-      if (seq === reqSeq.current && d && d.ok) setVal(Number(d.hydrationL) || 0);   // reconcile, ignore stale
-    } catch (e) {
-      if (seq === reqSeq.current) { setVal(prev); setLastDelta(0); }                 // roll back the failed add
-      window.__bsToast?.('Could not log water — try again', 'err');
-    } finally {
-      if (seq === reqSeq.current) setBusy(false);
-    }
+        {/* gauge track (fill + segment ticks + end-anchor) inside a 44px tap row (track stays centered) */}
+        <div style={{ position: 'relative', height: 44 }}>
+          <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 9, borderRadius: 999, background: t.HAIR, border: `1px solid ${t.RULE}`, overflow: 'hidden' }}>
+            <div style={{ width: `${pct * 100}%`, height: '100%', background: c, transition: 'width .16s ease' }} />
+          </div>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} aria-hidden style={{ position: 'absolute', left: `${((i + 1) / 10) * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 1, height: 9, background: t.PAPER, opacity: 0.55 }} />
+          ))}
+          {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
+            {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; return (
+              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 44, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
+            ); })}
+          </div>
+        </div>
+      </div>
+    );
   };
-  const undo = () => { if (lastDelta && !busy) { add(-lastDelta); setLastDelta(0); } };
 
-  const cur = Number(val) || 0;
-  const pct = target > 0 ? Math.min(1, cur / target) : 0;
+  // ── hydration display ──
+  const cur = Number(hyd) || 0;
+  const hpct = hydTarget > 0 ? Math.min(1, cur / hydTarget) : 0;
   const L = (n) => `${(Math.round(n * 100) / 100)}`;
   const ML = 0.25, ML2 = 0.5, OZ = 0.2366, OZ2 = 0.4732; // 8oz / 16oz in liters
+  const glassL = t.isMetric ? 0.25 : 0.2366;             // one quick-add ≈ one dot
+  const dotCount = Math.max(6, Math.min(14, Math.round((hydTarget || 3) / glassL)));
+  const filledDots = Math.max(0, Math.min(dotCount, Math.round(hpct * dotCount)));
   const chips = t.isMetric ? [['+250 ml', ML], ['+500 ml', ML2]] : [['+8 oz', OZ], ['+16 oz', OZ2]];
-  const display = t.isMetric ? `${L(cur)} / ${L(target)} L` : `${Math.round(cur * 33.814)} / ${Math.round(target * 33.814)} oz`;
+  const hydDisplay = t.isMetric ? `${L(cur)} / ${L(hydTarget)} L` : `${Math.round(cur * 33.814)} / ${Math.round(hydTarget * 33.814)} oz`;
 
   return (
-    <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 11, marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>Hydration · today</span>
-        <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{val == null ? '—' : display}<span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}> · {Math.round(pct * 100)}%</span></span>
-      </div>
-      <div style={{ height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden', marginBottom: 10 }}>
-        <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {chips.map(([lab, d]) => (
-          <button key={lab} onClick={() => add(d)} disabled={busy} style={{ flex: 1, borderRadius: 5, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1, padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
-        ))}
-        <button onClick={undo} disabled={!lastDelta || busy} aria-label="Undo last" style={{ width: 44, borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !busy) ? t.INK : t.INK50, cursor: (lastDelta && !busy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
-      </div>
+    <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
+      <BSPlate c={teal} notch={11} spine={3} tick={signedIn} bracket pad="12px 15px 12px 20px">
+        {/* header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: showForm ? 9 : 7 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</span>
+          {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>Edit</button>}
+        </div>
+
+        {showForm ? (
+          <>
+            <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
+            <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
+            {/* SLEEP — device-first hours + an always-on Rested gauge */}
+            <div style={{ marginTop: 3, paddingTop: 9, borderTop: `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
+                {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
+              </div>
+              {sleepSynced ? (
+                // device-synced → read-only recovery snapshot (hours shown above)
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {[
+                    sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null,
+                    sleepMeta && sleepMeta.rhr != null ? `RHR ${sleepMeta.rhr}` : null,
+                    sleepMeta && sleepMeta.hrv != null ? `HRV ${sleepMeta.hrv}` : null,
+                  ].filter(Boolean).join(' · ') || 'Synced from your device'}
+                </div>
+              ) : (
+                // not synced → manual hours chips: stay visible, selectable, tap-again to clear
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
+                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={`${h} hours of sleep`} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                  ); })}
+                </div>
+              )}
+              <div style={{ marginTop: 9 }}>
+                <Gauge label="Rested" val={rested} set={setRested} c={blue} />
+              </div>
+            </div>
+            <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 4, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}>{saving ? 'Saving…' : 'Log today'}</button>
+          </>
+        ) : (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
+        )}
+
+        {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
+        <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Hydration</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
+          </div>
+          {/* dot progress — one dot ≈ one quick-add glass */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 9 }}>
+            {Array.from({ length: dotCount }).map((_, i) => (
+              <div key={i} aria-hidden style={{ flex: '1 1 0', minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : 'transparent', border: `1px solid ${i < filledDots ? teal : t.RULE}` }} />
+            ))}
+          </div>
+          {/* quick-add row */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {chips.map(([lab, d]) => (
+              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 6, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
+            ))}
+            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+          </div>
+        </div>
+
+        {/* recovery readiness + the door to the full sleep detail page */}
+        {signedIn && (
+          <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
+              {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
+            </span>
+            <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
+          </div>
+        )}
+      </BSPlate>
+      {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
     </div>
   );
 }
