@@ -174,6 +174,41 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-06-29 — Cumulative Layout Shift sweep (website + mobile, #1452)
+- **Audited + fixed CLS** (content moving after first paint) across both surfaces via a
+  fan-out + adversarial refute-verify pass (mobile + web-async finished by hand after the
+  workflow hit server-side rate limits). Where shifts were → what stabilized them:
+- **Fonts (the headline cause, website):** the big Fraunces serif heroes reflow when the
+  web font swaps in, and **18 marketing pages had no `preconnect`** (the font fetch waited
+  on DNS+TLS to gstatic, widening the swap window). Added `preconnect` (googleapis +
+  gstatic) to all 18, **plus a metrics-matched fallback `@font-face` for all three tiers**
+  so the local fallback occupies the SAME space as the web font → no swap reflow on
+  **headers / sub-heads / body**: Fraunces → Times (`size-adjust:115.45%`), Space Grotesk
+  → Arial (`109.69%`), JetBrains Mono → Courier (`99.98%`) — `size-adjust` + ascent/descent
+  overrides computed from `@capsizecss/metrics` via the next/font formula. Wired into the
+  shared `serif`/`sans`/`mono` stacks in `pageShell.jsx` (69 React pages) + the static-hero
+  pages `index.html` + `GetApp.html`.
+- **Media (website):** community-feed photos/videos had no reserved height (img box ~0px →
+  up to ~420px on decode, shoving posts below) → `aspect-ratio:4/3` + `object-fit:cover`;
+  the nav / splash-wordmark / radio-nav logos (`width/height:auto`) → `aspect-ratio` from
+  each PNG's real dimensions. Feed photos also got real `alt` text (CodeRabbit a11y nit).
+- **Dashboard (website):** the GridStack container collapsed to 0px then jumped when it
+  measured + positioned cards in JS → `min-height:60vh`.
+- **Mobile `/m/`** is otherwise low-CLS (self-hosted `font-display:swap` fonts, fixed phone
+  frame, `background-image` doesn't reflow, meal photos in fixed boxes) — only the
+  splash/auth/paywall SHAPE logos + the radio wordmark `<img height:auto>` needed
+  `aspect-ratio`.
+- **Audited but left alone (verified non-shifts):** consent banner / demo band (fixed, out
+  of flow), header spacer (correct height), landing phone mockups (already aspect-ratio'd),
+  facet-gem avatars (sized boxes). Residual: dashboard demo→live card height swap (behind
+  auth, lower priority).
+- `?v` bumped on `pageShell.jsx` / `dashGrid.jsx` / `dashboardCommunity.jsx`. Verified:
+  both surfaces parse · `tsc --noEmit` · mobile build + `public/m` synced · 342/342 tests.
+  **PR #1452** — CI green (Web · Mobile · gitleaks), CodeRabbit clean (its 1 a11y nit
+  fixed). *Validation note:* the metric fallback fully matches on Windows/Mac (Times/Arial/
+  Courier present) and degrades cleanly elsewhere; a Lighthouse CLS before/after on the
+  preview deploy is the recommended confirmation.
+
 ### 2026-06-29 — "Today" instrument plate: daily check-in + hydration consolidated (mobile + web, #1451)
 - **One plate replaces two home cards.** The mobile home's separate **`BSDailyCheckinCard`**
   (energy/hunger/sleep/rested) + **`BSHydrationCard`** are now a single teal **`BSTodayCard`**

@@ -78,13 +78,18 @@ export async function POST(request: Request) {
     /* best effort */
   }
 
-  const { data, error } = await supabase
-    .from('coach_reviews')
-    .insert({ coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text })
-    .select('id, rating, body, author_name, user_id, created_at')
-    .single();
+  // Upsert so a re-submit (double-tap / retry / two tabs) UPDATES the user's single
+  // review instead of inserting a duplicate row that skews the coach's public average.
+  // Falls back to a plain insert until the unique-index migration is applied (42P10 =
+  // no constraint matching ON CONFLICT).
+  const payload = { coach_slug: slug, coach_kind: kind, user_id: user.id, author_name: authorName, rating, body: text };
+  const cols = 'id, rating, body, author_name, user_id, created_at';
+  let { data, error } = await supabase.from('coach_reviews').upsert(payload, { onConflict: 'user_id,coach_slug' }).select(cols).single();
+  if (error && error.code === '42P10') {
+    ({ data, error } = await supabase.from('coach_reviews').insert(payload).select(cols).single());
+  }
   if (error) {
-    console.error('coach review insert failed:', error);
+    console.error('coach review write failed:', error);
     return NextResponse.json({ error: 'Could not save your review.' }, { status: 500 });
   }
   return NextResponse.json({ review: shape(data as ReviewRow) });

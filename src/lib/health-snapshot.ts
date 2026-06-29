@@ -134,9 +134,13 @@ export async function upsertSnapshot(
     sources,
   };
 
-  const result = existing?.id
-    ? await client.from('daily_health_snapshot').update(row).eq('id', existing.id)
-    : await client.from('daily_health_snapshot').insert(row);
+  // Atomic upsert: the unique (user_id, snapshot_date) constraint serializes concurrent
+  // first-writes (two provider syncs starting at once) — the loser does an UPDATE
+  // instead of hitting a duplicate-key error. (The read above is only for the
+  // sources-provenance merge.)
+  const result = await client
+    .from('daily_health_snapshot')
+    .upsert(row, { onConflict: 'user_id,snapshot_date' });
 
   if (result.error) return { written: 0, error: result.error.message };
   return { written: writtenFields.length };
