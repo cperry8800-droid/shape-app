@@ -118,11 +118,21 @@ export async function writeOverride(
     .maybeSingle();
   const detail = ((data as { detail?: Record<string, unknown> } | null)?.detail) || {};
   const before = (detail as { directive?: unknown }).directive ?? null;
-  const nextDetail = { ...detail, directive: override };
-  const { error } = await supabase
-    .from('client_programs')
-    .upsert({ user_id: clientId, detail: nextDetail, updated_by: coachId }, { onConflict: 'user_id' });
-  if (error) throw new Error(`directive override write failed: ${error.message}`);
+  // Atomic merge — write ONLY detail.directive (ON CONFLICT DO UPDATE reads the row
+  // under its lock), so a concurrent program write can't clobber it via a stale
+  // read-modify-write. Falls back to read-then-write until the migration is applied.
+  const { error } = await supabase.rpc('merge_program_detail', { p_client_id: clientId, p_patch: { directive: override } });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') {
+      const nextDetail = { ...detail, directive: override };
+      const { error: upErr } = await supabase
+        .from('client_programs')
+        .upsert({ user_id: clientId, detail: nextDetail, updated_by: coachId }, { onConflict: 'user_id' });
+      if (upErr) throw new Error(`directive override write failed: ${upErr.message}`);
+    } else {
+      throw new Error(`directive override write failed: ${error.message}`);
+    }
+  }
   return { before, after: override };
 }
 

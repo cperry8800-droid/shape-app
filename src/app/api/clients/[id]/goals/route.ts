@@ -26,6 +26,12 @@ export const dynamic = 'force-dynamic';
 const MAX_GOALS = 3;
 const MAX_HISTORY = 104; // ~2 years of weekly points
 
+// 'PGRST202' (function not in schema cache) / '42883' (undefined_function) => the
+// atomic merge_program_detail migration isn't applied yet; fall back to read-then-write.
+function isMissingFunction(err: { code?: string } | null | undefined): boolean {
+  return err?.code === 'PGRST202' || err?.code === '42883';
+}
+
 function num(v: unknown): number | null {
   if (v == null || v === '') return null;
   const n = Number(v);
@@ -106,23 +112,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `At most ${MAX_GOALS} goals per client.` }, { status: 422 });
   }
 
-  // Merge over the existing detail so the Adjust payloads survive. The read
-  // is RLS-gated the same as the write, so a non-coach gets nothing here and
-  // the upsert below fails on RLS anyway.
-  const { data: row } = await supabase
-    .from('client_programs')
-    .select('detail')
-    .eq('user_id', clientId)
-    .maybeSingle();
-  const detail = { ...((row?.detail ?? {}) as Record<string, unknown>), goals };
-
-  const { error } = await supabase
-    .from('client_programs')
-    .upsert({ user_id: clientId, detail, updated_by: user.id }, { onConflict: 'user_id' });
-  if (error) {
-    const denied = /row-level security/i.test(error.message);
+  // Atomic merge — write ONLY detail.goals in one statement (ON CONFLICT DO UPDATE
+  // reads the row under its lock), so a concurrent write to a sibling section
+  // (training/nutrition/directive) can't be clobbered by a stale read-modify-write.
+  // RLS + the discipline trigger still authorize the write. Falls back to the legacy
+  // read-then-write only until the merge_program_detail migration is applied.
+  const { error } = await supabase.rpc('merge_program_detail', { p_client_id: clientId, p_patch: { goals } });
+  if (error && !isMissingFunction(error)) {
+    const denied = /row-level security|not a coach|not authorized/i.test(error.message);
     if (denied) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
     return dbError(error, 'client goals write', 500);
+  }
+  if (error) {
+    // ── Fallback (pre-migration): legacy read-then-write. ──
+    const { data: row } = await supabase
+      .from('client_programs')
+      .select('detail')
+      .eq('user_id', clientId)
+      .maybeSingle();
+    const detail = { ...((row?.detail ?? {}) as Record<string, unknown>), goals };
+    const { error: upErr } = await supabase
+      .from('client_programs')
+      .upsert({ user_id: clientId, detail, updated_by: user.id }, { onConflict: 'user_id' });
+    if (upErr) {
+      if (/row-level security/i.test(upErr.message)) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
+      return dbError(upErr, 'client goals write', 500);
+    }
   }
   return NextResponse.json({ ok: true, goals });
 }

@@ -3535,21 +3535,35 @@ async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail 
   const payload = { user_id: uid, updated_by: state.user.id, updated_at: new Date().toISOString() };
   if (trainingPhase != null) payload.training_phase = trainingPhase;
   if (nutritionPhase != null) payload.nutrition_phase = nutritionPhase;
-  // Merge the incoming detail sections (training / nutrition) over what's stored.
+
+  // A SELF write must never set `detail.directive`: that field is the coach's override
+  // (written only by /api/ai/directive/override) and the engine honors it as an
+  // authoritative coach directive. Strip it so a client can't forge one.
+  let selfDetail = null;
   if (detail && typeof detail === 'object') {
-    let existing = {};
-    try {
-      const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
-      if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
-    } catch (e) { /* first write — no existing row */ }
-    // A SELF write must never set `detail.directive`: that field is the coach's
-    // override (written only by the server /api/ai/directive/override route) and
-    // the engine honors it as an authoritative coach directive. Strip it from
-    // client-supplied input so a client can't forge a coach directive for
-    // themselves; the stored coach value (existing.directive) is preserved here.
-    const { directive: _coachOnly, ...selfDetail } = detail;
-    payload.detail = { ...existing, ...selfDetail };
+    const { directive: _coachOnly, ...rest } = detail;
+    selfDetail = rest;
   }
+
+  // The detail JSONB merges via merge_program_detail (atomic — ON CONFLICT DO UPDATE
+  // under the row lock), so a concurrent coach Adjust to a sibling section isn't
+  // clobbered by this self-write's stale read-modify-write. Phase columns stay a scalar
+  // upsert (last-write-wins is the intended semantics). Falls back to the legacy
+  // read-then-write until the merge_program_detail migration is applied.
+  if (selfDetail && Object.keys(selfDetail).length) {
+    const { error: mErr } = await supabase.rpc('merge_program_detail', { p_client_id: uid, p_patch: selfDetail });
+    if (mErr) {
+      if (mErr.code === 'PGRST202' || mErr.code === '42883') {
+        let existing = {};
+        try {
+          const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
+          if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
+        } catch (e) { /* first write — no existing row */ }
+        payload.detail = { ...existing, ...selfDetail };
+      } else { throw mErr; }
+    }
+  }
+
   const { data, error } = await supabase
     .from('client_programs')
     .upsert(payload, { onConflict: 'user_id' })
