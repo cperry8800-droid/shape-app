@@ -281,7 +281,9 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   return (
     <div>
-      <div ref={elRef} className="grid-stack dash-gridstack"></div>
+      {/* min-height reserves space so the page doesn't collapse to 0 then jump down
+          when GridStack measures + positions the cards in JS after mount (CLS guard) */}
+      <div ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
       {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key]) : null))}
       {hidden.length > 0 && (
         <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>

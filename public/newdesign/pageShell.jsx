@@ -6,9 +6,9 @@ const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
 const TEAL = "#0ac5a8";         // refined cinema teal accent
 const TEAL_BRIGHT = "#2ee0c4";
 const RUST = "#d2693f";         // warm secondary accent
-const serif = "'Fraunces', 'Instrument Serif', serif";
-const sans = "'Space Grotesk', sans-serif";
-const mono = "'JetBrains Mono', monospace";
+const serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
+const sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
+const mono = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 
 function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   const bg = tone === "dark" ? "#0f1513" : "#efece6";
@@ -464,6 +464,13 @@ function Footer({ logoHeight = 64 } = {}) {
 function ShapeMobileStyles() {
   return (
     <style>{`
+      /* Metrics-matched fallback fonts — the local fallback is scaled (size-adjust +
+         ascent/descent overrides) to occupy the SAME space as the web font, so the swap
+         on load doesn't reflow headers (Fraunces), sub-heads (JetBrains Mono) or body
+         (Space Grotesk). Metrics from @capsizecss (next/font formula). CLS guard. */
+      @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
+      @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
+      @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
       html, body { overflow-x: hidden; }
       /* Spatial Cinema chrome micro-interactions */
       .shape-nav-link, .shape-foot-link { transition: color .16s ease, border-color .16s ease; }

@@ -305,7 +305,7 @@ function BSBeatRing({ bpm = 132, size = 42, color, paused = false }) {
 function BSRadioWordmark({ width = 'min(86%, 330px)', style = {} }) {
   const t = useBS();
   const file = t.isLight ? 'shape-radio-logo-lt.png?v=1' : 'shape-radio-logo.png?v=2';
-  return <img src={`${import.meta.env.BASE_URL}${file}`} alt="Shape Radio" style={{ width, height: 'auto', display: 'block', ...style }} />;
+  return <img src={`${import.meta.env.BASE_URL}${file}`} alt="Shape Radio" style={{ width, height: 'auto', aspectRatio: '1647 / 116', display: 'block', ...style }} />;
 }
 
 // Sweeping diagonal "stage light" — used as a subtle background streak
