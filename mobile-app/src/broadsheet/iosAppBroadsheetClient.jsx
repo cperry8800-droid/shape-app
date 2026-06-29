@@ -21289,14 +21289,6 @@ function BSAboutPage({ onBack }) {
   // Same letter the website runs — drop-cap intro + two pull-quotes.
   const para = { fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.72, color: t.INK70, margin: '0 0 22px' };
   const pull = { fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 22, lineHeight: 1.18, letterSpacing: '-0.02em', fontWeight: 500, color: t.INK, margin: '30px 0' };
-  const pillars = [
-    ["Personal coaching, lower cost", "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform. Your coach sets their own rate and gets paid directly."],
-    ["A real community", "Share your week if you want to — or don't. Either way, you can find tips, recipes, recommended coaches, and people who get what you're trying to do."],
-    ["Shape Radio + the soundtrack", "Ad-free mixes built for movement, included with every membership. Your coach can drop a playlist onto a workout and it plays right on the card."],
-    ["Lifestyle, structured", "Habit tracking, grocery lists that build themselves, meal plans you actually follow, Shape Score that reads the truth at the end of the week. Build the good ones. Break the bad ones."],
-    ["Goals that are yours", "Tell us what you're shaping toward — strength, weight, sleep, calm, a marathon, just feeling like yourself again. We help you plan around it and your coach holds the line."],
-    ["Public if you want, private always", "Your data is yours. Share your progress with the community when you feel like it. Keep it locked when you don't. There's no algorithm pushing you to overshare."],
-  ];
   return (
     <BSPage>
       {/* minimal back row (the hero is the title, mirroring the website) */}
@@ -21316,10 +21308,6 @@ function BSAboutPage({ onBack }) {
         <p style={{ fontFamily: t.DISPLAY, fontSize: 16, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.005em', color: t.INK70, margin: '28px auto 0', maxWidth: 560, lineHeight: 1.55 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
         </p>
-        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }} aria-hidden>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50 }}>The idea</span>
-          <span style={{ width: 1, height: 48, background: `linear-gradient(to bottom, transparent, ${teal})`, display: 'block' }} />
-        </div>
       </div>
 
       {/* THE IDEA — coach platform + social network (leads, right after the hero) */}
@@ -21366,21 +21354,6 @@ function BSAboutPage({ onBack }) {
         <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>The community isn't a forum. It's the people in your loop.</div>
 
         <p style={{ ...para, marginBottom: 0 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
-      </div>
-
-      {/* PILLARS */}
-      <div style={{ padding: `48px ${px}px 8px` }}>
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, marginBottom: 12 }}>What you get</div>
-          <h3 style={{ fontFamily: t.DISPLAY, fontSize: 30, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.05, color: t.INK }}>One place for the <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>whole loop</em>.</h3>
-        </div>
-        {pillars.map(([h, p], i) => (
-          <div key={i} style={{ borderTop: `1px solid ${t.RULE}`, paddingTop: 18, marginBottom: 26 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: tealB, marginBottom: 11 }}>{String(i + 1).padStart(2, '0')}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, letterSpacing: '-0.015em', fontWeight: 400, fontStyle: 'italic', color: t.INK, lineHeight: 1.18, marginBottom: 11 }}>{h}</div>
-            <p style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.55, margin: 0 }}>{p}</p>
-          </div>
-        ))}
       </div>
 
       {/* CTA */}
