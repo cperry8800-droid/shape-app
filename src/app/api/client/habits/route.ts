@@ -119,8 +119,12 @@ export async function POST(req: Request) {
       .select('id')
       .eq('id', id)
       .eq('user_id', user.id)
+      .is('archived_at', null)
       .maybeSingle();
     if (ownErr) return dbError(ownErr, 'habit ownership check', 500);
+    // archived_at IS NULL also rejects toggles on a soft-deleted habit, so a
+    // stale tab / direct request can't keep logging completions or awarding
+    // points for a habit that was removed from the UI.
     if (!owned) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
 
     const { data: existing } = await supabase
