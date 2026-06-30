@@ -1151,6 +1151,70 @@ function BSToastHost() {
   );
 }
 
+// ── Destructive-action confirm sheet ─────────────────────────────────────────
+// Reusable, house-style confirmation for destructive / irreversible actions.
+// Names the specific item, states the consequence, uses an action-labeled
+// confirm button, and is dressed in RUST (the danger accent) with a left spine
+// so it reads as an alarming surface. `requireType` adds a type-to-confirm text
+// gate for the most irreversible actions (e.g. account deletion). Mounted once
+// via BSConfirmHost and driven imperatively through window.bsAskConfirm(opts),
+// which resolves a Promise<boolean>. We keep toasts disabled app-wide; this
+// confirm IS the deliberate friction layer (not an undo snackbar).
+function BSConfirmSheet({ opts, onCancel, onConfirm }) {
+  const t = useBS();
+  const o = opts || {};
+  const danger = o.danger !== false; // destructive by default
+  const accent = danger ? t.RUST : t.ACCENT;
+  const [typed, setTyped] = useStateBS('');
+  const need = o.requireType ? String(o.requireType) : '';
+  const gateOk = !need || (typed || '').trim().toUpperCase() === need.toUpperCase();
+  const eyebrow = o.eyebrow || (danger ? "Confirm · this can't be undone" : 'Confirm');
+  return (
+    <div onClick={onCancel} style={{ position: 'absolute', inset: 0, zIndex: 4200, background: 'rgba(8,7,6,0.6)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, padding: `20px ${t.padX || 18}px calc(20px + env(safe-area-inset-bottom, 0px))` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>{eyebrow}</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '5px 0 0' }}>{o.title || 'Are you sure?'}</div>
+        {o.name && <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: accent, margin: '3px 0 0' }}>{o.name}</div>}
+        {o.message && <div style={{ marginTop: 11, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>{o.message}</div>}
+        {need && (
+          <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={`Type ${need} to confirm`}
+            style={{ width: '100%', boxSizing: 'border-box', marginTop: 13, padding: '12px 14px', borderRadius: 12, border: `1px solid ${gateOk && typed ? accent : t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, letterSpacing: '0.04em', outline: 'none' }} />
+        )}
+        <div style={{ display: 'flex', gap: 9, marginTop: 16 }}>
+          <button onClick={onCancel} style={{ flex: '0 0 auto', padding: '14px 24px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{o.cancelLabel || 'Cancel'}</button>
+          <button onClick={() => gateOk && onConfirm()} disabled={!gateOk}
+            style={{ flex: 1, minHeight: 48, borderRadius: 999, border: 0, background: gateOk ? accent : `${accent}55`, color: t.PAPER, fontFamily: t.BODY, fontSize: 14, fontWeight: 700, letterSpacing: '0.01em', cursor: gateOk ? 'pointer' : 'default', opacity: gateOk ? 1 : 0.7 }}>{o.confirmLabel || 'Confirm'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mounted once inside the phone surface (next to BSToastHost). Registers
+// window.__bsConfirm(opts) -> Promise<boolean>; window.bsAskConfirm (below) is
+// the safe caller used across the app.
+function BSConfirmHost() {
+  const [req, setReq] = useStateBS(null);
+  useEffectBS(() => {
+    window.__bsConfirm = (opts) => new Promise((resolve) => setReq({ opts: opts || {}, resolve }));
+    return () => { try { delete window.__bsConfirm; } catch (e) { window.__bsConfirm = undefined; } };
+  }, []);
+  if (!req) return null;
+  const done = (val) => { try { req.resolve(val); } catch (e) {} setReq(null); };
+  return <BSConfirmSheet opts={req.opts} onCancel={() => done(false)} onConfirm={() => done(true)} />;
+}
+
+// Safe imperative caller. Returns Promise<boolean>. Uses the mounted confirm
+// host when present; falls back to a native confirm so a destructive action is
+// never left ungated even if called before the host mounts.
+function bsAskConfirm(opts) {
+  if (typeof window !== 'undefined' && typeof window.__bsConfirm === 'function') return window.__bsConfirm(opts || {});
+  const o = opts || {};
+  const text = [o.title, o.name, o.message].filter(Boolean).join('\n\n');
+  return Promise.resolve(typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(text || 'Are you sure?') : true);
+}
+if (typeof window !== 'undefined') window.bsAskConfirm = bsAskConfirm;
+
 function BSPhone({ children }) {
   const t = useBS();
   const isNativeApp = isNativeBSApp();
@@ -1296,6 +1360,7 @@ function BSPhone({ children }) {
         }}>
           {children}
           <BSToastHost />
+          <BSConfirmHost />
         </div>
       </div>
     );
@@ -1338,6 +1403,7 @@ function BSPhone({ children }) {
         }} />
         {children}
         <BSToastHost />
+        <BSConfirmHost />
       </div>
     </div>
   );

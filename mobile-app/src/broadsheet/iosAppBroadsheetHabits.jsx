@@ -301,7 +301,7 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
         </div>
       </button>
       <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label="Habit reminder" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
-      <button onClick={() => onRemove(habit.id)} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
+      <button onClick={async () => { if (await window.bsAskConfirm({ title: 'Delete this habit?', name: habit.name, message: "This removes the habit and its full streak history.", confirmLabel: 'Delete habit' })) onRemove(habit.id); }} aria-label="Remove habit" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
       {remOpen && <BSHabitReminderSheet habit={habit} reminder={reminder} accent={c} onClose={() => setRemOpen(false)} onSaved={onReminderChange} />}
     </div>
   );

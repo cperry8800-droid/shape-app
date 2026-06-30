@@ -247,8 +247,10 @@ function DashGoalsSection({ rec, role }) {
     const next = editing === "new" ? goals.concat([g]) : goals.map((x, i) => (i === editing ? g : x));
     persist(next.slice(0, DashSignals.MAX_GOALS));
   };
-  const onRemove = () => {
+  const onRemove = async () => {
     if (editing === "new" || editing == null) { setEditing(null); return; }
+    const g = goals[editing] || {};
+    if (!(await window.ShapeConfirm.open({ title: "Delete this goal?", name: g.t || g.title, message: "This removes the goal you set for this client.", confirmLabel: "Delete goal" }))) return;
     persist(goals.filter((_, i) => i !== editing));
   };
 

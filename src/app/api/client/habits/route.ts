@@ -4,7 +4,7 @@
 // POST: { action: 'create', name, type?, cadence?, visibility? } → creates a habit
 //       { action: 'update', id, name?, type?, cadence?, visibility? } → updates fields
 //       { action: 'toggle', id, date } → toggles completion on a given date
-//       { action: 'delete', id } → deletes (cascades completions)
+//       { action: 'delete', id } → soft-deletes (archives; completion history kept)
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -164,9 +164,13 @@ export async function POST(req: Request) {
   if (action === 'delete') {
     const id = String((body as { id?: unknown }).id || '');
     if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
+    // Soft-delete: archive the habit (and keep its completion history) instead of
+    // a hard cascade delete, so an accidental removal stays recoverable. The GET
+    // filters on archived_at IS NULL, so an archived habit disappears from the
+    // list exactly like a deleted one.
     const { error } = await supabase
       .from('user_habits')
-      .delete()
+      .update({ archived_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', user.id);
     if (error) return dbError(error, 'habits write', 500);

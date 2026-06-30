@@ -59,7 +59,7 @@ function GoalEditModal({ goal, onClose, onSave, onDelete }) {
       title={goal ? "Edit goal." : "New goal."}
       onClose={onClose}
       footer={<>
-        {onDelete && <button onClick={onDelete} style={{ background: "transparent", color: "#ff8a6d", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
+        {onDelete && <button onClick={async () => { if (await window.ShapeConfirm.open({ title: "Delete this goal?", name: g.t || g.title, message: "This removes the goal from your saved goals.", confirmLabel: "Delete goal" })) onDelete(); }} style={{ background: "transparent", color: "#ff8a6d", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
         <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
         <button onClick={() => onSave(g)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
       </>}

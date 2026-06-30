@@ -371,7 +371,15 @@ export async function DELETE(request: Request) {
   const id = clean((body as Record<string, unknown>).id, 64);
   if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
 
-  const { error } = await supabase.from('calendar_events').delete().eq('id', id);
+  // Defense-in-depth: scope the delete to the owner (their own calendar) OR the
+  // creator (a coach removing an event they booked) instead of relying on RLS
+  // alone — mirrors the explicit-owner-scope convention used by the other
+  // destructive routes (e.g. reminders).
+  const { error } = await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('id', id)
+    .or(`user_id.eq.${user.id},created_by.eq.${user.id}`);
   if (error) return dbError(error, 'calendar write', 500);
   return NextResponse.json({ ok: true });
 }

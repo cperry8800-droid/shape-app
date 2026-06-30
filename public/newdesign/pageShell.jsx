@@ -567,6 +567,68 @@ function ShapeMobileStyles() {
 
 Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch });
 
+// ── ShapeConfirm — shared destructive-action confirm modal (web) ─────────────
+// Imperative + promise-based: window.ShapeConfirm.open({ title, name, message,
+// confirmLabel, danger=true, requireType, cancelLabel }) -> Promise<boolean>.
+// One styled confirm for every newdesign page (replaces ad-hoc window.confirm):
+// names the specific item, states the consequence, action-labeled button, and a
+// distinct RUST danger style. requireType adds a type-to-confirm text gate.
+function shapeConfirmOpen(opts) {
+  const o = opts || {};
+  const danger = o.danger !== false;
+  const accent = danger ? "#e07856" : TEAL;
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") { resolve(true); return; }
+    const need = o.requireType ? String(o.requireType) : "";
+    let done = false;
+    const overlay = document.createElement("div");
+    const onKey = (e) => { if (e.key === "Escape") finish(false); else if (e.key === "Enter" && gateOk()) finish(true); };
+    const finish = (val) => { if (done) return; done = true; try { document.removeEventListener("keydown", onKey); } catch (e) {} overlay.remove(); resolve(val); };
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(7,8,7,0.66);display:flex;align-items:center;justify-content:center;padding:20px;";
+    const card = document.createElement("div");
+    card.style.cssText = "width:100%;max-width:420px;background:#171310;border:1px solid rgba(242,237,228,0.14);border-left:3px solid " + accent + ";border-radius:12px;padding:22px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,0.5);font-family:" + sans + ";color:" + INK + ";";
+    const eyebrow = document.createElement("div");
+    eyebrow.textContent = danger ? "Confirm · this can’t be undone" : "Confirm";
+    eyebrow.style.cssText = "font-family:" + mono + ";font-size:10px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:" + accent + ";";
+    card.appendChild(eyebrow);
+    const title = document.createElement("div");
+    title.textContent = o.title || "Are you sure?";
+    title.style.cssText = "font-family:" + serif + ";font-size:22px;font-weight:600;letter-spacing:-0.01em;margin-top:6px;color:" + INK + ";";
+    card.appendChild(title);
+    if (o.name) { const nm = document.createElement("div"); nm.textContent = o.name; nm.style.cssText = "font-size:15px;font-weight:600;color:" + accent + ";margin-top:3px;"; card.appendChild(nm); }
+    if (o.message) { const msg = document.createElement("div"); msg.textContent = o.message; msg.style.cssText = "font-size:13.5px;line-height:1.5;color:rgba(242,237,228,0.72);margin-top:11px;"; card.appendChild(msg); }
+    let input = null;
+    if (need) {
+      input = document.createElement("input");
+      input.type = "text"; input.placeholder = "Type " + need + " to confirm";
+      input.style.cssText = "width:100%;box-sizing:border-box;margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid rgba(242,237,228,0.18);background:rgba(0,0,0,0.25);color:" + INK + ";font-family:" + serif + ";font-size:16px;outline:none;";
+      card.appendChild(input);
+    }
+    const gateOk = () => !need || (input.value || "").trim().toUpperCase() === need.toUpperCase();
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:9px;margin-top:18px;";
+    const cancel = document.createElement("button");
+    cancel.type = "button"; cancel.textContent = o.cancelLabel || "Cancel";
+    cancel.style.cssText = "flex:0 0 auto;padding:12px 22px;border-radius:999px;border:1px solid rgba(242,237,228,0.2);background:transparent;color:rgba(242,237,228,0.7);font-family:" + sans + ";font-size:14px;font-weight:600;cursor:pointer;";
+    const ok = document.createElement("button");
+    ok.type = "button"; ok.textContent = o.confirmLabel || "Confirm";
+    const setOk = () => { const e = gateOk(); ok.style.cssText = "flex:1;min-height:46px;border-radius:999px;border:0;background:" + (e ? accent : "rgba(224,120,86,0.35)") + ";color:#fff;font-family:" + sans + ";font-size:14px;font-weight:700;cursor:" + (e ? "pointer" : "default") + ";opacity:" + (e ? 1 : 0.7) + ";"; };
+    setOk();
+    if (need) input.addEventListener("input", setOk);
+    cancel.addEventListener("click", () => finish(false));
+    ok.addEventListener("click", () => { if (gateOk()) finish(true); });
+    row.appendChild(cancel); row.appendChild(ok); card.appendChild(row);
+    overlay.appendChild(card);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) finish(false); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(overlay);
+    if (input) input.focus(); else ok.focus();
+  });
+}
+Object.assign(window, { ShapeConfirm: { open: shapeConfirmOpen } });
+
 // Auto-mount the shared site footer on any page that opts in with a
 // <div id="site-footer"></div> (the marketing pages). It renders in its own
 // root — separate from the page's #root — and carries its own styles, so it
@@ -951,7 +1013,8 @@ function fmtLongDate(dateStr) {
 function EventPopover({ selection, role, onClose, onChanged }) {
   const { event: e, anchor } = selection;
   const canDelete = e && e.editable && e.source === "event";
-  const removeEvent = () => {
+  const removeEvent = async () => {
+    if (!(await window.ShapeConfirm.open({ title: "Delete this event?", name: e.title || e.name, message: "This permanently removes it from the calendar. This can’t be undone.", confirmLabel: "Delete event" }))) return;
     fetch("/api/calendar", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: e.id }) })
       .then(() => { onClose(); if (onChanged) onChanged(); })
       .catch(() => {});
