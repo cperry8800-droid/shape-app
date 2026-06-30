@@ -6,7 +6,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;padding:0;background:#0d0b09;color:#f2ede4;font-family:'Space Grotesk',sans-serif}
+  /* Metrics-matched fallback fonts (size-adjust + ascent/descent overrides from
+     @capsizecss/metrics via the next/font formula) so the local fallback occupies
+     the same space as the web font — no layout shift on swap. Matches the
+     2026-06-29 CLS sweep (#1452). */
+  @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
+  @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
+  @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
+  html,body{margin:0;padding:0;background:#0d0b09;color:#f2ede4;font-family:'Space Grotesk','Space Grotesk Fallback',sans-serif}
   *{box-sizing:border-box}
 </style>
 <script defer src="/_vercel/insights/script.js"></script></head>
@@ -146,7 +153,7 @@ function VariantC({ ctx }) {
 
 // ─── Page ────────────────────────────────────────────────
 const PAPER = "#1a1612", INK = "#f2ede4", TEAL_BRIGHT = "#2ee0c4";
-const serif = "'Fraunces', serif", sans = "'Space Grotesk', sans-serif", mono = "'JetBrains Mono', monospace";
+const serif = "'Fraunces', 'Fraunces Fallback', serif", sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif", mono = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 
 function Phone({ label, subtitle, children }) {
   return (
