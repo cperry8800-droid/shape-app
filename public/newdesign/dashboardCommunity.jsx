@@ -583,7 +583,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           )}
           {p.isMe && p.isLive && p.id && (
             <button onClick={async () => {
-              if (!window.confirm("Delete this post?")) return;
+              if (!(await window.ShapeConfirm.open({ title: "Delete this post?", message: "This permanently removes the post and its photo/video, likes, and comments.", confirmLabel: "Delete post" }))) return;
               try {
                 const res = await fetch("/api/community/feed?id=" + encodeURIComponent(p.id), { method: "DELETE", credentials: "same-origin" });
                 if (!res.ok) throw new Error("delete_failed");

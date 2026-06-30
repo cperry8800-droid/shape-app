@@ -168,7 +168,9 @@ function TrainerGoalPage() {
     setEditGoalIdx(null);
     persist({ ...state, goals });
   }
-  function deleteGoal() {
+  async function deleteGoal() {
+    const cur = (state.goals || [])[editGoalIdx] || {};
+    if (!(await window.ShapeConfirm.open({ title: "Delete this goal?", name: cur.t || cur.title, message: "This removes the goal from your saved goals.", confirmLabel: "Delete goal" }))) return;
     const goals = state.goals.filter((_, i) => i !== editGoalIdx);
     setEditGoalIdx(null);
     persist({ ...state, goals });

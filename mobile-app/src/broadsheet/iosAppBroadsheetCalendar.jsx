@@ -621,6 +621,12 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
   const t = useBSCal();
   const canDelete = live && event.editable && event.source === 'event';
   const removeEvent = async () => {
+    if (!(await window.bsAskConfirm({
+      title: 'Delete this event?',
+      name: event.title || event.name,
+      message: 'This permanently removes it from the calendar. This can’t be undone.',
+      confirmLabel: 'Delete event',
+    }))) return;
     try {
       await window.ShapeCalendar?.remove?.(event.id);
       window.__bsToast?.('Removed', 'ok');

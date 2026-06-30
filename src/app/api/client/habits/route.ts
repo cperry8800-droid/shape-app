@@ -4,7 +4,7 @@
 // POST: { action: 'create', name, type?, cadence?, visibility? } → creates a habit
 //       { action: 'update', id, name?, type?, cadence?, visibility? } → updates fields
 //       { action: 'toggle', id, date } → toggles completion on a given date
-//       { action: 'delete', id } → deletes (cascades completions)
+//       { action: 'delete', id } → soft-deletes (archives; completion history kept)
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -100,9 +100,11 @@ export async function POST(req: Request) {
       .update(patch)
       .eq('id', id)
       .eq('user_id', user.id)
+      .is('archived_at', null)
       .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
-      .single();
+      .maybeSingle();
     if (error) return dbError(error, 'habits write', 500);
+    if (!data) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
     return NextResponse.json({ habit: data });
   }
 
@@ -119,8 +121,12 @@ export async function POST(req: Request) {
       .select('id')
       .eq('id', id)
       .eq('user_id', user.id)
+      .is('archived_at', null)
       .maybeSingle();
     if (ownErr) return dbError(ownErr, 'habit ownership check', 500);
+    // archived_at IS NULL also rejects toggles on a soft-deleted habit, so a
+    // stale tab / direct request can't keep logging completions or awarding
+    // points for a habit that was removed from the UI.
     if (!owned) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
 
     const { data: existing } = await supabase
@@ -164,12 +170,20 @@ export async function POST(req: Request) {
   if (action === 'delete') {
     const id = String((body as { id?: unknown }).id || '');
     if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
-    const { error } = await supabase
+    // Soft-delete: archive the habit (and keep its completion history) instead of
+    // a hard cascade delete, so an accidental removal stays recoverable. The GET
+    // filters on archived_at IS NULL, so an archived habit disappears from the
+    // list exactly like a deleted one.
+    const { data, error } = await supabase
       .from('user_habits')
-      .delete()
+      .update({ archived_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .is('archived_at', null)
+      .select('id')
+      .maybeSingle();
     if (error) return dbError(error, 'habits write', 500);
+    if (!data) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
     return NextResponse.json({ ok: true });
   }
 

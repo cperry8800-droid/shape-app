@@ -371,7 +371,17 @@ export async function DELETE(request: Request) {
   const id = clean((body as Record<string, unknown>).id, 64);
   if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
 
-  const { error } = await supabase.from('calendar_events').delete().eq('id', id);
+  // Authorization is RLS (a user manages their own calendar; a coach manages an
+  // active client's — matching the `editable` flag GET returns). Request the
+  // deleted row so a delete that matches nothing (missing event, or RLS-denied)
+  // returns an honest 404 instead of a false success — mirrors the PATCH handler.
+  const { data, error } = await supabase
+    .from('calendar_events')
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
   if (error) return dbError(error, 'calendar write', 500);
+  if (!data) return NextResponse.json({ error: 'Not found or not allowed.' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

@@ -669,6 +669,12 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
     } catch (e) { window.__bsToast?.('Could not send', 'err'); }
   };
   const del = async (g) => {
+    if (!(await window.bsAskConfirm({
+      title: 'Delete this grocery list?',
+      name: g.name,
+      message: g.client_name ? `This permanently removes the list for ${String(g.client_name).split(' ')[0]}.` : 'This permanently removes the list.',
+      confirmLabel: 'Delete list',
+    }))) return;
     if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
     setLists(l => (l || DEMO).filter(x => x.id !== g.id));
   };
@@ -1953,6 +1959,15 @@ function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
     : `Adjusting your block: ${sessions}×/week, ${verb}. Focus stays on ${focusLabel}. Check the updated split in your Train tab.`;
   const body = noteText == null ? autoNote : noteText;
   const apply = async (notify) => {
+    const who = (client && (client.n || client.name)) || 'this client';
+    if (!(await window.bsAskConfirm({
+      title: isNutri ? 'Update nutrition targets?' : 'Update training program?',
+      name: who,
+      message: isNutri
+        ? "This overwrites this client's live nutrition targets (calories + macros) on their Eat tab. It takes effect immediately."
+        : "This overwrites this client's live training program on their Train tab. It takes effect immediately.",
+      confirmLabel: 'Apply changes',
+    }))) return;
     setStatus('saving');
     try {
       // 1) Persist the adjustment to the client's coach-writable program record.
@@ -2295,6 +2310,14 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
 
   const apply = async () => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
+    if (isNutri) {
+      if (!(await window.bsAskConfirm({
+        title: 'Replace active meal plan?',
+        name: targetName,
+        message: 'This archives ' + first + '’s current week menu and installs ' + (plan.name ? '“' + plan.name + '”' : 'the new plan') + ' on their Eat tab.',
+        confirmLabel: 'Replace plan',
+      }))) return;
+    }
     setStatus('working');
     let gotDisclaimer = false;
     try {

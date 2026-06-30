@@ -244,12 +244,22 @@ function DashGoalsSection({ rec, role }) {
     } catch (e) { setSaveState("error"); }
   };
   const onSave = (g) => {
-    const next = editing === "new" ? goals.concat([g]) : goals.map((x, i) => (i === editing ? g : x));
+    if (editing === "new") { persist(goals.concat([g]).slice(0, DashSignals.MAX_GOALS)); return; }
+    // `editing` indexes the VISIBLE list (same as the editor + onRemove); map the
+    // edit onto the matching goal in the full array by identity so a filtered view
+    // can't save over a different goal.
+    const target = visible[editing];
+    const next = target ? goals.map((x) => ((target.id ? x.id === target.id : x === target) ? g : x)) : goals;
     persist(next.slice(0, DashSignals.MAX_GOALS));
   };
-  const onRemove = () => {
+  const onRemove = async () => {
     if (editing === "new" || editing == null) { setEditing(null); return; }
-    persist(goals.filter((_, i) => i !== editing));
+    // `editing` indexes the VISIBLE list; resolve the actual goal and remove it
+    // by identity so a hidden/filtered entry can't make us delete the wrong one.
+    const g = visible[editing];
+    if (!g) { setEditing(null); return; }
+    if (!(await window.ShapeConfirm.open({ title: "Delete this goal?", name: g.t || g.title, message: "This removes the goal you set for this client.", confirmLabel: "Delete goal" }))) return;
+    persist(goals.filter((x) => (g.id ? x.id !== g.id : x !== g)));
   };
 
   return (

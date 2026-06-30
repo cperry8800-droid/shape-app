@@ -200,7 +200,9 @@ function ConnectedAppsCard({ signedIn }) {
   React.useEffect(() => { load(); }, [load]);
   const ret = () => encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.hash) : "/newdesign/ClientApp.html#profile");
   const connect = (id) => { window.location.href = "/api/integrations/" + id + "/authorize?return=" + ret(); };
-  const disconnect = (id) => {
+  const disconnect = async (id) => {
+    const name = String(id).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    if (!(await window.ShapeConfirm.open({ title: "Disconnect this app?", name, message: "This stops syncing its data until you reconnect — you’ll need to re-authorize.", confirmLabel: "Disconnect" }))) return;
     fetch("/api/integrations/" + id + "/disconnect", { method: "POST", credentials: "same-origin" })
       .then(() => setConnected(prev => { const n = new Set(prev); n.delete(id); return n; }))
       .catch(() => {});

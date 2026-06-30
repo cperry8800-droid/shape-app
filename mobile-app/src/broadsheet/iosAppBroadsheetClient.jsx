@@ -7911,7 +7911,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
 
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 14, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
           {ed && ed.postId && (
-            <button onClick={async () => { if (!window.confirm('Delete this post? This cannot be undone.')) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
+            <button onClick={async () => { if (!(await window.bsAskConfirm({ title: 'Delete this post?', message: 'This permanently removes the post and its photo/video, likes, and comments.', confirmLabel: 'Delete post' }))) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
           )}
           <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? (ed ? 'Saving…' : 'Publishing…') : (ed ? 'Save changes →' : 'Publish →')}</button>
         </div>
@@ -8180,7 +8180,11 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
     setItems((prev) => prev.map((x) => x.id === pl.id ? { ...x, is_public: !x.is_public } : x));
     try { await window.ShapePlaylists.update(pl.id, { is_public: !pl.is_public }); } catch (e) { load(); }
   };
-  const removeIt = async (pl) => { setItems((prev) => prev.filter((x) => x.id !== pl.id)); try { await window.ShapePlaylists.remove(pl.id); } catch (e) { load(); } };
+  const removeIt = async (pl) => {
+    if (!(await window.bsAskConfirm({ title: 'Remove this playlist?', name: pl.name, message: 'This removes the saved playlist from your profile. You can add it again later.', confirmLabel: 'Remove playlist' }))) return;
+    setItems((prev) => prev.filter((x) => x.id !== pl.id));
+    try { await window.ShapePlaylists.remove(pl.id); } catch (e) { load(); }
+  };
 
   return (
     <div>
@@ -12971,7 +12975,7 @@ function BSReminderManager() {
     await window.ShapeReminders?.save?.({ id: d.id, kind: d.kind, label: d.label, atTime: d.atTime, days: d.days, enabled: d.enabled !== false });
     load();
   };
-  const del = async (id) => { setList((l) => (l || []).filter((x) => x.id !== id)); await window.ShapeReminders?.remove?.(id); load(); };
+  const del = async (id) => { setList((l) => (l || []).filter((x) => x.id !== id)); try { await window.ShapeReminders?.remove?.(id); } catch (e) {} load(); };
   const toggleEnabled = async (r) => { setList((l) => (l || []).map((x) => x.id === r.id ? { ...x, enabled: !x.enabled } : x)); await window.ShapeReminders?.save?.({ id: r.id, kind: r.kind, label: r.label, atTime: r.at_time, days: r.days, enabled: !r.enabled }); load(); };
   const fld = { background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 9, padding: '8px 10px', fontFamily: t.MONO, fontSize: 12, outline: 'none' };
 
@@ -12995,7 +12999,7 @@ function BSReminderManager() {
             </div>
             <button type="button" onClick={() => toggleEnabled(r)} aria-pressed={r.enabled} aria-label={`${r.enabled ? 'Disable' : 'Enable'} reminder: ${r.label || kindLabel(r.kind)}`} style={{ width: 40, height: 24, borderRadius: 999, border: `1px solid ${r.enabled ? t.ACCENT : t.RULE}`, background: r.enabled ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: r.enabled ? 18 : 2, width: 18, height: 18, borderRadius: 999, background: r.enabled ? '#fff' : t.INK50 }} /></button>
             <button type="button" onClick={() => setDraft({ id: r.id, kind: r.kind, label: r.label || '', atTime: r.at_time, days: r.days || [], enabled: r.enabled })} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>Edit</button>
-            <button type="button" onClick={() => del(r.id)} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            <button type="button" onClick={async () => { if (await window.bsAskConfirm({ title: 'Delete this reminder?', name: r.label || kindLabel(r.kind), message: 'This removes the scheduled nudge.', confirmLabel: 'Delete reminder' })) await del(r.id); }} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
           </div>
         ))
       )}
@@ -16508,6 +16512,17 @@ function BSIntegrationsPage({ onBack }) {
   const healthKitNative = !!(window.ShapeIntegrations?.appleHealthAvailable?.());
 
   const runAction = async (key, label, action) => {
+    if (String(key).endsWith('-disconnect')) {
+      // Name the integration from its human label ("WHOOP disconnected" -> "WHOOP"),
+      // not the key (which would collapse "apple-health"/"apple-music" to "Apple").
+      const prov = String(label).replace(/\bdisconnected\b/i, '').trim() || 'this app';
+      if (!(await window.bsAskConfirm({
+        title: 'Disconnect this app?',
+        name: prov,
+        message: 'This stops syncing its data until you reconnect — you’ll need to re-authorize.',
+        confirmLabel: 'Disconnect',
+      }))) return;
+    }
     setBusy(key);
     setError('');
     setSummary(null);
@@ -19399,9 +19414,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // Delete is now a real, irreversible erasure — guard it with a typed confirm.
     if (action === 'Delete') {
       if (!(window.ShapeAuth?.getCachedState?.()?.user?.id)) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
-      if (!window.confirm('Permanently delete your account and ALL your data? This cannot be undone.')) return;
-      const typed = window.prompt('This erases your health data, history, photos, and account for good. Type DELETE to confirm.');
-      if ((typed || '').trim().toUpperCase() !== 'DELETE') { window.__bsToast?.('Deletion cancelled.', 'ok'); return; }
+      if (!(await window.bsAskConfirm({
+        title: 'Delete your account?',
+        message: 'This permanently erases your health data, history, photos, and account. Stripe billing records are kept for tax/legal reasons. This can’t be undone.',
+        requireType: 'DELETE',
+        confirmLabel: 'Delete account',
+      }))) return;
       try {
         const res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
         if (res.status === 401) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
