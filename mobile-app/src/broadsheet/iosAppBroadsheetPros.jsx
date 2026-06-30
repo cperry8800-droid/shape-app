@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // Phase 2 — "Needs you today." Two coach surfaces share ONE engine
 // (bsRowSeverity — prefers the live getTriageFeed `_sig`, else the local status
 // scorer) reading ONE roster (useBSProRoster). They are never two ranked lists:
@@ -119,7 +120,7 @@ function BSProScheduleRows({ items = [], onOpen = () => {}, emptyText = 'Nothing
 
 const { useState: useStateBSP, useEffect: useEffectBSP } = React;
 const {
-  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
+  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSPlate,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
@@ -355,7 +356,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
         showDoubleRule={false}
         leftKicker={isNutri ? 'Nutritionist queue' : 'Trainer queue'}
         rightKicker={status}
-        trailing={<button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
 
       <BSSection title={isNutri ? 'Client sessions' : 'Logged workouts'} meta={`${sessions.length} items`} />
@@ -671,7 +672,7 @@ function BSProGroceryLists({ t, accent, isNutri, onBack }) {
     if (window.ShapeGroceryLists?.remove && !String(g.id).startsWith('d')) await window.ShapeGroceryLists.remove(g.id);
     setLists(l => (l || DEMO).filter(x => x.id !== g.id));
   };
-  const backBtn = <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>;
+  const backBtn = <BSBackButton onClick={onBack} />;
   const pill = (k, label, count) => { const on = tab === k; return <button onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 0', borderRadius: 999, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1f` : 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label} · {count}</button>; };
   const inputStyle = { width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
   return (
@@ -766,7 +767,7 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
   };
   const cfg = configs[type] || configs.pr;
   const backBtn = (
-    <button onClick={onBack} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, borderRadius: 10, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Back</button>
+    <BSBackButton onClick={onBack} />
   );
   // Grocery Lists → dedicated, real (owner-scoped) lists the coach builds for
   // themselves or a client, then sends to that client. Role-accented.
@@ -777,18 +778,7 @@ function BSProWidgetQueuePage({ role = 'trainer', type = 'pr', onBack }) {
         title={cfg.title}
         leftKicker={cfg.kicker}
         rightKicker={cfg.meta}
-        trailing={<button onClick={onBack} style={{
-          border: `1px solid ${t.RULE}`,
-          background: t.PAPER2,
-          color: t.INK,
-          borderRadius: 10,
-          padding: '8px 10px',
-          fontFamily: t.MONO,
-          fontSize: 9,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-        }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
       <BSSection title={cfg.title} meta="Action queue" />
       <div style={{ padding: `0 ${t.padX}px 18px`, display: 'grid', gap: 10 }}>
@@ -906,17 +896,6 @@ function BSProWeekStrip({ goCalendar, dots, label = 'This week', selDay: selDayP
 // walkthrough of the coaching tools. Auto-shows once for newly-created coach
 // accounts (persisted to localStorage 'shape.coachTourSeen' + cloud user_goals
 // 'coach_onboarding'); replayable anytime via the `shape:startTour` event.
-function bsProTourSteps(plansKey) {
-  return [
-    { key: 'welcome', tab: 'today', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'A quick tour of your coaching tools. Take it or skip — and replay anytime from Me → App tour.' },
-    { key: 'today', tab: 'today', emoji: '📊', eyebrow: 'TODAY TAB', title: 'Your dashboard.', body: 'Today’s sessions, client activity, and quick widgets — your daily home base.' },
-    { key: 'clients', tab: 'clients', emoji: '👥', eyebrow: 'CLIENTS TAB', title: 'Your roster.', body: 'Every client as a card. Tap one to open their full profile, adjust their program/plan, schedule a session, or message them.' },
-    { key: 'plans', tab: plansKey, emoji: '📋', eyebrow: 'PLANS TAB', title: 'Build & sell.', body: 'Create training programs and meal plans, save Spotify soundtracks, and publish plans your clients can buy.' },
-    { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Stay in touch.', body: 'Direct messages with your clients, plus the community feed and channels.' },
-    { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your public coach profile, rates, payouts, Shape Score, and settings. Tip: tap your avatar anywhere to come back here.' },
-    { key: 'done', tab: 'today', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — go coach.' },
-  ];
-}
 function bsMarkCoachTourSeen() {
   try { localStorage.setItem('shape.coachTourSeen', '1'); } catch (e) {}
   try { window.shapeDb?.saveUserGoals?.('coach_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
@@ -948,51 +927,23 @@ function bsCoachTourAutoShow(setShow) {
 
 function BSProOnboardingTour({ onClose, onNavigate, role = 'trainer', plansKey = 'plans' }) {
   const t = useBS();
-  const accent = bsProAccent(t, role);
-  const steps = React.useMemo(() => bsProTourSteps(plansKey), [plansKey]);
-  const [i, setI] = useStateBSP(0);
-  const step = steps[i];
-  const last = i === steps.length - 1;
-  const isWelcome = step.key === 'welcome';
-
-  useEffectBSP(() => { if (step.tab) onNavigate?.(step.tab); }, [i]);
-
-  const finish = () => { bsMarkCoachTourSeen(); onClose?.(); };
-  const next = () => { if (last) finish(); else setI(v => v + 1); };
-  const back = () => setI(v => Math.max(0, v - 1));
-
-  const ctaStyle = { width: '100%', borderRadius: 13, border: 0, background: accent, color: '#06231f', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghostStyle = { width: '100%', borderRadius: 13, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-
-  const overlay = (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
-      <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
-        <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
-        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {steps.map((s, k) => (
-            <span key={s.key} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 999, background: k === i ? accent : t.HAIR }} />
-          ))}
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50 }}>{i + 1} / {steps.length}</span>
-        </div>
-        {isWelcome ? (
-          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <button onClick={next} style={ctaStyle}>Take a quick tour →</button>
-            <button onClick={finish} style={ghostStyle}>Skip for now</button>
-          </div>
-        ) : (
-          <div style={{ marginTop: 18, display: 'flex', gap: 9 }}>
-            <button onClick={back} style={{ ...ghostStyle, width: 92, flex: '0 0 auto' }}>Back</button>
-            <button onClick={next} style={{ ...ctaStyle, flex: 1 }}>{last ? 'Start coaching →' : 'Next →'}</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
-  return target ? createPortal(overlay, target) : overlay;
+  useEffectBSP(() => {
+    const root = document.getElementById('bs-phone-surface') || document.body;
+    const q = (k) => () => root.querySelector('[data-tour="' + k + '"]');
+    const go = (tab) => () => onNavigate && onNavigate(tab);
+    const plansLabel = plansKey === 'programs' ? 'Programs' : 'Plans';
+    const steps = [
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: 'Welcome', title: 'Your coaching tools.', body: "A quick tour of your dashboard — about 30 seconds." },
+      { navigate: go('today'), anchor: q('hero-today'), fallback: q('tab-today'), eyebrow: 'Today', title: 'Who needs you.', body: "Your day leads with the clients who need attention first." },
+      { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('tab-clients'), eyebrow: 'Clients', title: 'Your roster.', body: "Every client, sorted by who's on track and who's slipping." },
+      { navigate: go(plansKey), anchor: q('hero-plans'), fallback: q('tab-' + plansKey), eyebrow: plansLabel, title: 'Build & sell.', body: "Create " + plansLabel.toLowerCase() + ", assign them to clients, and sell them in the marketplace." },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Stay in touch.', body: "Message clients and co-coaches; see the community." },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your standing.', body: "Your coach profile, payouts and Shape Score." },
+    ];
+    const tour = startTour(steps, { root, accent: bsProAccent(t, role), isLight: t.isLight, onDone: () => { bsMarkCoachTourSeen(); onClose && onClose(); } });
+    return () => tour.destroy();
+  }, [role, plansKey]);
+  return null;
 }
 
 function BSTrainerApp({ onLogout, tweaks, setTweak }) {
@@ -1278,12 +1229,12 @@ function BSTrainerToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, 
         thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
       {/* TODAY = the clock: lead with the day-shape hero. */}
-      <div style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div data-tour="hero-today" style={{ padding: `14px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
           <BSEyebrow color={t.AMBER}>{leadKicker}</BSEyebrow>
           <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
@@ -1550,7 +1501,20 @@ function useBSProRoster(role) {
     if (!S || !S.triageLive) return undefined;
     S.triageLive(role).then((feed) => {
       if (!on) return;
-      if (Array.isArray(feed) && feed.length) setLive(feed.map((r) => bsRowFromTriage(r, role, t)));
+      if (!Array.isArray(feed) || !feed.length) return;
+      const rows = feed.map((r) => bsRowFromTriage(r, role, t));
+      setLive(rows);
+      // Fire one batch weekend-split fetch and merge each client's split as _wknd.
+      // Degrades silently (ShapeRosterWeekend.get always resolves).
+      const W = (typeof window !== 'undefined' && window.ShapeRosterWeekend) || null;
+      if (W && W.get) {
+        W.get(rows.map((r) => r.userId)).then((res) => {
+          if (!on) return;
+          const split = (res && res.split) || {};
+          if (!Object.keys(split).length) return;
+          setLive(rows.map((r) => (split[r.userId] ? { ...r, _wknd: split[r.userId] } : r)));
+        }).catch(() => {});
+      }
     }).catch(() => {});
     return () => { on = false; };
   }, [role]);
@@ -1645,7 +1609,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
       <BSPageHeader
         kicker={newThisMonth > 0 ? `${activeCount} Active · +${newThisMonth} this month` : `${activeCount} Active`}
         title="Your clients."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
       />
       <div style={{ padding: `0 ${t.padX}px 24px` }}>
         {/* Search */}
@@ -1687,7 +1651,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
             <>
               {/* Verdict — the page's lead directive (who needs you, at a glance) */}
               {rows.length > 0 && (
-                <div style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <div data-tour="hero-clients" style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', color: needsYou ? SEVCOL.red : SEVCOL.green }}>
                     {needsYou ? `${needsYou} ${needsYou === 1 ? 'needs' : 'need'} you` : 'All clear'}
                   </span>
@@ -1720,6 +1684,9 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
                           <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: actionable ? col : t.INK50, lineHeight: 1.3 }}>{sig.directive}</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
+                            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', color: t.RUST, border: `1px solid ${t.RUST}66`, borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>WKND −{Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp))}</span>
+                          )}
                           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '5px 9px', whiteSpace: 'nowrap' }}>{sig.label}</span>
                           <span style={{ color: t.INK50, fontSize: 16, lineHeight: 1 }}>›</span>
                         </div>
@@ -1796,7 +1763,7 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
   if (!client) return null;
   return (
     <BSPage>
-      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>} />
+      <BSPageHeader kicker="Section · Roster" title={<>Client<br/>preview.</>} trailing={<BSBackButton onClick={onBack} />} />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
         <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 12, alignItems: 'center', padding: `${t.rowY + 6}px 0`, borderBottom: `1px solid ${t.HAIR}` }}>
           <BSFacetAvatar size={36} c={client.c} initial={client.i} name={client.n} photo={client.avatarUrl || client.avatar || undefined} showRank={false} />
@@ -1838,9 +1805,9 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
     <div style={{ paddingTop: 50 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
-        <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+        <BSBackButton onClick={onBack} />
       </div>
-      <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{titleA} <span style={{ fontStyle: 'italic', color: accent }}>{titleB}</span></div>
     </div>
   );
 }
@@ -2610,6 +2577,35 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
   return target ? createPortal(sheet, target) : sheet;
 }
 
+function ProWeekendPlate({ split }) {
+  const t = useBS();
+  const BSPlate = typeof window !== 'undefined' && window.BSPlate;
+  if (!BSPlate || !split || split.status !== 'ok') return null;
+  const dims = split.dimensions || {};
+  const present = ['nutrition', 'habits'].map((k) => [k, dims[k]]).filter(([, d]) => d);
+  if (!present.length) return null;
+  const worst = split.worstDimension;
+  const move = worst === 'nutrition'
+    ? 'Set a weekend check-in or a lighter weekend nutrition target.'
+    : worst === 'habits'
+      ? 'Add a weekend-specific habit reminder.'
+      : 'Set one weekend anchor habit.';
+  return (
+    <BSPlate c={'#c0533b'} spine={3}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>WEEKEND PATTERN</div>
+      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+        {present.map(([k, d]) => (
+          <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, fontFamily: t.MONO, fontSize: 11, fontVariantNumeric: 'tabular-nums', color: t.INK }}>
+            <span>{k === 'nutrition' ? 'Nutrition' : 'Habits'}</span>
+            <span style={{ color: d.flagged ? t.RUST : t.INK70 }}>wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}</span>
+          </div>
+        ))}
+      </div>
+      {worst && <div style={{ fontSize: 12, color: t.INK70, marginTop: 8 }}>{move}</div>}
+    </BSPlate>
+  );
+}
+
 function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2645,13 +2641,31 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     if (window.ShapeClientStats?.getLifts) window.ShapeClientStats.getLifts(clientUid).then(d => setCLifts(d || null)).catch(() => {});
   }, [clientUid]);
   // Care team — the OTHER coach(es) on this shared client (trainer ↔ nutritionist).
+  // The same overview fetch also carries the client's objective sleep (coach read).
   const [careTeam, setCareTeam] = useStateBSP(null);
   const [careLoaded, setCareLoaded] = useStateBSP(false);
+  const [sleepRec, setSleepRec] = useStateBSP(null); // objective sleep + recovery
   useEffectBSP(() => {
-    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return; }
+    // Reset per client + ignore a stale response, so navigating A→B never shows
+    // client A's care team / sleep on client B's profile.
+    setCareTeam(null); setSleepRec(null); setCareLoaded(false);
+    if (!clientUid || !window.ShapeCareTeam?.overview) { setCareLoaded(true); return undefined; }
+    let ignore = false;
     window.ShapeCareTeam.overview(clientUid)
-      .then(d => { const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setCareLoaded(true); })
-      .catch(() => setCareLoaded(true));
+      .then(d => { if (ignore) return; const team = (d && Array.isArray(d.careTeam)) ? d.careTeam.filter(c => c && !c.isMe && (c.userId || c.user_id)) : []; setCareTeam(team); setSleepRec(d && d.sleep ? d.sleep : null); setCareLoaded(true); })
+      .catch(() => { if (!ignore) setCareLoaded(true); });
+    return () => { ignore = true; };
+  }, [clientUid]);
+  // Weekend-adherence split for THIS client — reset per-client, ignore stale.
+  const [wkndSplit, setWkndSplit] = useStateBSP(null);
+  useEffectBSP(() => {
+    setWkndSplit(null);
+    if (!clientUid || !window.ShapeRosterWeekend?.get) return undefined;
+    let ignore = false;
+    window.ShapeRosterWeekend.get([clientUid])
+      .then(res => { if (ignore) return; const s = res && res.split && res.split[clientUid]; setWkndSplit(s || null); })
+      .catch(() => {});
+    return () => { ignore = true; };
   }, [clientUid]);
   // Check-in kit (coach read): latest weekly check-in, health screening, girths.
   const [cKit, setCKit] = useStateBSP({ checkins: [], health: null, meas: [] });
@@ -2767,8 +2781,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     const best = L.keyLifts.map(x => lnum(x.best)).filter(v => v != null);
     const mx = best.length ? Math.max(...best) : 1;
     return L.keyLifts.map(x => {
-      const b = lnum(x.best), dl = lnum(x.delta);
-      return { n: x.name || 'Lift', v: b != null ? `${b} kg` : '—', d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
+      const b = lnum(x.best), dl = lnum(x.delta), e1 = lnum(x.e1rm);
+      const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : '—';
+      return { n: x.name || 'Lift', v, d: dl != null ? `${dl >= 0 ? '+' : ''}${dl}` : '—', p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 };
     });
   })() : null;
 
@@ -2825,9 +2840,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <div style={{ paddingTop: 50 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
-        <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+        <BSBackButton onClick={onBack} />
       </div>
-      <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
+      <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>
         {first} <span style={{ fontStyle: 'italic', color: accent }}>{last ? `${last}.` : '.'}</span>
       </div>
       <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 11 }}>
@@ -2998,6 +3013,49 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                       <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
                     </div>
                   ) : null)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+      {sleepRec && (() => {
+        const s = sleepRec;
+        const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? accent : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
+        const cells = [
+          ['Last night', s.latest != null ? `${Number(s.latest)}h` : '—'],
+          ['7-day avg', s.avg7 != null ? `${Number(s.avg7)}h` : '—'],
+          ['Efficiency', s.efficiency != null ? `${s.efficiency}%` : '—'],
+          ['Resting HR', s.rhr != null ? `${s.rhr}` : '—'],
+          ['HRV', s.hrv != null ? `${s.hrv}` : '—'],
+          ['Rested', s.rested != null ? `${s.rested}/10` : '—'],
+          ['Latency', s.latency != null ? `${s.latency}m` : '—'],
+          ['Respiratory', s.respiratory != null ? `${s.respiratory}/min` : '—'],
+        ];
+        const stages = s.stages;
+        return (
+          <div>
+            <Section eyebrow="SLEEP" title="Sleep · recovery" />
+            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${s.readiness != null ? rc : accent}`, background: t.PAPER2, padding: 14 }}>
+              {s.readiness != null && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${t.RULE}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Readiness</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: rc, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.readiness}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>/100</span>
+                  {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                {cells.map(([l, v]) => (
+                  <div key={l}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: v === '—' ? t.INK50 : t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              {stages && (
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK70 }}>
+                  Stages · {[stages.deep != null ? `Deep ${stages.deep}m` : null, stages.rem != null ? `REM ${stages.rem}m` : null, stages.light != null ? `Light ${stages.light}m` : null].filter(Boolean).join(' · ') || '—'}
                 </div>
               )}
             </div>
@@ -3186,19 +3244,32 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
         </div>
       )}
+      {wkndSplit && <div style={{ marginTop: 12 }}><ProWeekendPlate split={wkndSplit} /></div>}
       {clientUid && (
         <div>
           <Section eyebrow="SCREENING" title="Health profile" />
           {cKit.health ? (() => {
             const h = cKit.health;
             const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
+            const rxLine = h.rxMeds === 'yes' ? (h.medications || 'Yes — not listed') : h.rxMeds === 'no' ? 'None' : (h.medications || null);
+            const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(' · ') : ''), (h.conditions || '')].filter(Boolean).join(' — ') || null;
+            const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || 'Yes — not listed') : h.allergies === 'no' ? 'None reported' : null;
+            const pregLine = h.pregnancy === 'yes' ? 'Yes — pregnant or ≤6 months postpartum' : null;
+            const rows = [
+              ['Prescription medication', rxLine],
+              ['Allergies', allergyLine],
+              ['Pregnancy / postpartum', pregLine],
+              ['Medical conditions', condLine],
+              ['Injuries & surgeries', h.injuries],
+              ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null],
+            ];
             return (
               <div style={{ borderRadius: 6, border: `1px solid ${h.flagged ? `${t.RUST}66` : t.RULE}`, borderLeft: `3px solid ${h.flagged ? t.RUST : teal}`, background: t.PAPER2, padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>PAR-Q screening</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.flagged ? t.RUST : teal }}>{h.flagged ? `${yesCount} flagged` : 'All clear'}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.flagged ? t.RUST : teal }}>{h.flagged ? `${yesCount || 'review'} flagged` : 'All clear'}</span>
                 </div>
-                {[['Injuries & surgeries', h.injuries], ['Medications & conditions', h.medications], ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null]].map(([l, v]) => v ? (
+                {rows.map(([l, v]) => v ? (
                   <div key={l} style={{ marginTop: 10 }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
                     <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
@@ -3547,7 +3618,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       <BSPageHeader
         kicker="4 Published · 1 Draft"
         title="Your programs."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
       />
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
@@ -3561,7 +3632,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
 
         {tab === 'library' && (<>
         {/* Generate with AI — builds the active library type */}
-        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        <button type="button" data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${teal}44`, borderLeft: `3px solid ${teal}`, background: `linear-gradient(150deg, ${teal}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: teal, color: '#04201d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: teal }}>GENERATE WITH AI</div>
@@ -4156,12 +4227,12 @@ function BSNutriToday({ onProfile, sheet, goCalendar, goRadio, onOpenReviews, on
         thinRule
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         showDoubleRule={false}
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSFacetAvatar size={34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsMyTierColor()} initial={bsMyInitials()} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onProfile} /></span>}
         showDotTexture={false}
       />
 
       {/* TODAY = the clock: lead with the day-shape hero. */}
-      <div style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
+      <div data-tour="hero-today" style={{ padding: `24px ${t.padX}px 22px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
           <BSEyebrow color={t.RUST}>{leadKicker}</BSEyebrow>
           <BSEyebrow>{isToday ? bsNowHHMM() : `${_BS_MON[selDate.getMonth()]} ${selDay}`}</BSEyebrow>
@@ -4501,7 +4572,7 @@ function BSNutriPlans() {
       <BSPageHeader
         kicker="4 Published · 40 on it"
         title="Your plans."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: 34 }) : null}<BSProAvatarButton size={34} /></span>}
+        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
       />
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div style={{ marginTop: 2, borderRadius: 999, border: `1px solid ${gold}`, background: `${gold}1c`, color: gold, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
@@ -4515,7 +4586,7 @@ function BSNutriPlans() {
 
         {tab === 'library' && (<>
         {/* Generate with AI — builds the active library type */}
-        <button onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
+        <button type="button" data-tour="hero-plans" onClick={() => openDraft(libBuild)} style={{ width: '100%', marginTop: 14, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', borderRadius: 5, border: `1px solid ${gold}44`, borderLeft: `3px solid ${gold}`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 12 }}>
           <span style={{ width: 40, height: 40, borderRadius: 10, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✦</span>
           <div>
             <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>GENERATE WITH AI</div>
@@ -4658,6 +4729,11 @@ function BSStShell({ embedded, t, children, footerL, footerR, topPad = 46 }) {
 // Quota Mode. Until then, set VITE_SPOTIFY_LIBRARY_PICKER=off to hide the picker
 // fleet-wide (paste-a-link still works for everyone). Default: shown.
 const SPOTIFY_PICKER_ENABLED = String(import.meta.env.VITE_SPOTIFY_LIBRARY_PICKER ?? '').toLowerCase() !== 'off';
+// Apple Music "pick from your library" uses client-side MusicKit (no per-user
+// allowlist), but the developer-token route needs the APPLE_MUSIC_* env set.
+// Until then tapping it degrades to a friendly "paste a link" message. Set
+// VITE_APPLE_LIBRARY_PICKER=off to hide the picker fleet-wide. Default: shown.
+const APPLE_PICKER_ENABLED = String(import.meta.env.VITE_APPLE_LIBRARY_PICKER ?? '').toLowerCase() !== 'off';
 function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const t = useBS();
   const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
@@ -4681,6 +4757,12 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const [spotBusy, setSpotBusy] = useStateBSP(false);
   const [spotErr, setSpotErr] = useStateBSP('');
   const [picking, setPicking] = useStateBSP(false);
+  // Apple Music "pick from your library" importer (client-side MusicKit authorize;
+  // no server connect-status — listAppleMusicPlaylists() configures + authorizes)
+  const [applePlaylists, setApplePlaylists] = useStateBSP(null);
+  const [appleBusy, setAppleBusy] = useStateBSP(false);
+  const [appleErr, setAppleErr] = useStateBSP('');
+  const [pickingApple, setPickingApple] = useStateBSP(false);
 
   const hydrate = (r) => ({ ...r, c: r.provider === 'apple' ? '#b9a13e' : '#4a6fb0', dur: r.duration || '—', bpm: r.bpm || '—', used: 0 });
   useEffectBSP(() => {
@@ -4717,6 +4799,24 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     if (!iTag.trim()) setITag('From Spotify');
     setPicking(false);
   };
+  const loadAppleMusicPlaylists = async () => {
+    if (!window.ShapeIntegrations?.listAppleMusicPlaylists) { setAppleErr('Apple Music isn’t available here.'); return; }
+    setAppleBusy(true); setAppleErr('');
+    try {
+      const rows = await window.ShapeIntegrations.listAppleMusicPlaylists();
+      setApplePlaylists(Array.isArray(rows) ? rows : []);
+      setPickingApple(true);
+    } catch (e) {
+      // Not authorized / not configured yet → friendly nudge to the paste-a-link path.
+      if (e && e.connected === false) setAppleErr('Authorize Apple Music to pick from your library — it may not be enabled for your account yet.');
+      else setAppleErr('Couldn’t load your Apple Music library — paste a playlist link below for now.');
+    } finally { setAppleBusy(false); }
+  };
+  const pickAppleMusicPlaylist = (pl) => {
+    setIName(pl.name || ''); setIUrl(pl.url || ''); setIProvider('apple');
+    if (!iTag.trim()) setITag('From Apple Music');
+    setPickingApple(false);
+  };
 
   // Custom playlists are server-backed when signed in (synced with the website),
   // else local. Server rows carry an `attached` array; demo rows use localStorage.
@@ -4724,7 +4824,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const all = [...customList, ...BS_SOUNDTRACKS_DEMO];
   const isServerRow = (p) => Array.isArray(p.attached);
   const providerLabel = (p) => p === 'apple' ? 'APPLE MUSIC' : 'SPOTIFY';
-  const providerDot = (p) => p === 'apple' ? '#fc3c44' : '#1ED760';
+  const providerDot = (p) => p === 'apple' ? '#fa243c' : '#1DB954';
   const attachedFor = (p) => (p ? (isServerRow(p) ? p.attached : (assign[p.id] || [])) : []);
   const assignedCount = (p) => attachedFor(p).length;
   const shown = all
@@ -4770,13 +4870,44 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR SPOTIFY</div>
             <button onClick={() => setPicking(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
           <div style={{ marginTop: 16 }}>
             {list.length === 0 ? (
               <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No playlists found in your Spotify library.</div>
             ) : list.map((pl) => (
               <button key={pl.id} onClick={() => pickSpotifyPlaylist(pl)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 11, alignItems: 'center', padding: '11px 0', borderTop: `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
+                <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {pl.image ? <img src={pl.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : bsEqGlyph(gold)}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{pl.tracks} tracks{pl.owner ? ` · ${pl.owner}` : ''}</div>
+                </div>
+                <span style={{ fontFamily: t.MONO, fontSize: 16, color: gold, fontWeight: 700 }}>+</span>
+              </button>
+            ))}
+          </div>
+      </BSStShell>
+    );
+  }
+
+  // ── Apple Music playlist picker (pick from the coach's own library) ──
+  if (importing && pickingApple) {
+    const list = applePlaylists || [];
+    return (
+      <BSStShell embedded={embedded} t={t} footerL="Your Apple Music" footerR="Library" topPad={50}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>FROM YOUR APPLE MUSIC</div>
+            <button onClick={() => setPickingApple(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          </div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>playlists.</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{list.length} playlist{list.length === 1 ? '' : 's'} · tap one to import</div>
+          <div style={{ marginTop: 16 }}>
+            {list.length === 0 ? (
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', color: t.INK50 }}>No playlists found in your Apple Music library.</div>
+            ) : list.map((pl) => (
+              <button key={pl.id} onClick={() => pickAppleMusicPlaylist(pl)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 11, alignItems: 'center', padding: '11px 0', borderTop: `1px solid ${t.HAIR}`, background: 'transparent', border: 0 }}>
                 <div style={{ width: 46, height: 46, borderRadius: 8, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {pl.image ? <img src={pl.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : bsEqGlyph(gold)}
                 </div>
@@ -4805,14 +4936,14 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
             <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>NEW SOUNDTRACK</div>
             <button onClick={() => setImporting(false)} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
           </div>
-          <div style={{ marginTop: 10, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Import a <span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
+          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Import a <span style={{ fontStyle: 'italic', color: gold }}>playlist.</span></div>
           <div style={{ marginTop: 22 }}>
             {/* Pick straight from the coach's connected Spotify — no link to paste.
                 Hidden when VITE_SPOTIFY_LIBRARY_PICKER=off (pre Extended Quota). */}
             {SPOTIFY_PICKER_ENABLED && (
             <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1ED760' }} />
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#1DB954' }} />
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR SPOTIFY</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
               </div>
@@ -4825,6 +4956,21 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                 <button onClick={loadSpotifyPlaylists} disabled={spotBusy || spotConnected === null} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: (spotBusy || spotConnected === null) ? 0.6 : 1 }}>{spotBusy ? 'Loading…' : 'Pick from your Spotify →'}</button>
               )}
               {spotErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{spotErr}</div> : null}
+              <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
+            </div>
+            )}
+            {/* Pick straight from the coach's Apple Music library (client-side MusicKit
+                authorize). Hidden when VITE_APPLE_LIBRARY_PICKER=off. */}
+            {APPLE_PICKER_ENABLED && (
+            <div style={{ marginBottom: 16, borderRadius: 14, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}14, ${t.PAPER2} 72%)`, padding: '13px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: '#fa243c' }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>FROM YOUR APPLE MUSIC</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '2px 6px' }}>BETA</span>
+              </div>
+              <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.4 }}>Pick a playlist straight from your Apple Music library — we’ll fill in the rest.</div>
+              <button onClick={loadAppleMusicPlaylists} disabled={appleBusy} style={{ width: '100%', marginTop: 11, borderRadius: 12, border: 0, background: gold, color: '#241c08', padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? 'Loading…' : 'Pick from your Apple Music →'}</button>
+              {appleErr ? <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{appleErr}</div> : null}
               <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Or paste a link below — works for everyone</div>
             </div>
             )}
@@ -4918,11 +5064,11 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     <BSStShell embedded={embedded} t={t} footerL="Soundtracks" footerR={`${all.length} playlists`} topPad={46}>
         {!embedded && (<>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>← BACK</button>
+          <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
         <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>SOUNDTRACK LIBRARY</div>
-        <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>Your <span style={{ fontStyle: 'italic', color: gold }}>soundtracks.</span></div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.</div>
         </>)}
 
@@ -5051,17 +5197,17 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
     <BSPage>
       <div style={{ padding: `${onBack ? 54 : 60}px ${t.padX}px 0` }}>
         {onBack && (
-          <button onClick={onBack} style={{ marginBottom: 14, background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK, borderRadius: 999, padding: '7px 13px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>← Profile</button>
+          <BSBackButton onClick={onBack} label="Profile" style={{ marginBottom: 14 }} />
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{isCoach ? 'TRAINER · HYPERTROPHY · SF' : 'REGISTERED DIETITIAN · REMOTE'}</div>
             {(() => { const w = (displayName || '').trim().split(/\s+/); const lastW = w.length > 1 ? w.pop() : ''; const firstL = w.join(' '); return (
-              <div style={{ marginTop: 8, fontFamily: "'Newsreader', Georgia, serif", fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
+              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{firstL || displayName} <span style={{ fontStyle: 'italic', color: accent }}>{lastW ? `${lastW}.` : '.'}</span></div>
             ); })()}
           </div>
           <div style={{ flexShrink: 0 }}>
-            <BSFacetAvatar size={42} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onSettings} />
+            <BSFacetAvatar size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} c={bsTierColor(scoreProfile.tier)} initial={init} photo={(typeof window !== 'undefined' && window.bsMyPhoto && window.bsMyPhoto()) || undefined} live={typeof bsAmLive==='function'?bsAmLive():false} showRank={false} onClick={onSettings} />
           </div>
         </div>
       </div>
@@ -5080,7 +5226,7 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
         ];
         return (
           <div style={{ padding: `16px ${t.padX}px 6px` }}>
-            <button onClick={() => setShowScore(true)} style={{
+            <button type="button" data-tour="hero-me" onClick={() => setShowScore(true)} style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', color: t.INK,
               border: `1px solid ${accent}33`, borderRadius: 16,
               background: `linear-gradient(155deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`,
@@ -5229,7 +5375,7 @@ function BSProPublicProfilePage({ role = 'trainer', name = 'Profile', onBack }) 
       <BSPageHeader
         kicker="Profile settings"
         title={<>Public<br/>profile.</>}
-        trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
       <BSSection title="Profile live" meta="Visible on marketplace" />
       <div style={{ padding: `0 ${t.padX}px 16px`, borderTop: `2px solid ${t.INK}` }}>
@@ -5273,7 +5419,7 @@ function BSProNotificationsPage({ onBack }) {
       <BSPageHeader
         kicker="Settings"
         title={<>Notifications.</>}
-        trailing={<button onClick={onBack} style={{ borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '8px 10px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Back</button>}
+        trailing={<BSBackButton onClick={onBack} />}
       />
       <BSSection title="Push + email" meta="Delivery rules" />
       <div style={{ padding: `0 ${t.padX}px`, borderTop: `2px solid ${t.INK}` }}>
@@ -5567,7 +5713,7 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, lineHeight: 1.5, minWidth: 0 }}>{D.eyebrow}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setEditing(true)} style={{ padding: '7px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Edit</button>
-            <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
+            <BSBackButton onClick={onBack} />
           </div>
         </div>
         <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, color: t.INK, lineHeight: 1.0, letterSpacing: '-0.03em' }}>{D.head} <span style={{ fontStyle: 'italic', color: accent }}>{D.accentWord}</span></div>

@@ -5,6 +5,8 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { epleyE1rm } from '@/lib/e1rm';
+import { readinessFromSeries } from '@/lib/recovery-readiness';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +17,13 @@ function avg(nums: number[]): number | null {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
+// Parse a load/reps value that may be a number or free text ("230", "230 lb", "8").
+function pnum(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  return parseFloat(String(v));
+}
+
 export async function GET(request: Request) {
   const supabase = await clientForRequest(request);
   const user = await currentUser(request);
@@ -23,9 +32,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
+  // select('*') (not an explicit column list) so the route keeps working before a
+  // new snapshot column's migration is applied — PostgREST 400s the WHOLE query on
+  // an unknown explicit column, and `snapRows ?? []` would then silently empty every
+  // series/KPI. (Same migration-safety reason as the weigh-ins query below.)
   const { data: snapRows } = await supabase
     .from('daily_health_snapshot')
-    .select('snapshot_date, weight_lb, body_fat_pct, resting_hr, sleep_hours, hrv_ms, workout_minutes, protein_g, hydration_l')
+    .select('*')
     .eq('user_id', user.id)
     .order('snapshot_date', { ascending: true })
     .limit(400);
@@ -34,10 +47,19 @@ export async function GET(request: Request) {
 
   // Per-metric trend series. Each row keeps both the date and the value so
   // the client can render time-aware sparklines without needing alignment.
-  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l') =>
+  const seriesFor = (key: 'weight_lb' | 'body_fat_pct' | 'resting_hr' | 'sleep_hours' | 'hrv_ms' | 'workout_minutes' | 'protein_g' | 'hydration_l' | 'steps' | 'energy' | 'hunger' | 'sleep_efficiency_pct' | 'sleep_quality' | 'recovery_score' | 'sleep_deep_min' | 'sleep_rem_min' | 'sleep_light_min' | 'sleep_awake_min' | 'sleep_latency_min' | 'respiratory_rate') =>
     snaps
       .filter((s) => (s as Record<string, unknown>)[key] != null)
       .map((s) => ({ date: (s as Record<string, string>).snapshot_date, value: Number((s as Record<string, unknown>)[key]) }));
+  // Latest non-null value of a (possibly string) snapshot column, e.g. bed/wake time.
+  const latestVal = (key: string): string | null => {
+    for (let i = snaps.length - 1; i >= 0; i -= 1) {
+      const v = (snaps[i] as Record<string, unknown>)[key];
+      if (v != null) return String(v);
+    }
+    return null;
+  };
+  const lastNum = (arr: Array<{ value: number }>): number | null => (arr.length ? arr[arr.length - 1].value : null);
 
   // Weight + body fat come from the dedicated weigh-in table (what the Goals
   // page's "Log weigh-in" writes) — the snapshot columns have no writer, so
@@ -70,6 +92,18 @@ export async function GET(request: Request) {
   const volumeSeries = seriesFor('workout_minutes');
   const proteinSeries = seriesFor('protein_g');
   const hydrationSeries = seriesFor('hydration_l');
+  const stepsSeries = seriesFor('steps');
+  const energySeries = seriesFor('energy');
+  const hungerSeries = seriesFor('hunger');
+  const sleepEfficiencySeries = seriesFor('sleep_efficiency_pct');
+  const sleepQualitySeries = seriesFor('sleep_quality');
+  const recoverySeries = seriesFor('recovery_score');
+  const sleepDeepSeries = seriesFor('sleep_deep_min');
+  const sleepRemSeries = seriesFor('sleep_rem_min');
+  const sleepLightSeries = seriesFor('sleep_light_min');
+  const sleepAwakeSeries = seriesFor('sleep_awake_min');
+  const sleepLatencySeries = seriesFor('sleep_latency_min');
+  const respiratorySeries = seriesFor('respiratory_rate');
 
   const bodyFats = bodyFatSeries.map((s) => s.value);
   const restingHrs = restingHrSeries.map((s) => s.value);
@@ -79,6 +113,17 @@ export async function GET(request: Request) {
   const restingPrior = avg(restingHrs.slice(-14, -7));
   const sleepAvg = avg(sleeps.slice(-30));
 
+  // Recovery readiness (0-100) from tonight's sleep + cardio vs a trailing baseline,
+  // plus the wearable's own recovery score when present. null when there's no sleep.
+  const readiness = readinessFromSeries({
+    sleep: sleepSeries,
+    sleepEfficiency: sleepEfficiencySeries,
+    restingHr: restingHrSeries,
+    hrv: hrvSeries,
+    recovery: recoverySeries,
+  });
+
+  const stepsLast30 = stepsSeries.slice(-30);
   const kpis = {
     weightChange:
       weightSeries.length >= 2
@@ -93,14 +138,37 @@ export async function GET(request: Request) {
         ? Math.round(restingRecent - restingPrior)
         : null,
     sleepAvg: sleepAvg != null ? Math.round(sleepAvg * 10) / 10 : null,
+    sleepLatest: sleepSeries.length ? sleepSeries[sleepSeries.length - 1].value : null,
+    sleepEfficiency: sleepEfficiencySeries.length ? Math.round(sleepEfficiencySeries[sleepEfficiencySeries.length - 1].value) : null,
+    hrvLatest: hrvSeries.length ? Math.round(hrvSeries[hrvSeries.length - 1].value) : null,
+    stepsLatest: stepsSeries.length ? Math.round(stepsSeries[stepsSeries.length - 1].value) : null,
+    stepsAvg: stepsLast30.length
+      ? Math.round(stepsLast30.reduce((s, p) => s + p.value, 0) / stepsLast30.length)
+      : null,
+    readiness: readiness ? readiness.score : null,
+    readinessLabel: readiness ? readiness.band.label : null,
+    respiratoryLatest: lastNum(respiratorySeries),
+    sleepLatencyLatest: lastNum(sleepLatencySeries),
+    // Latest night's stage minutes (null when no device exposes stages — honest "—").
+    sleepStages: (sleepDeepSeries.length || sleepRemSeries.length || sleepLightSeries.length)
+      ? { deep: lastNum(sleepDeepSeries), rem: lastNum(sleepRemSeries), light: lastNum(sleepLightSeries), awake: lastNum(sleepAwakeSeries) }
+      : null,
+    bedTime: latestVal('sleep_start'),
+    wakeTime: latestVal('sleep_end'),
   };
 
   // ---- Strength PRs from logged sets --------------------------------------
+  // The in-app live-session writer stores actuals in `payload` (actualLoad /
+  // actualReps), not the actual_load/actual_reps columns — read both.
+  // Newest-first cap: order DESCENDING then limit, so a high-volume client keeps
+  // their LATEST sets — a plain ascending + limit keeps the OLDEST 3000 and drops
+  // recent PRs. The PR + weekly-trajectory math below is order-independent (it takes
+  // maxes per move / per week), so no re-sort is needed. Mirrors /api/client/strength.
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('move_name, actual_load, actual_reps, load_unit, created_at, completed')
+    .select('move_name, actual_load, actual_reps, load_unit, payload, created_at, completed')
     .eq('client_id', user.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(3000);
 
   type PR = {
@@ -109,12 +177,19 @@ export async function GET(request: Request) {
     bestReps: number | null;
     unit: string;
     bestAt: string;
+    e1rm: number | null;
   };
   const prMap = new Map<string, PR>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    // A null OR zero column means "not set" → fall back to the payload.
+    const colLoad = Number(r.actual_load);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
+    const colReps = Number(r.actual_reps);
+    const repsN = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps ?? p.actual_reps);
+    const reps = Number.isFinite(repsN) ? Math.round(repsN) : null;
     const key = String(r.move_name || '').trim();
     if (!key) continue;
     const pr = prMap.get(key);
@@ -122,27 +197,60 @@ export async function GET(request: Request) {
       prMap.set(key, {
         move: key,
         best: load,
-        bestReps: r.actual_reps ?? null,
+        bestReps: reps,
         unit: r.load_unit || 'lb',
         bestAt: r.created_at,
+        e1rm: null,
       });
     } else if (load > pr.best) {
       pr.best = load;
-      pr.bestReps = r.actual_reps ?? null;
+      pr.bestReps = reps;
       pr.bestAt = r.created_at;
     }
   }
 
-  const prs = [...prMap.values()]
+  let prs = [...prMap.values()]
     .sort((a, b) => b.best - a.best)
-    .slice(0, 6);
+    .slice(0, 6)
+    .map((p) => {
+      const e = epleyE1rm(p.best, p.bestReps);
+      return { ...p, e1rm: e == null ? null : Math.round(e * 10) / 10 };
+    });
+
+  // Prefer all-time PRs from the aggregate RPC — it scans EVERY logged set, so a
+  // high-volume athlete's old all-time best is never dropped by the newest-3000
+  // window above (which still feeds the recent strength trajectory below). Falls
+  // back to the windowed row-scan until the migration is applied.
+  try {
+    const { data: prRows, error: prErr } = await supabase.rpc('get_my_lift_prs', { p_limit: 12 });
+    if (!prErr && Array.isArray(prRows) && prRows.length) {
+      prs = (prRows as Array<Record<string, unknown>>).slice(0, 6).map((r) => {
+        const best = Number(r.best);
+        const repsN = r.best_reps == null ? null : Number(r.best_reps);
+        const reps = repsN != null && Number.isFinite(repsN) ? repsN : null;
+        const e = epleyE1rm(best, reps);
+        return {
+          move: String(r.move ?? ''),
+          best,
+          bestReps: reps,
+          unit: String(r.unit ?? 'lb'),
+          bestAt: String(r.best_at ?? ''),
+          e1rm: e == null ? null : Math.round(e * 10) / 10,
+        };
+      });
+    }
+  } catch {
+    // keep the windowed row-scan PRs (RPC not yet applied, or a transient error)
+  }
 
   // Strength trajectory: top one-rep-equivalent across all logged sets,
   // bucketed weekly so the chart shows the trend instead of every spike.
   const weeklyTop = new Map<string, number>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
+    const p = (r.payload ?? {}) as Record<string, unknown>;
+    const colLoad = Number(r.actual_load);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
     if (!Number.isFinite(load) || load <= 0) continue;
     const week = new Date(r.created_at);
     const day = week.getUTCDay();
@@ -167,10 +275,22 @@ export async function GET(request: Request) {
       bodyFat: bodyFatSeries,
       restingHr: restingHrSeries,
       sleep: sleepSeries,
+      sleepEfficiency: sleepEfficiencySeries,
       hrv: hrvSeries,
       volume: volumeSeries,
       protein: proteinSeries,
       hydration: hydrationSeries,
+      steps: stepsSeries,
+      energy: energySeries,
+      hunger: hungerSeries,
+      sleepQuality: sleepQualitySeries,
+      recovery: recoverySeries,
+      sleepDeep: sleepDeepSeries,
+      sleepRem: sleepRemSeries,
+      sleepLight: sleepLightSeries,
+      sleepAwake: sleepAwakeSeries,
+      sleepLatency: sleepLatencySeries,
+      respiratory: respiratorySeries,
       strength: strengthSeries,
     },
   });

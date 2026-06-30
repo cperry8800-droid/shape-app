@@ -297,7 +297,7 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
       <button onClick={() => onToggle(habit.id)} style={{ textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{habit.name}</div>
         <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: done ? c : t.INK50 }}>
-          {done ? (isAvoid ? '✓ Stayed clean' : '✓ Done') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
+          {done ? (isAvoid ? '✓ Stayed clean' : '✓ Kept') : `${isAvoid ? 'Avoid' : 'Do'} · +${pts} pts`}
         </div>
       </button>
       <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label="Habit reminder" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>

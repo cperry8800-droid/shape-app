@@ -189,16 +189,11 @@ function StoreFilters({ cat, setCat, sort, setSort, query, setQuery, affordable,
   );
 }
 
-function ProductCard({ p, balance, onRedeem, locked = false, busy = false }) {
+function ProductCard({ p, balance, onRedeem, locked = false, busy = false, inCart = 0, onAdd, onQty }) {
   const canAfford = !p.locked && p.cost <= balance;
   const membersOnly = locked && !p.locked; // browsing is open; redeeming is members-only
+  const merch = p.cat === "Shape Merch"; // merch bundles into the cart; the rest redeem 1-tap
   const dollar = p.retail ? `~$${p.retail} retail` : null;
-  const cta =
-    busy ? "Redeeming…" :
-    p.locked ? "Tier locked" :
-    membersOnly ? (<><span style={{ filter: "grayscale(1)" }}>🔒</span> Members only</>) :
-    p.kind === "lead_boost" ? "Activate boost →" :
-    canAfford ? "Redeem →" : `+${(p.cost - balance).toLocaleString()} to go`;
   return (
     <article style={{ background: "rgba(242,237,228,0.035)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, overflow: "hidden", opacity: p.locked ? 0.65 : 1, display: "flex", flexDirection: "column" }}>
       <div style={{ position: "relative" }}>
@@ -218,13 +213,23 @@ function ProductCard({ p, balance, onRedeem, locked = false, busy = false }) {
             {p.cost.toLocaleString()}
             <span style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", fontFamily: sans, marginLeft: 6 }}>pts</span>
           </div>
-          <button
-            disabled={busy ? true : membersOnly ? false : !canAfford}
-            onClick={() => { if (busy) return; if (membersOnly) { onRedeem && onRedeem(p); return; } if (canAfford && onRedeem) onRedeem(p); }}
-            style={{ padding: "9px 14px", borderRadius: 6, background: membersOnly ? "rgba(232,177,74,0.16)" : canAfford ? INK : "rgba(242,237,228,0.08)", color: membersOnly ? "#e8b14a" : canAfford ? PAPER : "rgba(242,237,228,0.45)", border: membersOnly ? "1px solid rgba(232,177,74,0.4)" : 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: (membersOnly || canAfford) ? "pointer" : "not-allowed" }}
-          >
-            {cta}
-          </button>
+          {p.locked ? (
+            <button disabled style={{ padding: "9px 14px", borderRadius: 6, background: "rgba(242,237,228,0.08)", color: "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "not-allowed" }}>Tier locked</button>
+          ) : membersOnly ? (
+            <button onClick={() => onRedeem && onRedeem(p)} style={{ padding: "9px 14px", borderRadius: 6, background: "rgba(232,177,74,0.16)", color: "#e8b14a", border: "1px solid rgba(232,177,74,0.4)", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>Members only</button>
+          ) : merch ? (
+            inCart > 0 ? (
+              <div style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${TEAL}`, borderRadius: 999, overflow: "hidden" }}>
+                <button onClick={() => onQty && onQty(p.itemId, inCart - 1)} aria-label="Remove one" style={{ width: 32, height: 32, border: 0, background: "transparent", color: TEAL, fontSize: 18, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>−</button>
+                <span style={{ minWidth: 24, textAlign: "center", fontFamily: sans, fontSize: 14, fontWeight: 700, color: INK }}>{inCart}</span>
+                <button onClick={() => onAdd && onAdd(p)} aria-label="Add one" disabled={inCart >= 9} style={{ width: 32, height: 32, border: 0, background: "transparent", color: inCart >= 9 ? "rgba(242,237,228,0.4)" : TEAL, fontSize: 18, fontWeight: 700, cursor: inCart >= 9 ? "default" : "pointer", lineHeight: 1 }}>+</button>
+              </div>
+            ) : (
+              <button onClick={() => { if (canAfford) onAdd && onAdd(p); }} disabled={!canAfford} style={{ padding: "9px 16px", borderRadius: 999, background: canAfford ? "rgba(10,197,168,0.14)" : "rgba(242,237,228,0.08)", color: canAfford ? TEAL : "rgba(242,237,228,0.45)", border: canAfford ? `1px solid ${TEAL}` : 0, fontFamily: sans, fontSize: 12.5, fontWeight: 600, cursor: canAfford ? "pointer" : "not-allowed" }}>{canAfford ? "+ Add to cart" : `+${(p.cost - balance).toLocaleString()} to go`}</button>
+            )
+          ) : (
+            <button disabled={busy ? true : !canAfford} onClick={() => { if (busy) return; if (canAfford && onRedeem) onRedeem(p); }} style={{ padding: "9px 14px", borderRadius: 6, background: canAfford ? INK : "rgba(242,237,228,0.08)", color: canAfford ? PAPER : "rgba(242,237,228,0.45)", border: 0, fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: canAfford ? "pointer" : "not-allowed" }}>{busy ? "Redeeming…" : p.kind === "lead_boost" ? "Activate →" : canAfford ? "Redeem →" : `+${(p.cost - balance).toLocaleString()} to go`}</button>
+          )}
         </div>
       </div>
     </article>
@@ -238,10 +243,12 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   const [affordable, setAffordable] = useSStore(false);
   const [notice, setNotice] = useSStore("");
   const [busy, setBusy] = useSStore("");
-  const [shipFor, setShipFor] = useSStore(null); // merch item awaiting an address
+  const [confirmFor, setConfirmFor] = useSStore(null);   // non-merch item awaiting confirm (a)
+  const [cart, setCart] = useSStore({});                 // merch cart { itemId: qty } (b)
+  const [checkoutOpen, setCheckoutOpen] = useSStore(false);
+  const [checkoutBusy, setCheckoutBusy] = useSStore(false);
   const roleHint = useMStore(() => getRoleHint(), []);
   const allProducts = useMStore(() => [...PRODUCTS, ...COACH_LEAD_BOOST_PRODUCTS], []);
-  const isMerch = (p) => p.cat === "Shape Merch";
   // Role-correct catalogue: coaches redeem Coach Tools (Lead Boost) + merch; clients
   // redeem session/meal/perk rewards + merch. Resolve the real role from profiles.role.
   const [isCoach, setIsCoach] = useSStore(false);
@@ -262,7 +269,17 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   }, []);
   const roleCats = isCoach ? ["Shape Merch", "Coach Tools"] : ["Shape Merch", "Training", "Nutrition", "Shape Perks"];
 
-  async function doRedeem(product, shipping) {
+  // Merch cart (one shipment) — persisted across visits.
+  useEStore(() => { try { const r = JSON.parse(localStorage.getItem("shape.storeCart") || "{}"); if (r && typeof r === "object") { const clean = {}; Object.entries(r).forEach(([id, q]) => { const p = allProducts.find((x) => x.itemId === id); const n = Math.floor(Number(q)); if (p && p.cat === "Shape Merch" && n > 0) clean[id] = Math.min(9, n); }); setCart(clean); } } catch (_) {} }, []);
+  useEStore(() => { try { localStorage.setItem("shape.storeCart", JSON.stringify(cart)); } catch (_) {} }, [cart]);
+  const cartLines = Object.entries(cart).map(([id, qty]) => ({ p: allProducts.find((x) => x.itemId === id), qty: Number(qty) || 0 })).filter((l) => l.p && l.qty > 0);
+  const cartCount = cartLines.reduce((a, l) => a + l.qty, 0);
+  const cartTotal = cartLines.reduce((s, l) => s + l.p.cost * l.qty, 0);
+  const addToCart = (p) => { if (locked) { window.location.href = "Pricing.html"; return; } setCart((c) => ({ ...c, [p.itemId]: Math.min(9, (c[p.itemId] || 0) + 1) })); };
+  const setQty = (id, qty) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = Math.min(9, qty); return n; });
+
+  // Single-item redemption (credit / service) — confirmed first (a).
+  async function doRedeem(product) {
     if (busy) return;
     setBusy(product.itemId || product.name);
     setNotice("");
@@ -271,19 +288,17 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(shipping ? { itemId: product.itemId, shipping } : { itemId: product.itemId }),
+        body: JSON.stringify({ itemId: product.itemId }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (d.error === "insufficient_points") setNotice("Not enough points for that yet — keep earning!");
         else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
-        else if (d.error === "needs_shipping") { setShipFor(product); return; }
         else setNotice((d && d.error) || "Redemption failed. Please try again.");
         return;
       }
-      const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : shipping ? " We'll ship it out — check your email." : "";
+      const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : "";
       setNotice(`${product.name} redeemed! Code ${d.code}.${extra}`);
-      setShipFor(null);
       if (onRedeemed) onRedeemed();
     } catch (err) {
       setNotice((err && err.message) || "Redemption failed. Please try again.");
@@ -292,21 +307,59 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
     }
   }
 
-  async function handleRedeem(product) {
+  // Non-merch redeem opens a confirm step; merch adds to the cart.
+  function handleRedeem(product) {
     if (locked) { window.location.href = "Pricing.html"; return; }
+    if (busy) return;
+    setConfirmFor(product);
+  }
+
+  async function confirmRedeem(product) {
     if (product.kind === "lead_boost") {
+      setBusy(product.itemId || product.name); setNotice("");
       try {
         const boost = await redeemLeadBoostRemote({ role: roleHint, days: product.days });
         const duration = Number(boost?.days || product.days || 0);
         setNotice(`Lead Boost is live for ${duration} days (${roleHint}). Marketplace ranking has been updated.`);
+        if (onRedeemed) onRedeemed(); // refresh balance/affordability after the spend
       } catch (err) {
         setNotice((err && err.message) || "Lead Boost redemption failed. Please try again.");
-      }
+      } finally { setBusy(""); setConfirmFor(null); }
       return;
     }
-    if (busy) return;
-    if (isMerch(product)) { setShipFor(product); return; } // collect address first
-    doRedeem(product);
+    await doRedeem(product);
+    setConfirmFor(null);
+  }
+
+  // Checkout the whole merch cart as one order (atomic, one shipment).
+  async function doCheckout(shipping) {
+    if (checkoutBusy) return;
+    if (locked) { window.location.href = "Pricing.html"; return; }
+    setCheckoutBusy(true); setNotice("");
+    try {
+      const items = cartLines.map((l) => ({ itemId: l.p.itemId, qty: l.qty }));
+      const res = await fetch("/api/store/checkout", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, shipping }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (d.error === "insufficient_points") setNotice("Not enough points to cover the cart — remove an item or earn more.");
+        else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
+        else setNotice((d && d.error) || "Checkout failed. Please try again.");
+        return;
+      }
+      const n = Array.isArray(d.items) ? d.items.length : items.length;
+      setNotice(`Order placed — ${n} item${n !== 1 ? "s" : ""} on the way. Codes are in your locker + email.`);
+      setCart({}); setCheckoutOpen(false);
+      if (onRedeemed) onRedeemed();
+    } catch (err) {
+      setNotice((err && err.message) || "Checkout failed. Please try again.");
+    } finally {
+      setCheckoutBusy(false);
+    }
   }
 
   const list = useMStore(() => {
@@ -321,7 +374,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
     else if (sort === "High to low") arr = [...arr].sort((a, b) => b.cost - a.cost);
     else if (sort === "New") arr = [...arr].sort((a, b) => (b.tag === "New" ? 1 : 0) - (a.tag === "New" ? 1 : 0));
     return arr;
-  }, [allProducts, cat, sort, query, affordable, isCoach]);
+  }, [allProducts, cat, sort, query, affordable, isCoach, balance]);
 
   return (
     <>
@@ -354,7 +407,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           </div>
           {list.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
-              {list.map(p => <ProductCard key={p.id} p={p} balance={balance} onRedeem={handleRedeem} locked={locked} busy={busy === (p.itemId || p.name)} />)}
+              {list.map(p => <ProductCard key={p.id} p={p} balance={balance} onRedeem={handleRedeem} locked={locked} busy={busy === (p.itemId || p.name)} inCart={cart[p.itemId] || 0} onAdd={addToCart} onQty={setQty} />)}
             </div>
           ) : (
             <div style={{ padding: 80, textAlign: "center", fontFamily: sans, color: "rgba(242,237,228,0.5)", border: "1px dashed rgba(242,237,228,0.1)", borderRadius: 12 }}>
@@ -363,40 +416,115 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           )}
         </div>
       </section>
-      {shipFor && <ShipModal item={shipFor} busy={busy === (shipFor.itemId || shipFor.name)} onClose={() => { if (!busy) setShipFor(null); }} onSubmit={(addr) => doRedeem(shipFor, addr)} />}
+      {cartCount > 0 && (
+        <button onClick={() => { setNotice(""); setCheckoutOpen(true); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
+          <span>Cart · {cartCount} item{cartCount !== 1 ? "s" : ""}</span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>{cartTotal.toLocaleString()} pts · Review →</span>
+        </button>
+      )}
+      {confirmFor && <ConfirmModal item={confirmFor} balance={balance} busy={busy === (confirmFor.itemId || confirmFor.name)} onCancel={() => { if (!busy) setConfirmFor(null); }} onConfirm={() => confirmRedeem(confirmFor)} />}
+      {checkoutOpen && <CheckoutModal lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} notice={notice} onQty={setQty} onClose={() => { if (!checkoutBusy) setCheckoutOpen(false); }} onPlace={doCheckout} />}
     </>
   );
 }
 
-// Shipping-address modal for redeeming physical merch on the website.
-function ShipModal({ item, busy, onClose, onSubmit }) {
+// (a) One-tap confirm before a single-item redemption (credit / service / lead
+// boost) — shows the cost + the balance it leaves so the spend is deliberate.
+function ConfirmModal({ item, balance, busy, onCancel, onConfirm }) {
+  const after = Math.max(0, (balance || 0) - item.cost);
+  const row = (label, value, accent) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "8px 0" }}>
+      <span style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>{label}</span>
+      <span style={{ fontFamily: serif, fontSize: 18, color: accent ? TEAL : INK }}>{value}</span>
+    </div>
+  );
+  return (
+    <div onClick={onCancel} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(10,8,6,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: "#1a1612", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 26 }}>
+        <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Confirm redemption</div>
+        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: INK, margin: "6px 0 14px" }}>{item.name}</div>
+        <div style={{ border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12, padding: "6px 16px", background: "rgba(242,237,228,0.03)" }}>
+          {row("Cost", `${item.cost.toLocaleString()} pts`, true)}
+          <div style={{ borderTop: "1px solid rgba(242,237,228,0.1)" }} />
+          {row("Balance after", `${after.toLocaleString()} pts`)}
+        </div>
+        <div style={{ marginTop: 12, fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>{item.kind === "lead_boost" ? "Activates your marketplace boost immediately." : "A confirmation code lands in your locker and email — the spend is final."}</div>
+        <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+          <button onClick={onCancel} disabled={busy} style={{ padding: "12px 22px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>Cancel</button>
+          <button onClick={() => !busy && onConfirm()} disabled={busy} style={{ flex: 1, padding: "12px 20px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 13.5, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>{busy ? "Redeeming…" : `Redeem · ${item.cost.toLocaleString()} pts`}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// (b) Cart checkout — review lines + qty, enter ONE shipping address, see the
+// points total + the balance it leaves, place the order (one shipment).
+function CheckoutModal({ lines, total, balance, busy, notice, onQty, onClose, onPlace }) {
   const [f, setF] = useSStore({ name: "", line1: "", line2: "", city: "", region: "", postal: "", country: "US" });
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const valid = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();
+  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
+  const after = (balance || 0) - total;
+  const short = after < 0;
+  const canPlace = lines.length > 0 && validShip && !short && !busy;
   const field = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 9, border: "1px solid rgba(242,237,228,0.18)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 14, outline: "none" };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(10,8,6,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto", background: "#1a1612", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 26 }}>
-        <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Ship to</div>
-        <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: INK, margin: "6px 0 2px" }}>{item.name}</div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginBottom: 18 }}>{item.cost.toLocaleString()} pts · free shipping</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input value={f.name} onChange={set("name")} placeholder="Full name" style={field} />
-          <input value={f.line1} onChange={set("line1")} placeholder="Address" style={field} />
-          <input value={f.line2} onChange={set("line2")} placeholder="Apt, suite (optional)" style={field} />
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
-            <input value={f.city} onChange={set("city")} placeholder="City" style={field} />
-            <input value={f.region} onChange={set("region")} placeholder="State" style={field} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <input value={f.postal} onChange={set("postal")} placeholder="ZIP" style={field} />
-            <input value={f.country} onChange={set("country")} placeholder="Country" style={field} />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-          <button onClick={onClose} disabled={busy} style={{ padding: "12px 20px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-          <button onClick={() => valid && !busy && onSubmit(f)} disabled={!valid || busy} style={{ flex: 1, padding: "12px 20px", borderRadius: 999, border: 0, background: valid ? TEAL : "rgba(242,237,228,0.1)", color: valid ? "#04201d" : "rgba(242,237,228,0.45)", fontFamily: sans, fontSize: 13, fontWeight: 700, cursor: valid && !busy ? "pointer" : "not-allowed" }}>{busy ? "Redeeming…" : `Redeem · ${item.cost.toLocaleString()} pts`}</button>
-        </div>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", background: "#1a1612", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 26 }}>
+        <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>Your cart</div>
+        <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, margin: "6px 0 16px" }}>Checkout.</div>
+        {lines.length === 0 ? (
+          <div style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.6)", padding: "20px 0" }}>Your cart is empty.</div>
+        ) : (
+          <React.Fragment>
+            <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 12, padding: "4px 16px", marginBottom: 16 }}>
+              {lines.map((l, i) => (
+                <div key={l.p.itemId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i === lines.length - 1 ? 0 : "1px solid rgba(242,237,228,0.08)" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: serif, fontSize: 17, color: INK, letterSpacing: "-0.01em" }}>{l.p.name}</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>{l.p.cost.toLocaleString()} pts each</div>
+                  </div>
+                  <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid rgba(242,237,228,0.25)", borderRadius: 999, overflow: "hidden" }}>
+                    <button onClick={() => onQty(l.p.itemId, l.qty - 1)} aria-label="Remove one" style={{ width: 32, height: 32, border: 0, background: "transparent", color: INK, fontSize: 18, fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>−</button>
+                    <span style={{ minWidth: 24, textAlign: "center", fontFamily: sans, fontSize: 14, fontWeight: 700, color: INK }}>{l.qty}</span>
+                    <button onClick={() => onQty(l.p.itemId, l.qty + 1)} aria-label="Add one" disabled={l.qty >= 9} style={{ width: 32, height: 32, border: 0, background: "transparent", color: l.qty >= 9 ? "rgba(242,237,228,0.4)" : INK, fontSize: 18, fontWeight: 700, cursor: l.qty >= 9 ? "default" : "pointer", lineHeight: 1 }}>+</button>
+                  </div>
+                  <div style={{ minWidth: 72, textAlign: "right", fontFamily: serif, fontSize: 18, color: INK }}>{(l.p.cost * l.qty).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 2px 8px" }}>
+              <span style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.7)" }}>Order total</span>
+              <span style={{ fontFamily: serif, fontSize: 26, color: INK }}>{total.toLocaleString()} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.5)" }}>pts</span></span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: sans, fontSize: 12.5, color: short ? "#e8775a" : "rgba(242,237,228,0.55)", paddingBottom: 16 }}>
+              <span>{short ? "Short by" : "Balance after"}</span>
+              <span style={{ fontWeight: 700 }}>{short ? (-after).toLocaleString() : after.toLocaleString()} pts</span>
+            </div>
+            <div style={{ fontFamily: sans, fontSize: 12, fontWeight: 700, color: "rgba(242,237,228,0.6)", letterSpacing: "0.08em", textTransform: "uppercase", margin: "4px 0 12px" }}>Ship to</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <input value={f.name} onChange={set("name")} placeholder="Full name" aria-label="Full name" maxLength={120} style={field} />
+              <input value={f.line1} onChange={set("line1")} placeholder="Address" aria-label="Street address" maxLength={200} style={field} />
+              <input value={f.line2} onChange={set("line2")} placeholder="Apt, suite (optional)" aria-label="Apartment or suite (optional)" maxLength={200} style={field} />
+              <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 10 }}>
+                <input value={f.city} onChange={set("city")} placeholder="City" aria-label="City" maxLength={100} style={field} />
+                <input value={f.region} onChange={set("region")} placeholder="State" aria-label="State or region" maxLength={100} style={field} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <input value={f.postal} onChange={set("postal")} placeholder="ZIP" aria-label="ZIP or postal code" maxLength={20} style={field} />
+                <input value={f.country} onChange={set("country")} placeholder="Country" aria-label="Country" maxLength={60} style={field} />
+              </div>
+            </div>
+            <div style={{ marginTop: 8, fontFamily: sans, fontSize: 12, color: "rgba(242,237,228,0.5)" }}>Free shipping · points only.</div>
+            {!!notice && (
+              <div style={{ marginTop: 14, borderRadius: 10, border: "1px solid rgba(232,119,90,0.45)", background: "rgba(232,119,90,0.12)", padding: "11px 14px", fontFamily: sans, fontSize: 13, fontWeight: 600, color: INK }}>{notice}</div>
+            )}
+            <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
+              <button onClick={onClose} disabled={busy} style={{ padding: "13px 22px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>Keep shopping</button>
+              <button onClick={() => canPlace && onPlace(f)} disabled={!canPlace} style={{ flex: 1, padding: "13px 20px", borderRadius: 999, border: 0, background: canPlace ? TEAL : "rgba(242,237,228,0.1)", color: canPlace ? "#04201d" : "rgba(242,237,228,0.45)", fontFamily: sans, fontSize: 13.5, fontWeight: 700, cursor: canPlace ? "pointer" : "not-allowed" }}>{busy ? "Placing order…" : short ? "Not enough points" : `Place order · ${total.toLocaleString()} pts`}</button>
+            </div>
+          </React.Fragment>
+        )}
       </div>
     </div>
   );
@@ -443,7 +571,7 @@ function UnlockedCoupons({ redemptions }) {
 function StoreFAQ() {
   const faqs = [
     ["Do points expire?", "No. Points earned in Shape Score never expire. Redemption codes, once unlocked, carry the expiry you see on the coupon."],
-    ["Can I mix points + card?", "Yes — choose \"Pay with points + card\" at checkout. Every 100 points covers $10 on eligible items."],
+    ["Can I mix points + card?", "Not yet — the store is points-only today. Add merch to your cart and check out with points; cash top-up (points + card) is on the roadmap."],
     ["Who ships Shape merch?", "Shape merch ships through Shape fulfillment. Training and nutrition rewards are delivered inside your account."],
     ["What if I don't love it?", "30-day returns, points refunded in full. Perishables (nutrition) and digital codes are final sale."],
   ];

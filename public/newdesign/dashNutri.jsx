@@ -223,6 +223,109 @@ function ClientNutritionPage() {
   const grocery = React.useMemo(() => dnuBuildGrocery(days), [days]);
   const favorites = live ? [] : DNU_DEMO.favorites; // no web saved-recipe store yet
 
+  // Each top-level card becomes a draggable/resizable DashGrid widget (role=client,
+  // tab=nutrition), mirroring the client Score rollout. The DashPage hero stays the
+  // page header; only the card stack is gridded. The week strip + meal ledger are the
+  // primary wide cards (full); grocery / logging history / saved recipes pair (half).
+  const widgets = (!hasPlan
+    ? [
+        { key: "noplan", title: "No meal plan yet", size: "full", render: () => (
+          <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
+            <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>No meal plan assigned yet</div>
+            <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
+              Your nutritionist builds the plan and it lands here, with swaps and a grocery list — ask in chat, or find a coach in the marketplace.
+            </div>
+          </div>
+        ) },
+      ]
+    : [
+        // Week strip — pick a day
+        { key: "week", title: "This week", size: "full", render: () => (
+          <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
+              <span className="dash-eyebrow" style={{ color: DNU_GOLD }}>This week · {DNU_DOW[pickedDow]}{isToday ? " · today" : ""}</span>
+              {!isToday && <button onClick={() => setPickedDow(todayDow)} style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_TEAL, background: "transparent", border: 0, cursor: "pointer" }}>Back to today →</button>}
+            </div>
+            <DnuWeekStrip days={days} week={week} todayDow={todayDow} onPick={setPickedDow} picked={pickedDow} />
+          </div>
+        ) },
+
+        // Today (or the picked day) — meals + swaps + ledger
+        { key: "meals", title: "Today's meals", size: "full", render: () => (
+          <div data-tour="hero-nutrition" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_TEAL, paddingLeft: 24 }}>
+            <DashMealLedgerCard
+              meals={meals} targets={targets} ledger={ledger} logged={{}}
+              onLog={() => { window.location.href = "ClientDashboard.html"; }}
+              headerNote={pickedDay ? (pickedDay.title || (isToday ? "today" : DNU_DOW[pickedDow])) : null}
+              swapStorageKey={"shape.dashNutriSwap." + dnuIso(new Date()) + "." + pickedDow}
+              interactive={isToday}
+            />
+            {!isToday && <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DNU_INK50, marginTop: 8 }}>Viewing {DNU_DOW[pickedDow]} · logging happens on the day.</div>}
+          </div>
+        ) },
+
+        // Grocery — auto-built from the plan's ingredients
+        { key: "grocery", title: "Grocery", size: "half", render: () => (
+          <div data-tour="hero-grocery" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#8a5cf6", paddingLeft: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+              <span className="dash-eyebrow" style={{ color: "#8a5cf6" }}>Grocery · auto-built from your plan</span>
+              <a href="ClientGrocery.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Full list →</a>
+            </div>
+            <div className="dash-ledger" style={{ "--dac": "#8a5cf6", marginTop: 9 }} />
+            {grocery.length ? grocery.slice(0, 10).map((g, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</div>
+                  <div style={{ fontFamily: DNU_MONO, fontSize: 8, color: DNU_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.meals.join(" · ")}</div>
+                </div>
+                <span style={{ fontFamily: DNU_MONO, fontSize: 9, color: DNU_INK50 }}>{g.count}× wk</span>
+              </div>
+            )) : (
+              <div style={{ fontSize: 12.5, color: DNU_INK50, padding: "10px 0" }}>The grocery list builds from your plan's ingredients — it fills in once your nutritionist's meals carry them.</div>
+            )}
+          </div>
+        ) },
+
+        // Logging history — streak-framed
+        { key: "history", title: "Logging", size: "half", render: () => (
+          <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GREEN, paddingLeft: 24 }}>
+            <div className="dash-eyebrow" style={{ color: DNU_GREEN }}>Logging · streaks &amp; wins</div>
+            <div className="dash-ledger" style={{ "--dac": DNU_GREEN, marginTop: 9, marginBottom: 12 }} />
+            <DnuLogHistory
+              week={week}
+              currentStreak={live ? (nutri && nutri.currentStreak) : DNU_DEMO.currentStreak}
+              longestStreak={live ? (nutri && nutri.longestStreak) : DNU_DEMO.longestStreak}
+              loggedDays7={live ? (nutri && nutri.loggedDays7) : DNU_DEMO.loggedDays7}
+            />
+          </div>
+        ) },
+
+        // Saved recipes
+        { key: "recipes", title: "Saved recipes", size: "half", render: () => (
+          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+              <span className="dash-eyebrow" style={{ color: DNU_GOLD }}>Saved recipes</span>
+              <a href="ClientLibrary.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Library →</a>
+            </div>
+            <div className="dash-ledger" style={{ "--dac": DNU_GOLD, marginTop: 9 }} />
+            {favorites.length ? favorites.map((r, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{r.name}</div>
+                  <div style={{ fontFamily: DNU_MONO, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, marginTop: 2 }}>{r.tag} · {r.kcal} kcal · {r.p}P</div>
+                </div>
+                <span style={{ color: DNU_GOLD, fontSize: 13 }}>♥</span>
+              </div>
+            )) : (
+              <div style={{ fontSize: 12.5, color: DNU_INK50, padding: "10px 0", lineHeight: 1.5 }}>
+                No saved recipes yet — favorite one from the recipe box and it collects here for quick logging.
+              </div>
+            )}
+          </div>
+        ) },
+      ]
+  ).filter(Boolean);
+
   return (
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
@@ -233,96 +336,7 @@ function ClientNutritionPage() {
         title="Nutrition"
         subtitle={"Your meal plan, day by day — swap any meal, see the week, and what " + coach + " has you eating. Log in the app; the ledger syncs here."}
       >
-        {!hasPlan ? (
-          <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
-            <div className="dash-eyebrow" style={{ color: DNU_GOLD }}>No meal plan assigned yet</div>
-            <div style={{ fontSize: 13, color: DNU_INK50, lineHeight: 1.55, marginTop: 8, maxWidth: 480 }}>
-              Your nutritionist builds the plan and it lands here, with swaps and a grocery list — ask in chat, or find a coach in the marketplace.
-            </div>
-          </div>
-        ) : (
-          <React.Fragment>
-            {/* Week strip — pick a day */}
-            <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GOLD, paddingLeft: 24, marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
-                <span className="dash-eyebrow" style={{ color: DNU_GOLD }}>This week · {DNU_DOW[pickedDow]}{isToday ? " · today" : ""}</span>
-                {!isToday && <button onClick={() => setPickedDow(todayDow)} style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_TEAL, background: "transparent", border: 0, cursor: "pointer" }}>Back to today →</button>}
-              </div>
-              <DnuWeekStrip days={days} week={week} todayDow={todayDow} onPick={setPickedDow} picked={pickedDow} />
-            </div>
-
-            <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 16, alignItems: "start" }}>
-              {/* Today (or the picked day) — meals + swaps + ledger */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-                <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_TEAL, paddingLeft: 24 }}>
-                  <DashMealLedgerCard
-                    meals={meals} targets={targets} ledger={ledger} logged={{}}
-                    onLog={() => { window.location.href = "ClientDashboard.html"; }}
-                    headerNote={pickedDay ? (pickedDay.title || (isToday ? "today" : DNU_DOW[pickedDow])) : null}
-                    swapStorageKey={"shape.dashNutriSwap." + dnuIso(new Date()) + "." + pickedDow}
-                    interactive={isToday}
-                  />
-                  {!isToday && <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DNU_INK50, marginTop: 8 }}>Viewing {DNU_DOW[pickedDow]} · logging happens on the day.</div>}
-                </div>
-
-                {/* Grocery — auto-built from the plan's ingredients */}
-                <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#8a5cf6", paddingLeft: 24 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                    <span className="dash-eyebrow" style={{ color: "#8a5cf6" }}>Grocery · auto-built from your plan</span>
-                    <a href="ClientGrocery.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Full list →</a>
-                  </div>
-                  <div className="dash-ledger" style={{ "--dac": "#8a5cf6", marginTop: 9 }} />
-                  {grocery.length ? grocery.slice(0, 10).map((g, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</div>
-                        <div style={{ fontFamily: DNU_MONO, fontSize: 8, color: DNU_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.meals.join(" · ")}</div>
-                      </div>
-                      <span style={{ fontFamily: DNU_MONO, fontSize: 9, color: DNU_INK50 }}>{g.count}× wk</span>
-                    </div>
-                  )) : (
-                    <div style={{ fontSize: 12.5, color: DNU_INK50, padding: "10px 0" }}>The grocery list builds from your plan's ingredients — it fills in once your nutritionist's meals carry them.</div>
-                  )}
-                </div>
-              </div>
-
-              {/* History + favorites */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-                <div className="dash-plate dash-plate--tick" style={{ "--dac": DNU_GREEN, paddingLeft: 24 }}>
-                  <div className="dash-eyebrow" style={{ color: DNU_GREEN }}>Logging · streaks &amp; wins</div>
-                  <div className="dash-ledger" style={{ "--dac": DNU_GREEN, marginTop: 9, marginBottom: 12 }} />
-                  <DnuLogHistory
-                    week={week}
-                    currentStreak={live ? (nutri && nutri.currentStreak) : DNU_DEMO.currentStreak}
-                    longestStreak={live ? (nutri && nutri.longestStreak) : DNU_DEMO.longestStreak}
-                    loggedDays7={live ? (nutri && nutri.loggedDays7) : DNU_DEMO.loggedDays7}
-                  />
-                </div>
-
-                <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_GOLD, paddingLeft: 24 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                    <span className="dash-eyebrow" style={{ color: DNU_GOLD }}>Saved recipes</span>
-                    <a href="ClientLibrary.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Library →</a>
-                  </div>
-                  <div className="dash-ledger" style={{ "--dac": DNU_GOLD, marginTop: 9 }} />
-                  {favorites.length ? favorites.map((r, i) => (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>{r.name}</div>
-                        <div style={{ fontFamily: DNU_MONO, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, marginTop: 2 }}>{r.tag} · {r.kcal} kcal · {r.p}P</div>
-                      </div>
-                      <span style={{ color: DNU_GOLD, fontSize: 13 }}>♥</span>
-                    </div>
-                  )) : (
-                    <div style={{ fontSize: 12.5, color: DNU_INK50, padding: "10px 0", lineHeight: 1.5 }}>
-                      No saved recipes yet — favorite one from the recipe box and it collects here for quick logging.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </React.Fragment>
-        )}
+        <DashGrid role="client" tab="nutrition" widgets={widgets} />
       </DashPage>
     </React.Fragment>
   );

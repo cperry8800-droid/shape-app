@@ -65,15 +65,23 @@ changelog whenever something ships.
   shared code that other profiles/pages also render. Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
-- **Review stack before shipping (required).** Three layers gate every
-  non-trivial change: **(1) `/code-review`** — run the skill on the diff before
-  merging (Claude reviews for logic bugs + the regressions listed above);
-  **(2) CodeRabbit** — auto-reviews every PR into `main`/`staging` (config in
-  `.coderabbit.yaml`; requires the CodeRabbit GitHub App installed on the repo);
-  **(3) required checks** — `main` branch protection requires the CI checks
+- **Review stack before shipping (required).** Layers that gate every
+  non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
+  extension (`coderabbit.coderabbit-vscode`, installed locally; sign in to its
+  sidebar panel once) reviews the LOCAL diff in-editor **before** pushing, so the
+  obvious stuff is fixed before a PR exists. It's **opportunistic, not a hard
+  gate** — run it on non-trivial/risky diffs to save PR round-trips, skip it on
+  one-liners. Same engine as layer 2, just earlier + with less context; there's no
+  CLI, so it's editor-triggered (the agent can't invoke it). **(1) `/code-review`**
+  — run the skill on the diff before merging (Claude reviews for logic bugs + the
+  regressions listed above); **(2) CodeRabbit GitHub App — the AUTHORITATIVE
+  review.** Auto-reviews every PR into `main`/`staging` with full PR context +
+  `.coderabbit.yaml` config (assertive profile, path rules). This is the source of
+  truth — **never treat the layer-0 IDE pass as a substitute for it.** **(3)
+  required checks** — `main` branch protection requires the CI checks
   (`Web (typecheck + build)` + `Mobile (build + public/m sync)`) green before a
   merge (GitHub → Settings → Branches; once on, merging on red is impossible).
-  Docs/config-only commits may skip layer 1.
+  Docs/config-only commits may skip layers 0-1.
 - **CI checks on every PR (current set).** What runs on a PR into `main`:
   - **`ci.yml`** (every PR + push to `main`/`staging`) — **Web (typecheck +
     build)**, **Mobile (build + public/m sync)**, and **Secret scan (gitleaks)**
@@ -96,7 +104,8 @@ changelog whenever something ships.
   through the normal PR flow). Every dev-branch push also gets its own preview at
   `shape-app-git-claude-<branch>-….vercel.app`. **Caveats:** previews share the
   PRODUCTION Supabase DB + env vars (no isolated test data; don't test destructive
-  migrations here — Supabase branch DBs need the Pro plan, currently deferred), and
+  migrations here — though **Supabase branch DBs are now available** (org upgraded to
+  Pro 2026-06-23), so a branch can run against an isolated branch DB if set up), and
   if a preview URL asks you to log in, that's Vercel Deployment Protection
   (Project Settings → Deployment Protection to relax it).
 - **Verify before committing:** parse-check changed JS, `tsc --noEmit` for TS, build, copy `public/m`.
@@ -140,28 +149,1087 @@ changelog whenever something ships.
 
 ## Changelog
 
-### 2026-06-19 — Shape Radio Nora avatar — Phase A: audio-reactive VRM engine + watch-screen preview
+> **Latest session handoff: [`docs/HANDOFF-2026-06-29.md`](HANDOFF-2026-06-29.md)** —
+> Big session, all shipped to `main` + verified live: the consolidated **"Today"** home
+> card (check-in + hydration, mobile + web, #1451), a **Cumulative Layout Shift** sweep
+> (preconnect + metrics-matched fallback fonts + reserved media dims, #1452/#1453), and a
+> **race-condition hardening** sweep (10 races, 4 atomic-write migrations, #1454–#1459) —
+> including an apply-time **live security fix** (`league_assign_cohort` was still
+> `authenticated`-callable → self-promote vuln; revoked to `service_role` only + verified).
+> All 4 migrations APPLIED + verified live.
+>
+> (Prior: [`docs/HANDOFF-2026-06-27.md`](HANDOFF-2026-06-27.md) —
+> Big session, all shipped to `main` + verified live: sleep fast-follow (#1433 —
+> stages/latency/respiratory from Oura, a tested recovery-READINESS score, a mobile
+> sleep-detail page, coach surfacing + a dashSignals sleep-triage rule; also folded in
+> the dead-sleep-log removal + the workout_set_logs `actual_*` write-time fix +
+> backfill), supabase-js **SRI** (#1434), Steps/Progress **card redesign** + "Shape steps"
+> rename (#1435), an **accurate + complete Shape Score legend** (#1438), **Shape Steps →
+> points** (#1439) + a **CRITICAL** repair of the award-RPC dedupe (a partial-index bug
+> that blocked ALL point-awarding), and a first-launch **"How Shape Score works"
+> explainer** (#1440). **All migrations APPLIED + verified live** (sleep-detail,
+> backfill-workout-set-log-columns, step-points, score-ledger-dedupe-fix). `main` clean;
+> branches kept.
+> (Prior: [`docs/HANDOFF-2026-06-26.md`](HANDOFF-2026-06-26.md) — sleep-logging redesign #1430;
+> [`docs/HANDOFF-2026-06-25.md`](HANDOFF-2026-06-25.md) — daily steps/NEAT #1415.)
+>
+> **All four 2026-06-19 migrations are APPLIED on Supabase** (owner ran them):
+> `coach-credential-verification` · `user-reminders` · `coach-certs-public` ·
+> `member-playlists-url-guard`. Every 2026-06-19 feature below is live end-to-end.
+>
+> **Supabase Pro is active (org upgraded 2026-06-23).** **Leaked-password protection
+> (HaveIBeenPwned) is now ENABLED** (Auth → Attack Protection) — verified via the
+> cleared security advisor. Pro also unblocks branch databases (isolated staging test
+> data). War Room checklist refreshed — applied migrations + shipped features checked
+> off (255 done / 10 pending / 24 manual).
 
-Real-time audio-reactive 3D Nora avatar engine shipping as a MANUAL preview toggle on both web and mobile. On a PLACEHOLDER VRM model; on-device WebGL render unverified. Phases B + C are next.
+### 2026-06-29 — Race-condition hardening sweep (#1454–#1459) + apply-time security fix
+- **Audited the async write/read layer for race conditions** (multi-agent fan-out, two
+  passes — the first rate-limited, the re-run fully sequential) and fixed **10 confirmed
+  races** across 5 PRs. Each touched route keeps a **fallback** so deploy order vs the
+  migrations doesn't matter; all migrations are idempotent.
+- **#1454 — atomic snapshot accumulators.** `/api/client/hydration` + `/api/nutrition/meal-log`
+  did SELECT→compute-in-JS→UPDATE, so two concurrent writers (phone + `/m/` web, or a tap
+  racing a retry) could lose an increment. New `add_hydration` / `add_meal_macros` RPCs do the
+  add inside one upsert (ON CONFLICT DO UPDATE under the row lock). Migration
+  `2026-06-29-atomic-daily-snapshot-accumulators.sql`.
+- **#1455 — atomic `client_programs.detail` merge.** Four writers (goals route, AI directive
+  override, client self-write, `set_program_detail`) read-modify-wrote the whole `{training,
+  nutrition, goals, directive}` JSONB doc → a care-team trainer + nutritionist could silently
+  clobber each other's section. New `merge_program_detail` (atomic `||` merge of only the
+  patched keys) + `set_program_detail` rewritten to merge inside its upsert. Migration
+  `2026-06-29-atomic-program-detail-merge.sql`.
+- **#1456 — atomic league cohort.** `assignCohort` read counts then picked "first cohort <24"
+  then wrote separately → at a week boundary, concurrent joins all piled into cohort 0
+  (overflow, corrupting promote/relegate). New `league_assign_cohort` under a per-(week,tier)
+  advisory lock. Migration `2026-06-29-league-cohort-atomic.sql`.
+- **#1457 — server idempotency.** Device-sync `upsertSnapshot` → `.upsert(onConflict)`; coach +
+  recipe reviews get unique `(user, slug)` indexes + upsert (no more duplicate reviews skewing
+  the public average); lead-boost gets a partial unique index (one active boost/provider).
+  Migration `2026-06-29-write-idempotency.sql`.
+- **#1458 — client-side guards.** `BSTerrainProfile` + `BSSignalCoachProfile` getPublicProfile
+  effects now reset `live` + use an `on` cleanup flag (tapping profile A then B no longer lets a
+  slow A response overwrite B); MusicKit promise cleared on rejection; `_followCache`/`_avatarCache`
+  cleared on sign-out (no cross-user leak); coach-review submit gets an in-flight lock.
+- **CodeRabbit caught 2 real Critical auth vulns I'd introduced + I fixed them:** the league RPC
+  let a user self-promote to any tier (now **service-role-only**, route-mediated); the
+  `merge_program_detail` RPC let a client patch coach-only `directive`/`goals` (the
+  `client_programs_discipline_guard` trigger now enforces directive+goals = coach-only on EVERY
+  write path, before the self-bypass). Plus fallback read-error guards + a goals-GET owner/coach
+  check + DB-boundary macro clamps. On re-review CodeRabbit **resolved every thread**.
+- **⚠ Apply-time fixes (#1459).** Running the migrations surfaced two real issues, both fixed:
+  (1) `write-idempotency.sql` hard-referenced optional feature tables → **42P01** on a DB without
+  `coach_lead_boosts` (the lead-boosts table wasn't created); each block is now `to_regclass`-guarded.
+  (2) **Live security gap:** `create or replace function` + Supabase's default privileges meant
+  `league_assign_cohort` was STILL executable by `authenticated` after `revoke … from public` — the
+  self-promote vuln was open in prod. Fixed live (revoked from `authenticated`+`anon`; verified only
+  `service_role` can call it) and corrected the migration file.
+- **All migrations APPLIED + verified live (2026-06-29)** — every RPC/index present, the
+  discipline trigger enforces directive/goals coach-only, and `league_assign_cohort` is callable by
+  `service_role` only (authenticated=false, anon=false). CI green + CodeRabbit clean on every PR;
+  branches kept.
+- **Lead-boost index — deferred follow-up now closed (2026-06-29):** the `coach_lead_boosts` block of
+  `write-idempotency.sql` was skipped at apply time because that feature table didn't exist. The owner
+  later ran `2026-05-08-lead-boosts.sql` (creates `coach_lead_boosts`) then re-ran `write-idempotency.sql`;
+  the `coach_lead_boosts_active_uniq` partial unique index (`(provider_id) WHERE status='active'`) is now
+  verified live. Every `write-idempotency` block is active.
 
-- `three@0.169.0` + `@pixiv/three-vrm@3.1.6` added to `mobile-app/package.json` (Vite bundles them); web loads via `esm.sh` import map.
-- `public/nora/placeholder.vrm` + `/m/nora/placeholder.vrm` — CC0 placeholder model (stands in until Phase C swaps the real Nora VRM).
-- `public/newdesign/noraReactive.mjs` — pure audio-reactive driver: `computeBands` + `computeRigParams`. Unit-tested (`tests/nora-reactive.test.mjs`; 261 tests, registered in `package.json`).
-- `public/newdesign/noraStage.mjs` — `NoraStage` Three.js + three-vrm renderer: loads a VRM, attaches to an existing `AnalyserNode`, 30fps audio-reactive render loop, `start` / `stop` / `dispose`.
-- `public/radio.html` — web watch screen: "Watch Nora live (preview)" toggle mounts `NoraStage` reusing the page's existing Web Audio analyser (no second source); three + three-vrm via import map; falls back to the featured image on no-WebGL or error.
-- `mobile-app/.../iosAppBroadsheetRadio.jsx` — mobile watch screen: same preview toggle mounts `NoraStage` off the radio analyser; `shapeBackend.js` (`ShapeRadioLive.analyser()`) + `vite.config.ts` alias wire the shared analyser; Vite bundles three + three-vrm + `noraStage.mjs`.
-- Design spec: `docs/superpowers/specs/2026-06-19-shape-radio-nora-avatar-dj-design.md`.
-- Phase B (nora_sets schedule + auto-show wiring) and Phase C (real Nora VRM procurement + swap) are tracked follow-ups.
+### 2026-06-29 — Cumulative Layout Shift sweep (website + mobile, #1452)
+- **Audited + fixed CLS** (content moving after first paint) across both surfaces via a
+  fan-out + adversarial refute-verify pass (mobile + web-async finished by hand after the
+  workflow hit server-side rate limits). Where shifts were → what stabilized them:
+- **Fonts (the headline cause, website):** the big Fraunces serif heroes reflow when the
+  web font swaps in, and **18 marketing pages had no `preconnect`** (the font fetch waited
+  on DNS+TLS to gstatic, widening the swap window). Added `preconnect` (googleapis +
+  gstatic) to all 18, **plus a metrics-matched fallback `@font-face` for all three tiers**
+  so the local fallback occupies the SAME space as the web font → no swap reflow on
+  **headers / sub-heads / body**: Fraunces → Times (`size-adjust:115.45%`), Space Grotesk
+  → Arial (`109.69%`), JetBrains Mono → Courier (`99.98%`) — `size-adjust` + ascent/descent
+  overrides computed from `@capsizecss/metrics` via the next/font formula. Wired into the
+  shared `serif`/`sans`/`mono` stacks in `pageShell.jsx` (69 React pages) + the static-hero
+  pages `index.html` + `GetApp.html`.
+- **Media (website):** community-feed photos/videos had no reserved height (img box ~0px →
+  up to ~420px on decode, shoving posts below) → `aspect-ratio:4/3` + `object-fit:cover`;
+  the nav / splash-wordmark / radio-nav logos (`width/height:auto`) → `aspect-ratio` from
+  each PNG's real dimensions. Feed photos also got real `alt` text (CodeRabbit a11y nit).
+- **Dashboard (website):** the GridStack container collapsed to 0px then jumped when it
+  measured + positioned cards in JS → `min-height:60vh`.
+- **Mobile `/m/`** is otherwise low-CLS (self-hosted `font-display:swap` fonts, fixed phone
+  frame, `background-image` doesn't reflow, meal photos in fixed boxes) — only the
+  splash/auth/paywall SHAPE logos + the radio wordmark `<img height:auto>` needed
+  `aspect-ratio`.
+- **Audited but left alone (verified non-shifts):** consent banner / demo band (fixed, out
+  of flow), header spacer (correct height), landing phone mockups (already aspect-ratio'd),
+  facet-gem avatars (sized boxes). Residual: dashboard demo→live card height swap (behind
+  auth, lower priority).
+- `?v` bumped on `pageShell.jsx` / `dashGrid.jsx` / `dashboardCommunity.jsx`. Verified:
+  both surfaces parse · `tsc --noEmit` · mobile build + `public/m` synced · 342/342 tests.
+  **PR #1452** — CI green (Web · Mobile · gitleaks), CodeRabbit clean (its 1 a11y nit
+  fixed). *Validation note:* the metric fallback fully matches on Windows/Mac (Times/Arial/
+  Courier present) and degrades cleanly elsewhere; a Lighthouse CLS before/after on the
+  preview deploy is the recommended confirmation.
 
-### 2026-06-19 — Shape Radio Phase 1: real licensed player + provider foundation
-- `radio_station` singleton config table (public-read RLS; `provider`, `stream_url`, `now_playing_url`). ⚠ **OWNER — apply migration:** `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-radio-station.sql` — then set `provider='http'`, `stream_url`, and `now_playing_url` on the row. Until applied, the station defaults to `provider='mock'` and the player shows "coming soon."
-- `GET /api/radio/station` — public; returns `{name, streamUrl, provider, configured}`.
-- `GET /api/radio/now-playing` — public; returns `{title, artist, isNora}`. Degrades to nulls on any provider error so the stream never breaks.
-- `src/lib/radio/` — swappable `RadioProvider` adapter: `provider.ts` (interface + `NowPlaying` type), `now-playing.mjs` (pure normalizer, unit-tested in `tests/radio-now-playing.test.mjs`), `mock.ts`, `http.ts` (generic fetch + normalize), `index.ts` (`getProvider` selector). Provider chosen: **Radio.co** (handles royalties + broadcast); owner signup deferred (Task 0).
-- `public/radio.html` — web player streams the live URL from `/api/radio/station` + polls `/api/radio/now-playing` every 15s. No client playlist; off-air / coming-soon / retry states. Stream-error auto-retries in 5s.
-- `mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx` + `shapeBackend.js` (`window.ShapeRadioLive`) — mobile player streams + polls; pause actually stops the stream.
-- Native background-audio config: iOS `Info.plist` `UIBackgroundModes:[audio]`, Android `FOREGROUND_SERVICE` prep. ⚠ **OWNER — native build required** for background playback (`npx cap sync` + Xcode/Android Studio build). See `mobile-app/RADIO-BACKGROUND-AUDIO.md` for activation steps.
-- Phase 1 only. Phases 2 (Nora clips) and 3 (Nora DJ Sets) are separate plans.
+### 2026-06-29 — "Today" instrument plate: daily check-in + hydration consolidated (mobile + web, #1451)
+- **One plate replaces two home cards.** The mobile home's separate **`BSDailyCheckinCard`**
+  (energy/hunger/sleep/rested) + **`BSHydrationCard`** are now a single teal **`BSTodayCard`**
+  `BSPlate` (clipped notch · spine · live tick · bracket). Energy / Hunger / Rested are tap-to-set
+  1–10 **gauges** (filled bar + end-anchor knob over 10 invisible tap zones — same 1–10 values,
+  **no migration**); Sleep stays device-first (read-only recovery snapshot when a wearable synced,
+  else manual hour chips); Hydration folds in as **dot-progress + quick-add** that **stays live**
+  even after the check-in collapses to its one-line summary; recovery readiness + the sleep-detail
+  door sit in the footer. Data flow (`/api/client/checkin`, `/api/client/hydration`,
+  `window.ShapeProgress`) unchanged.
+- **Web parity — first time on the website.** New **`DashTodayCard`** (`dashClient.jsx`) — a
+  `dash-plate` widget at the top of the client home `DashGrid`, after the Score card — mirrors the
+  mobile plate, posting to the same `/api/client/checkin` + `/api/client/hydration` (cookie session)
+  and seeding today's values from `/api/client/progress`. `dashClient.jsx?v=20260629a` across the 8
+  loader pages. (Web is metric-only ml; mobile honors the unit pref.)
+- **Built brainstorm-approved → adversarial multi-agent review** (sequential 5-dimension pass —
+  correctness · house-style · parity · states/a11y · honesty — each finding independently
+  refute-verified). Caught + fixed: **(1)** a demo-vs-live leak — the web `live` flag flips
+  false→true after the dashboard resolves, so a reset-on-live effect now drops the demo seeds (no
+  fabricated "logged ✓" for a real member); **(2)** the web hydration GET omitted `?date=`, so it
+  read the **server UTC day** near local midnight while the POST + mobile use the local day — now
+  sends `?date=localDay()`; **(3)** `aria-pressed`/`aria-label` added to gauge tap zones + sleep
+  chips; **(4)** the hydration readout no longer fabricates "· 0%" when the value is unknown (honest
+  "—"); **(5)** the small text buttons (Edit / Sleep detail / Trends) bumped to the ≥24px tap floor.
+- Verified: both JSX parse-check · `tsc --noEmit` · mobile build + `public/m` synced (diff clean) ·
+  342/342 tests. **PR #1451**.
+
+### 2026-06-28 — Weekend-vs-weekday adherence split (differentiator A, #1449) + Progress-hub simplification
+- **First community differentiator, v1 (nutrition + habits).** Surfaces how a member's
+  adherence drops on weekends vs weekdays — descriptive + never-shaming for the member,
+  one concrete move for the coach. Built **brainstorm → spec → plan → subagent-driven
+  execution** (spec `docs/superpowers/specs/2026-06-27-weekend-adherence-split-design.md`,
+  plan `docs/superpowers/plans/2026-06-27-weekend-adherence-split.md`); a multi-agent
+  hardening + anchor-mapping + plan-verification pass ran before any code, and an Opus
+  whole-branch review after.
+- **Pure tz-free module** `mobile-app/src/services/weekendSplit.mjs` (+ `src/lib/weekendSplit.ts`
+  hand-mirrored twin, 16 tests). Takes PRE-BUCKETED weekly counts (no `Intl`/DST inside — all
+  tz resolution is upstream) and applies a **statistical flag gate**: `gap ≥ 15pp AND ≥ 1.65·SE
+  AND positive in ≥ 60% of weeks` — so a one-off bad weekend at the 3-weekend floor can't fire a
+  false "you're slipping." Per-dimension flagging only; **composite is display-only**;
+  `worstDimension` is ranked by **lower-CI bound** (not raw gap). Absent dimensions render
+  nothing (never a fabricated 0%). 8-week window clamped to first activity (a brand-new account
+  doesn't read empty days as a cliff). Nutrition "logged" needs a real-food signal (protein ≥ 10g,
+  not a hydration-only snapshot row); habits = daily-cadence, non-archived only.
+- **Member**: a **Weekends card** in the Progress hub Overall tab, computed CLIENT-SIDE over the
+  already-cached `/api/client/progress` + `/api/client/habits` (`window.ShapeProgress.weekendSplit`
+  in `shapeBackend.js`) — no bespoke self endpoint.
+- **Coach**: **MIGRATION `2026-06-27-roster-weekend-split.sql`** — `SECURITY DEFINER`
+  `get_roster_weekend_split(uuid[])` that gates EVERY client through the
+  is-coach-on-client subscription check (a coach only ever sees their own roster), buckets Sat/Sun
+  in each member's tz, day-based nutrition denominators, EXCLUDES archived habits (twin parity
+  with `/api/client/habits`). `POST /api/coach/roster-weekend` runs the twin per client → a quiet
+  **`WKND −N` roster chip** (`iosAppBroadsheetPros.jsx`) on flagged clients + a client-detail
+  **"Weekend pattern" plate** with a directive keyed off the worst dimension.
+- **Per-user timezone**: **MIGRATION `2026-06-27-client-timezone.sql`** — `client_profiles.timezone`
+  (IANA) + a backfill from `user_scheduled_reminders.tz`; `POST /api/client/timezone` captures it
+  opportunistically on app open (`BSClientAppInner`). Where unknown, the coach chip is suppressed
+  (no UTC mislabeling); the member card uses the device zone.
+- **Progress-hub simplification (folded in)**: deleted the **dead `BSMeKpis`** component (zero
+  refs); removed the bare-adherence **Insights grid** from the Overall tab (matches the website
+  `dashProgress.jsx` "no bare adherence % to clients" rule) — **weekly points preserved** as a KPI
+  tile; both PR cards kept (they're not duplicates — Overall carries the e1RM line).
+- **Review caught + fixed** (Opus whole-branch): the RPC originally counted archived habits, so a
+  coach's habits number could differ from the member's own — added `archived_at is null` to all
+  three `user_habits` joins. Self↔coach number parity + the SECURITY DEFINER owner gate both
+  verified against the source.
+- **⚠ Migrations APPLIED + verified live (2026-06-28)** — `client_profiles.timezone` column present,
+  `get_roster_weekend_split` is SECURITY DEFINER, RPC smoke-tested (full CTE chain runs; returns 0
+  to an unauthorized caller). Apply order matters: **timezone first, then the RPC** (the RPC reads
+  the tz column). **PR #1449** — CI green (Web · Mobile · gitleaks); awaiting squash-merge.
+  *(Windows note re-confirmed: rebuild `public/m` from PowerShell — the Git Bash build mangles
+  `VITE_BASE=/m/` → `/`, which failed the Mobile sync check until rebuilt correctly.)*
+- **Fast-follows**: training dimension (needs a `client_workouts.scheduled_date` column + backfill);
+  a per-member change-from-baseline guard (v2 alarm-fatigue mitigation); calibrate `FLAG_GAP_PP`
+  against the live weekend-gap distribution. Remaining differentiators (War Room): menstrual-cycle
+  awareness, coach-set compliance variance band.
+
+### 2026-06-27 — Sleep fast-follow (#1433) · supabase-js SRI (#1434) · Steps/Progress redesign (#1435) · accurate Shape Score legend (#1438) · Shape Steps → points + award-RPC dedupe fix (#1439) · onboarding score explainer (#1440)
+- **Sleep fast-follow (#1433).** The deferred #1430 follow-up, end-to-end (honest "—"
+  where a provider doesn't expose a field). MIGRATION `2026-06-26-sleep-detail.sql`
+  (**APPLIED + verified live**) adds `sleep_deep/rem/light/awake_min`,
+  `sleep_latency_min`, `respiratory_rate`, `sleep_start/end` to `daily_health_snapshot`;
+  Oura v2 sync captures them (main nightly sleep only, so naps don't pollute stages);
+  `SnapshotPatch` widened (+ `sleep_quality`). **Recovery-readiness score** — pure tested
+  `mobile-app/src/services/recoveryReadiness.mjs` (+ `src/lib/recovery-readiness.ts` twin):
+  0-100 blend of duration-vs-target / efficiency / RHR & HRV vs a trailing baseline /
+  device recovery score, null when nothing to score. Progress + `clients/[id]/shared-overview`
+  routes expose the series + a computed `readiness` KPI (both `select('*')` for
+  migration-safety). UI: a recovery snippet on the home check-in card + a new mobile
+  **`BSSleepHistory`** detail page (readiness ring, stage bar, bed/wake, latency,
+  respiratory, sparklines, honest empty states); coach readiness lead + detail on web
+  `coachClientDetail.jsx` (`?v=20260626b`) + mobile coach card. **Coach sleep-triage** —
+  `dashSignals ruleSleepRecovery` flags `sleep_low` when 7d-avg sleep is >1.5h under
+  target (severe; milder shortfalls keep the gentle cross-domain narrative) → directive +
+  the coach "who needs you" feed, fed by a one-query RLS-scoped `/api/coach/roster-sleep`.
+  Tests: `recovery-readiness` (11) + `dash-sleep-triage` (5). Title later trimmed
+  "Your Shape steps." → "Shape steps." Also folded into this branch:
+  - **Removed the dead manual sleep-log path** (`POST /api/client/sleep-log` +
+    `window.ShapeSleep.log`, retired with BSSleepSheet in #1430).
+  - **Fixed `workout_set_logs.actual_*`**: the live-session writer only filled the
+    `payload` jsonb, never the `actual_load/actual_reps/rpe/load_unit` COLUMNS the
+    train-volume + strength readers read. `normalizeWorkoutSetLog` now populates them at
+    write time (free-text/kg-lb parse; `load_unit` NOT NULL → 'lb'); `BSSession` now
+    persists the captured RPE + unit; train-route gains a payload fallback; MIGRATION
+    `2026-06-26-backfill-workout-set-log-columns.sql` (**APPLIED**) fills historical rows
+    (rpe kept NULL when unparseable — a `greatest(0,NULL)=0` fabrication bug was caught + fixed).
+- **supabase-js SRI (#1434).** Added `integrity` (sha384) + `crossorigin` to the
+  self-hosted `vendor/supabase-js-2.108.2.umd.js` across 54 static tags + the 2 dynamic
+  loaders (`pageShell.jsx` SiteSearch + `siteSearch.js`); `?v=` bumped on the referencing
+  pages. Closes the #1413 SRI deferral. (Mobile is npm-bundled — out of scope.)
+- **Steps / Progress card redesign (#1435).** The Me-page **Shape Steps** card is now a
+  `BSPlate` instrument (clipped notch, accent spine, live tick, bigger tabular number,
+  goal-hit glow); the **Progress** card is a polished quiet nav card (accent spine, chip
+  breadcrumb, padded chevron). Renamed "Steps" → **Shape Steps** on the card + history.
+- **Accurate + complete Shape Score legend (#1438).** The "how you earn" legend was
+  hardcoded + partly fictional (listed unimplemented earns; no penalties). Replaced with
+  the real `score_ledger` catalog on mobile (Points tab) + website `score.jsx` — every
+  EARN, a **"Protect your points"** losses section (missed check-in -7 / workout -5 /
+  habit streak -2 / commitment -stake, never-shaming, "a coach can waive"), the spend
+  link, and the rules (0-floor, -30/wk cap, tier never demotes, spending doesn't lower
+  rank). Fixed a dark-on-dark contrast bug on `score.jsx`; `Score.html ?v=15`.
+- **Shape Steps → points (#1439).** 5,000 steps = 1 Shape Step = +1 pt; daily goal hit =
+  +3 (20k/day anti-farm cap → max +7/day). Pure tested `shapeSteps.mjs` + MIGRATION
+  `2026-06-26-step-points.sql` `award_step_points()` (SECURITY DEFINER, auth.uid()-scoped,
+  hardcoded rates, credits COMPLETED days idempotently); fired on session resolve via
+  `window.ShapeStepPoints.check`; live "N Shape Steps · +N pts" on the card + a real legend row.
+  - **CRITICAL FIX — MIGRATION `2026-06-26-score-ledger-dedupe-fix.sql` (APPLIED + verified).**
+    `score_ledger_dedupe_idx` was PARTIAL, but every award RPC (goal milestone, momentum,
+    tier bonus, PR wall, check-in, community, accountability penalties, commitments, store
+    redeem) uses `ON CONFLICT (user_id, source_kind, source_id) DO NOTHING` WITHOUT the
+    predicate — Postgres rejects that against a partial index (42P10), so EVERY award would
+    error + never credit. Unsurfaced only because no award had fired on real data yet.
+    Recreated the index as a PLAIN unique index (NULLs distinct → null-source rows still
+    never conflict) so the existing inference works; verified live (42P10 → expected FK).
+    `award_step_points` uses the bare `ON CONFLICT DO NOTHING` so it's correct either way.
+- **First-launch Shape Score explainer (#1440).** New accounts get a one-time
+  **`BSScoreIntro`** full-screen panel on first open (before the app tour): the one-number
+  idea, the tier ladder (tier never demotes), the main ways to earn, that consistency/
+  momentum compounds, spendable points, and a gentle "protect your points." Gated on a
+  new-account window + its own `client_score_intro` seen-flag; the app tour waits until
+  the intro is seen so the two never stack.
+- Each squash-merged to `main` (branches kept), CI-green (Web · Mobile · gitleaks). The
+  sleep branch was reconciled onto main (steps redesign landed first) by rebuilding
+  `public/m` from the merged source. War Room: registered `/api/coach/roster-sleep`,
+  flipped the sleep fast-follow + backlog tasks (Shape Steps points, legend completeness,
+  onboarding explainer) — note the legend/onboarding tasks are now BUILT.
+
+### 2026-06-26 — Sleep-logging redesign (#1430) · uniform header avatars (#1431) · all-time-PR RPC (#1429) · e1RM web parity (#1427) · check-in & grocery polish (#1428)
+- **Sleep-logging redesign (#1430, Tier 1).** Daily sleep folded into the home
+  **"How are you · today"** check-in card, **device-first**: when a wearable synced sleep
+  today the card shows a read-only `Xh Ym · NN% efficient · RHR · HRV` snapshot; otherwise
+  **editable** manual-hour chips (reversible, tap-again-to-clear, never falsely labeled
+  "Synced from your device"). Always a 1–10 **Rested** tap-row → new
+  **`daily_health_snapshot.sleep_quality`** column (migration `2026-06-26-sleep-quality.sql`,
+  **APPLIED + verified live**). Saved with energy/hunger via `/api/client/checkin`
+  (await + rollback; `sleepHoursOrNull` 0<h≤24 validator). **The dead engine sleep directive
+  is revived** — pure, TDD'd `sleepRecoveryFromProgress` (in `signalsMap.mjs`) feeds real
+  sleep into `selfRecord`, so signed-in members finally get the recovery lever (it was
+  hardcoded `null`). **Coaches see objective sleep** — `/api/clients/[id]/shared-overview`
+  returns `sleep` (latest hours + 7-day trend + efficiency/RHR/HRV, RLS-scoped via the
+  existing `providers_read_subscriber_snapshots` policy — no extra migration), rendered on
+  the web client page (`coachClientDetail.jsx`, reuses `CKTrend`) + the mobile coach profile
+  (`iosAppBroadsheetPros.jsx`). **`BSSleepSheet` retired**; the home sleep directive scrolls
+  to the card. Built **subagent-driven** (7 TDD tasks, per-task spec+quality reviews + an
+  opus whole-branch review). **CodeRabbit/Codex caught + I fixed 3 real bugs** before merge:
+  the coach query returned the *oldest* 30 snapshots (now newest-30 then reversed), manual
+  sleep was mislabeled "Synced" + locked after reload (now `sleepSynced` is gated on TODAY's
+  device-only metrics read per-day from `series.sleepEfficiency`/`restingHr`/`hrv`), and the
+  coach overview effect leaked one client's sleep onto the next (now resets + ignores stale
+  responses). CodeRabbit **APPROVED**. **Fast-follow (out of scope):** sleep stages
+  (deep/REM/light), bed/wake + latency, respiratory rate, a recovery-readiness score, a
+  coach sleep-triage rule. *(Note: `window.ShapeSleep.log` + `/api/client/sleep-log` are now
+  an uncalled dead path — a follow-up cleanup.)*
+- **Uniform top-header avatars (#1431).** The "your own" avatar in each page's top-header
+  corner rendered at inconsistent sizes (34 on the 5 main tabs + both coach mastheads, but
+  28 on detail/Store pages, 26/30 elsewhere). New single **`BS_HEADER_AVATAR = 34`** constant
+  drives `BSSearchCorner`/`BSHeaderTools`/`BSMeCorner` defaults + every per-call override is
+  removed; the Terrain/Signal + coach mastheads have their **whole corner cluster** (search ·
+  edit pencil · settings gear · self avatar) normalized to 34 so each row stays balanced — so
+  the Store + all detail/sub pages now match the main tabs. Every touched avatar still uses
+  the self helpers (`bsMyTierColor`/`bsMyInitials`/`bsMyPhoto`) + opens `shape:openProfile`;
+  **untouched:** feed/chat/list/facepile avatars, the big profile HERO portraits, the Settings
+  identity-card avatar.
+- **All-time strength PRs via aggregate RPC (#1429).** `get_my_lift_prs(p_limit)` (migration
+  `2026-06-26-my-lift-prs.sql`, applied) so the client Progress PR rows reflect the **all-time**
+  best per lift instead of the newest-3000-sets window; kg normalized to lb before ranking;
+  PUBLIC execute revoked (`auth.uid()`-scoped, security definer).
+- **e1RM web parity (#1427).** Progress-route set cap fixed to keep the **newest** sets (was
+  oldest) + e1RM on the client Progress **PR rows** + a **website client Strength page**
+  (`DprSpark` sparkline + status pills) — the website now matches the mobile e1RM engine.
+- **Check-in & grocery polish (#1428).** Compacted the home check-in card (tap targets kept
+  ≥ the WCAG 2.5.8 AA 24px floor) and lightened/modernized the collapsible grocery aisle
+  headers (lighter weight, hairline rule, calmer chevron/count).
+- All squash-merged to `main` (branches kept); each CI-green (Web · Mobile · gitleaks) +
+  CodeRabbit-reviewed; #1430 + #1431 overlapped the two broadsheet files + `public/m`, so the
+  second (#1430) was merged into main + its bundle rebuilt fresh before merge.
+
+### 2026-06-26 — Daily check-in + hydration (#1422) · title-font unify + full-page goal sheets (#1423) · home compaction + bigger steps numbers (#1424) · collapsible grocery aisles (#1425)
+- **Daily wellness cards (#1422).** Two home cards: **`BSDailyCheckinCard`**
+  ("How are you · today" — Energy + Hunger 1–10 tap-rows, once/day →
+  `daily_health_snapshot.energy`/`hunger` via `/api/client/checkin`, now
+  energy/hunger-aware) and **`BSHydrationCard`** ("Hydration · today" — bar toward
+  `hydration_target_l` + **+250 / +500 ml** (or +8/+16 oz) quick-add + undo) via the
+  **new `GET/POST /api/client/hydration`** (signed delta clamped ≥0). **Migration
+  `2026-06-25-daily-energy-hunger.sql`** (energy/hunger smallint, 1–10 CHECK) —
+  **APPLIED + verified live.** Review-hardened (Codex P1+P2 + 6 CodeRabbit Major):
+  checkin route now ignores null fields (was coercing `null`→1, writing a rating
+  never set); hydration `deltaL` validated (JSON number within ±2 L); snapshot
+  read-errors surfaced (no fabricated `0`); `addHydration` throws on failure +
+  invalidates only after success; both cards await the write, roll back on failure,
+  ignore stale responses, and lock taps in-flight (closes the single-user
+  lost-update window); check-in flips to "logged" only after the write; signed-out
+  preview nudges to join instead of faking "logged ✓". CodeRabbit **APPROVED**.
+- **Title font unified to Space Grotesk (#1423).** Every page/card **title** now
+  uses `t.DISPLAY` (Space Grotesk — the chat "Community" header font) instead of the
+  hardcoded `'Newsreader'` serif: the 12 client `SERIF` consts + the 7 coach
+  mastheads. **Left serif on purpose:** the **home page**, the splash/auth branding,
+  the rotated SHAPE watermark, and the official-chat italic bubble. Both **goal edit
+  sheets** (`BSOverallEditSheet` + the primary-goal picker) became **full-page**
+  title-page panels — masthead + hero title, hidden scrollbars (`.bs-hide-scroll`),
+  hidden number steppers (`.bs-no-spin`), accent focus rings (`.bs-field` +
+  `--bs-accent`), squared fields/chips, clipped Save CTA. Review fixes: raw-string
+  decimal entry (coerce on save) + a NaN guard before `onSave`.
+- **Home compaction + bigger steps numbers (#1424).** Tightened the home agenda
+  plates (Today/Meals/Workout), the Habits plate, and the check-in + hydration cards
+  (less padding/margins/row-height; title 21→19, directive 24→22) — denser, hierarchy
+  unchanged. Enlarged the steps-history ring-calendar numbers (month value 7→9.5,
+  in-ring day 8→10, 3-month avg 13→15). Review fix: the 1–10 selectors keep a slim
+  16px look but a comfortable 30px tap area (transparent button wrapping the bar).
+- **Collapsible grocery aisles (#1425).** `BSGrocery` aisles are now dropdowns —
+  multi-aisle lists start as a compact index (chevron + aisle + `done/total`), tap a
+  header to expand; single-aisle lists (recipe lists) open by default; **Expand /
+  Collapse all** + auto-expand the aisle an item lands in (typed or voice). An
+  87-item weekly plan collapses to ~5 header rows with Send-to-Instacart in view.
+  CodeRabbit **APPROVED**.
+- All four squash-merged to `main` (branches kept); each CI-green (Web · Mobile ·
+  gitleaks) + CodeRabbit-reviewed; previewed in a headless browser before shipping.
+
+### 2026-06-25 — e1RM (estimated 1-rep max) + strength progression engine (#1420 · #1421 merged)
+- **Roadmap #2.** Turns logged sets into an estimated 1-rep max (Epley `load×(1+reps/30)`)
+  per lift + a **Progressing / Holding / Stalled / Building** verdict.
+- **Phase 1 — analytics engine (#1420, MERGED to `main`).**
+  - Pure tested **`mobile-app/src/services/e1rm.mjs`** (source of truth) + TS twin
+    `src/lib/e1rm.ts` (`epleyE1rm`, `buildLiftSeries`, `progressionStatus`, `summarizeLift`;
+    reps-cap 12, ±2% deadband, 3-week stall). Vectors in `tests/e1rm.test.mjs`.
+  - New RLS-scoped **`GET /api/client/strength`** (session-only, membership-gated by the
+    `/api/client` proxy prefix) → per-lift e1RM + status + trend; `window.ShapeStrength`
+    client helper (shared 60s cache).
+  - e1RM threaded onto the **Overall-tab PR rows** (`/api/client/progress`).
+  - **Mobile Strength instrument page** (`BSStrengthHistory` + `BSStrengthCard` in
+    `iosAppBroadsheetClient.jsx`) — status pills, e1RM trend sparkline, top-set readout,
+    honest empty/"building" states; tappable PR rows.
+  - **Coach e1RM** on key-lift rows (mobile `iosAppBroadsheetPros.jsx` + web
+    `coachClientDetail.jsx`) via **migration `2026-06-25-client-lifts-e1rm.sql`**
+    (widens the `SECURITY DEFINER` `get_client_lifts` with `e1rm`; gate + search_path
+    preserved). **APPLIED to prod** (re-run twice for the review fixes below).
+  - ⚠️ **Key data learning:** the in-app live-session writer (`normalizeWorkoutSetLog`)
+    stores the athlete's actual load/reps/rpe inside **`workout_set_logs.payload`**
+    (`actualLoad`/`actualReps`/`rpe`) and **never populates the `actual_load`/`actual_reps`/
+    `rpe` columns**. So the route + SQL read **payload first, column fallback** (treating a
+    `0` column as missing), and mirror the same payload aliases on both sides for
+    coach⇄client parity. Review also fixed: newest-first set cap (was keeping the oldest
+    5000), auth outside the fail-soft `try`, SQL excludes incomplete sets.
+  - Reviewed subagent-driven (per-task + whole-branch + `/security-review` clean bill);
+    **CodeRabbit-approved**; CI green; squash-merged as `dc9510a4`.
+- **Phase 2 — prescriptive next-load (#1421, IN PR).** Pure tested
+  **`suggestNextLoad.mjs`** (autoregulate off the last session by RPE → bump/hold, e1RM
+  sanity-bound at 1.05×, %-of-e1RM + repeat fallbacks) surfaced as a **tap-to-fill chip in
+  the live session player** (`BSSession`), consuming `window.ShapeStrength`. Client-only —
+  **no endpoint, no migration.** Reviewed per-task + whole-branch (Ready to merge).
+- **Pre-existing bug flagged (separate follow-up):** because the app never writes the
+  `actual_*` columns, **train-volume + the progress strength-series read empty columns at
+  the source** (the e1RM routes now read payload, but the older readers don't). Root fix =
+  populate `actual_load`/`actual_reps`/`rpe`/`load_unit` columns in `normalizeWorkoutSetLog`
+  at write time.
+
+### 2026-06-25 — Daily steps / NEAT: device-synced steps + ring-instrument history (#1415)
+- **New display-only daily-steps feature** (NEAT). Steps come from a connected watch
+  (Apple Health / Garmin sync) — never manual entry, since a person can't know their own
+  count. **Migration `2026-06-25-daily-steps.sql`** (`daily_health_snapshot.steps integer`,
+  idempotent) — **APPLIED to prod**.
+- **Backend wiring**: `steps` → `SnapshotPatch` (`health-snapshot.ts`); Apple Health sync
+  `ALLOWED_FIELDS` (normalized to a **non-negative integer** in `cleanPatch`); Garmin
+  webhook dailies mapping (**rejects negative** totals); progress route `series.steps` +
+  `stepsLatest`/`stepsAvg` KPIs. `steps` registered in the source-reconcile `METRICS`
+  (`reconcile.mjs`) so INT2 can reconcile multi-source conflicts. The progress snapshot
+  query uses `select('*')` (migration-safe — PostgREST 400s an unknown explicit column).
+- **Mobile (`iosAppBroadsheetClient.jsx`)**:
+  - **`BSStepsCard`** (Me page) — today's count vs goal (honest `—` until today syncs;
+    "Connect a watch" only when nothing's ever synced); taps into history (keyboard-activatable).
+  - **`BSStepsHistory`** — a tier-colored **ring instrument**: hero gauge (today) + **Week**
+    (vertical day-list: ring + a bar filling toward goal + an `actual / goal` readout) +
+    **Month** & **3-Month** ring calendars. Rings fill to the user's Shape Score tier color
+    only at goal. **Calendar-correct windows** — the stat row matches the rendered rows,
+    missed-sync days are honest gaps, and "today" is today's date (not the last sample).
+  - **Editable custom goal** — a typeable editor (stepper + 6k–15k presets), persisted to
+    localStorage + `user_goals('client_step_goal')` (cross-device, dedicated key — no clobber;
+    a session edit wins over a late cloud hydrate). Card + history read one shared value;
+    ring fills, %, "to go", and goal-hits all recompute against it.
+  - **"Alive" ring treatment** (designed via a multi-agent design+review pass): staggered
+    one-shot draw-in; a tier-colored **breathing glow on every completed ring** (a circular
+    CSS `box-shadow` — follows the border-radius so **no square filter-region clip**;
+    GPU-composited transform/opacity only, so the 30-ring month grid stays smooth); the hero
+    gets an **avatar-style pulsing outer ring** + a **glow when filled**. Honors
+    `prefers-reduced-motion`.
+  - Standard page nav bar on the steps page (SHAPE logo + `Vol. 1 · No. 1` + search + tier
+    avatar, wired) + centered range tabs.
+- **Review stack** (CodeRabbit + Codex, two rounds): fixed every Critical/Major — honest `—`
+  vs fabricated 0, non-negative-int step validation (Apple + Garmin), migration-safe query,
+  Week stats matching the rendered Mon–Sun rows, the goal-hydrate race, history-button
+  keyboard a11y, reconcile METRICS. Verified: JSX parse · `tsc` · mobile build + `public/m`
+  sync · all 3 required CI checks green; iterated on `staging` (~12 previews) before merge.
+- Shipped as **#1415** (squash-merged to `main`, branch kept). Separately, **#1416**
+  added the product-strategy analysis + coach-acquisition marketing docs (`PRODUCT-STRATEGY.md`,
+  `marketing/coach-acquisition-campaign-plan.md`, `marketing/coach-outreach-email-sequence.md`;
+  review fixes: per-track signup URLs, conditional founding-perk copy, send-day calendar
+  alignment, illustrative-projection disclaimer).
+
+### 2026-06-25 — Profile activity cards: full engagement parity (detail · send · likers · comments wired)
+- The profile **"Personal activities"** cards (member Terrain + coach Signal) were visual-only for
+  the deep interactions — **Session details / Full activity / Comment / Send / the liker list** all
+  toasted "open in the community feed for the full view" (the deferred slim-fallback from #1406).
+  Now they're fully wired and behave EXACTLY like the community feed: tapping opens the real
+  **`BSActivityDetail`** page, the **send-to-DM** picker (`BSPostSendSheet`), and the **"who reacted"**
+  sheet, and inline comments persist. (Reactions/SPOT · Share · Repost already worked.)
+- New shared **`BSCardSheetHost`** component + **`useBSCardSheets`** hook host the three sheets +
+  comment state in ONE place; both profiles call the hook (placed with the other hooks, before the
+  sub-view early returns → rules-of-hooks safe) and render via
+  `renderSheets({ applyReaction, setOpenProfile, actLikes, actExpr })`, spreading the rest into the
+  card ctx. The `slimOpen` toast stubs are removed (verified absent from the shipped `public/m` bundle).
+- Verified: JSX parse-check + mobile build clean; slim-fallback toast gone from bundle + source; no JS
+  errors. The community feed (`BSClientFeed`) keeps its own inline sheet blocks unchanged (no regression).
+- **Merged as #1408.** CodeRabbit caught + I fixed a **Critical**: `sendActComment` inherited the feed's
+  "treat `key` as a fallback `postId`" heuristic, but the profile's demo cards carry synthetic keys
+  (`it-*`/`act-*`) → a comment on a demo card would `addComment({ postId: 'it-0' })` against a
+  non-existent id. Dropped the fallback — profile persists only on a real explicit `postId`; demo-card
+  comments stay local-only. CodeRabbit **APPROVED** after the fix; CI green.
+
+### 2026-06-24 — War Room audit: 4 "looks done" items verified — 2 are genuinely incomplete
+Verified four unchecked War Room items (multi-agent: repo code + **live Supabase** + GitHub API).
+**Do not check these off as-is** — accurate status below.
+- **Funnel analytics — NOT done (mobile event wiring is broken).** The migration **IS applied
+  live** (`analytics_events` + `track_event` + `get_funnel` confirmed on prod, service-role-only
+  grants — **no owner DB action needed**); the panel + purge cron are real. BUT the "5
+  consent-gated events" claim is **false**: `mobile-app/src/services/analytics.js:18` does
+  `window.ShapeAnalytics = window.ShapeAnalytics || { track }`, and `shapeBackend.js:3336` already
+  set `window.ShapeAnalytics = { get, getProgress }`, so the `||` short-circuits and **`.track`
+  never attaches** — the 4 mobile events (workout_started / onboarding_started / paywall_viewed /
+  app_opened) silently no-op (confirmed in the built bundle); only the server-side
+  `checkout_started` lands, and nothing client-side is consent-gated. Doc bugs: purge cron is
+  **daily 03:30 UTC** (entry below says hourly); the cohort breakout is **day-range only** (not
+  acquisition-source/coach-role). **✅ FIXED (this change):** `services/analytics.js` now MERGES
+  `track` onto `window.ShapeAnalytics` (and `shapeBackend.js:3336` merges instead of replacing —
+  order-independent), so the 4 mobile events emit; the mobile carrier is now **consent-gated,
+  region-aware** — GPC + an explicit `shape.consent.v1` opt-out always block; with no choice yet it
+  **opt-INs for EEA/UK** (blocked until `accept` — the app has no mobile consent banner, so EEA
+  first-run is never tracked) and opt-OUTs elsewhere, mirroring the web shell's `Europe/*` EEA
+  detection (addresses a Codex review finding). Mobile rebuilt + `public/m` resynced. Remaining
+  (optional): the migration is live but unrecorded in `schema_migrations` — backfill if you want
+  the ledger clean; a proper mobile consent banner would let EEA opt in.
+- **Secret scan (gitleaks) required check — NOT done; `main` has NO branch protection at all.**
+  Classic protection is off; the 2 active rulesets ("Required Checks", "Updated Security") have
+  **empty branch targeting** (`include: []` → match nothing) and **neither contains a
+  `required_status_checks` rule** — `GET /repos/.../rules/branches/main` returns 0 rules. So
+  gitleaks AND Web + Mobile run on PRs but are **advisory, not required**. ⚠ The "required checks
+  gate `main`" claim in "How we work → Review stack" is therefore **inaccurate** — merges are not
+  check-gated today. **✅ FIXED (this change):** enabled **classic branch protection** on `main`
+  requiring `Web (typecheck + build)` · `Mobile (build + public/m sync)` · `Secret scan (gitleaks)`
+  (strict=false, **enforce_admins=true** — genuinely gates everyone incl. admins, since it's a
+  solo-admin repo). Merging on red is now actually impossible; emergency override = toggle off
+  "Include administrators" in Settings → Branches. (The two empty-targeted rulesets are left as-is.)
+- **Supabase Auth rate limits — app side DONE, dashboard owner-only.** The `/api/*` limiter +
+  `rate_limits` table + `check_rate_limit` RPC are live (RPC probe OK). But that guards only OUR
+  `/api/*` routes — NOT Supabase's native auth endpoints (signup/OTP/token) the SDK calls
+  directly. The real GoTrue limits (otp 60 / verify 100 / email_sent 30 / anonymous_users 5 /
+  token_refresh ~1800) are Management-API/dashboard config, **not readable via the MCP tools** —
+  owner must confirm/set in Auth → Rate Limits (`zznufekgjngecelwxndw`). **✅ RESOLVED — owner set
+  the dashboard values 2026-06-25.**
+- **Auth CAPTCHA — app side DONE (checklist text is STALE), dashboard owner-only.** The
+  login/signup Turnstile wiring IS complete across web (`login.jsx`), mobile (`turnstile.js` +
+  BSLogin), Next (`Turnstile.tsx` + login actions), and consultation — contradicting the
+  `src/lib/warroom.ts` "login/signup client wiring is a follow-up" note (should be updated).
+  Remaining: owner enables CAPTCHA in Auth → Settings + pastes the Turnstile secret + sets
+  `TURNSTILE_SECRET_KEY` env (else `verifyTurnstile` no-ops). Native caveat: add
+  `capacitor://localhost` to the Turnstile widget's allowed hostnames or native logins get rejected.
+  **✅ RESOLVED — owner enabled CAPTCHA 2026-06-25; the stale warroom.ts label corrected in #1409.**
+- **Net (RESOLVED 2026-06-25):** all four done — funnel mobile fix shipped (**#1407**), `main` branch
+  protection enabled (**gitleaks + Web + Mobile required**, enforce_admins on), and the owner set the
+  Auth rate-limit values + enabled CAPTCHA. All four flipped to `done` in `src/lib/warroom.ts` (**#1409**).
+
+### 2026-06-24 — Mobile: profile ⇄ community activity cards unified (#1406) + profile & chat redesigns (#1404, #1405)
+- **Activity cards unified (#1406).** The profile **"Personal activities"** feed now renders the
+  SAME rich card as the community chat feed. Extracted the community `ActivityCard` to a
+  module-level **`BSActivityCard({ a, ctx, hideAuthor })`** (community render verified
+  behavior-identical: author header · tier pill · co-sign · session-details · reaction verb).
+  The profile feeds it via `bsProfileCardFromPost` + the `itToCard`/`tupleToCard` demo adapters,
+  with **slim fallbacks** for the deep interaction surfaces (session-details / liker / send sheets
+  defer to the community feed via a toast). Per-card author header dropped on the profile (the
+  hero already identifies the person).
+  - **Review-stack fixes folded in** (CodeRabbit + Codex, 4 rounds; CodeRabbit **APPROVED**, CI
+    green): persist the long-press reaction word on both profiles (`actExpr` state + handler);
+    **gate demo activity for ALL signed-in profile views** — own *and* others' — so fabricated
+    field-notes are the signed-out preview only (honest-data; a signed-in view of any real profile
+    shows only that person's real `listByAuthor` posts, a demo persona shows "No activity yet.");
+    filter plain community/chat posts to `null` (no junk Note cards on the profile); preserve +
+    render media (photo / video / link); restore the owner **✎ edit** via `ctx.onEdit`; normalize
+    the comment count (`text || body`, body-only comments preserved).
+  - Also fixed: the **Team sub-tab nav-gap** (7px to match Feed) and the profile **PR-card title**
+    ("Back squat — new PR" — `itToCard` now extracts the lift from the demo tuple).
+- **#1404 — profile instrument-plate redesign** (hero redesign; removed the "Today's move" box;
+  thinned the profile name font). **#1405 — chat sub-tab auto-hide-on-scroll + bracket-frame
+  sub-tab chips + thinner tier hairline.**
+- Branch `feat/unify-activity-cards` **kept** (not deleted) per the new keep-branches convention
+  (post-merge cleanup is now: squash-merge → fast-forward `main` non-destructively; no branch delete).
+
+### 2026-06-23 — Funnel analytics ("find the biggest drop-off")
+- **Computed 7-step funnel** — signup → onboarding → first workout → first nutrition → paid → day 30 / 90 retention — sourced from event patterns in the product (milestone tables + milestones on `score_ledger`).
+- **Thin `analytics_events` table** — user_id + event name + minimal context properties, consent/GPC-gated at `/api/analytics/track` (client route). The 5 gap events from the funnel are consent-gated on the mobile app (same carrier as other telemetry).
+- **War Room "Funnel & drop-off" admin panel** — real-time computed 7-step funnel with biggest-drop highlighted (red severity badge), per-cohort breakout (acquisition source/coach role/day-range), and drill-down to per-user cohorts. Admin-only read via `get_funnel` RPC (service-role compute).
+- **12-month retention + daily purge** — `/api/cron/analytics-purge` (CRON_SECRET-gated) runs hourly, purges events >12 months; backups age out in 90 days. No alerts; silent no-op when events are absent.
+- **⚠ OWNER ACTION: run `supabase-migrations/2026-06-23-analytics-events.sql`** (the table + RPC + cron schedule); code degrades to an empty funnel (no crash) until applied. Docs: `docs/legal/data-retention-schedule.md` row, `docs/legal/ropa.md` section 3.9 (legitimate interests, admin-only, GPC-honored), `docs/WORKLOG.md` (this entry).
+
+### 2026-06-23 — Supabase Pro upgrade · War Room refresh · legal/standalone pages → canonical nav + footer + live search
+- **Supabase Pro** (org "Shape", upgraded 2026-06-23) unblocked two previously Free-gated,
+  deferred items. **Leaked-password protection** (HaveIBeenPwned) is now **ENABLED** (Auth →
+  Attack Protection) — verified by the `auth_leaked_password_protection` security advisor
+  clearing. **Supabase branch databases** (an isolated DB per staging/preview branch instead
+  of sharing production) are now available. Both War Room items updated; the staging caveat updated.
+- **War Room checklist refresh** (`src/lib/warroom.ts`): audited every `manual`/`pending`
+  item against this changelog + the repo and **checked off ~19 that were actually done** —
+  the migrations the WORKLOG records as APPLIED (notifications/push_tokens/activities,
+  store-redemptions+fulfillment, client-program-detail, user_goals, goal-milestone-points,
+  weigh-in-body-fat, client-goals-coach-read + client-weigh-ins, checkin-kit, universal-search,
+  member-playlists, usernames, channels, meal-notes bucket, community-photos, user_follows,
+  follow-requests, public-profile visibility/avatar) + the notifications→push DB webhook
+  (verified 200 end-to-end), and leaked-password protection once enabled. **255 done /
+  10 pending / 24 manual.** The rest are genuine
+  externals: native iOS/Android builds, Garmin/Spotify approvals, owner dashboard toggles
+  (Auth rate limits, CAPTCHA enable, leaked-password, Connect activation, gitleaks required
+  check), and counsel reviews.
+- **Legal + standalone pages now match the canonical site.** Every footer carries the new
+  legal pages (Code of conduct · Data & compliance · Consumer health data · Subprocessors);
+  the 6 legal pages + `contact` + `help` use the **canonical nav** (teal logo, lowercase tabs,
+  search circle, outlined Get-started, SHAPE▸Radio wordmark) and a **dark footer matching the
+  page** (single rule — the earlier double-line removed). Merged as **#1396** (footers) +
+  **#1397** (legal nav).
+- **Live site search works everywhere + facet avatars** (PR **#1398**). pageShell's `SiteSearch`
+  now **lazy-loads the Supabase client** — only 15/76 newdesign pages loaded `supabase.js`, so
+  search was dead on the rest — and results render the **facet gem avatar** (tier gradient,
+  photo/initials) instead of a circle. New `public/newdesign/siteSearch.js` brings the same
+  overlay (`search_shape_people` RPC + Nora concierge hit, XSS-escaped, lazy-loads Supabase) to
+  the standalone legal/contact/help pages. Legacy pre-`newdesign` root pages left alone (pending
+  retirement). `pageShell.jsx?v=20260623b`.
+
+### 2026-06-22 — Code of Conduct + strengthened ToS ban/enforcement rules (web + app)
+- Closes the **ToS-ban-rules follow-up** (raised during compliance Wave 3). Shape's Terms
+  Sec 12 already granted removal rights for 14 enumerated violations but referenced a
+  "code of conduct" that didn't exist; this builds the enforcement framework around it.
+- **New standalone `public/code-of-conduct.html`** (house style, 8 sections): who it applies
+  to + how it's incorporated into the Terms · community standards for everyone · coaches'
+  professional conduct (higher bar — credentials, scope, client safety/boundaries, deliver
+  what you sell, no off-platform fee-dodging, protect client data, no medical claims) ·
+  clients' conduct · safety (not an emergency service; no dangerous/illegal advice; 18+) ·
+  reporting & moderation (how to report, how we review — evidence + proportionality, possible
+  outcomes) · enforcement & ban tiers · a living-document/counsel closer.
+- **terms.html Sec 12 strengthened**: replaced the one-line "Process" para with a tiered
+  enforcement model — **warning → temporary suspension/restriction → permanent removal**
+  (proportionate) — plus a **zero-tolerance immediate-removal list** (threats/violence, sexual
+  misconduct/minors, fraud, illegal/controlled substances, endangering safety, credential
+  fraud, serious security abuse), a **coach higher-bar** clause, and a **no-ban-evasion /
+  re-registration** clause. **Sec 5** now incorporates the Code of Conduct by reference.
+- **Web↔app parity**: app `BSTermsPage` (shared by client + coach apps) gets a new "Code of
+  Conduct" summary entry + a rewritten Termination summary (tiers, immediate bans, no
+  re-registration, appeals). CoC linked from all legal-page footers (terms/privacy/
+  data-compliance/health-data-privacy/subprocessors) + Sec 5 + Sec 12.
+- **Drafted via a multi-agent workflow** (3 parallel drafters + an adversarial legal-consistency
+  reviewer). Applied the review fixes: single canonical Termination block, **softened the
+  ban-evasion language** (dropped a device-fingerprinting claim the Privacy Policy doesn't
+  disclose — limited to email/payment), merged out the redundant old "Process" paragraph, and
+  added the Sec 5 incorporation. All copy is **DRAFT pending legal/privacy counsel** before launch.
+- Verified: HTML tag-balance on the new + edited pages; mobile JSX parse-check; tsc (warroom).
+  Standalone legal pages have no `?v=` companion; the app change rebuilds `public/m`.
+- **MERGED as PR #1385** (CI + gitleaks + CodeRabbit + Codex green). CodeRabbit's one
+  substantive finding — the legal-page nav dropdowns were mouse-only — was fixed by opening
+  them on `:focus-within` as well as `:hover` (keyboard-accessible) across code-of-conduct /
+  terms / privacy / data-compliance. (Skipped its WORKLOG MD022 nit — the changelog uses tight
+  heading→bullet formatting by design.) Still DRAFT pending counsel before launch.
+
+### 2026-06-22 — Landing journey: Score counter climbs slower with scroll (follow-up)
+- Follow-up to the editorial-landing Score count-up: even with the ease-in (#1382), the number
+  rose too fast because an ease only redistributes the climb within a fixed scroll budget.
+  Increased the pinned journey track height **`1000vh → 1500vh`** (`index.html` `.jtrack`) so each
+  stage — including the Score count-up — spans ~50% more scroll; the number now climbs noticeably
+  slower as you scroll. Desktop only (the mobile journey is static `height:auto`); the quadratic
+  ease-in is kept. Merged as PR #1386. *(If only the Score stage should slow while the other
+  beats keep pace, that's a non-uniform stage-weighting change — a follow-up if wanted.)*
+
+### 2026-06-22 — Grocery list: web redesign ported from the app (ClientGrocery.html)
+- Brought the **mobile grocery redesign** (#1372) to the **website** grocery page so the two
+  match — the list is the hero, slimmer chrome:
+  - **Dropped the `TO BUY / HAVE / ALL` view filter** — every aisle now renders inline in one
+    scroll (checked items just dim + strike through), so the checklist is the primary surface
+    instead of being gated behind a buy/have toggle. Kept the search box (slimmed, full-width).
+  - **Slim one-line progress strip** — `{got}/{total} got · ~$X to go · {pct}%` + a thin fill
+    bar, above the list (replaces the heavy filter-pill row).
+  - **Unified action bar** — the Send-to-Instacart card now also carries **Save a copy**
+    (turns a read-only nutritionist plan into your own editable list, or duplicates a custom
+    one) + **Share** (native share sheet / clipboard), matching the app's one-bar layout. The
+    web-only "combine multiple lists into one Instacart batch" feature is preserved.
+- ClientGrocery.html renders `ClientGroceryPage` inline (it's a standalone page reached via
+  the Nutrition→Grocery tab; `ClientApp.html` has no grocery tab), so no `?v=` bump needed.
+  Removed the now-dead `FilterPill` component + `filter`/`toBuyCount` state. Inline-babel
+  parse-check clean. Closes the grocery-web-port follow-up.
+
+### 2026-06-22 — Compliance Waves 3+4 MERGED + migrations applied · review pass · logo cleanup
+- **PR #1381 (Waves 3 + 4) squash-merged to `main`** (`651af508`). The **three migrations
+  are APPLIED + verified on Supabase** (`consent_log` table w/ 2 owner policies ·
+  `account_deletions` table RLS-on/0-policies = service-role-only deny-all ·
+  `profiles.date_of_birth`/`over_18` + `set_over_18()` trigger). Security advisors after:
+  **0 ERROR** (the `account_deletions` no-policy + `set_over_18` search-path WARN are both
+  by-design). So Waves 3+4 are live end-to-end (legal docs are still DRAFT pending counsel).
+- **Full review stack ran** (CodeRabbit + Codex). Substantive findings addressed across 3
+  fix commits before merge: deletion now also purges the `coach-credentials` bucket + the
+  coach's `owner_id` rows (verified safe — none cascade from `auth.users`, none have inbound
+  FKs); deletion paginates the storage purge + requires the auth-user delete for an `ok:true`
+  (no "deleted" on a data-only purge); **18+ age gate hardened** (email `signUp` now *requires*
+  a valid DOB; phone account-creation tied to create-mode via `shouldCreateUser:isCreate`,
+  so creation always carries a DOB); GPC opt-out logged **per-user, only after a confirmed
+  insert**; export fetched with `cache:"no-store"` + double-submit guards; `privacy-request`
+  now 500s when the rights email can't be delivered (was a silent false-success);
+  privacy-request `<noscript>` + ARIA live region. Deliberately **kept service-role for the
+  deletion route** (7 purged tables incl. `user_goals`/health profile have no user DELETE
+  policy → an RLS client would silently fail to erase the most sensitive data) — documented.
+- **Logo case-collision resolved.** The repo tracked `public/SHAPE-logo-white.png` (the real
+  203 KB wordmark, referenced by nothing) AND `public/shape-logo-white.png` (a ~4 KB blank
+  placeholder, referenced by `radio.jsx`'s footer CTA) — two paths differing only by case, so
+  Windows showed a perpetual phantom "modified". Consolidated to one canonical
+  `public/shape-logo-white.png` holding the real wordmark + removed the uppercase duplicate.
+  Fixes the collision **and** the previously-blank radio-footer CTA logo.
+
+### 2026-06-22 — Global data-privacy compliance: Waves 3 + 4 (mechanisms + counsel docs)
+- **Makes Shape operable globally + in California** end-to-end. Built on Waves 1–2 (the
+  public + in-app legal docs: privacy.html · terms.html · data-compliance.html ·
+  subprocessors.html · health-data-privacy.html [WA My Health My Data Act] + the in-app
+  BSPrivacyPage/BSDataCompliancePage; canonical spec `docs/legal/compliance-spec.md`).
+  Waves 3 + 4 add the **working rights mechanisms** + the **counsel-review document set**,
+  shipped together as **ONE PR** (`compliance/wave3-mechanisms`) through the full review
+  stack. **⚠ Attorney + privacy-counsel review required before launch** — every legal doc
+  is marked DRAFT/illustrative.
+- **Data EXPORT** — `GET /api/account/export` (#1380, merged earlier; hardened over 4
+  CodeRabbit/Codex rounds): RLS-scoped, recursive `scrub()` strips `*token/*secret/*key/
+  *credential/^password` at every nesting level; correct owned-table list + chat history;
+  blob download. Wired everywhere: client Settings (`clientMeSettings.exportData`), **coach
+  Danger-zone** (`dashProfileExtras` → "Export my data", new this PR), and mobile
+  BSDataCompliancePage.
+- **Data DELETION** — `POST /api/account/delete`: `currentUser` + `createAdminClient`,
+  purges the user's owned rows across ~20 tables + 4 storage buckets
+  (progress-photos/community-photos/meal-notes/coach-media), writes an `account_deletions`
+  audit row, then `auth.admin.deleteUser`. **Preserves Stripe/tax records** (authoritative
+  in Stripe). Type-`DELETE` confirm on web (client + **coach**, new this PR) + mobile.
+- **Privacy RIGHTS intake** — public webform `public/privacy-request.html` (access · delete ·
+  correct · portability · opt-out · limit-sensitive · withdraw-consent · appeal · authorized
+  agent) → `POST /api/privacy-request` → emails `PRIVACY_EMAIL` (default
+  privacy@theshapecommunity.com) via `sendEmail`. Linked from privacy.html +
+  health-data-privacy.html.
+- **GPC** — `src/lib/gpc.ts` `gpcOptOut(request)` reads `sec-gpc:1`; middleware forwards
+  `x-gpc-optout`; `pageShell.jsx` consent IIFE honors `navigator.globalPrivacyControl`.
+  Shape doesn't sell/share so functionally a no-op, but detected server + client + recorded.
+- **Region-aware consent banner** — `pageShell.jsx` `shapeConsent()` IIFE (EEA via `Europe/*`
+  timezone, GPC honor, `consent_log` insert, safe DOM — no innerHTML). `?v=20260622b` across
+  69 loaders.
+- **18+ age gate** at signup — mobile `BSLogin` DOB field ("Shape is 18+") + 18+ validation
+  (throws `under_18`); `shapeBackend.signUp` writes `date_of_birth` metadata;
+  `2026-06-22-age-verification.sql` adds `date_of_birth`/`over_18` cols + `set_over_18()`
+  trigger.
+- **Migrations** (idempotent, RLS) — ⚠ **OWNER: run on Supabase**:
+  `2026-06-22-consent-log.sql` (append-only owner-RLS), `2026-06-22-age-verification.sql`,
+  `2026-06-22-account-deletions.sql` (service-role only). Code no-ops until applied.
+- **Wave 4 counsel docs** (`docs/legal/`, all "DRAFT — for privacy counsel"): `ropa.md`
+  (Art.30) · `dpia.md` (Art.35) · `transfer-impact-assessment.md` (SCCs/DPF) ·
+  `dpa-subprocessor-checklist.md` · `incident-response-plan.md` · `data-retention-schedule.md`
+  · `legitimate-interests-assessment.md` · `accessibility-and-pci-notes.md` (WCAG/SAQ A).
+- **Doc wording flipped live** (the previously hedged "rolling out" lines): privacy.html ×3
+  (export/delete in Settings, rights form link, consent banner), health-data-privacy.html ×2
+  (withdraw-consent + rights form), app BSPrivacyPage item '08' (export/delete in Settings →
+  Privacy & data; recognizes GPC) — removing the over-claims CodeRabbit flagged on #1379.
+- **War Room**: registered `/api/account/delete` + `/api/privacy-request`; added a full
+  "Data privacy & global compliance" checklist section (incl. OWNER/counsel launch gates) +
+  the two deferred follow-ups: **ToS strict ban rules + Code of Conduct** (terms.html Sec 12
+  has the base Termination clause) and the **grocery-list web port** of the 06-22 mobile
+  redesign.
+- `dashProfileExtras.jsx?v=20260622a` (4 loaders). privacy.html / health-data-privacy.html
+  are standalone root pages (no `?v=` companion). Verified: tsc · web + mobile JSX
+  parse-checks · mobile build + `public/m` resync.
+
+### 2026-06-22 — Dashboard pages: top gap + masthead aligns with the sidebar "Today" tab
+- The dashboard mains had **zero top padding** (`padding: "0 …px 80px"`), so the page
+  masthead (date eyebrow + greeting/title) butted right up under the fixed header while the
+  sidebar's first nav item ("Today") sat ~23px lower (aside 12px + link 11px). The content
+  read as cramped and misaligned with the nav.
+- Gave every dashboard `<main>` a **24px top padding** so the masthead's first line lines up
+  with the "Today" tab and there's a comfortable gap below the header. Applied to all three
+  shared shells, so it's uniform across **all profiles and all dashboard pages**:
+  `dashClient.jsx` (client Today) + `trainerDashboard.jsx` `DashPage` (every tab page —
+  Progress/Workouts/Nutrition/Library/Team/Community/Score/Habits/Goal · coach
+  Schedule/Clients/Programs/Business) + `DashShell` (coach Today). The Profile/Me page
+  (`livingProfilePage.jsx`) is intentionally left edge-to-edge — it renders the immersive
+  living profile with its own full-bleed `LV_BG` background (a top gap there would show a
+  seam of dashboard paper above the hero).
+- Verified in a headless browser (client Today at 1440px): the "MONDAY, JUN 22" eyebrow now
+  aligns with the "Today" tab. `trainerDashboard.jsx?v=20260622a` (44 loaders) +
+  `dashClient.jsx?v=20260622a` (8 loaders) bumped.
+
+### 2026-06-22 — Remove the redundant signed-in "Radio" nav link
+- The signed-in top nav (`pageShell.jsx` `PORTAL_NAV`) carried a left-nav **Radio**
+  tab (`Radio.html`) that duplicated the **SHAPE ▸ RADIO** wordmark link already in the
+  header on the right (rendered for both signed-in and signed-out states). Removed the
+  `Radio` item from all three role navs (client / trainer / nutritionist) — the right-side
+  wordmark is the single radio entry point now; signed-out marketing nav is unchanged, and
+  the footer Product "Radio" link stays.
+- `pageShell.jsx?v=20260622` bumped across the 69 loader pages.
+
+### 2026-06-22 — Mobile grocery redesign: checklist is the hero (less cluttered, more prominent) (#1372)
+- Reworked the mobile **grocery list** (`BSGrocery`, `iosAppBroadsheetClient.jsx`) per the
+  approved direction — the list itself is now the hero, the chrome is slimmed:
+  - **Source chip → a slim "List name ▾" selector** (colored dot + list name + item count
+    + ▾ on a hairline). Same list picker on tap; the big kind-label box is gone.
+  - **Heavy progress plate → a slim one-line strip** — dropped the SVG ring + 3 stacked
+    buttons for `{done}/{total} got · ~$X to go` + a thin fill line + `%`.
+  - **Aisle-tab filter → inline all-aisle checklist** — instead of one aisle at a time
+    behind a scrollable pill row, every aisle renders inline as a section header in one
+    scroll (struck-through + dimmed when its items are all checked). The checklist fills
+    the screen as the primary surface.
+  - **One bottom action bar** — Send to Instacart (primary) + Save to library + Share,
+    consolidated from the old progress card (the actions moved, none were lost).
+  - **Add-item form kept** (type one, or speak the whole list via `/api/nutrition/voice`).
+  - Removed the now-dead `activeAisle`/`setActiveAisle`/`resetAisle` state + the `RR`/`RC`
+    progress-ring constants.
+- **Home — a compact "Shop list" card** (teal `BSPlate`, under the habits plate) deep-links
+  straight to the grocery list: it sets a `window.__bsPendingGrocery` flag then opens the
+  Eat tab, and `BSClientEat` switches to the grocery view on mount (covers the unmounted-tab
+  case; the Eat tab isn't kept mounted). So the grocery list no longer "gets lost" inside Eat.
+- **Website port** of the same simplification is a follow-up (mobile first, as approved).
+- Verified: JSX parse-check (`sourceType: module`); mobile build + `public/m` resynced from
+  PowerShell (asset base `/m/`); CI green (Web + Mobile) on #1372.
+
+### 2026-06-21 — Push notifications activated (cloud pipeline) + dashboard role guard + more demo zero-out
+- **System push — cloud pipeline LIVE + verified end-to-end** (the code + native-plugin
+  side was already built). The owner set `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` /
+  `FCM_PRIVATE_KEY` + `PUSH_WEBHOOK_SECRET` in Vercel (Firebase project `shape-84d22`) and
+  created the **Supabase Database Webhook** (`notifications` INSERT → POST
+  `/api/push/dispatch`, header `x-push-secret`). **Verified with a test notification:** the
+  webhook fired → `/api/push/dispatch` returned **200** with the FCM creds recognized
+  (the route 401s on a bad/missing secret and returns `skipped:'fcm_not_configured'` when the
+  FCM env is absent — both confirmed during setup). So every notification Shape writes now
+  fans out to the dispatch route automatically.
+  - `src/lib/push.ts` already tolerates the multi-line FCM key (`.replace(/\\n/g,'\n')`), so
+    the service-account `private_key` pastes cleanly (no Apple-key-style DECODER headache).
+  - **Remaining (native, separate project):** upload the **APNs `.p8`** into Firebase
+    (Cloud Messaging → Apple app config) + ship the **native iOS App Store build** (Push
+    capability + `GoogleService-Info.plist`). Push only reaches a locked/unlocked iPhone from
+    that native build; until then there are no device tokens, so dispatch correctly no-ops
+    the send.
+- **Dashboard role guard (#1367)** — a trainer/nutritionist could land on the **client**
+  dashboard (root cause: the login "LOG IN AS" selector routes by the *selection*, not the
+  user's real role, and the SPAs had no guard). Each dashboard SPA
+  (`ClientApp`/`TrainerApp`/`NutritionistApp`) now runs an early `/api/me` check and
+  **redirects to the dashboard matching the active role**; signed-out preview + matching
+  roles are a no-op, and the hash is preserved (unknown hashes default to the SPA's home tab).
+- **Coach Schedule scrollbar (#1367)** — hid the horizontal scrollbar on the availability
+  grid (scroll still works) via a `.dash-hide-scroll` class + injected CSS.
+- **More demo-data zero-out (#1368)** — continuing the signed-in zero-out: the **community
+  feed** (`dashboardCommunity.jsx`, client + coach) shows only the real feed when signed in
+  (clean empty state when none; demo sample is signed-out preview only); the **client
+  Library** (`clientLibrary.jsx`) shows an empty library when signed in (web library-sync is
+  a follow-up); the **coach Goal pages** (`trainerGoalPage` + `nutritionistGoalPage`) render
+  a clean empty state (no demo goals/calculator/momentum) when signed in with no saved goals.
+
+### 2026-06-21 — Apple Music integration (web + mobile parity) + tolerant key parser; login & nav polish
+- **Apple Music is now a second music integration at full parity with Spotify — live
+  end-to-end** (#1360). Coaches import Apple Music playlists; members open/save them,
+  exactly like Spotify.
+  - **Web** (`trainerPlaylistsPage.jsx`, shared trainer+nutritionist; `clientPlaylist.jsx`):
+    the "New playlist" import offers **Pick from your Apple Music** (client-side MusicKit:
+    developer-token → `MK.configure` → authorize → POST `/apple-music/connect` → list the
+    coach's library playlists) alongside Spotify + paste-a-link; member **Connect Apple
+    Music** card. `importSoundtrack` infers the provider from the URL.
+  - **Mobile** (`iosAppBroadsheetClient.jsx`, `iosAppBroadsheetPros.jsx`, `shapeBackend.js`):
+    `BSPlaylistCard` is **provider-aware** (Apple glyph + red accent + "Open in Apple Music"
+    + save via MusicKit; Spotify unchanged via back-compat `spotifyUrl`); `BSProSoundtracks`
+    gains a **"Pick from your Apple Music"** library picker; `saveAppleMusicPlaylist` +
+    `listAppleMusicPlaylists` helpers (client-side MusicKit — Apple has **no** server
+    playlists route). `listAppleMusicPlaylists` requests `include=catalog` so library
+    playlists resolve to their shareable catalog URL; `canSave` only offers Save for a
+    catalog (`pl.`) URL.
+  - **Server** routes (`/api/integrations/apple-music/{developer-token,connect,disconnect}`)
+    + the `coach_soundtracks.provider='apple'` allowance already existed.
+  - **Activated:** owner created a MusicKit key (Key ID `252AT36GZM`, Team `6KA47K2J29`) and
+    set `APPLE_MUSIC_TEAM_ID/KEY_ID/PRIVATE_KEY` in Vercel. Token mints (ES256, HTTP 200),
+    verified live.
+- **Tolerant `.p8` key parser (#1365)** — the developer-token route threw OpenSSL
+  `1E08010C:DECODER` errors because Vercel's env field flattened the multi-line key
+  (stripped the line breaks). `privateKeyFromEnv` now rebuilds a valid PEM from **any** form
+  — proper multi-line, single-line `\n`-escaped, flattened, or bare base64 — by stripping the
+  markers/whitespace and re-wrapping the base64 at 64 cols. `.gitleaks.toml` allowlists the
+  route for its PEM-marker literals. The route is now immune to the notorious multi-line-env
+  pitfall; the existing (flattened) env value started working on deploy with no re-paste.
+- **Login degrade-open (#1361)** — the website login (`login.jsx`) hard-blocked on
+  "confirming you're human…" forever when Cloudflare Turnstile couldn't load (outage, a
+  network/VPN, or an extension blocking `challenges.cloudflare.com`). It now detects the
+  failure (render resolves null, or a 7s grace timer elapses with no token) and **degrades
+  open** — ungates submit, **omits** the token (so server-side Turnstile enforcement stays
+  authoritative), hides the broken widget, shows a calm "you can still sign in" notice.
+- **Login cleanup (#1362)** — removed the non-functional Google/Apple social buttons (no
+  OAuth wiring) + their dead `GoogleIcon`/`AppleIcon`/`SocialButton` components; compacted
+  the login card.
+- **Coach Playlists demo zero-out (#1363)** — the coach Playlists page always stacked the
+  demo seed ("Heavy Squat Day"/"Tempo Run" with fabricated listen counts) over real
+  soundtracks. Now signed-in coaches see only their own saved playlists (a clean zeroed empty
+  state when none); the demo shows for signed-out preview only (auth detected from the
+  `/api/coach/soundtracks` 200; one gate at the context-provided list covers Library/Matrix/
+  Builder).
+- **Removed redundant "More" nav dropdown (#1364)** — the signed-in top portal nav's "More ▾"
+  duplicated dashboard-sidebar tabs; removed from all three role navs (`pageShell.jsx`,
+  `?v=20260621` across 69 loaders). Orphaned items (client Playlists, coach Public-profile)
+  remain reachable by direct URL.
+- **Known Apple limit:** library playlists with no catalog equivalent aren't member-shareable
+  (Apple platform constraint) — coaches paste a shared/catalog link for those; the picker
+  resolves catalog-backed ones automatically.
+
+### 2026-06-20 — Interactive spotlight tour (website dashboards, Phase B)
+- The **website dashboards now have the same guided spotlight walkthrough** as the mobile
+  app (Phase A), reusing the identical engine — the page dims, a cutout spotlights a real
+  element, and a coachmark with Back/Next/Skip + progress dots walks the user through.
+- **Engine reuse, no new dependency:** `spotlightTour.js` (`window.SpotlightTour`) +
+  `spotlightGeom.mjs` are loaded as-is on the three dashboard SPAs
+  (`ClientApp.html` / `TrainerApp.html` / `NutritionistApp.html`); the website root is
+  `document.body`. The engine file is untouched from Phase A.
+- **Adapter — `public/newdesign/dashTour.js`** (`window.ShapeDashTour.{init,start}`): supplies
+  the website step lists and wiring. `navigate` sets the hash route (`#today` … `#profile`),
+  `anchor` queries `[data-tour="hero-<slug>"]`, and each step **falls back** to its nav item
+  `[data-tour="webtab-<slug>"]` so a missing/unmounted hero never stalls the tour. Role accents:
+  client `#2ee0c4`, trainer `#0a8f87`, nutritionist `#a07a2e`.
+- **Client tour:** Welcome → Today → Workouts → Nutrition → Grocery → Habits → Score →
+  Community → Profile → **Shape Radio finale** (CTA → `/newdesign/Radio.html`).
+  **Coach tours** (trainer/nutritionist): Welcome → Today → Clients → Programs/Plans →
+  Business → Community → Profile (no Radio finale; ends on Profile).
+- **`data-tour` hooks:** the shared sidebar nav items carry `webtab-<slug>`; one hero per
+  route. Client heroes sit on each page's lead element; coach heroes thread an optional
+  `tourHero` prop into the shared `DashPage`/`DashShell` mastheads so each coach route
+  anchors a **tight spotlight on its page title** (not a whole-page cutout). The community +
+  profile pages are shared components, so one hook covers both client and coach.
+- **Trigger & persistence (net-new on the website):** the pure predicate
+  `tourTrigger.mjs` `shouldAutoShowTour(createdAt, seen, now, maxAgeHours=24)` (TDD'd in
+  `tests/tour-trigger.test.mjs`) drives a **new-account auto-show** (<24h, once), mirrored in
+  `dashTour.js`. Persists `seen` to `localStorage('shape.webTourSeen')` +
+  `saveUserGoals('client_onboarding'|'coach_onboarding')`. **"Take a tour" replay** entries
+  added to the client Me settings (`clientMeSettings.jsx`) and coach profile extras
+  (`dashProfileExtras.jsx`) — both dispatch the `shape:startTour` event the adapter listens for.
+- Verified headlessly (Playwright, all three SPAs): the engine + adapter load, `shape:startTour`
+  fires the overlay, Next advances, the hash navigates per step, the cutout repositions, role
+  accents are correct (client teal / trainer teal / nutritionist gold), coach tours end on
+  Profile (no Radio). Phase A's known limitation stands: the engine doesn't auto-`scrollIntoView`
+  — fine here since the orientation anchors are top-of-route (post `scrollTo(0,0)`) or always-in-view nav.
+
+### 2026-06-20 — Interactive spotlight tour (mobile, Phase A): engine + mobile rework
+- The mobile onboarding tour is now an **interactive guided spotlight walkthrough** — the
+  screen dims, a cutout spotlights the real UI element, and a coachmark with Back/Next/Skip +
+  progress dots walks the user through the app.
+- **Engine:** `public/newdesign/spotlightGeom.mjs` (pure geometry — `cutoutRect`, `coachmarkPos`,
+  `stepBounds`; unit-tested in `tests/spotlight-geom.test.mjs`) +
+  `public/newdesign/spotlightTour.js` (`startTour(steps, opts)` → dim overlay + spotlight cutout
+  + coachmark + controls; configurable `root` container; degrades to a centered card when an
+  anchor is missing). Registered as `window.SpotlightTour`. No new dependency.
+- **Client tour** (`BSOnboardingTour` in `iosAppBroadsheetClient.jsx`): replaces the old
+  float-a-card implementation. Steps: Welcome → Home → Train → Eat → Grocery → Habits → Chat
+  → Me → **Shape Radio finale** (opens the in-app radio tab via `onNavigate('radio')`). Adds grocery + habits
+  steps that the original tour lacked. `data-tour` hooks on the shared tab bar (`BSTabBar`) +
+  one hero element per screen anchor the spotlight to real UI.
+- **Coach tour** (`BSProOnboardingTour` in `iosAppBroadsheetPros.jsx`): same engine, role-aware
+  accent (trainer teal / nutritionist gold). Steps: Welcome → Today → Clients → Plans → Chat → Me.
+  `data-tour` hooks on the coach tab bars + one hero per screen.
+- Reuses the existing trigger + persistence: new-account auto-show (<24h), `shape:startTour`
+  replay, `user_goals('client_onboarding'|'coach_onboarding')`, Me → App tour entry.
+- **Phase B** (website dashboard tours) is a separate later plan.
+
+### 2026-06-20 — Landing-page coach cards show real face photos (not initials)
+- The `index.html` coach grid (first 8 trainers, rendered from `coachDirectory.js`) showed
+  **initials gradient circles** instead of faces. Added a `photo: face(unsplashId)` to each
+  of the 8 directory entries — reusing the **same curated Unsplash portraits the marketplace
+  uses** (Maya/Leo/Diego/Jordan/Priya) plus three verified, visually-checked additions
+  (Anya/Kenji/Hana, which had no marketplace photo). The card render overlays the photo on the
+  initials (`<img onerror="this.remove()">` → graceful initials fallback) with a new
+  `.c .av img` rule (circle, `object-fit:cover`). **Cache-bust:** the `coachDirectory.js`
+  script tag had no `?v=` (so returning visitors would keep the old, photo-less version) —
+  now `?v=20260620`. Verified headless: all 8 avatars load (natW 200), none error-removed.
+- **Coach profile avatar too:** the index coach cards linked to `TrainerPublic.html?coach=…`,
+  which redirects to `MemberProfile.html?name=…&role=trainer` — **dropping the photo**, so the
+  Signal sigil derived initials ("JP"). The cards now link straight to
+  `MemberProfile.html?name=…&role=trainer&avatar=<photo>` (the same `&avatar=` the marketplace
+  passes), so a clicked coach's profile shows the real photo in the `LvPortrait` sigil. Verified
+  on the live preview (the photo loads in the sigil, not initials).
+- **Facet (gem) avatar shape:** the directory card avatars were plain **circles**; rebuilt them
+  as the app's **rounded-diamond facet gem** (matching `LvPortrait`) — a 45°-rotated rounded
+  square (`border-radius:27%`) with a per-card gradient frame + highlight, and an inset window
+  (`inset:4px`, `border-radius:23%`, `overflow:hidden`) holding the photo at 152% counter-rotated
+  (`rotate(-45deg)`) so the face is upright. Initials fall back inside the gem. Verified headless
+  (8 gems, `rotate(45deg)`, photo upright).
+
+### 2026-06-19 — Landing-page phone screenshots fit the frame (no crop, no gap)
+- The `index.html` "beat" phone mockups (`.vis`) used `aspect-ratio:320/716` on the frame
+  with `object-fit:cover`, so the screen aspect didn't match the screenshots — the
+  Community/chat shot (a 408×861 outlier vs the others' 600×1387) got its left/right edges
+  cropped ("Deadlift" → "eadlift"). **Fixed:** pinned the screen (`.vis .scr`) to the
+  screenshots' real `aspect-ratio:600/1387` (frame height now content-driven), and
+  normalized the odd chat capture to that aspect by padding it to **408×943** with a
+  background-matched off-white (`getapp-chat-v3.png`). All five phones now render their
+  screenshot edge-to-edge with **0% crop** (verified via headless geometry: every screen
+  aspect == its image's natural aspect).
+
+### 2026-06-19 — Security: sanitize the Music-tab playlist URL (stored XSS) + DB url guard
+- The new profile **Music tab** rendered the user-supplied `member_playlists.url`
+  straight into an anchor `href`, so a `javascript:`/`data:` URL would execute on click
+  (stored XSS — flagged by the automated commit security review). **Fixed:**
+  `livingDesktop.jsx` (`MusicBlock`) now only turns a URL into a link when it's `http(s)`
+  to a Spotify/Apple host (`safeMusicUrl`); anything else renders as a non-navigating row.
+  `livingDesktop.jsx?v=31`.
+- ✅ **Migration APPLIED (2026-06-19)** — defense-in-depth that covers the mobile open
+  path too:
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-member-playlists-url-guard.sql`
+  — a `NOT VALID` CHECK on `member_playlists.url` (`~* '^https?://'`) rejecting non-http(s)
+  schemes at the DB for all writers, without scanning existing rows.
+
+### 2026-06-19 — Verified coaches show their REAL certs on the profile (closes illustrative sub-data)
+- The living coach profile's **Certifications** list now renders a verified coach's
+  **actual submitted cert types** (from the credential-verification `cert_files`) instead
+  of demo certs. ✅ **Migration APPLIED (2026-06-19):**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-certs-public.sql`
+  — SECURITY DEFINER `get_coach_certs(p_user_id)` exposes ONLY cert type + number (never
+  the file paths), and ONLY for coaches whose credentials an admin approved + who carry the
+  public verified flag. `livingProfilePage.jsx` fetches it for verified coaches → `person.certs`
+  (`?v=20260619b`). Self-reported certs stay the profile default until verification (per Terms).
+- **Assessed the rest of the "illustrative sub-data" item:** the Signal **sigil competency
+  rings** are intentionally illustrative (practice focus, not a workout/PR metric — no real
+  source by design) and the **field-notes** feed already loads the author's real community
+  posts. So certs were the remaining wireable piece — now done.
+
+### 2026-06-19 — Website profile Music tab (parity with the mobile Music tab)
+- The desktop living profile (member Terrain + coach Signal, `livingDesktop.jsx`) gains a
+  **Music** tab — the profile owner's playlist library, fed by the existing
+  `get_member_playlists(p_user_id)` RPC (own → all incl. private with a lock label; others →
+  public only). Cards are provider-tinted (Spotify green / Apple red) with a ▶ Open link +
+  track count. Closes the "Website profile Music-tab parity" follow-up from the 2026-06-09
+  mobile Music tab. Display on web; the owner adds/manages from the app (web add is a
+  follow-up). `livingDesktop.jsx?v=30`; parse-check clean.
+
+### 2026-06-19 — User-set reminders: members schedule their own nudges (push spine)
+- **Members can now set their own reminders** to DO & LOG things — weigh-in, weekly
+  check-in, water, progress photo, or a custom label — each with a time + days of week.
+  Distinct from per-habit reminders (those stay on the Habits page). They ride the
+  existing notifications→push spine, so once push is activated they hit the lock screen.
+- ✅ **Migration APPLIED (2026-06-19):**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-user-reminders.sql`
+  — `user_scheduled_reminders` (owner-RLS; `kind`, `label`, `at_time` HH:MM, `days int[]`
+  0=Sun…6=Sat, `tz`, `enabled`, `last_fired_on` for dedupe). Idempotent. **Code no-ops
+  until applied.**
+- **Backend:** `GET/POST/DELETE /api/client/reminders` (owner-scoped CRUD; validates
+  kind/HH:MM/days). **Hourly cron** `/api/cron/reminders` (`vercel.json` `0 * * * *`,
+  `CRON_SECRET`): for each enabled reminder computes the member's LOCAL hour/weekday/date
+  in its tz (via `Intl`), and when the local hour matches `at_time` and today is in `days`,
+  fires ONE notification per local day (deduped via `last_fired_on`) through
+  `createNotification` → push webhook.
+- **UI:** a **"Your reminders"** manager in mobile Settings → Notifications (clients only,
+  `BSReminderManager` in `iosAppBroadsheetClient.jsx`) — add/edit/delete, kind chips,
+  `<input type=time>`, day toggles, per-reminder enable switch; `window.ShapeReminders`
+  (`shapeBackend.js`) CRUD helper (Bearer native / cookie `/m/` web, sends the device tz).
+- Verified: `tsc --noEmit` clean · mobile JSX + shapeBackend parse-check clean · mobile
+  build + `public/m` resynced. *Follow-up:* desktop-website Settings parity
+  (`clientMeSettings.jsx`); the per-reminder push still needs the global push activation
+  (FCM env + webhook) to leave the in-app bell.
+
+### 2026-06-19 — Coach credential verification: COI + certs → admin review → ✓ Verified badge
+- **Makes "vetted coaches" literally true.** A coach uploads proof of certification +
+  a Certificate of Insurance (COI), submits for review; an admin verifies in a queue;
+  on approval a **✓ Verified** badge shows on their marketplace card + living profile,
+  and a weekly cron nudges them before insurance/licenses expire. The badge concept was
+  already designed into the app (Terms clause + hero render slot) — this builds the
+  pipeline behind it.
+- ✅ **Migration APPLIED (2026-06-19):**
+  `raw.githubusercontent.com/cperry8800-droid/shape-app/main/supabase-migrations/2026-06-19-coach-credential-verification.sql`
+  — extends `provider_credentials` (NC1) with a document + review workflow
+  (`insurance_coi_path`, `cert_files jsonb`, `review_status`, `submitted_at`,
+  `reviewed_by/at`, `review_notes`); a PRIVATE **`coach-credentials`** bucket (PDF/DOC/
+  image, 10 MB, service-role upload + signed-URL read); a PUBLIC **`verified` + `verified_at`**
+  flag on `trainers`/`nutritionists` (the marketplace rows already public-read, so the
+  badge renders without exposing the private credential row); and a
+  `coach_credential_expiry_reminders` dedupe ledger. Idempotent. **All code no-ops until
+  applied.**
+- **Backend:** `POST /api/coach/credentials/document` (multipart COI/cert upload → bucket,
+  path recorded on the owner's credential row); extended `POST /api/coach/credentials`
+  with an `action:'submit'` branch (→ `review_status:'pending'`) and `GET` now returns
+  the review + verified state. **Admin queue** `/dashboard/credentials` (+ `actions.ts`,
+  mirrors the applications queue, `requireAdminUser` + service-role): pending/approved/
+  rejected/changes tabs, signed COI + cert links, license expiry flags; **Approve →**
+  sets `verified=true` on the coach's marketplace row(s) (a coach can hold both) + notifies
+  them; Reject revokes; Request-changes notifies with the note. **Weekly cron**
+  `/api/cron/credential-expiry` (Mon 08:00 UTC, `CRON_SECRET`): scans insurance + license
+  expirations inside 60 days, writes ONE never-shaming reminder per coach per credential
+  per month (deduped), riding the existing notifications→push spine.
+- **Verified flag is intentionally SEPARATE from application approval** (approval makes a
+  coach live; credential review grants the badge) — `publishProviderRow`'s update doesn't
+  touch `verified`/`verified_at`, so re-publishing preserves it.
+- **Coach-facing UI:** a new **Credentials & verification** card on the coach dashboard
+  profile (`dashProfileExtras.jsx`, rendered below the living profile on Trainer/
+  Nutritionist Profile) — status chip, COI upload, add-certification (type/number/file),
+  and Submit-for-review (gated on a COI being on file). **Badge render:** marketplace coach
+  cards (`marketplace.jsx`, reads `row.verified`) + the living coach-profile hero
+  (`livingProfilePage.jsx` fetches the coach's `verified` flag → `person.verified`; the
+  `livingDesktop.jsx` hero already had the `d.verified && <SpVerifiedDot/> Verified` slot).
+- Verified per change: `tsc --noEmit` clean · all 4 edited JSX parse-check clean · `?v=`
+  bumped (`dashProfileExtras 20260619`, `marketplace 6`, `livingProfilePage 20260619`,
+  `livingDesktop 29`). *Follow-up:* mobile marketplace/profile verified badge (web is the
+  primary discovery surface); a richer apply-time COI capture.
+
+### 2026-06-19 — Draggable + resizable dashboard widgets (GridStack) across all card tabs, all profiles
+- **The dashboard is now a movable, resizable grid.** Every card-style dashboard tab
+  renders its cards as GridStack widgets the user can **drag to reorder** (via a ⠿
+  handle in each card's chrome) and **resize** (via a flush corner triangle), with the
+  layout **persisted per role+tab** to `user_goals('dashboard_layout')`. Applies to all
+  three profiles (client · trainer · nutritionist); single-purpose pages (meal-plan
+  builders, workout lists, calendars, feeds, rosters, profiles) are deliberately left
+  alone.
+- **Engine — `public/newdesign/dashGrid.jsx`** (the `DashGrid` interop, vendored
+  GridStack 11.x at `/vendor/gridstack/`): GridStack owns layout (x/y/w/h); React
+  `createPortal`s each card's content into the grid-item node. Config `cellHeight:2 ·
+  margin:8 · float:true · handle:'.dash-drag-handle' · resizable se · column:12` with a
+  `breakpoints:[{w:768,c:1}]` 1-column mobile breakpoint. API:
+  `<DashGrid role tab widgets={[{key,title,size:'full'|'half',render}]} />`.
+  - **Tight content-fit:** GridStack's auto `sizeToContent` can't see React portals, so
+    heights are computed directly from the measured card height
+    (`h = ceil((cardH + 18) / cell)`, +18 = 16px item-content inset + 2px buffer) and the
+    whole ordered layout is applied atomically via `grid.load(layout, false)` (incremental
+    `grid.update` got re-cascaded by the float engine and scrambled card order). A
+    debounced **ResizeObserver** per card refits async content (fetch-rendered cards that
+    start null).
+  - **Flush resize triangle:** the card renders its own `.dash-rs` filled triangle inset
+    7px in the corner, while GridStack's `.ui-resizable-se` is made a transparent 28px
+    hit-area — so the affordance is pixel-flush and consistent on every card (the
+    decorative `.dash-plate--bracket::after` corner is hidden), with no scrollbars
+    (`overflow:hidden`).
+- **Tabs gridded** (each refactored to build a `widgets` list + render through `DashGrid`):
+  client **Today · Score · Habits · Progress · Workouts · Nutrition · Goal**; trainer &
+  nutritionist **Today · Score · Goal**. The two coach apps also gained the GridStack
+  vendor `<link>`/`<script>` (they loaded `dashGrid.jsx` but not the engine → empty grid).
+- **Verified on the preview** (Playwright, both 1280px desktop + 430px mobile) across all
+  9 newly-gridded tabs: correct widget count + order, no collapsed cards, resize triangle
+  flush (7px inset), and clean 1-column stacking (maxGap 0) at mobile width. Conditional
+  widgets (e.g. Progress check-in/photo-timeline, Workouts tonight) correctly hide when
+  signed-out. Console errors limited to benign demo-mode 401s.
+- All touched `.jsx` bumped to `?v=20260619a` across referencing HTML; on branch
+  `claude/dashboard-widgets` (PR #1353), ready to squash-merge to production.
 
 ### 2026-06-18 — Shape Score v2: momentum streak escalation (D) + weekly commitments (E)
 - **✅ FULLY LIVE (end of session):** the owner ran ALL migrations (Phase C accountability,

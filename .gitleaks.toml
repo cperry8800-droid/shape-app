@@ -28,4 +28,8 @@ paths = [
   # Setup guide that documents the Apple Music .p8 PRIVATE KEY *format* as a
   # placeholder (-----BEGIN PRIVATE KEY-----\n...), not a real key.
   '''(^|/)docs/INTEGRATIONS_SETUP\.md$''',
+  # Apple Music developer-token route constructs the PEM BEGIN/END markers to
+  # rebuild the key from process.env.APPLE_MUSIC_PRIVATE_KEY — the markers are
+  # literals for re-wrapping, no real key material is committed here.
+  '''(^|/)src/app/api/integrations/apple-music/developer-token/route\.ts$''',
 ]

@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 
 // Only these snapshot fields may be written from a device payload.
 const ALLOWED_FIELDS: (keyof SnapshotPatch)[] = [
-  'calories', 'avg_heart_rate', 'max_heart_rate', 'resting_hr', 'hrv_ms', 'sleep_hours', 'workout_minutes',
+  'calories', 'avg_heart_rate', 'max_heart_rate', 'resting_hr', 'hrv_ms', 'sleep_hours', 'workout_minutes', 'steps',
 ];
 
 type DayInput = { date?: string; patch?: Record<string, unknown> };
@@ -40,7 +40,10 @@ function cleanPatch(input: Record<string, unknown> | undefined): SnapshotPatch {
   if (!input) return patch;
   for (const field of ALLOWED_FIELDS) {
     const v = num(input[field]);
-    if (v !== null) (patch as Record<string, number>)[field] = v;
+    if (v === null) continue;
+    // steps is an integer count — never negative or fractional (a bad payload must
+    // not store an impossible total or fail the integer-column write).
+    (patch as Record<string, number>)[field] = field === 'steps' ? Math.max(0, Math.round(v)) : v;
   }
   return patch;
 }

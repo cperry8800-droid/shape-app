@@ -468,6 +468,7 @@ function TrainerProgramsPage() {
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
       <DashPage
+        tourHero="hero-programs"
         navItems={trainerNavItems("programs")}
         payoutCard={live
           ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }

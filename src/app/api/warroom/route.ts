@@ -10,13 +10,15 @@ import { buildWarRoomSnapshot } from '@/lib/warroom';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await requireAdminUser();
   } catch {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
   }
 
-  const snapshot = await buildWarRoomSnapshot();
+  const { searchParams } = new URL(request.url);
+  const cohortDays = Math.max(0, Number(searchParams.get('cohortDays') ?? '0') || 0);
+  const snapshot = await buildWarRoomSnapshot(cohortDays);
   return NextResponse.json(snapshot, { headers: { 'cache-control': 'no-store, max-age=0' } });
 }

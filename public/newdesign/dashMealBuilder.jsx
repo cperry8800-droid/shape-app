@@ -715,6 +715,7 @@ function NutritionistPlansPage() {
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
       <DashPage
+        tourHero="hero-plans"
         navItems={nutriNavItems("plans")}
         payoutCard={live
           ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }

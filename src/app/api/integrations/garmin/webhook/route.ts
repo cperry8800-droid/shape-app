@@ -38,6 +38,7 @@ type GarminDaily = {
   restingHeartRateInBeatsPerMinute?: number;
   averageStressLevel?: number;
   activeKilocalories?: number;
+  steps?: number;
 };
 type GarminSleep = {
   userId?: string;
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
   let snapshots = 0;
   let acts = 0;
 
-  // Dailies → resting HR / stress / active calories on the calendar day.
+  // Dailies → resting HR / stress / active calories / steps on the calendar day.
   for (const d of dailies) {
     const uid = resolve(d.userId);
     const date = d.calendarDate || dayFromEpoch(d.startTimeInSeconds);
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
         resting_hr: num(d.restingHeartRateInBeatsPerMinute),
         stress: num(d.averageStressLevel),
         calories: num(d.activeKilocalories) != null ? Math.round(d.activeKilocalories as number) : null,
+        steps: num(d.steps) != null && (d.steps as number) >= 0 ? Math.round(d.steps as number) : null,
       },
     });
     if (r.written) snapshots += 1;

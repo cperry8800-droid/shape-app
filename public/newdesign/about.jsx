@@ -23,11 +23,6 @@ function AboutHero() {
         <p style={{ fontFamily: serif, fontSize: 22, fontStyle: "italic", fontWeight: 300, letterSpacing: "-0.005em", color: "rgba(242,237,228,0.82)", margin: "44px auto 0", maxWidth: 760, lineHeight: 1.55 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
         </p>
-        {/* Connector cue down to the positioning section. */}
-        <div style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }} aria-hidden="true">
-          <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>The idea</span>
-          <span style={{ width: 1, height: 56, background: `linear-gradient(to bottom, transparent, ${TEAL})`, display: "block" }} />
-        </div>
       </div>
     </section>
   );
@@ -155,56 +150,6 @@ function AboutVision() {
         <p style={{ fontFamily: serif, fontSize: 19, fontStyle: "italic", color: "rgba(242,237,228,0.72)", textAlign: "center", maxWidth: 720, margin: "56px auto 0", lineHeight: 1.6 }}>
           Coaches bring the people. The people build the place. <em style={{ color: TEAL_BRIGHT }}>That's the whole idea.</em>
         </p>
-      </div>
-    </section>
-  );
-}
-
-function AboutPillars() {
-  const items = [
-    {
-      h: "Personal coaching, lower cost",
-      p: "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform. Your coach sets their own rate and gets paid directly.",
-    },
-    {
-      h: "A real community",
-      p: "Share your week if you want to — or don't. Either way, you can find tips, recipes, recommended coaches, and people who get what you're trying to do.",
-    },
-    {
-      h: "Shape Radio + the soundtrack",
-      p: "Ad-free mixes built for movement, included with every membership. Your coach can drop a playlist onto a workout and it plays right on the card.",
-    },
-    {
-      h: "Lifestyle, structured",
-      p: "Habit tracking, grocery lists that build themselves, meal plans you actually follow, Shape Score that reads the truth at the end of the week. Build the good ones. Break the bad ones.",
-    },
-    {
-      h: "Goals that are yours",
-      p: "Tell us what you're shaping toward — strength, weight, sleep, calm, a marathon, just feeling like yourself again. We help you plan around it and your coach holds the line.",
-    },
-    {
-      h: "Public if you want, private always",
-      p: "Your data is yours. Share your progress with the community when you feel like it. Keep it locked when you don't. There's no algorithm pushing you to overshare.",
-    },
-  ];
-  return (
-    <section style={{ padding: "72px 72px 44px" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 64 }}>
-          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>What you get</div>
-          <h3 style={{ fontFamily: serif, fontSize: "clamp(32px, 4.4vw, 56px)", letterSpacing: "-0.03em", fontWeight: 300, fontStyle: "italic", margin: 0, lineHeight: 1.02 }}>
-            One place for the <em style={{ fontStyle: "italic", fontWeight: 500, color: TEAL }}>whole loop</em>.
-          </h3>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 36, rowGap: 48 }}>
-          {items.map((it, i) => (
-            <div key={i} style={{ borderTop: `1px solid rgba(242,237,228,0.12)`, paddingTop: 22 }}>
-              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 14 }}>{String(i + 1).padStart(2, "0")}</div>
-              <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", fontWeight: 400, fontStyle: "italic", color: INK, lineHeight: 1.18, marginBottom: 14 }}>{it.h}</div>
-              <p style={{ fontFamily: serif, fontSize: 16, fontStyle: "italic", fontWeight: 300, letterSpacing: "-0.003em", color: "rgba(242,237,228,0.78)", lineHeight: 1.55, margin: 0 }}>{it.p}</p>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -350,7 +295,6 @@ function AboutPage() {
         <AboutHero />
         <AboutVision />
         <AboutLetter />
-        <AboutPillars />
         <AboutSignoff />
         <Footer />
       </div>

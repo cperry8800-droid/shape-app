@@ -81,6 +81,12 @@ const DPR_DEMO = (() => {
       { move: "Bench press", best: 200, bestReps: 3, unit: "lb", bestAt: dprAgo(40) },
       { move: "Overhead press", best: 135, bestReps: 5, unit: "lb", bestAt: dprAgo(61) },
     ],
+    lifts: [
+      { name: "Back squat", currentE1rm: 298, bestE1rm: 298, status: "progressing", unit: "lb", topSet: { load: 265, reps: 5 }, series: [255, 262, 270, 278, 285, 290, 298].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+      { name: "Bench press", currentE1rm: 218, bestE1rm: 222, status: "holding", unit: "lb", topSet: { load: 200, reps: 3 }, series: [210, 214, 222, 219, 216, 220, 218].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+      { name: "Deadlift", currentE1rm: 366, bestE1rm: 372, status: "stalled", unit: "lb", topSet: { load: 345, reps: 2 }, series: [372, 370, 368, 366, 367, 365, 366].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+      { name: "Overhead press", currentE1rm: 152, bestE1rm: 152, status: "building", unit: "lb", topSet: { load: 135, reps: 5 }, series: [148, 152].map((v, i, a) => ({ date: dprAgo(7 * (a.length - 1 - i)), e1rm: v })) },
+    ],
     measurements: [
       { site: "waist", unit: "cm", series: [{ on: dprAgo(56), value: 88 }, { on: dprAgo(28), value: 86 }, { on: dprAgo(2), value: 84 }] },
       { site: "chest", unit: "cm", series: [{ on: dprAgo(56), value: 104 }, { on: dprAgo(2), value: 103 }] },
@@ -128,6 +134,28 @@ function DprChart({ points, height = 180, color = DPR_TEAL, gradId = "g" }) {
       ))}
       <path d={area} fill={`url(#${gradId})`} />
       <path d={path} fill="none" stroke={color} strokeWidth="2" />
+    </svg>
+  );
+}
+
+// ── Strength / e1RM progression (web mirror of the mobile Strength page) ──
+const DPR_STR_STATUS = {
+  progressing: { c: DPR_GREEN, label: "Progressing" },
+  holding: { c: DPR_TEAL, label: "Holding" },
+  stalled: { c: DPR_AMBER, label: "Stalled" },
+  building: { c: DPR_INK50, label: "Building" },
+};
+// Tiny e1RM trend line for a per-lift row.
+function DprSpark({ points, color = DPR_TEAL }) {
+  const pts = (points || []).map(Number).filter((v) => isFinite(v));
+  if (pts.length < 2) return null;
+  const W = 72, H = 24, pad = 2;
+  const max = Math.max(...pts), min = Math.min(...pts), range = max - min || 1;
+  const step = (W - pad * 2) / (pts.length - 1);
+  const d = pts.map((v, i) => (i ? "L" : "M") + (pad + i * step).toFixed(1) + "," + (H - pad - ((v - min) / range) * (H - pad * 2)).toFixed(1)).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: "block" }} aria-hidden="true">
+      <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -274,7 +302,7 @@ function DprCheckinForm({ kit, onSaved }) {
   const lbl = { fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 8 };
 
   return (
-    <Card style={{ marginBottom: 20 }}>
+    <Card>
       <SectionTitle right={`WEEK OF ${kit.weekOf}`}>Weekly check-in</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px 24px", marginBottom: 16 }}>
         {CK_RATINGS.map(([k, label, c]) => (
@@ -333,6 +361,7 @@ function ClientProgressPage() {
   const [kit, setKit] = React.useState(null);
   const [photos, setPhotos] = React.useState(null);
   const [dash, setDash] = React.useState(null);
+  const [strength, setStrength] = React.useState(null);
   const [source, setSource] = React.useState(null); // null=loading · 'live' · 'demo'
   const [trend, setTrend] = React.useState("weight");
   const [reloadKey, setReloadKey] = React.useState(0);
@@ -341,14 +370,15 @@ function ClientProgressPage() {
     let on = true;
     const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     (async () => {
-      const [pg, ck, ph, db] = await Promise.all([
-        j("/api/client/progress"), j("/api/client/checkin-kit"), j("/api/client/progress-photos"), j("/api/client/dashboard"),
+      const [pg, ck, ph, db, st] = await Promise.all([
+        j("/api/client/progress"), j("/api/client/checkin-kit"), j("/api/client/progress-photos"), j("/api/client/dashboard"), j("/api/client/strength"),
       ]);
       if (!on) return;
       if (pg && pg.ok) setProgress(pg);
       if (ck && ck.ok) setKit(ck);
       if (ph && ph.ok) setPhotos(ph.photos || []);
       if (db && db.kpis) setDash(db);
+      if (st && st.ok) setStrength(st);
       setSource((pg && pg.ok) || (db && db.kpis) ? "live" : "demo");
     })();
     return () => { on = false; };
@@ -392,6 +422,7 @@ function ClientProgressPage() {
   // ── Below-the-fold data ──
   const series = live && progress && progress.series ? progress.series : DPR_DEMO.series;
   const prs = live ? ((progress && progress.prs) || []) : DPR_DEMO.prs;
+  const lifts = live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts;
   const activeTab = DPR_TREND_TABS.find((t) => t.k === trend) || DPR_TREND_TABS[0];
   const activeSeries = (series[activeTab.k] || []).map((s) => Number(s.value)).filter((v) => isFinite(v));
   const latestVal = activeSeries.length ? activeSeries[activeSeries.length - 1] : null;
@@ -422,6 +453,190 @@ function ClientProgressPage() {
 
   const fmtCmpDelta = (cmp, unit) => cmp ? <DprDeltaChip delta={cmp.delta} unit={unit} /> : null;
 
+  // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=progress),
+  // mirroring the client Score rollout. The DashPage hero (title/subtitle) + the demo band stay
+  // outside; only the card stack is gridded. The 8-weeks-ago lead trio sit side-by-side → "half";
+  // the consistency KPI strip stays ONE "full" widget; the trend chart + PR history (left column)
+  // + milestones (right column) become individual widgets; the check-in kit + photo timeline are
+  // conditional fulls.
+  const progressWidgets = [
+    { key: "weight", title: "Weight · then vs today", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span className="dash-eyebrow">Weight · {weightCmp ? dprThenLabel(weightCmp) + " vs today" : "the comparison"}</span>
+          {fmtCmpDelta(weightCmp, "lb")}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          {weightCmp
+            ? <DprThenNow then={weightCmp.then} now={weightCmp.now} unit="lb" fmt={(v) => Math.round(v * 10) / 10} />
+            : <DprCompareEmpty>Two weigh-ins at least two weeks apart start this comparison — log one at your weekly check-in below.</DprCompareEmpty>}
+        </div>
+      </div>
+    ) },
+
+    { key: "measurements", title: "Measurements · then vs today", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_AMBER, paddingLeft: 24 }}>
+        <span className="dash-eyebrow" style={{ color: DPR_AMBER }}>Measurements · then vs today</span>
+        <div style={{ marginTop: 12 }}>
+          {measCmps.length ? measCmps.map((m) => (
+            <div key={m.site} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+              <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_INK50 }}>{m.site}</span>
+              <span style={{ fontFamily: DPR_MONO, fontSize: 11.5 }}>
+                <span style={{ color: DPR_INK50 }}>{m.cmp.then.value}</span> → {m.cmp.now.value} <span style={{ color: DPR_INK50 }}>{m.unit}</span>
+              </span>
+              <DprDeltaChip delta={m.cmp.delta} unit={m.unit} />
+            </div>
+          )) : <DprCompareEmpty>Tape numbers compare here once two check-ins carry them — waist, hips, chest, arm, thigh, calf.</DprCompareEmpty>}
+        </div>
+      </div>
+    ) },
+
+    { key: "photos", title: "Photos · then vs today", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
+        <span className="dash-eyebrow">Photos · {photoPair ? photoPair.pose + " · then vs today" : "side by side"}</span>
+        <div style={{ marginTop: 12 }}>
+          {photoPair ? (
+            <div style={{ display: "flex", gap: 10 }}>
+              <DprPhotoTile url={photoPair.then.url} demo={!live} label={dprDate(photoPair.then.on)} />
+              <DprPhotoTile url={photoPair.now.url} demo={!live} label={"today · " + dprDate(photoPair.now.on)} />
+            </div>
+          ) : (
+            <DprCompareEmpty>Your second photo set unlocks this — the first one is the hardest, and future-you will want it. Attach them at check-in below.</DprCompareEmpty>
+          )}
+          <div style={{ fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 8 }}>Private · you + your coaches</div>
+        </div>
+      </div>
+    ) },
+
+    { key: "consistency", title: "Consistency · streaks & wins", size: "full", render: () => (
+      <div className="dash-plate dash-plate--tick" style={{ "--dac": DPR_GREEN, paddingLeft: 24 }}>
+        <span className="dash-eyebrow" style={{ color: DPR_GREEN }}>Consistency · streaks &amp; wins</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginTop: 12 }}>
+          {winStrip.map((m, i) => (
+            <div key={i}>
+              <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1 }}>{m.k}</div>
+              <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DPR_INK50, marginTop: 6 }}>{m.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) },
+
+    { key: "trend", title: "Trend", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": activeTab.color, paddingLeft: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <span className="dash-eyebrow" style={{ color: activeTab.color }}>{activeTab.label} · trend</span>
+          {latestVal != null && (
+            <span style={{ fontFamily: DPR_MONO, fontSize: 10, color: DPR_INK50 }}>
+              <span style={{ fontFamily: serif, fontSize: 19, color: activeTab.color }}>{activeTab.fmt(latestVal)}</span> {activeTab.unit}
+              {deltaVal != null && " · " + (deltaVal > 0 ? "+" : deltaVal < 0 ? "−" : "") + activeTab.fmt(Math.abs(deltaVal)) + " since start"}
+            </span>
+          )}
+        </div>
+        <div className="dash-ledger" style={{ "--dac": activeTab.color, margin: "9px 0 10px" }} />
+        {activeSeries.length >= 2 ? (
+          <DprChart points={activeSeries} color={activeTab.color} gradId={"g-" + activeTab.k} />
+        ) : (
+          <div style={{ padding: "40px 4px", textAlign: "center", color: DPR_INK50, fontSize: 13 }}>
+            {live ? "Log more " + activeTab.label.toLowerCase() + " data to draw this trend." : "Not enough data yet."}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+          {(availableTabs.length ? availableTabs : [DPR_TREND_TABS[0]]).map((t) => {
+            const on = trend === t.k;
+            return (
+              <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? t.color + "77" : "rgba(242,237,228,0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(242,237,228,0.18)") }}>{t.label}</button>
+            );
+          })}
+        </div>
+      </div>
+    ) },
+
+    { key: "prs", title: "PR history", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#c0533b", paddingLeft: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span className="dash-eyebrow" style={{ color: "#c0533b" }}>PR history · from your logged sets</span>
+          <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{prs.length ? prs.length + " lifts" : ""}</span>
+        </div>
+        <div className="dash-ledger" style={{ "--dac": "#c0533b", marginTop: 9 }} />
+        {prs.length ? prs.map((p, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+            <span style={{ color: DPR_GREEN, fontSize: 11 }}>▲</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.move}</div>
+              <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>{dprDate(p.bestAt)}{p.e1rm != null ? <span style={{ color: DPR_TEAL }}> · e1RM {Math.round(p.e1rm)}</span> : ""}</div>
+            </div>
+            <span style={{ fontFamily: serif, fontSize: 18 }}>{Math.round(p.best)} <span style={{ fontSize: 11, color: DPR_INK50 }}>{p.unit}</span></span>
+            <span style={{ fontFamily: DPR_MONO, fontSize: 10.5, color: DPR_TEAL }}>{p.bestReps != null ? "× " + p.bestReps : ""}</span>
+          </div>
+        )) : (
+          <div style={{ fontSize: 12.5, color: DPR_INK50, padding: "12px 0" }}>No logged sets yet — your heaviest lifts collect here as you train.</div>
+        )}
+      </div>
+    ) },
+
+    { key: "strength", title: "Strength · e1RM", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span className="dash-eyebrow" style={{ color: DPR_TEAL }}>Strength · estimated 1RM</span>
+          <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{lifts.length ? lifts.length + " lifts" : ""}</span>
+        </div>
+        <div className="dash-ledger" style={{ "--dac": DPR_TEAL, marginTop: 9 }} />
+        {lifts.length ? lifts.map((l, i) => {
+          const st = DPR_STR_STATUS[l.status] || DPR_STR_STATUS.building;
+          const e1 = l.currentE1rm != null ? Math.round(l.currentE1rm) : null;
+          const best = l.bestE1rm != null ? Math.round(l.bestE1rm) : null;
+          const trend = (l.series || []).map((s) => Number(s.e1rm));
+          const top = l.topSet;
+          return (
+            <div key={l.name || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{l.name}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: DPR_MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: st.c, border: "1px solid " + st.c, borderRadius: 999, padding: "2px 7px" }}>{st.label}</span>
+                  {top ? <span style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.04em", textTransform: "uppercase", color: DPR_INK50 }}>top {Math.round(top.load)} {l.unit} × {top.reps}</span> : null}
+                </div>
+              </div>
+              <div style={{ width: 72, opacity: trend.filter((v) => isFinite(v)).length >= 2 ? 1 : 0 }}><DprSpark points={trend} color={st.c} /></div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: serif, fontSize: 18, lineHeight: 1 }}>{e1 != null ? e1 : "—"} <span style={{ fontSize: 10, color: DPR_INK50 }}>e1RM</span></div>
+                {best != null && e1 != null && best > e1 ? <div style={{ fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.04em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>best {best}</div> : null}
+              </div>
+            </div>
+          );
+        }) : (
+          <div style={{ fontSize: 12.5, color: DPR_INK50, padding: "12px 0" }}>Log a few sets and your per-lift estimated 1RM, trend, and progression status appear here.</div>
+        )}
+      </div>
+    ) },
+
+    { key: "milestones", title: "Milestones · earned → next", size: "half", render: () => (
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_AMBER, paddingLeft: 24 }}>
+        <span className="dash-eyebrow" style={{ color: DPR_AMBER }}>Milestones · earned → next</span>
+        <div className="dash-ledger" style={{ "--dac": DPR_AMBER, margin: "9px 0 12px" }} />
+        <DprMilestoneTimeline rec={msRec} />
+      </div>
+    ) },
+
+    kit ? { key: "checkin", title: "Weekly check-in", size: "full", render: () => (
+      <DprCheckinForm kit={kit} onSaved={() => setReloadKey((k) => k + 1)} />
+    ) } : null,
+
+    (live && (photos || []).length > 0) ? { key: "phototimeline", title: "Photo timeline", size: "full", render: () => (
+      <Card>
+        <SectionTitle right="PRIVATE · YOU + YOUR COACHES">Photo timeline</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+          {(photos || []).slice(0, 12).map((p) => (
+            <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
+              <div style={{ height: 120, borderRadius: 10, border: "1px solid rgba(242,237,228,0.1)", background: `url(${p.url}) center/cover` }} />
+              <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DPR_INK50, textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
+            </a>
+          ))}
+        </div>
+      </Card>
+    ) } : null,
+  ].filter(Boolean);
+
   return (
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
@@ -432,151 +647,7 @@ function ClientProgressPage() {
         title="Progress"
         subtitle="Eight weeks ago next to today — then the receipts: your weight trend, PR history, and what you've banked."
       >
-        {/* ── THE LEAD: 8 weeks ago vs today ── */}
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr 1fr", gap: 16, alignItems: "stretch", marginBottom: 18 }}>
-          {/* Weight */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-              <span className="dash-eyebrow">Weight · {weightCmp ? dprThenLabel(weightCmp) + " vs today" : "the comparison"}</span>
-              {fmtCmpDelta(weightCmp, "lb")}
-            </div>
-            <div style={{ marginTop: 14 }}>
-              {weightCmp
-                ? <DprThenNow then={weightCmp.then} now={weightCmp.now} unit="lb" fmt={(v) => Math.round(v * 10) / 10} />
-                : <DprCompareEmpty>Two weigh-ins at least two weeks apart start this comparison — log one at your weekly check-in below.</DprCompareEmpty>}
-            </div>
-          </div>
-          {/* Measurements */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_AMBER, paddingLeft: 24 }}>
-            <span className="dash-eyebrow" style={{ color: DPR_AMBER }}>Measurements · then vs today</span>
-            <div style={{ marginTop: 12 }}>
-              {measCmps.length ? measCmps.map((m) => (
-                <div key={m.site} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
-                  <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_INK50 }}>{m.site}</span>
-                  <span style={{ fontFamily: DPR_MONO, fontSize: 11.5 }}>
-                    <span style={{ color: DPR_INK50 }}>{m.cmp.then.value}</span> → {m.cmp.now.value} <span style={{ color: DPR_INK50 }}>{m.unit}</span>
-                  </span>
-                  <DprDeltaChip delta={m.cmp.delta} unit={m.unit} />
-                </div>
-              )) : <DprCompareEmpty>Tape numbers compare here once two check-ins carry them — waist, hips, chest, arm, thigh, calf.</DprCompareEmpty>}
-            </div>
-          </div>
-          {/* Photos */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
-            <span className="dash-eyebrow">Photos · {photoPair ? photoPair.pose + " · then vs today" : "side by side"}</span>
-            <div style={{ marginTop: 12 }}>
-              {photoPair ? (
-                <div style={{ display: "flex", gap: 10 }}>
-                  <DprPhotoTile url={photoPair.then.url} demo={!live} label={dprDate(photoPair.then.on)} />
-                  <DprPhotoTile url={photoPair.now.url} demo={!live} label={"today · " + dprDate(photoPair.now.on)} />
-                </div>
-              ) : (
-                <DprCompareEmpty>Your second photo set unlocks this — the first one is the hardest, and future-you will want it. Attach them at check-in below.</DprCompareEmpty>
-              )}
-              <div style={{ fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 8 }}>Private · you + your coaches</div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Consistency strip — streaks and wins, never a percentage ── */}
-        <div className="dash-plate dash-plate--tick" style={{ "--dac": DPR_GREEN, paddingLeft: 24, marginBottom: 18 }}>
-          <span className="dash-eyebrow" style={{ color: DPR_GREEN }}>Consistency · streaks &amp; wins</span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginTop: 12 }}>
-            {winStrip.map((m, i) => (
-              <div key={i}>
-                <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1 }}>{m.k}</div>
-                <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DPR_INK50, marginTop: 6 }}>{m.l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, alignItems: "start", marginBottom: 18 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-            {/* ── Weight chart (trend switcher migrated) ── */}
-            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": activeTab.color, paddingLeft: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                <span className="dash-eyebrow" style={{ color: activeTab.color }}>{activeTab.label} · trend</span>
-                {latestVal != null && (
-                  <span style={{ fontFamily: DPR_MONO, fontSize: 10, color: DPR_INK50 }}>
-                    <span style={{ fontFamily: serif, fontSize: 19, color: activeTab.color }}>{activeTab.fmt(latestVal)}</span> {activeTab.unit}
-                    {deltaVal != null && " · " + (deltaVal > 0 ? "+" : deltaVal < 0 ? "−" : "") + activeTab.fmt(Math.abs(deltaVal)) + " since start"}
-                  </span>
-                )}
-              </div>
-              <div className="dash-ledger" style={{ "--dac": activeTab.color, margin: "9px 0 10px" }} />
-              {activeSeries.length >= 2 ? (
-                <DprChart points={activeSeries} color={activeTab.color} gradId={"g-" + activeTab.k} />
-              ) : (
-                <div style={{ padding: "40px 4px", textAlign: "center", color: DPR_INK50, fontSize: 13 }}>
-                  {live ? "Log more " + activeTab.label.toLowerCase() + " data to draw this trend." : "Not enough data yet."}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-                {(availableTabs.length ? availableTabs : [DPR_TREND_TABS[0]]).map((t) => {
-                  const on = trend === t.k;
-                  return (
-                    <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? t.color + "77" : "rgba(242,237,228,0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(242,237,228,0.18)") }}>{t.label}</button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── PR history ── */}
-            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#c0533b", paddingLeft: 24 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-                <span className="dash-eyebrow" style={{ color: "#c0533b" }}>PR history · from your logged sets</span>
-                <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{prs.length ? prs.length + " lifts" : ""}</span>
-              </div>
-              <div className="dash-ledger" style={{ "--dac": "#c0533b", marginTop: 9 }} />
-              {prs.length ? prs.map((p, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
-                  <span style={{ color: DPR_GREEN, fontSize: 11 }}>▲</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.move}</div>
-                    <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50, marginTop: 2 }}>{dprDate(p.bestAt)}</div>
-                  </div>
-                  <span style={{ fontFamily: serif, fontSize: 18 }}>{Math.round(p.best)} <span style={{ fontSize: 11, color: DPR_INK50 }}>{p.unit}</span></span>
-                  <span style={{ fontFamily: DPR_MONO, fontSize: 10.5, color: DPR_TEAL }}>{p.bestReps != null ? "× " + p.bestReps : ""}</span>
-                </div>
-              )) : (
-                <div style={{ fontSize: 12.5, color: DPR_INK50, padding: "12px 0" }}>No logged sets yet — your heaviest lifts collect here as you train.</div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Milestone timeline ── */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_AMBER, paddingLeft: 24 }}>
-            <span className="dash-eyebrow" style={{ color: DPR_AMBER }}>Milestones · earned → next</span>
-            <div className="dash-ledger" style={{ "--dac": DPR_AMBER, margin: "9px 0 12px" }} />
-            <DprMilestoneTimeline rec={msRec} />
-          </div>
-        </div>
-
-        {/* ── The weekly ritual (migrated check-in kit) — feeds everything above ── */}
-        {kit && (
-          <React.Fragment>
-            <div style={{ fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: DPR_INK50, margin: "4px 0 12px" }}>
-              The weekly ritual — two minutes that sharpen everything above
-            </div>
-            <DprCheckinForm kit={kit} onSaved={() => setReloadKey((k) => k + 1)} />
-          </React.Fragment>
-        )}
-
-        {/* Photo timeline — every set, newest first */}
-        {live && (photos || []).length > 0 && (
-          <Card style={{ marginBottom: 20 }}>
-            <SectionTitle right="PRIVATE · YOU + YOUR COACHES">Photo timeline</SectionTitle>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
-              {(photos || []).slice(0, 12).map((p) => (
-                <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
-                  <div style={{ height: 120, borderRadius: 10, border: "1px solid rgba(242,237,228,0.1)", background: `url(${p.url}) center/cover` }} />
-                  <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DPR_INK50, textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
-                </a>
-              ))}
-            </div>
-          </Card>
-        )}
+        <DashGrid role="client" tab="progress" widgets={progressWidgets} />
       </DashPage>
     </React.Fragment>
   );

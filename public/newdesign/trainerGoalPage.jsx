@@ -120,8 +120,13 @@ function MomentumEditModal({ momentum, onClose, onSave }) {
   );
 }
 
+let _goalSeq = 0;
+function ensureGoalIds(goals) {
+  return (goals || []).map(g => (g && g.id) ? g : { ...g, id: "g" + (Date.now().toString(36)) + "-" + (_goalSeq++) });
+}
+
 function TrainerGoalPage() {
-  const [state, setState] = React.useState(DEFAULT_GOALS_STATE);
+  const [state, setState] = React.useState(() => ({ ...DEFAULT_GOALS_STATE, goals: ensureGoalIds(DEFAULT_GOALS_STATE.goals) }));
   const [signedIn, setSignedIn] = React.useState(false);
   const [toast, setToast] = React.useState(null);
   const [editGoalIdx, setEditGoalIdx] = React.useState(null); // number | 'new' | null
@@ -136,7 +141,10 @@ function TrainerGoalPage() {
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("trainer");
       if (remote && Object.keys(remote).length > 0) {
-        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) } }));
+        setState(s => ({ ...s, ...remote, goals: ensureGoalIds(remote.goals || s.goals), calc: { ...s.calc, ...(remote.calc || {}) } }));
+      } else {
+        // Signed in with no saved goals → a clean empty state, not the demo goals.
+        setState(s => ({ ...s, goals: [], momentum: [], calc: { rate: 0, spw: 0, prog: 0, workoutSales: 0, currentWeekly: 0 } }));
       }
     })();
   }, []);
@@ -155,8 +163,8 @@ function TrainerGoalPage() {
 
   function saveGoal(g) {
     const goals = [...state.goals];
-    if (editGoalIdx === "new") goals.push(g);
-    else goals[editGoalIdx] = g;
+    if (editGoalIdx === "new") goals.push(ensureGoalIds([g])[0]);
+    else goals[editGoalIdx] = { ...goals[editGoalIdx], ...g };
     setEditGoalIdx(null);
     persist({ ...state, goals });
   }
@@ -178,43 +186,32 @@ function TrainerGoalPage() {
   const currentNet = currentWeekly * (1 - PLATFORM_FEE_RATE);
   const paceDelta = weekly - currentNet;
 
-  return (
-    <DashPage
-      navItems={trainerNavItems("goal")}
-      payoutCard={trainerPayoutCard}
-      eyebrow="YOUR GOALS · Q2 2026"
-      title="Goal"
-      subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
-      actions={<>
-        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
-        <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
-      </>}
-    >
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {goals.map((g, i) => {
-          const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
-          const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
-          const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
-          return (
-            <Card key={i} style={{ padding: 26, position: "relative" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
-                <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
-              </div>
-              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
-                <span>{curF}</span><span>{tgtF}</span>
-              </div>
-              <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
-                <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
-              </div>
-              <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Card style={{ marginTop: 20 }}>
+  // Each card below becomes a draggable/resizable DashGrid widget (role=trainer, tab=goal),
+  // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
+  // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
+  const widgets = goals.map((g, i) => ({ key: "goal-" + (g.id || i), title: g.t || "Goal", size: "half", render: () => {
+    const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
+    const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
+    const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
+    return (
+      <Card style={{ padding: 26, position: "relative" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
+          <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
+        </div>
+        <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
+          <span>{curF}</span><span>{tgtF}</span>
+        </div>
+        <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
+          <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
+        </div>
+        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+      </Card>
+    );
+  } })).concat([
+    { key: "calc", title: "Revenue calculator", size: "full", render: () => (
+      <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
           <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
@@ -264,8 +261,9 @@ function TrainerGoalPage() {
           </div>
         </div>
       </Card>
-
-      <Card style={{ marginTop: 20 }}>
+    ) },
+    { key: "momentum", title: "Momentum", size: "full", render: () => (
+      <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
           <Chip onClick={() => setEditMomentum(true)}>EDIT</Chip>
@@ -280,6 +278,22 @@ function TrainerGoalPage() {
           ))}
         </div>
       </Card>
+    ) },
+  ]);
+
+  return (
+    <DashPage
+      navItems={trainerNavItems("goal")}
+      payoutCard={trainerPayoutCard}
+      eyebrow="YOUR GOALS · Q2 2026"
+      title="Goal"
+      subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
+      actions={<>
+        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+      </>}
+    >
+      <DashGrid role="trainer" tab="goal" widgets={widgets} />
 
       {editGoalIdx != null && (
         <GoalEditModal

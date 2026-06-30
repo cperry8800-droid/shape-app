@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy request — Shape</title>
+<meta name="description" content="Exercise your privacy rights — access, delete, correct, port, or opt out of your Shape data.">
+<link rel="canonical" href="https://theshapecommunity.com/privacy-request.html">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1612">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{--paper:#1a1612;--ink:#f2ede4;--teal:#0ac5a8;--teal-bright:#2ee0c4;--serif:'Fraunces',serif;--sans:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:var(--teal-bright);text-decoration:none}
+  ::selection{background:var(--teal);color:var(--paper)}
+  .nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(26,22,18,0.45);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(242,237,228,0.08)}
+  .nav-inner{max-width:1480px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding:16px 48px}
+  .nav-logo img{height:94px;width:auto;display:block}
+  .nav-cta a{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:rgba(242,237,228,0.72)}
+  .nav-spacer{height:85px}
+  .wrap{max-width:680px;margin:0 auto;padding:60px 24px 100px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:18px}
+  h1{font-family:var(--serif);font-size:clamp(40px,6vw,68px);letter-spacing:-.03em;font-weight:400;margin:0 0 16px;line-height:.98}
+  h1 em{font-style:italic;color:var(--teal)}
+  .lede{font-size:16px;color:rgba(242,237,228,.75);line-height:1.65;margin:0 0 34px}
+  .lede a{border-bottom:1px solid rgba(46,224,196,.35)}
+  label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(242,237,228,.55);margin:0 0 7px}
+  .field{margin-bottom:20px}
+  input,select,textarea{width:100%;background:rgba(242,237,228,0.04);border:1px solid rgba(242,237,228,0.14);color:var(--ink);padding:12px 14px;border-radius:8px;font-family:var(--sans);font-size:14.5px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--teal)}
+  select{color-scheme:dark}
+  textarea{min-height:96px;resize:vertical}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .check{display:flex;align-items:flex-start;gap:10px;margin-bottom:24px;font-size:14px;color:rgba(242,237,228,.75);line-height:1.5}
+  .check input{width:auto;margin-top:3px}
+  .btn{background:var(--teal);color:var(--paper);border:0;padding:14px 26px;border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;letter-spacing:.02em}
+  .btn:disabled{opacity:.5;cursor:default}
+  .note{margin-top:26px;font-size:13px;color:rgba(242,237,228,.5);line-height:1.6}
+  .msg{margin-top:20px;padding:16px 18px;border-radius:10px;font-size:14.5px;line-height:1.55;display:none}
+  .msg.ok{display:block;background:rgba(10,197,168,.1);border:1px solid rgba(10,197,168,.3);color:var(--teal-bright)}
+  .msg.err{display:block;background:rgba(224,120,86,.1);border:1px solid rgba(224,120,86,.35);color:#e0936f}
+  @media (max-width:640px){.nav-inner{padding:12px 18px}.nav-spacer{height:68px}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav class="nav"><div class="nav-inner">
+  <a class="nav-logo" href="newdesign/index.html" aria-label="Shape"><img src="/shape-logo-new-white.png?v=3" alt="Shape"></a>
+  <div class="nav-cta"><a href="/privacy.html">Privacy policy</a></div>
+</div></nav>
+<div class="nav-spacer"></div>
+
+<div class="wrap">
+  <div class="eyebrow">Your data</div>
+  <h1>Make a privacy <em>request.</em></h1>
+  <p class="lede">Exercise your rights over the data Shape holds about you. Members can also export or delete data directly in <strong>Settings</strong>. We verify your identity before acting and respond within the time the law requires (California: acknowledge within 10 business days, respond within 45; GDPR &amp; other states: within one month). See our <a href="/privacy.html">Privacy Policy</a> and <a href="/health-data-privacy.html">Consumer Health Data Policy</a>.</p>
+
+  <noscript>
+    <p class="note" style="color:#e0936f">This form needs JavaScript to submit. With JavaScript disabled, please email your request to <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a> — include the type of request (access, delete, correct, port, opt out, withdraw consent, or appeal) and the email on your account, and we'll verify and respond within the time the law requires.</p>
+  </noscript>
+  <form id="pr-form" novalidate>
+    <div class="field">
+      <label for="type">What would you like to do?</label>
+      <select id="type" name="type" required>
+        <option value="access">Access — get a copy of my data</option>
+        <option value="delete">Delete — erase my account &amp; data</option>
+        <option value="correct">Correct — fix inaccurate data</option>
+        <option value="portability">Portability — receive my data in a portable format</option>
+        <option value="opt-out">Opt out of sale / sharing / targeted ads</option>
+        <option value="limit-sensitive">Limit use of my sensitive information</option>
+        <option value="withdraw-consent">Withdraw a consent</option>
+        <option value="appeal">Appeal a previous decision</option>
+        <option value="other">Something else</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="field"><label for="email">Your email (on your account)</label><input id="email" name="email" type="email" required placeholder="you@example.com"></div>
+      <div class="field"><label for="name">Name (optional)</label><input id="name" name="name" type="text" placeholder="Full name"></div>
+    </div>
+    <div class="field"><label for="region">Your state / country (optional)</label><input id="region" name="region" type="text" placeholder="e.g. California, or UK"></div>
+    <div class="field"><label for="details">Details (optional)</label><textarea id="details" name="details" placeholder="Anything that helps us locate your records or understand your request."></textarea></div>
+    <label class="check"><input id="agent" type="checkbox"> I am an authorized agent making this request on someone else's behalf (we may ask for proof of authorization).</label>
+    <button class="btn" type="submit">Submit request</button>
+    <div id="msg" class="msg" role="status" aria-live="polite"></div>
+  </form>
+
+  <p class="note">Prefer email? Write to <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. If we deny a request you may appeal here; if an appeal is denied you may contact your state attorney general or, in the EEA/UK, your data protection authority.</p>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById("pr-form");
+  var msg = document.getElementById("msg");
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var btn = form.querySelector("button[type=submit]");
+    msg.className = "msg";
+    var payload = {
+      type: document.getElementById("type").value,
+      email: document.getElementById("email").value.trim(),
+      name: document.getElementById("name").value.trim(),
+      region: document.getElementById("region").value.trim(),
+      details: document.getElementById("details").value.trim(),
+      authorizedAgent: document.getElementById("agent").checked,
+    };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email)) {
+      msg.className = "msg err"; msg.textContent = "Please enter a valid email so we can verify and respond."; return;
+    }
+    btn.disabled = true; btn.textContent = "Submitting…";
+    fetch("/api/privacy-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          form.reset();
+          msg.className = "msg ok";
+          msg.textContent = "Request received. We'll verify your identity and respond within the required timeframe at the email you gave.";
+        } else {
+          msg.className = "msg err";
+          msg.textContent = (res.d && res.d.error) || "Couldn't submit. Email privacy@theshapecommunity.com directly.";
+        }
+      })
+      .catch(function () { msg.className = "msg err"; msg.textContent = "Network error. Email privacy@theshapecommunity.com directly."; })
+      .finally(function () { btn.disabled = false; btn.textContent = "Submit request"; });
+  });
+})();
+</script>
+</body>
+</html>

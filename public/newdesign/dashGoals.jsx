@@ -386,6 +386,65 @@ function ClientGoalsPage() {
     return dgoStateView(p).c === DGO_INK50 ? "rgba(242,237,228,0.35)" : dgoStateView(p).c;
   };
 
+  // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=goal),
+  // mirroring the client Score rollout. The DashPage hero stays as the page header; only
+  // the card stack is gridded. Each goal is its own half-width widget; the empty state is a
+  // single full-width widget when there are no goals.
+  const goalWidgets = goals.length
+    ? goals.map((g) => ({ key: "goal-" + g.id, title: g.label || "Goal", size: "half", render: () => (
+        <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": accentFor(g), paddingLeft: 24 }}>
+          <DashGoalCard goal={g} />
+        </div>
+      ) }))
+    : [{ key: "goal-empty", title: "Goals", size: "full", render: () => (
+        <div className="dash-plate dash-plate--tick" style={{ "--dac": DGO_TEAL, paddingLeft: 24 }}>
+          <div className="dash-eyebrow">Goals</div>
+          <div style={{ fontFamily: serif, fontSize: 22, margin: "8px 0 6px" }}>Nothing on the board yet.</div>
+          <div style={{ fontSize: 13, color: DGO_INK50, lineHeight: 1.55, maxWidth: 520 }}>
+            Goals are set with your coach so the target, the pace, and the plan all agree. Ask in your next session — or message them now.
+          </div>
+          <button onClick={() => dashMessageClient("", "client", "Could we set up my goals? I want a target with a date on it.")} style={{ marginTop: 12, fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer" }}>Message your coach</button>
+        </div>
+      ) }];
+
+  const widgets = goalWidgets.concat([
+    { key: "projection", title: "How the projection works", size: "half", render: () => (
+      <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "18px 20px" }}>
+        <div className="dash-eyebrow">How the projection works</div>
+        <div style={{ fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.6, marginTop: 9 }}>
+          Each date is your pace over the last 8 weeks of entries, run forward from your latest one — not a promise, a trajectory.
+          It firms up with every weigh-in and check-in, and your coaches see the same number. If a projection slips week-over-week, they get nudged before it becomes a month.
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 13, flexWrap: "wrap" }}>
+          <button onClick={() => setLogOpen(true)} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Log weigh-in</button>
+          <a href="ClientProgress.html" style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 16px", textDecoration: "none" }}>Weekly check-in →</a>
+        </div>
+      </div>
+    ) },
+    { key: "share", title: "Share with your coaches", size: "half", render: () => (
+      <div className="dash-plate" style={{ "--dac": share ? DGO_TEAL : "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 500 }}>Share with your coaches</div>
+            <div style={{ fontSize: 11.5, color: DGO_INK50, lineHeight: 1.45, marginTop: 3 }}>
+              {share ? "Your coaches see your self-set goals and weigh-in trend." : "Private — coaches only see the goals they set themselves."}
+            </div>
+          </div>
+          <button onClick={toggleShare} role="switch" aria-checked={share} aria-label="Share goals with coaches"
+            style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 999, border: 0, cursor: "pointer", padding: 3, background: share ? DGO_TEAL : "rgba(242,237,228,0.18)", display: "flex", justifyContent: share ? "flex-end" : "flex-start", alignItems: "center" }}>
+            <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#14110e", display: "block" }} />
+          </button>
+        </div>
+      </div>
+    ) },
+    why ? { key: "why", title: "Your why", size: "half", render: () => (
+      <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
+        <div className="dash-eyebrow">Your why</div>
+        <div style={{ fontSize: 12.5, fontStyle: "italic", color: "rgba(242,237,228,0.75)", lineHeight: 1.6, marginTop: 8 }}>“{why}”</div>
+      </div>
+    ) } : null,
+  ]).filter(Boolean);
+
   return (
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
@@ -396,63 +455,7 @@ function ClientGoalsPage() {
         title="Goals"
         subtitle="Where you're headed and what the current pace says. Your coaches set these — every check-in and weigh-in sharpens the projection."
       >
-        {goals.length ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginBottom: 18 }}>
-            {goals.map((g) => (
-              <div key={g.id} className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": accentFor(g), paddingLeft: 24 }}>
-                <DashGoalCard goal={g} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="dash-plate dash-plate--tick" style={{ "--dac": DGO_TEAL, paddingLeft: 24, marginBottom: 18 }}>
-            <div className="dash-eyebrow">Goals</div>
-            <div style={{ fontFamily: serif, fontSize: 22, margin: "8px 0 6px" }}>Nothing on the board yet.</div>
-            <div style={{ fontSize: 13, color: DGO_INK50, lineHeight: 1.55, maxWidth: 520 }}>
-              Goals are set with your coach so the target, the pace, and the plan all agree. Ask in your next session — or message them now.
-            </div>
-            <button onClick={() => dashMessageClient("", "client", "Could we set up my goals? I want a target with a date on it.")} style={{ marginTop: 12, fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer" }}>Message your coach</button>
-          </div>
-        )}
-
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "start" }}>
-          {/* How the projection works + the data that feeds it */}
-          <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "18px 20px" }}>
-            <div className="dash-eyebrow">How the projection works</div>
-            <div style={{ fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.6, marginTop: 9 }}>
-              Each date is your pace over the last 8 weeks of entries, run forward from your latest one — not a promise, a trajectory.
-              It firms up with every weigh-in and check-in, and your coaches see the same number. If a projection slips week-over-week, they get nudged before it becomes a month.
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 13, flexWrap: "wrap" }}>
-              <button onClick={() => setLogOpen(true)} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Log weigh-in</button>
-              <a href="ClientProgress.html" style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 16px", textDecoration: "none" }}>Weekly check-in →</a>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Share toggle — migrated from the old page */}
-            <div className="dash-plate" style={{ "--dac": share ? DGO_TEAL : "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 500 }}>Share with your coaches</div>
-                  <div style={{ fontSize: 11.5, color: DGO_INK50, lineHeight: 1.45, marginTop: 3 }}>
-                    {share ? "Your coaches see your self-set goals and weigh-in trend." : "Private — coaches only see the goals they set themselves."}
-                  </div>
-                </div>
-                <button onClick={toggleShare} role="switch" aria-checked={share} aria-label="Share goals with coaches"
-                  style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 999, border: 0, cursor: "pointer", padding: 3, background: share ? DGO_TEAL : "rgba(242,237,228,0.18)", display: "flex", justifyContent: share ? "flex-end" : "flex-start", alignItems: "center" }}>
-                  <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#14110e", display: "block" }} />
-                </button>
-              </div>
-            </div>
-            {why && (
-              <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
-                <div className="dash-eyebrow">Your why</div>
-                <div style={{ fontSize: 12.5, fontStyle: "italic", color: "rgba(242,237,228,0.75)", lineHeight: 1.6, marginTop: 8 }}>“{why}”</div>
-              </div>
-            )}
-          </div>
-        </div>
+        <DashGrid role="client" tab="goal" widgets={widgets} />
       </DashPage>
 
       {logOpen && <DgoWeighInModal unit={unit} onLog={logWeighIn} onClose={() => setLogOpen(false)} />}

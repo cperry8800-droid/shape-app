@@ -10,7 +10,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
     <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 82, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {navItems.map((n, i) => (
-        <a key={i} href={n.href || "#"} className="shape-dash-navlink" style={{
+        <a key={i} href={n.href || "#"} data-tour={'webtab-' + (n.slug || '')} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "11px 14px", borderRadius: 14,
           background: n.active ? "rgba(10,197,168,0.13)" : "transparent",
@@ -39,15 +39,15 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
 // Inner-page shell: sidebar + main w/ title bar + freeform children.
 // Header (the marketing top nav from pageShell.jsx) renders above the
 // dashboard grid so dashboards share the index.html nav formatting.
-function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children }) {
+function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, children, tourHero }) {
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
       <Header />
       <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", flex: 1 }}>
       <DashSidebar navItems={navItems} payoutCard={payoutCard} />
-      <main style={{ padding: "0 48px 80px", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ padding: "24px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
-          <div>
+          <div data-tour={tourHero}>
             {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 14 }}>{eyebrow}</div>}
             <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1 }}>{title}</h1>
             {subtitle && <div style={{ fontSize: 15, color: "rgba(242,237,228,0.6)", marginTop: 14, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
@@ -96,12 +96,12 @@ function DashTodayItemRow({ t }) {
   const p = t.playlist;
   const spotMark = (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ flex: "none" }}>
-      <circle cx="12" cy="12" r="10" fill="#1ED760"/>
+      <circle cx="12" cy="12" r="10" fill="#1DB954"/>
       <path d="M7.2 10.4c3.2-.9 7.4-.7 10.3 1.1.4.2.5.8.2 1.2-.2.4-.8.5-1.2.2-2.5-1.5-6.2-1.7-9-.9-.5.2-1-.2-1.1-.6-.1-.5.2-.9.8-1zM7.5 13c2.7-.8 6.3-.5 8.6 1 .3.2.4.7.2 1-.2.3-.7.4-1 .2-2-1.2-5.1-1.5-7.4-.8-.4.1-.8-.2-.9-.5 0-.4.2-.8.5-.9zM7.8 15.4c2.2-.6 4.9-.5 6.9.7.3.2.3.5.2.8-.2.3-.5.3-.8.2-1.7-1-4-1.1-5.9-.6-.3.1-.6-.1-.7-.4-.1-.3.1-.6.4-.7z" fill="#000"/>
     </svg>
   );
   const appleMark = (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="#fc3c44" style={{ flex: "none" }}>
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="#fa243c" style={{ flex: "none" }}>
       <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm3 13.3c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5 1.1-2.5 2.5-2.5c.4 0 .7.1 1 .2V7l4-1v9.3z"/>
     </svg>
   );
@@ -170,6 +170,7 @@ function DashTodayItemRow({ t }) {
 }
 
 function DashShell({
+  tourHero,     // optional data-tour key for the spotlight tour masthead anchor
   role,         // "trainer" | "client" | "nutritionist"
   userName,
   date,         // "WEDNESDAY APR 18"
@@ -190,6 +191,9 @@ function DashShell({
   pulseRender,  // optional () => node — replaces the default pulse rows (panel + title kept)
   extraSections, // optional [{ title, render }]
   calendarEvents, // optional [{date,time,kind,title,sub}] — enables "Open calendar →"
+  gridWidgets, // optional [{ key, title, size, render }] — when present, the body sections render
+               // through DashGrid (draggable/resizable, like the client tabs) instead of the fixed
+               // layout. Only the coach Today pages pass this; everything else keeps the old layout.
 }) {
   const cal = (typeof useCalendarOverlay === "function") ? useCalendarOverlay() : null;
   return (
@@ -201,10 +205,10 @@ function DashShell({
 
       {/* Main — overflowX hidden matches DashPage; without it the Today pages
           scroll horizontally at 375px (nowrap pulse metas widen the document) */}
-      <main style={{ padding: "0 48px 80px", minWidth: 0, overflowX: "hidden" }}>
+      <main style={{ padding: "24px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
-          <div style={{ minWidth: 0 }}>
+          <div data-tour={tourHero} style={{ minWidth: 0 }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 12 }}>{date}</div>
             <h1 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>{greeting}</h1>
           </div>
@@ -224,6 +228,10 @@ function DashShell({
           </div>
         </div>
 
+        {gridWidgets ? (
+          <DashGrid role={role} tab="today" widgets={gridWidgets} />
+        ) : (
+        <React.Fragment>
         {/* KPI strip(s) — single card w/ dividers; coach Today shows two
             (financial summary + practice). */}
         {[kpis, kpis2].map((row, ri) => (Array.isArray(row) && row.length > 0) ? (
@@ -323,6 +331,8 @@ function DashShell({
             {x.render()}
           </div>
         ))}
+        </React.Fragment>
+        )}
       </main>
       </div>
       <Footer />

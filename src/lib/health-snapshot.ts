@@ -21,6 +21,7 @@ export type SnapshotPatch = {
   strain?: number | null;
   workout_minutes?: number | null;
   workout_volume_lb?: number | null;
+  steps?: number | null;
   avg_heart_rate?: number | null;
   max_heart_rate?: number | null;
   calories?: number | null;
@@ -31,8 +32,21 @@ export type SnapshotPatch = {
   weight_lb?: number | null;
   body_fat_pct?: number | null;
   mood?: number | null;
+  energy?: number | null;
+  hunger?: number | null;
   stress?: number | null;
   soreness?: number | null;
+  sleep_quality?: number | null;
+  // Sleep architecture detail (fast-follow) — device-sourced (currently Oura);
+  // null for providers that don't expose them.
+  sleep_deep_min?: number | null;
+  sleep_rem_min?: number | null;
+  sleep_light_min?: number | null;
+  sleep_awake_min?: number | null;
+  sleep_latency_min?: number | null;
+  respiratory_rate?: number | null;
+  sleep_start?: string | null;
+  sleep_end?: string | null;
 };
 
 type SnapshotRow = SnapshotPatch & {
@@ -120,9 +134,13 @@ export async function upsertSnapshot(
     sources,
   };
 
-  const result = existing?.id
-    ? await client.from('daily_health_snapshot').update(row).eq('id', existing.id)
-    : await client.from('daily_health_snapshot').insert(row);
+  // Atomic upsert: the unique (user_id, snapshot_date) constraint serializes concurrent
+  // first-writes (two provider syncs starting at once) — the loser does an UPDATE
+  // instead of hitting a duplicate-key error. (The read above is only for the
+  // sources-provenance merge.)
+  const result = await client
+    .from('daily_health_snapshot')
+    .upsert(row, { onConflict: 'user_id,snapshot_date' });
 
   if (result.error) return { written: 0, error: result.error.message };
   return { written: writtenFields.length };
@@ -151,6 +169,12 @@ function asNumber(value: unknown): number | null {
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+// Seconds → whole minutes (for Oura's stage / latency durations, which are in sec).
+function secToMin(value: unknown): number | null {
+  const n = asNumber(value);
+  return n !== null ? Math.round(n / 60) : null;
 }
 
 function pickDate(record: Record<string, unknown>): string | null {
@@ -293,6 +317,22 @@ export async function writeOuraSnapshots(
       hrv_ms: asNumber(record.average_hrv),
       avg_heart_rate: avgHr !== null ? Math.round(avgHr) : null,
     });
+    // Detailed sleep architecture — only from the main nightly sleep (Oura `type`
+    // 'long_sleep'; absent for older records), so a daytime nap can't overwrite the
+    // night's stage breakdown. Durations are seconds in the API.
+    const sleepType = asString(record.type);
+    if (sleepType == null || sleepType === 'long_sleep') {
+      merge(date, {
+        sleep_deep_min: secToMin(record.deep_sleep_duration),
+        sleep_rem_min: secToMin(record.rem_sleep_duration),
+        sleep_light_min: secToMin(record.light_sleep_duration),
+        sleep_awake_min: secToMin(record.awake_time),
+        sleep_latency_min: secToMin(record.latency),
+        respiratory_rate: asNumber(record.average_breath),
+        sleep_start: asString(record.bedtime_start),
+        sleep_end: asString(record.bedtime_end),
+      });
+    }
   }
 
   for (const raw of oura.dailyActivity?.data ?? []) {

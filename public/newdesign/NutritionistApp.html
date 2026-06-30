@@ -7,46 +7,66 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="dash.css?v=20260613">
+<link rel="stylesheet" href="/vendor/gridstack/gridstack.min.css">
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
 <div id="root"></div>
+<script>
+// Role guard — keep the dashboard in sync with the signed-in user's ACTIVE role.
+// A client/trainer who lands on the nutritionist SPA is redirected to their own
+// dashboard. Signed-out preview and nutritionists are unaffected (no redirect).
+(function () {
+  fetch('/api/me', { credentials: 'same-origin' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      var role = d && d.user && d.user.role;
+      var dash = role === 'client' ? 'ClientApp.html' : role === 'trainer' ? 'TrainerApp.html' : null;
+      if (dash) window.location.replace('/newdesign/' + dash + (window.location.hash || ''));
+    })
+    .catch(function () {});
+})();
+</script>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="/supabase.js"></script>
+<script type="module" src="/newdesign/spotlightTour.js?v=20260620w"></script>
+<script src="/newdesign/dashTour.js?v=20260620w"></script>
+<script src="/vendor/gridstack/gridstack-all.js"></script>
 
 <!-- Single-page nutritionist dashboard: every tab module loaded + compiled ONCE,
      then the router below swaps the active page client-side on #hash change. -->
-<script type="text/babel" src="pageShell.jsx?v=20260616b"></script>
-<script type="text/babel" src="trainerDashboard.jsx?v=20260615b"></script>
+<script type="text/babel" src="pageShell.jsx?v=20260629a"></script>
+<script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx?v=20260614"></script>
-<script src="dashSignals.js?v=20260617"></script>
+<script src="dashSignals.js?v=20260626a"></script>
 <script type="text/babel" src="dashData.jsx?v=20260613b"></script>
-<script type="text/babel" src="dashToday.jsx?v=20260616b"></script>
-<script type="text/babel" src="dashGoals.jsx?v=20260613b"></script>
+<script type="text/babel" src="dashToday.jsx?v=20260620u"></script>
+<script type="text/babel" src="dashGoals.jsx?v=20260619a"></script>
 <script type="text/babel" src="dashRoster.jsx?v=20260613d"></script>
 <script type="text/babel" src="clientNav.jsx?v=20260614"></script>
-<script type="text/babel" src="dashSchedule.jsx?v=20260613"></script>
+<script type="text/babel" src="dashSchedule.jsx?v=20260621s"></script>
 <script type="text/babel" src="sharedClientsTab.jsx"></script>
-<script type="text/babel" src="nutritionistClientsPage.jsx?v=20260614"></script>
-<script type="text/babel" src="dashClient.jsx?v=20260617"></script>
+<script type="text/babel" src="nutritionistClientsPage.jsx?v=20260620u"></script>
+<script type="text/babel" src="dashGrid.jsx?v=20260629a"></script>
+<script type="text/babel" src="dashClient.jsx?v=20260629a"></script>
 <script src="dashMealCore.js?v=20260613"></script>
-<script type="text/babel" src="dashMealBuilder.jsx?v=20260613b"></script>
-<script type="text/babel" src="dashBusiness.jsx?v=20260613"></script>
-<script type="text/babel" src="trainerPlaylists.jsx"></script>
+<script type="text/babel" src="dashMealBuilder.jsx?v=20260620u"></script>
+<script type="text/babel" src="dashBusiness.jsx?v=20260620u"></script>
+<script type="text/babel" src="trainerPlaylists.jsx?v=20260621m"></script>
 <script type="text/babel" src="nutritionistPlaylists.jsx"></script>
-<script type="text/babel" src="trainerPlaylistsPage.jsx"></script>
-<script type="text/babel" src="dashboardCommunity.jsx?v=20260615b"></script>
-<script type="text/babel" src="nutritionistGoalPage.jsx?v=20260614"></script>
-<script type="text/babel" src="nutritionistScorePage.jsx?v=20260614"></script>
+<script type="text/babel" src="trainerPlaylistsPage.jsx?v=20260621m"></script>
+<script type="text/babel" src="dashboardCommunity.jsx?v=20260629a"></script>
+<script type="text/babel" src="nutritionistGoalPage.jsx?v=20260621c"></script>
+<script type="text/babel" src="nutritionistScorePage.jsx?v=20260620w"></script>
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=14"></script>
 <script type="text/babel" data-presets="react" src="livingTerrain.jsx?v=5"></script>
 <script type="text/babel" data-presets="react" src="livingSignal.jsx?v=5"></script>
-<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=28"></script>
-<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260618c"></script>
-<script type="text/babel" data-presets="react" src="dashProfileExtras.jsx?v=20260614"></script>
+<script type="text/babel" data-presets="react" src="livingDesktop.jsx?v=20260621m"></script>
+<script type="text/babel" data-presets="react" src="livingProfilePage.jsx?v=20260620w"></script>
+<script type="text/babel" data-presets="react" src="dashProfileExtras.jsx?v=20260622b"></script>
 
 <script type="text/babel" data-presets="react">
 // Playlists context (was inline on NutritionistPlaylists.html).
@@ -84,6 +104,7 @@ function NutritionistApp() {
   return (NA_ROUTES[route] || NA_ROUTES.today)();
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<NutritionistApp />);
+window.ShapeDashTour && window.ShapeDashTour.init('nutritionist');
 </script>
 <script src="globalChatButton.js?v=20260613" defer></script>
 </body>

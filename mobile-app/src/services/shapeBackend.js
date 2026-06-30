@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
 import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush } from './push.js';
+import { mergePostPatch } from './communityPostPatch.mjs';
+import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import {
   DEFAULT_BACKGROUND_CHECK_PROVIDER,
   PROVIDER_APPLICATION_MAX_FILE_BYTES,
@@ -181,6 +183,7 @@ async function signIn({ email, password, role, captchaToken }) {
   let profile = await fetchProfile(data.user);
   if (!profile) profile = await upsertProfile(data.user, { role });
   profile = await ensureUsernameClaimed(data.user, profile);
+  profile = await ensureDobPersisted(data.user, profile); // claim a signup DOB (email-confirm flow) on first login
 
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -201,6 +204,22 @@ async function ensureUsernameClaimed(user, profile) {
   } catch (e) {}
   return profile;
 }
+// Persist the account's date of birth onto the profiles row so the over_18
+// trigger fires. The email-confirmation signup flow has no session at signUp time
+// (DOB only lives in user_metadata) and the phone flow never touches signUp at
+// all — so copy it on first confirmed login / OTP verify when the profile doesn't
+// carry it yet. Best-effort: no-ops if the age-verification migration isn't
+// applied. Pass an explicit `dob` to seed it directly; otherwise read metadata.
+async function ensureDobPersisted(user, profile, dob) {
+  try {
+    if (!supabase || !user?.id) return profile;
+    const want = dob || (user.user_metadata && user.user_metadata.date_of_birth);
+    if (!want || (profile && profile.date_of_birth)) return profile;
+    const { data } = await supabase.from('profiles').update({ date_of_birth: want }).eq('id', user.id).select().maybeSingle();
+    if (data) profile = data;
+  } catch (e) { /* column may not exist yet */ }
+  return profile;
+}
 async function checkUsernameAvailable(username) {
   if (!supabase) return null;
   try { const { data } = await supabase.rpc('is_username_available', { p_username: String(username || '').replace(/^@/, '') }); return data === true; } catch (e) { return null; }
@@ -213,8 +232,18 @@ async function claimUsername(username) {
   return data;
 }
 
-async function signUp({ email, password, fullName, role, username, captchaToken }) {
+async function signUp({ email, password, fullName, role, username, captchaToken, dob }) {
   const normalizedRole = normalizeRole(role);
+  // 18+ age gate — REQUIRED at account creation (no soft-fail): a missing or
+  // unparseable date of birth is rejected, and under-18 is blocked. This is the
+  // authoritative server-side check; over_18 is then recomputed from date_of_birth
+  // by a DB trigger, so neither the date nor the derived flag can be faked.
+  {
+    const d = dob ? new Date(dob) : null;
+    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+  }
   if (!authConfigured) {
     const profile = demoProfile({ email, fullName, role: normalizedRole });
     return setCached({
@@ -236,6 +265,7 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
         role: normalizedRole,
         roles: [normalizedRole],
         ...(cleanUsername ? { username: cleanUsername } : {}),
+        ...(dob ? { date_of_birth: dob } : {}),
       },
     },
   });
@@ -249,6 +279,12 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
   }
 
   let profile = data.user ? await upsertProfile(data.user, { fullName, role }) : null;
+  // Persist DOB so the over_18 trigger fires (best-effort: no-ops if the
+  // age-verification migration isn't applied yet). Email-confirm signups keep it
+  // in user_metadata until first login.
+  if (dob && data.user && data.session) {
+    try { await supabase.from('profiles').update({ date_of_birth: dob }).eq('id', data.user.id); } catch (e) { /* column may not exist yet */ }
+  }
   if (data.session) profile = await ensureUsernameClaimed(data.user, profile);
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -261,21 +297,35 @@ async function signUp({ email, password, fullName, role, username, captchaToken 
 // Step 1: request an SMS one-time code. Supabase sends it via the configured
 // SMS provider (Twilio) — see the Auth → Providers → Phone settings. With
 // `shouldCreateUser: true` this doubles as passwordless sign-UP for new phones.
-async function signInWithPhone({ phone, fullName, role, captchaToken }) {
+async function signInWithPhone({ phone, fullName, role, captchaToken, dob, isCreate }) {
   const normalizedPhone = String(phone || '').trim();
   if (!normalizedPhone) throw new Error('Enter your phone number.');
+  // 18+ age gate — account CREATION via phone must carry a valid DOB, exactly like
+  // email signUp (no soft-fail). Creation only ever happens in the create flow:
+  // `shouldCreateUser` is tied to isCreate below, so an existing user signing in
+  // (isCreate false) never provisions an account and needs no DOB, while a new
+  // account can only be made through the DOB-required create path. over_18 is
+  // recomputed from date_of_birth by a trigger, so the value can't be faked.
+  if (isCreate) {
+    const d = dob ? new Date(dob) : null;
+    if (!d || isNaN(d.getTime())) { const e = new Error('Enter a valid date of birth — Shape is for adults 18 and over.'); e.code = 'dob_required'; throw e; }
+    const eighteen = new Date(); eighteen.setFullYear(eighteen.getFullYear() - 18);
+    if (d > eighteen) { const e = new Error('You must be 18 or older to use Shape.'); e.code = 'under_18'; throw e; }
+  }
   if (!authConfigured) {
     // Demo mode (no Supabase configured): pretend the code was sent.
     return { otpSent: true, demo: true, phone: normalizedPhone };
   }
+  const meta = {};
+  if (fullName) meta.full_name = fullName;
+  if (role) meta.role = normalizeRole(role);
+  if (isCreate && dob) meta.date_of_birth = dob; // claimed onto profiles after OTP verify
   const { error } = await supabase.auth.signInWithOtp({
     phone: normalizedPhone,
     options: {
-      shouldCreateUser: true,
+      shouldCreateUser: !!isCreate, // only the create flow may provision an account — and that path always carries a DOB
       ...(captchaToken ? { captchaToken } : {}),
-      data: fullName || role
-        ? { full_name: fullName || '', role: normalizeRole(role) }
-        : undefined,
+      data: Object.keys(meta).length ? meta : undefined,
     },
   });
   if (error) throw error;
@@ -284,7 +334,7 @@ async function signInWithPhone({ phone, fullName, role, captchaToken }) {
 
 // Step 2: verify the 6-digit SMS code, establish the session, and (for a brand
 // new phone account) seed the profile row + bridge the session to the API.
-async function verifyPhoneOtp({ phone, token, fullName, role }) {
+async function verifyPhoneOtp({ phone, token, fullName, role, dob }) {
   const normalizedPhone = String(phone || '').trim();
   const code = String(token || '').trim();
   if (!normalizedPhone || !code) throw new Error('Enter the code we texted you.');
@@ -301,6 +351,9 @@ async function verifyPhoneOtp({ phone, token, fullName, role }) {
 
   let profile = data.user ? await fetchProfile(data.user) : null;
   if (!profile && data.user) profile = await upsertProfile(data.user, { fullName, role });
+  // Persist the date of birth from this signup (or from earlier OTP metadata) so
+  // the over_18 trigger fires — phone signups never hit the email signUp path.
+  if (data.user) profile = await ensureDobPersisted(data.user, profile, dob);
 
   const cached = setCached({ user: data.user, session: data.session, profile });
   await bridgeSessionToApi(data.session).catch((error) => {
@@ -375,6 +428,7 @@ async function getCurrentSession() {
   // persona. Idempotent (upsert on id).
   if (user && !profile) { try { profile = await upsertProfile(user); } catch (e) {} }
   if (user) profile = await ensureUsernameClaimed(user, profile); // claim a signup-chosen username on first (confirmed) login
+  if (user) profile = await ensureDobPersisted(user, profile); // claim a signup DOB on first (confirmed) login → fires the over_18 trigger
   const cached = setCached({ user, session: data.session, profile });
   if (user) { try { startPresence(); } catch (e) {} } // join "online" presence app-wide
   if (user) { try { startActivity(); } catch (e) {} } // hydrate + subscribe to live "doing now" activity (DB-backed)
@@ -383,6 +437,7 @@ async function getCurrentSession() {
   if (user) { try { setTimeout(() => { window.ShapeNotify?.evaluate?.(); }, 4000); } catch (e) {} } // proactive notifications (throttled; honest — fires only on real, new events)
   if (user) { try { supabase.rpc('award_tier_bonuses').then(() => {}, () => {}); } catch (e) {} } // grant any one-time tier bonuses (idempotent; swallow async rejection so it can't surface as an unhandled rejection)
   if (user) { try { window.ShapeMomentum?.check?.().catch(() => {}); } catch (e) {} } // grant any earned weekly momentum bonus (idempotent; no-op pre-migration)
+  if (user) { try { window.ShapeStepPoints?.check?.().catch(() => {}); } catch (e) {} } // credit Shape Steps points for completed days (idempotent; no-op pre-migration)
   if (data.session) {
     await bridgeSessionToApi(data.session).catch((error) => {
       console.warn('[shape] Session bridge failed.', error);
@@ -394,6 +449,10 @@ async function getCurrentSession() {
 async function signOut() {
   if (supabase) await supabase.auth.signOut();
   invalidateClientMetrics();
+  // Clear viewer-relative caches so the next account never sees the previous user's
+  // follow state / avatars (these are keyed by target id but hold viewer-relative data).
+  for (const k in _followCache) delete _followCache[k];
+  for (const k in _avatarCache) delete _avatarCache[k];
   return setCached({ user: null, session: null, profile: null });
 }
 
@@ -1928,15 +1987,44 @@ async function publishSensorWorkoutLog({ log, privacy = 'community' } = {}) {
   });
 }
 
+// Parse a possibly free-text load/reps/rpe value ("230", "230 lb", "8", a "3-5"
+// rep range) to its leading number — matching the readers' parseFloat() behavior —
+// or null when there's no number to read ("bodyweight", ""): honest, never a 0.
+function _setLogNum(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (v == null) return null;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+// Resolve the load unit: an explicit unit field wins, else sniff the load string
+// ("100 kg" → kg), else 'lb' — the column is NOT NULL default 'lb', so we never
+// write null.
+function _setLogUnit(entry) {
+  const explicit = entry.unit || entry.loadUnit || entry.load_unit;
+  if (explicit) return String(explicit).toLowerCase().includes('kg') ? 'kg' : 'lb';
+  const ls = `${entry.actualLoad ?? entry.targetLoad ?? ''}`.toLowerCase();
+  return ls.includes('kg') ? 'kg' : 'lb';
+}
+
 function normalizeWorkoutSetLog(entry = {}, fallbackIndex = 0) {
   const startedAt = entry.startedAt || entry.started_at || null;
   const finishedAt = entry.finishedAt || entry.finished_at || entry.capturedAt || null;
+  // Populate the actual_load/actual_reps/rpe/load_unit COLUMNS at write time — not
+  // just the payload jsonb — so the train-volume + strength/progress readers that
+  // read the columns directly (some without a payload fallback) see real numbers.
+  const actualLoad = _setLogNum(entry.actualLoad ?? entry.actual_load ?? entry.load);
+  const actualReps = _setLogNum(entry.actualReps ?? entry.actual_reps ?? entry.reps);
+  const rpe = _setLogNum(entry.rpe);
   return {
     move_index: Number.isFinite(Number(entry.moveIndex)) ? Number(entry.moveIndex) : fallbackIndex,
     move_name: String(entry.moveName || entry.exercise || entry.move || 'Exercise').trim(),
     set_number: Math.max(1, Number(entry.setNumber || entry.set || 1)),
     target_reps: entry.targetReps ? String(entry.targetReps) : null,
     target_load: entry.targetLoad ? String(entry.targetLoad) : null,
+    actual_reps: actualReps != null ? Math.round(actualReps) : null,
+    actual_load: actualLoad != null ? Math.round(actualLoad * 100) / 100 : null,
+    rpe: rpe != null ? Math.max(0, Math.min(10, Math.round(rpe * 10) / 10)) : null,
+    load_unit: _setLogUnit(entry),
     started_at: startedAt,
     finished_at: finishedAt,
     set_duration_seconds: Math.max(0, Number(entry.setDurationSeconds || entry.durationSeconds || 0)),
@@ -2200,10 +2288,12 @@ async function saveWorkoutSessionLog({
         setNumber: entry.setNumber,
         targetReps: entry.targetReps,
         targetLoad: entry.targetLoad,
-        // The ACTUAL lifted load/reps captured in the live session — these drive
-        // the detail page's per-set breakdown.
+        // The ACTUAL lifted load/reps/RPE captured in the live session — these
+        // drive the detail page's per-set breakdown.
         actualReps: entry.actualReps != null ? entry.actualReps : null,
         actualLoad: entry.actualLoad != null ? entry.actualLoad : null,
+        rpe: entry.rpe != null ? entry.rpe : null,
+        unit: entry.unit || null,
         startedAt: entry.startedAt,
         finishedAt: entry.finishedAt || entry.capturedAt,
         capturedAt: entry.capturedAt,
@@ -2424,6 +2514,78 @@ async function createCommunityPost({
   }
 
   return { stored: 'supabase', data: communityPostFromRow(data) };
+}
+
+async function updateCommunityPost({ postId, title, note, photoUrl, video, metrics, privacy } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before editing.');
+  if (!postId) throw new Error('Post id is required.');
+  if (!supabase) throw new Error('Not connected.');
+  // Fetch the current metrics so we merge (never clobber) the parts the editor
+  // didn't touch (workoutStats, coach, program, delta, mentions…). Scope to the
+  // owner and HARD-FAIL on a read error — otherwise we'd merge against {} and wipe
+  // the existing metrics.
+  const { data: cur, error: curErr } = await supabase
+    .from('community_posts').select('metrics').eq('id', postId).eq('author_id', state.user.id).maybeSingle();
+  if (curErr) throw curErr;
+  const patchMetrics = { ...(metrics || {}) };
+  if (video !== undefined) patchMetrics.video_url = String(video || '').trim();
+  patchMetrics.editedAt = new Date().toISOString();
+  const merged = mergePostPatch(cur?.metrics || {}, patchMetrics);
+  const patch = { metrics: merged };
+  if (title !== undefined) patch.title = String(title || '').trim() || 'Post';
+  if (note !== undefined) patch.note = String(note || '').trim() || null;
+  if (photoUrl !== undefined) patch.photo_url = String(photoUrl || '').trim() || null;
+  if (privacy !== undefined) patch.privacy = privacyToDb(privacy);
+  const { data, error } = await supabase
+    .from('community_posts')
+    .update(patch)
+    .eq('id', postId)
+    .eq('author_id', state.user.id) // RLS also enforces this; belt-and-braces
+    .select(COMMUNITY_POST_SELECT)
+    .single();
+  if (error) throw error;
+  return { stored: 'supabase', data: communityPostFromRow(data) };
+}
+
+// Parse the object path out of a Supabase public storage URL for a bucket
+// (…/storage/v1/object/public/<bucket>/<path>). Returns null for non-matching
+// URLs (e.g. a pasted YouTube link) so we never try to delete media we don't own.
+function bsStoragePathFromUrl(url, bucket) {
+  if (!url || typeof url !== 'string') return null;
+  const marker = '/storage/v1/object/public/' + bucket + '/';
+  const i = url.indexOf(marker);
+  if (i === -1) return null;
+  try { return decodeURIComponent(url.slice(i + marker.length).split('?')[0]); }
+  catch (e) { return url.slice(i + marker.length).split('?')[0]; }
+}
+
+async function deleteCommunityPost({ postId } = {}) {
+  if (!state.user?.id) throw new Error('Sign in before deleting.');
+  if (!postId) throw new Error('Post id is required.');
+  if (!supabase) throw new Error('Not connected.');
+  // Best-effort: remove the post's own uploaded media from public storage so a
+  // deleted photo/video isn't still reachable by URL (owner-scoped). Never blocks the delete.
+  try {
+    const { data: row } = await supabase
+      .from('community_posts').select('photo_url, metrics')
+      .eq('id', postId).eq('author_id', state.user.id).maybeSingle();
+    if (row) {
+      const jobs = [];
+      const ph = bsStoragePathFromUrl(row.photo_url, 'community-photos');
+      if (ph) jobs.push(supabase.storage.from('community-photos').remove([ph]));
+      const vurl = row.metrics && (row.metrics.video_url || row.metrics.video);
+      const vp = bsStoragePathFromUrl(vurl, 'coach-media');
+      if (vp) jobs.push(supabase.storage.from('coach-media').remove([vp]));
+      if (jobs.length) await Promise.allSettled(jobs);
+    }
+  } catch (e) { /* media cleanup is best-effort */ }
+  const { error } = await supabase
+    .from('community_posts')
+    .delete()
+    .eq('id', postId)
+    .eq('author_id', state.user.id);
+  if (error) throw error;
+  return { ok: true };
 }
 
 async function toggleCommunityLike({ postId, cosign = false } = {}) {
@@ -2661,6 +2823,9 @@ function loadMusicKit() {
     s.onerror = () => reject(new Error('Could not load Apple MusicKit.'));
     document.head.appendChild(s);
   });
+  // On failure, clear the cached promise so a later call can retry instead of
+  // re-returning the rejected one (script onerror / no-window / load timeout).
+  _musicKitPromise.catch(() => { _musicKitPromise = null; });
   return _musicKitPromise;
 }
 
@@ -2706,6 +2871,72 @@ async function disconnectAppleMusic() {
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || 'Unable to disconnect Apple Music.');
   return payload;
+}
+
+// Save (add) a coach's Apple Music playlist into the signed-in member's own
+// library. Apple has NO server save route — the write happens client-side via
+// MusicKit using the on-device Music-User-Token. `playlist` is an Apple Music
+// catalog URL or a `pl.xxxx` id.
+async function saveAppleMusicPlaylist(playlist) {
+  if (typeof window === 'undefined') throw new Error('Apple Music is unavailable here.');
+  const url = typeof playlist === 'string' ? playlist : (playlist?.url || '');
+  const m = String(url).match(/(pl\.[A-Za-z0-9-]+)/);
+  const playlistId = m ? m[1] : '';
+  if (!playlistId) throw new Error('Not a catalog Apple Music playlist link.');
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenJson.developerToken) throw new Error('Apple Music is not configured yet.');
+  const MusicKit = await loadMusicKit();
+  try { await MusicKit.configure({ developerToken: tokenJson.developerToken, app: { name: 'Shape', build: '1.0.0' } }); } catch (_) { /* may already be configured */ }
+  const music = MusicKit.getInstance();
+  if (!music.isAuthorized) {
+    const tok = await music.authorize();
+    if (!tok) throw new Error('Connect Apple Music before saving.');
+    if (apiBaseUrl && state.session?.access_token) {
+      fetch(`${apiBaseUrl}/api/integrations/apple-music/connect`, { method: 'POST', headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ musicUserToken: tok, storefront: music.storefrontId || null }) }).catch(() => {});
+    }
+  }
+  // Add the catalog playlist to the user's library (client-side write).
+  await music.api.music('/v1/me/library', { 'ids[playlists]': playlistId }, { fetchOptions: { method: 'POST' } });
+  return { ok: true };
+}
+
+// List the signed-in user's Apple Music library playlists (client-side via
+// MusicKit — Apple has no server playlists route). Returns the same shape the
+// Spotify picker uses: [{ id, name, tracks, url, image }].
+async function listAppleMusicPlaylists() {
+  if (typeof window === 'undefined') { const e = new Error('Apple Music unavailable.'); e.connected = false; throw e; }
+  const tokenRes = await fetch(`${apiBaseUrl}/api/integrations/apple-music/developer-token`);
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenJson.developerToken) { const e = new Error('Apple Music is not configured yet.'); e.connected = false; throw e; }
+  const MusicKit = await loadMusicKit();
+  try { await MusicKit.configure({ developerToken: tokenJson.developerToken, app: { name: 'Shape', build: '1.0.0' } }); } catch (_) {}
+  const music = MusicKit.getInstance();
+  if (!music.isAuthorized) {
+    const tok = await music.authorize();
+    if (!tok) { const e = new Error('Connect Apple Music.'); e.connected = false; throw e; }
+    if (apiBaseUrl && state.session?.access_token) {
+      fetch(`${apiBaseUrl}/api/integrations/apple-music/connect`, { method: 'POST', headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ musicUserToken: tok, storefront: music.storefrontId || null }) }).catch(() => {});
+    }
+  }
+  let rows = [];
+  try {
+    // include=catalog resolves each library playlist to its shareable catalog
+    // equivalent (a `pl.` id members can open + save) when one exists.
+    const result = await music.api.music('v1/me/library/playlists', { limit: 100, include: 'catalog' });
+    rows = (result && result.data && result.data.data) || [];
+  } catch (_) { rows = []; }
+  return rows.map((pl) => {
+    const at = pl.attributes || {};
+    const cat = pl.relationships && pl.relationships.catalog && pl.relationships.catalog.data && pl.relationships.catalog.data[0];
+    const catAt = (cat && cat.attributes) || {};
+    const artSrc = (catAt.artwork && catAt.artwork.url) || (at.artwork && at.artwork.url) || null;
+    const art = artSrc ? artSrc.replace('{w}', '88').replace('{h}', '88') : null;
+    // Prefer the catalog playlist (shareable + saveable by other members); fall
+    // back to the personal library URL, which only the owner's account can open.
+    const url = catAt.url || at.url || (cat && cat.id ? ('https://music.apple.com/playlist/' + cat.id) : ('https://music.apple.com/library/playlist/' + pl.id));
+    return { id: (cat && cat.id) || pl.id, name: at.name || catAt.name || 'Playlist', tracks: at.trackCount != null ? at.trackCount : (catAt.trackCount || 0), url, image: art };
+  });
 }
 
 // Instacart: hand the user's grocery list to Instacart and return a URL that
@@ -3114,11 +3345,11 @@ window.ShapeActivities = {
 };
 
 // Daily check-in (mood) → /api/client/checkin (upserts today's snapshot).
-async function logCheckin({ mood, stress, soreness } = {}) {
+async function logCheckin({ mood, energy, hunger, stress, soreness, sleepHours, sleepQuality } = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/client/checkin`, {
     method: 'POST', credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ mood, stress, soreness }),
+    body: JSON.stringify({ mood, energy, hunger, stress, soreness, sleepHours, sleepQuality, date: _localDate() }),
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not save check-in.');
@@ -3142,7 +3373,9 @@ async function getAnalytics() {
 async function getProgress() {
   return cachedClientJson('/api/client/progress');
 }
-window.ShapeAnalytics = { get: getAnalytics, getProgress };
+// MERGE (don't replace) so a `track` already attached by services/analytics.js
+// survives regardless of module load order; analytics.js likewise merges onto this.
+window.ShapeAnalytics = Object.assign(window.ShapeAnalytics || {}, { get: getAnalytics, getProgress });
 
 // Prescribed plan — assigned training + meal plan. Bearer in native, cookie
 // on /m/. Returns null on any failure so callers fall back to demo content.
@@ -3200,6 +3433,19 @@ async function redeemStoreItem(itemId, shipping) {
   if (!res.ok) throw new Error(data.error || 'Redemption failed.');
   return data;
 }
+// Cart checkout — redeem MULTIPLE merch items in one order (one shipment).
+// items: [{ itemId, qty }]. Server re-prices + redeems atomically.
+async function checkoutStoreCart(items, shipping) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/store/checkout`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ items, shipping }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Checkout failed.');
+  return data;
+}
 // Coach-only — activate a marketplace Lead Boost (separate from item redemption).
 async function redeemLeadBoost(role, days) {
   const res = await fetch(`${apiBaseUrl || ''}/api/lead-boosts`, {
@@ -3212,7 +3458,7 @@ async function redeemLeadBoost(role, days) {
   if (!res.ok) throw new Error(data.error || 'Lead Boost failed.');
   return data;
 }
-window.ShapeStore = { get: getStore, redeem: redeemStoreItem, redeemLeadBoost };
+window.ShapeStore = { get: getStore, redeem: redeemStoreItem, checkout: checkoutStoreCart, redeemLeadBoost };
 
 window.ShapeNotifications = {
   list: listNotifications,
@@ -3296,21 +3542,37 @@ async function setClientProgram({ userId, trainingPhase, nutritionPhase, detail 
   const payload = { user_id: uid, updated_by: state.user.id, updated_at: new Date().toISOString() };
   if (trainingPhase != null) payload.training_phase = trainingPhase;
   if (nutritionPhase != null) payload.nutrition_phase = nutritionPhase;
-  // Merge the incoming detail sections (training / nutrition) over what's stored.
+
+  // A SELF write must never set `detail.directive`: that field is the coach's override
+  // (written only by /api/ai/directive/override) and the engine honors it as an
+  // authoritative coach directive. Strip it so a client can't forge one.
+  let selfDetail = null;
   if (detail && typeof detail === 'object') {
-    let existing = {};
-    try {
-      const { data: cur } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
-      if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
-    } catch (e) { /* first write — no existing row */ }
-    // A SELF write must never set `detail.directive`: that field is the coach's
-    // override (written only by the server /api/ai/directive/override route) and
-    // the engine honors it as an authoritative coach directive. Strip it from
-    // client-supplied input so a client can't forge a coach directive for
-    // themselves; the stored coach value (existing.directive) is preserved here.
-    const { directive: _coachOnly, ...selfDetail } = detail;
-    payload.detail = { ...existing, ...selfDetail };
+    const { directive: _coachOnly, ...rest } = detail;
+    selfDetail = rest;
   }
+
+  // The detail JSONB merges via merge_program_detail (atomic — ON CONFLICT DO UPDATE
+  // under the row lock), so a concurrent coach Adjust to a sibling section isn't
+  // clobbered by this self-write's stale read-modify-write. Phase columns stay a scalar
+  // upsert (last-write-wins is the intended semantics). Falls back to the legacy
+  // read-then-write until the merge_program_detail migration is applied.
+  if (selfDetail && Object.keys(selfDetail).length) {
+    const { error: mErr } = await supabase.rpc('merge_program_detail', { p_client_id: uid, p_patch: selfDetail });
+    if (mErr) {
+      if (mErr.code === 'PGRST202' || mErr.code === '42883') {
+        let existing = {};
+        // maybeSingle() returns read errors in-band — don't merge from {} on a failed
+        // read, which would erase the sibling sections. (A genuine first write returns
+        // data:null with no error, so existing stays {}.)
+        const { data: cur, error: curErr } = await supabase.from('client_programs').select('detail').eq('user_id', uid).maybeSingle();
+        if (curErr) throw curErr;
+        if (cur?.detail && typeof cur.detail === 'object') existing = cur.detail;
+        payload.detail = { ...existing, ...selfDetail };
+      } else { throw mErr; }
+    }
+  }
+
   const { data, error } = await supabase
     .from('client_programs')
     .upsert(payload, { onConflict: 'user_id' })
@@ -3352,6 +3614,42 @@ async function getClientLifts(userId) {
   return data || null;
 }
 window.ShapeClientStats = { get: getClientStats, getLifts: getClientLifts };
+// Batch recent-sleep for a coach's roster (one call) so the triage engine can flag
+// a client's chronic sleep deficit. RLS scopes it to this coach's clients; returns
+// { [clientId]: { sleepHours: { avg7, lastNight, target } } } (empty on any failure).
+async function getRosterSleep(ids) {
+  if (!supabase || !state.user?.id || !Array.isArray(ids) || !ids.length) return {};
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-sleep`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      body: JSON.stringify({ clientIds: ids }),
+    });
+    if (!res.ok) return {};
+    const d = await res.json();
+    return (d && d.recovery) || {};
+  } catch (e) { return {}; }
+}
+window.ShapeRosterSleep = { get: getRosterSleep };
+
+// Batch weekend-adherence split for a coach's roster (one call per roster view).
+// POSTs { clientIds } to /api/coach/roster-weekend; degrades to an empty split so
+// the roster never blocks on this auxiliary data.
+async function rosterWeekendGet(clientIds) {
+  const ids = Array.isArray(clientIds) ? clientIds.filter(Boolean) : [];
+  // '' apiBaseUrl is valid same-origin config (see setTimezone) — gate on the token only.
+  if (!ids.length || !state.session?.access_token) return { ok: true, split: {} };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-weekend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ clientIds: ids }),
+    });
+    return res.ok ? await res.json() : { ok: true, split: {} };
+  } catch { return { ok: true, split: {} }; }
+}
+window.ShapeRosterWeekend = { get: rosterWeekendGet };
 
 // Coach soundtracks — saved playlists shared with the website Playlists page
 // (coach_soundtracks, owner-scoped). All calls hit the same-origin API so the
@@ -3760,27 +4058,27 @@ async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
   } catch (e) { return null; }
 }
 window.ShapeMealLog = { log: logMealMacros };
-// Manual sleep entry → today's daily_health_snapshot.sleep_hours (SET, not
-// accumulate), so the recovery-readiness signals + the "Log last night's sleep"
-// home directive that asked for it refresh. Mirrors logMealMacros; merges with
-// any device-synced metrics for the day rather than overwriting them.
-async function logSleep({ hours } = {}) {
-  if (!supabase || !state.user?.id) return null;
-  const h = Number(hours);
-  if (!Number.isFinite(h) || h <= 0 || h > 24) return null;
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/sleep-log`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
-      body: JSON.stringify({ hours: h, date: _localDate() }),
-    });
-    if (!res.ok) return null;
-    invalidateClientMetrics();
-    return res.json();
-  } catch (e) { return null; }
+// Hydration logger — GET today's intake + target; POST a delta (liters).
+async function getHydration() {
+  // Pass the client LOCAL date so the read targets the same snapshot row the
+  // quick-add POST writes (addHydration sends date: _localDate()). Without it the
+  // GET falls back to the server UTC day and the card can read a different day's
+  // row near local midnight.
+  return getJsonOrDefault(`${apiBaseUrl || ''}/api/client/hydration?date=${_localDate()}`, null);
 }
-window.ShapeSleep = { log: logSleep };
+async function addHydration(deltaL) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/client/hydration`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+    body: JSON.stringify({ deltaL, date: _localDate() }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Could not log hydration.');
+  invalidateClientMetrics();
+  return d;
+}
+window.ShapeHydration = { get: getHydration, add: addHydration };
 // Goal-milestone Shape points: the RPC checks the Overall goal trajectory
 // against the latest weigh-in and credits any newly reached 25/50/75/goal
 // milestone into score_ledger (idempotent — same pattern as award_tier_bonuses).
@@ -3811,6 +4109,40 @@ async function awardMomentumBonus() {
   } catch (e) { return null; }
 }
 window.ShapeMomentum = { check: awardMomentumBonus };
+
+// Shape Steps points: the RPC credits +1 per 5,000 steps (capped at +4/day) plus a
+// +3 goal-hit bonus, once per COMPLETED day, from the device-synced step count
+// (idempotent — same pattern as award_my_goal_milestones). Returns [{ day, points }]
+// for the days credited by THIS call, or [] on no-op / pre-migration.
+async function awardStepPoints() {
+  if (!supabase || !state.user?.id) return [];
+  try {
+    const { data, error } = await supabase.rpc('award_step_points');
+    if (error || !Array.isArray(data) || !data.length) return [];
+    invalidateClientMetrics();
+    return data;
+  } catch (e) { return []; }
+}
+window.ShapeStepPoints = { check: awardStepPoints };
+
+// Opportunistic, non-throwing: mirror the authenticated-fetch pattern used by
+// postProConsole (there is NO generic postJson helper in this file).
+async function setTimezone(tz) {
+  if (!tz || typeof tz !== 'string') return { ok: false };
+  // apiBaseUrl is '' on same-origin (/m/ web) builds — that's valid, not "missing
+  // config" — so gate only on the bearer token and use the `${apiBaseUrl || ''}`
+  // URL form the rest of the file uses for same-origin calls.
+  if (!state.session?.access_token) return { ok: false };
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/timezone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      body: JSON.stringify({ tz }),
+    });
+    return res.ok ? { ok: true } : { ok: false };
+  } catch { return { ok: false }; }
+}
+window.ShapeProfile = { ...(window.ShapeProfile || {}), setTimezone };
 
 // Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
 // sees their own row); writes through set/accept RPCs. All no-op pre-migration.
@@ -4009,6 +4341,8 @@ window.ShapeCommunity = {
   listByAuthor: listCommunityPostsByAuthor,
   countByAuthor: countCommunityPostsByAuthor,
   createPost: createCommunityPost,
+  update: updateCommunityPost,
+  remove: deleteCommunityPost,
   uploadPhoto: uploadCommunityPhoto,
   toggleLike: toggleCommunityLike,
   addComment: addCommunityComment,
@@ -4062,7 +4396,25 @@ async function getClientProgress() { return cachedClientJson('/api/client/progre
 async function getClientAnalytics() { return cachedClientJson('/api/client/analytics').then((d) => (d && d.has_data ? d : null)); }
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
+async function getClientHabits() { return cachedClientJson('/api/client/habits'); }
 window.ShapeProgress = { progress: getClientProgress, analytics: getClientAnalytics, train: getClientTrain, nutrition: getClientNutrition };
+
+// Member self-path weekend adherence split. Fetches the already-cached habits +
+// progress payloads, builds weekly buckets client-side, and returns the split.
+// Returns null on any error so the Weekends card renders nothing.
+async function weekendSplitSelf() {
+  try {
+    const [habits, progress] = await Promise.all([getClientHabits(), getClientProgress()]);
+    // device-local calendar day as YYYY-MM-DD (en-CA renders ISO order); no
+    // cross-package import of local-day.ts needed.
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+    const buckets = buildSelfWeekendBuckets(habits || { habits: [] }, progress || { series: {} }, { todayLocal });
+    return computeWeekendSplit(buckets);
+  } catch { return null; }
+}
+window.ShapeProgress = { ...(window.ShapeProgress || {}), weekendSplit: weekendSplitSelf };
+async function getClientStrength() { return cachedClientJson('/api/client/strength').then((d) => (d && d.ok ? d : null)); }
+window.ShapeStrength = { get: getClientStrength };
 
 // Coach sigil rings — live { habits, clientWorkouts, ownActivity } (0..1 or null)
 // for the signed-in coach (self only; RLS-scoped). Null fields fall back to demo.
@@ -4468,6 +4820,8 @@ window.ShapeIntegrations = {
   listSpotifyPlaylists,
   connectAppleMusic,
   disconnectAppleMusic,
+  saveAppleMusicPlaylist,
+  listAppleMusicPlaylists,
   sendGroceryToInstacart,
   syncWhoop,
   syncStrava,
@@ -4711,6 +5065,38 @@ async function snoozeHabitReminder(habitId, minutes) {
   try { await supabase.from('habit_reminders').update({ snooze_until: until }).eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
 }
 window.ShapeHabitReminders = { list: listHabitReminders, set: setHabitReminder, remove: removeHabitReminder, snooze: snoozeHabitReminder };
+
+// ─── User-set reminders (standalone nudges: weigh-in / check-in / water / photo /
+// custom) — CRUD over /api/client/reminders; the hourly cron fires them. ────────
+async function remindersList() {
+  if (!apiBaseUrl) return { reminders: [] };
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { headers, credentials: 'include', cache: 'no-store' });
+    return await res.json().catch(() => ({ reminders: [] }));
+  } catch (e) { return { reminders: [] }; }
+}
+async function remindersSave(r) {
+  if (!apiBaseUrl) return { ok: false };
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const tz = _deviceTz();
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ tz, ...r }) });
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false }; }
+}
+async function remindersRemove(id) {
+  if (!apiBaseUrl || !id) return { ok: false };
+  const headers = {};
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/client/reminders?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers, credentials: 'include' });
+    return await res.json().catch(() => ({ ok: false }));
+  } catch (e) { return { ok: false }; }
+}
+window.ShapeReminders = { list: remindersList, save: remindersSave, remove: remindersRemove };
 
 // ─── Source reconciliation (INT2) — "which source do you trust?" ─────────────
 // On-demand data-quality view. clientId optional (a coach reconciling a client).

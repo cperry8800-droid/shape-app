@@ -166,7 +166,7 @@ function RadioShapeSets() {
   return (
     <section style={{ padding: "80px 72px" }}>
       <RdReveal>
-        <div style={{ position: "relative", overflow: "hidden", maxWidth: 1480, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
+        <div style={{ position: "relative", overflow: "hidden", maxWidth: 860, margin: "0 auto", padding: 48, background: "rgba(11,14,12,0.68)", backdropFilter: "blur(14px) saturate(1.1)", WebkitBackdropFilter: "blur(14px) saturate(1.1)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, textAlign: "center" }}>
           <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${TEAL}, ${RUST})`, opacity: 0.75 }} />
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>
             <span style={{ width: 6, height: 6, borderRadius: 999, background: TEAL_BRIGHT, animation: "pulse 1.6s ease-in-out infinite" }} />
@@ -205,7 +205,7 @@ function RadioCoachPlaylists() {
             <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", lineHeight: 1.6, margin: 0 }}>Trainers and nutritionists can attach a Spotify or Apple Music playlist to any workout, meal, or prep session — with a note on why they picked it. Plays right on the card. Heart the good ones. Pass them to friends. One tap, no app switching.</p>
             <div style={{ display: "flex", gap: 24, marginTop: 24, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)" }}>
               <div><span style={{ color: "#1DB954" }}>â—</span> SPOTIFY</div>
-              <div><span style={{ color: "#fa233b" }}>â—</span> APPLE MUSIC</div>
+              <div><span style={{ color: "#fa243c" }}>â—</span> APPLE MUSIC</div>
               <div><span style={{ color: TEAL_BRIGHT }}>â—</span> SHAPE RADIO FALLBACK</div>
             </div>
           </div>
@@ -216,7 +216,7 @@ function RadioCoachPlaylists() {
             <div key={i} style={{ position: "relative", borderRadius: 12, overflow: "hidden", background: e.cover, minHeight: 440, display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", padding: "5px 11px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(255,255,255,0.9)" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 999, background: e.provider === "Apple Music" ? "#fa233b" : "#1DB954" }}/> {e.provider.toUpperCase()}
+                  <span style={{ width: 6, height: 6, borderRadius: 999, background: e.provider === "Apple Music" ? "#fa243c" : "#1DB954" }}/> {e.provider.toUpperCase()}
                 </div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(255,255,255,0.7)" }}>{e.ctx}</div>
               </div>

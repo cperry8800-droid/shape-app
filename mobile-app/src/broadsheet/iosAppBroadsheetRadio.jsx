@@ -39,7 +39,7 @@ const BS_LIVE_STATION = {
 // `songs` is a short preview of each list (first few tracks) shown in the
 // playlist-card tracklist popup before a client opens the full list in Spotify.
 const BS_COACH_PLAYLISTS = [
-  { id: 'p1', name: 'Pull day tempo',      by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '52m',     bpm: '95–138', tracks: 14, attached: 'Upper Pull · W6 D4',  sent: 'Mon', unplayed: true, url: 'https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP',
+  { id: 'p1', name: 'Pull day tempo',      by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '52m',     bpm: '95–138', tracks: 14, attached: 'Upper Pull · W6 D4',  sent: 'Mon', unplayed: true, provider: 'spotify', url: 'https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP',
     songs: [
       { a: 'Iron Count',   b: 'Tariq Osei',  len: '3:38' },
       { a: 'Chalk & Steel',b: 'Sable',       len: '4:02' },
@@ -48,7 +48,7 @@ const BS_COACH_PLAYLISTS = [
       { a: 'Lat Spread',   b: 'Mara Vance',  len: '4:16' },
       { a: 'Last Rep',     b: 'Shape Radio', len: '3:45' },
     ] },
-  { id: 'p2', name: 'Meal prep, low-key',  by: 'Dr. Maya Patel', role: 'Nutritionist', init: 'M', len: '45m',     bpm: '85–100', tracks: 12, attached: 'Sun prep · 8 meals',  sent: 'Sun', url: 'https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ',
+  { id: 'p2', name: 'Meal prep, low-key',  by: 'Dr. Maya Patel', role: 'Nutritionist', init: 'M', len: '45m',     bpm: '85–100', tracks: 12, attached: 'Sun prep · 8 meals',  sent: 'Sun', provider: 'spotify', url: 'https://open.spotify.com/playlist/37i9dQZF1DWZeKCadgRdKQ',
     songs: [
       { a: 'Sunday Counter',  b: 'Halve',     len: '3:30' },
       { a: 'Mise en Place',   b: 'Coriander', len: '4:08' },
@@ -57,7 +57,7 @@ const BS_COACH_PLAYLISTS = [
       { a: 'Cold Brew Hours', b: 'Temple',    len: '3:14' },
       { a: 'Tupperware Sun',  b: 'Marrow',    len: '4:01' },
     ] },
-  { id: 'p3', name: 'Riverside long run',  by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '1h 50m',  bpm: '160–172',tracks: 24, attached: 'Sat Z2 run · 18k',    sent: 'last wk', url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+  { id: 'p3', name: 'Riverside long run',  by: 'Jordan Chen',    role: 'Coach',        init: 'J', len: '1h 50m',  bpm: '160–172',tracks: 24, attached: 'Sat Z2 run · 18k',    sent: 'last wk', provider: 'spotify', url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
     songs: [
       { a: 'Towpath',        b: 'Halcyon Mile', len: '4:12' },
       { a: 'Negative Split', b: 'Cadence Club', len: '3:48' },
@@ -319,7 +319,7 @@ function BSBeatRing({ bpm = 132, size = 42, color, paused = false }) {
 function BSRadioWordmark({ width = 'min(86%, 330px)', style = {} }) {
   const t = useBS();
   const file = t.isLight ? 'shape-radio-logo-lt.png?v=1' : 'shape-radio-logo.png?v=2';
-  return <img src={`${import.meta.env.BASE_URL}${file}`} alt="Shape Radio" style={{ width, height: 'auto', display: 'block', ...style }} />;
+  return <img src={`${import.meta.env.BASE_URL}${file}`} alt="Shape Radio" style={{ width, height: 'auto', aspectRatio: '1647 / 116', display: 'block', ...style }} />;
 }
 
 // Sweeping diagonal "stage light" — used as a subtle background streak

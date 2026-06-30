@@ -104,7 +104,33 @@ export async function POST(request: Request) {
     .select('id, provider_role, provider_id, starts_at, ends_at, status, source')
     .single();
 
-  if (error) return dbError(error, 'lead boosts write', 400);
+  if (error) {
+    // 23505 = the partial unique index (one ACTIVE boost per provider) rejected a
+    // concurrent / double-submit second redemption. Return the existing active boost so
+    // the redeem is idempotent instead of stacking duplicate active rows. (Pre-migration
+    // the index is absent and the insert just succeeds — racy but functional.)
+    if (error.code === '23505') {
+      const { data: existing } = await client
+        .from('coach_lead_boosts')
+        .select('id, provider_role, provider_id, starts_at, ends_at, status, source')
+        .eq('provider_id', provider.id)
+        .eq('status', 'active')
+        .order('starts_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        return NextResponse.json({
+          boost: {
+            id: existing.id, role: existing.provider_role, providerId: existing.provider_id,
+            startsAt: existing.starts_at, endsAt: existing.ends_at, status: existing.status,
+            source: existing.source, days,
+          },
+          alreadyActive: true,
+        });
+      }
+    }
+    return dbError(error, 'lead boosts write', 400);
+  }
 
   return NextResponse.json({
     boost: {

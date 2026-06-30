@@ -15,6 +15,8 @@
 import { readdir, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+import { buildFunnel } from './funnel.mjs';
+import { createAdminClient } from './supabase/admin';
 
 export type ServiceStatus = 'ok' | 'degraded' | 'down' | 'missing' | 'unknown';
 
@@ -88,6 +90,7 @@ export type WarRoomSnapshot = {
   checklist: ChecklistSection[];
   readiness: { score: number; total: number; label: string };
   architecture: ShapeArchitecture;
+  funnel: { cohortDays: number; generatedFor: string; rows: import('./funnel').FunnelRow[]; biggestDrop: string | null };
 };
 
 // The product map. Keep this current — it's the "what Shape is becoming" outline.
@@ -150,7 +153,7 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
     ] },
     { layer: 'Coach tools', serves: 'Trainer / Nutritionist', purpose: 'Program the work + run the business.', pieces: ['Roster', 'Programs / Meal plans', 'Assign to client (catalogue → client Train/Eat)', 'Adjust program/plan', 'Grocery lists', 'Soundtracks', 'Schedule', 'Client analytics', 'Care Team (co-coach chat)'], gaps: [
       { task: 'Trainer "sell a plan" paid-checkout path — built on the Connect checkout: coach publishes a priced plan → "Plans for sale" + Buy on the coach profile → plan_id rides through checkout/webhook → unlocks in the buyer\'s Library. Needs live Stripe to verify the charge', status: 'in-progress', priority: 'P1' },
-      { task: 'Coach credential verification (makes "vetted coaches" literally true + backs the liability story): the coach application requires (1) proof of a recognized certification (NASM/ACE/ISSA/NSCA; state-appropriate credentials for nutritionists — licensure applies in some states) and (2) proof of their own professional liability insurance (COI upload). Store doc uploads + expiry dates on the provider row, surface a "Verified" badge on marketplace/profile, admin review queue, and expiry re-verification reminders through the notifications spine', status: 'not-started', priority: 'P2' },
+      { task: 'Coach credential verification — BUILT (web): coach uploads COI + certs (dashProfileExtras card → /api/coach/credentials/document) → submit → admin review queue (/dashboard/credentials) → Approve mirrors verified onto the trainers/nutritionists row → ✓ Verified badge on marketplace + living profile; weekly /api/cron/credential-expiry nudges 60-day insurance/license expirations via the notifications spine. Migration APPLIED 2026-06-19. Remaining: mobile marketplace/profile badge + richer apply-time COI capture', status: 'in-progress', priority: 'P2' },
       { task: 'Adjust → full program/plan regeneration', status: 'not-started', priority: 'P2' },
       { task: 'Website soundtrack attach for demo-seed rows still local', status: 'not-started', priority: 'P3' },
     ] },
@@ -160,8 +163,8 @@ const SHAPE_ARCHITECTURE: ShapeArchitecture = {
       { task: 'GPS routes on feed cards — REAL polylines now render when a post carries normalized points (Strava imports do; privacyZonesApplied=true since Strava trims via the athlete\'s privacy zones). TO DO: (1) Garmin route extraction once their API access is approved — Activity Details GPS samples → downsample(80) → normalize, and apply OUR OWN start/end privacy-zone trimming (raw Garmin GPS has none — required before those routes go public); (2) Whoop has NO GPS hardware/API — routes will never come from Whoop, only strain/HR stats (already on cards)', status: 'in-progress', priority: 'P2' },
     ] },
     { layer: 'Platform services', serves: 'All', purpose: 'The cross-cutting spine.', pieces: ['Membership & billing (Stripe $5/mo + coach subs)', 'Notifications → system push', 'Integrations (Whoop/Garmin/Strava/Oura/Spotify/Apple Health)', 'Nora AI support'], gaps: [
-      { task: 'Activate system push — code + native plugins done; remaining: (1) set FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET env, (2) Supabase DB Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret), (3) Firebase config + APNs key + native build', status: 'in-progress', priority: 'P1' },
-      { task: 'User-set reminder notifications — let members schedule their OWN alerts for things to do & log, beyond habits/workouts/meals: per-type toggles in Settings → Notifications (e.g. "remind me to log a weigh-in", check-ins, water, photos, sleep log), with a time picker, written into the notifications table on schedule so the existing push spine delivers them', status: 'not-started', priority: 'P2' },
+      { task: 'Activate system push — CLOUD PIPELINE LIVE + verified (2026-06-21): FCM_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY + PUSH_WEBHOOK_SECRET set in Vercel, and the Supabase DB Webhook (notifications INSERT → POST /api/push/dispatch, header x-push-secret) fires correctly — verified end-to-end with a test notification (webhook → dispatch returned 200, FCM creds recognized). Remaining: APNs key upload into Firebase (Cloud Messaging → Apple app config) + the native iOS App Store build (Push capability + GoogleService-Info.plist) so a device can actually receive it', status: 'in-progress', priority: 'P1' },
+      { task: 'User-set reminder notifications — BUILT: members add their own reminders (weigh-in / check-in / water / photo / custom) with time + days in Settings → Notifications (BSReminderManager); user_scheduled_reminders table + /api/client/reminders CRUD; hourly /api/cron/reminders fires due reminders (tz-aware, once/local-day) via the notifications→push spine. Migration APPLIED 2026-06-19 (user-reminders). Remaining: desktop-website Settings parity', status: 'in-progress', priority: 'P2' },
       { task: 'Apple Pay / Google Pay on checkout — native opens Stripe Checkout in SFSafariViewController for the Apple Pay sheet; needs @capacitor/browser + Apple Pay enabled in Stripe', status: 'in-progress', priority: 'P2' },
       { task: 'Full in-app Stripe PaymentSheet (native Apple Pay / Google Pay sheet, NO browser hop) — wants @capacitor-community/stripe (or Stripe RN/iOS SDK), a PaymentIntent/SetupIntent + customer ephemeral-key endpoint for the $5/mo sub + coach/plan buys, and the native build', status: 'not-started', priority: 'P3' },
       { task: 'Per-endpoint paid-feature enforcement beyond the proxy gate', status: 'not-started', priority: 'P2' },
@@ -199,6 +202,11 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/ai/notify', 'POST'],
   ['/api/ai/notify/cron', 'GET,POST'],
   ['/api/cron/score-accountability', 'GET,POST'],
+  ['/api/cron/credential-expiry', 'GET,POST'],
+  ['/api/cron/reminders', 'GET,POST'],
+  ['/api/analytics/track', 'POST'],
+  ['/api/cron/analytics-purge', 'GET'],
+  ['/api/client/reminders', 'GET,POST,DELETE'],
   ['/api/ai/proposals', 'POST'],
   ['/api/ai/proposals/confirm', 'POST'],
   ['/api/ai/speak', 'POST'],
@@ -213,11 +221,15 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/client/activities', 'GET,POST'],
   ['/api/client/analytics', 'GET'],
   ['/api/client/checkin', 'POST'],
+  ['/api/account/export', 'GET'],
+  ['/api/account/delete', 'POST'],
+  ['/api/privacy-request', 'POST'],
   ['/api/client/commitment', 'GET,POST'],
   ['/api/client/compliance', 'GET,POST'],
   ['/api/client/dashboard', 'GET'],
   ['/api/client/grocery', 'GET'],
   ['/api/client/habits', 'GET,POST'],
+  ['/api/client/hydration', 'GET,POST'],
   ['/api/client/nutrition', 'GET'],
   ['/api/client/profile-stats', 'GET'],
   ['/api/client/plan', 'GET'],
@@ -225,14 +237,19 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/client/progress', 'GET'],
   ['/api/client/score', 'GET'],
   ['/api/client/team', 'GET'],
+  ['/api/client/strength', 'GET'],
+  ['/api/client/timezone', 'POST'],
   ['/api/client/train', 'GET'],
   ['/api/clients/[id]/shared-overview', 'GET'],
   ['/api/clients/[id]/goals', 'GET,POST'],
   ['/api/coach/grocery-lists', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/plans', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/credentials', 'GET,POST'],
+  ['/api/coach/credentials/document', 'POST'],
   ['/api/coach/review-note', 'POST'],
   ['/api/coach/rings', 'GET'],
+  ['/api/coach/roster-sleep', 'POST'],
+  ['/api/coach/roster-weekend', 'POST'],
   ['/api/coach/score', 'GET'],
   ['/api/coach/soundtracks', 'GET,POST,PATCH,DELETE'],
   ['/api/coaches/reviews', 'GET,POST'],
@@ -295,6 +312,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/recipes/reviews', 'GET,POST'],
   ['/api/sessions/manage', 'GET,POST'],
   ['/api/store/redeem', 'GET,POST'],
+  ['/api/store/checkout', 'POST'],
   ['/api/stripe/billing-portal', 'POST'],
   ['/api/stripe/checkout-session', 'POST'],
   ['/api/stripe/connect-account', 'POST'],
@@ -325,7 +343,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/push') || p === '/api/notifications' || p === '/api/notify-app') return 'Push & notifications';
   if (p.startsWith('/api/community') || p.startsWith('/api/messages') || p.startsWith('/api/conversations') ||
       p.startsWith('/api/radio') || p === '/api/league' || p === '/api/leaderboard') return 'Community & social';
-  if (p.startsWith('/api/auth') || p.startsWith('/api/me')) return 'Auth & account';
+  if (p.startsWith('/api/auth') || p.startsWith('/api/me') || p.startsWith('/api/account')) return 'Auth & account';
   if (p.startsWith('/api/recipes')) return 'Content';
   if (p === '/api/contact' || p === '/api/app-waitlist') return 'Marketing & forms';
   if (p === '/api/health' || p === '/api/warroom') return 'System';
@@ -442,7 +460,7 @@ async function countRouteFiles(dir: string): Promise<number> {
 
 async function buildInventory(): Promise<WarRoomSnapshot['inventory']> {
   const root = process.cwd();
-  const fallback = { apiRoutes: 80, migrations: 45, mobileBuild: true, mobileAssets: 0 };
+  const fallback = { apiRoutes: 139, migrations: 138, mobileBuild: true, mobileAssets: 0 };
   try {
     const apiRoutes = (await countRouteFiles(path.join(root, 'src/app/api'))) || fallback.apiRoutes;
     let migrations = fallback.migrations;
@@ -534,13 +552,24 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Database & Auth',
       items: [
         { label: 'Supabase env wired (URL + anon + service role)', status: auto(supabaseReady) },
-        { label: 'Migrations applied (notifications, push_tokens, activities)', status: 'manual' },
+        { label: 'Migrations applied (notifications, push_tokens, activities)', status: 'done' },
         { label: 'Auth Site URL + redirect URLs set', status: 'manual' },
         { label: 'Phone (Twilio) login configured', status: 'manual' },
-        { label: 'Leaked-password protection (HaveIBeenPwned) — DEFERRED: requires Supabase Pro (org "Shape" is on Free). After the Pro upgrade: Auth → Passwords → "Prevent use of leaked passwords" (or Management API config/auth password_hibp_enabled:true). Free-tier alternative now: raise minimum password length + required character types', status: 'manual' },
-        { label: 'Supabase Auth rate limits (the real login/signup/OTP brute-force gate) — set in Auth → Rate Limits or Management API PATCH config/auth (rate_limit_otp 60 / verify 100 / email_sent 30 / anonymous_users 5; keep token_refresh ~1800). The app /api/* limiter is already live (check_rate_limit + rate_limits table), but credential endpoints hit Supabase directly and bypass the Next app', status: 'manual' },
-        { label: 'Auth CAPTCHA (Cloudflare Turnstile) — enable in Auth → Settings with the secret. The consultation-form CAPTCHA is already wired (src/lib/turnstile.ts + TURNSTILE_SECRET_KEY env + public window.SHAPE_TURNSTILE_SITEKEY in supabase.js); login/signup client wiring is a follow-up once the Turnstile widget + key exist', status: 'manual' },
-        { label: 'Secret scan (gitleaks) → make it a REQUIRED check on main (Settings → Branches). Runs on every PR/push now via ci.yml + .gitleaks.toml (verified 0 leaks); advisory until added to branch protection', status: 'manual' },
+        { label: 'Leaked-password protection (HaveIBeenPwned) — ENABLED 2026-06-23 (Auth → Attack Protection, on Supabase Pro). Verified: the auth_leaked_password_protection security advisor cleared', status: 'done' },
+        { label: 'Supabase Auth rate limits — DONE (owner set the dashboard values 2026-06-25: otp 60 / verify 100 / email_sent 30 / anonymous_users 5; token_refresh ~1800). The app /api/* limiter (check_rate_limit + rate_limits table) covers our own routes; these Auth dashboard limits are the real brute-force gate for the native credential endpoints the SDK calls directly', status: 'done' },
+        { label: 'Auth CAPTCHA (Cloudflare Turnstile) — DONE (owner enabled it in Auth → Settings with the secret, 2026-06-25). Wired on every surface: consultation + login/signup across web (login.jsx), mobile (turnstile.js + BSLogin), and Next (Turnstile.tsx + login actions). The old "login/signup wiring is a follow-up" note was stale — that client wiring shipped in #1347-#1352', status: 'done' },
+        { label: 'Secret scan (gitleaks) — DONE. Now a REQUIRED check on main (classic branch protection enabled 2026-06-25, enforce_admins on), alongside Web + Mobile, so merging on red is impossible. Runs on every PR via ci.yml + .gitleaks.toml (0 leaks)', status: 'done' },
+      ],
+    },
+    {
+      section: 'Reliability — Today plate · CLS sweep · race hardening (2026-06-29)',
+      items: [
+        { label: 'TODAY instrument plate (#1451): the mobile home\'s two cards (BSDailyCheckinCard + BSHydrationCard) consolidated into ONE teal BSTodayCard — Energy/Hunger/Rested as tap-to-set 1–10 gauges over 44px zones, device-first sleep, hydration folds in as dot-progress + quick-add (stays live), collapses to a one-line summary when logged. Web parity: DashTodayCard (dash-plate at the top of the client home) posts to the SAME /api/client/checkin + /api/client/hydration. No schema change', status: 'done' },
+        { label: 'CUMULATIVE LAYOUT SHIFT sweep (#1452/#1453, website + mobile): preconnect on 18 marketing pages + a metrics-matched fallback @font-face for all three tiers (Fraunces→Times, Space Grotesk→Arial, JetBrains Mono→Courier; size-adjust/ascent/descent from @capsizecss/metrics) wired into the shared serif/sans/mono stacks — kills the swap reflow on headers/sub-heads/body; community media → aspect-ratio 4/3; nav/splash/radio logos get aspect-ratio from real PNG dims; GridStack dashboard → min-height 60vh', status: 'done' },
+        { label: 'RACE-CONDITION hardening (#1454–#1459): a multi-agent audit found 10 read-then-write / check-then-act races; fixed across 5 PRs, each with a route fallback so deploy-vs-migration order doesn\'t matter. Atomic-write RPCs add_hydration + add_meal_macros (INSERT…ON CONFLICT DO UPDATE col=col+delta, clamp INSIDE the RPC); merge_program_detail + set_program_detail (atomic || merge of only the patched keys — no whole-doc clobber between co-coaches); league_assign_cohort (per-(week,tier) advisory lock, fills cohorts under the 24 cap); device-sync upsert + coach/recipe-review + lead-boost unique indexes; client-side stale-response + cache + busy-lock guards', status: 'done' },
+        { label: 'CodeRabbit caught 2 real Critical auth vulns I introduced + I fixed them: league self-promote (RPC now service-role-ONLY, route-mediated via the admin client + a currentUser gate) and program-detail subfield forge (the client_programs_discipline_guard trigger now enforces directive+goals = coach-only on EVERY write path, before the self-bypass). On re-review CodeRabbit resolved every thread', status: 'done' },
+        { label: 'Apply-time fixes (#1459) + LIVE security gap closed: write-idempotency.sql is now to_regclass-guarded (it 42P01\'d on a DB lacking the coach_lead_boosts feature table); and league_assign_cohort was STILL executable by authenticated because Supabase default privileges auto-grant EXECUTE and `revoke … from public` alone leaves the authenticated/anon grants — the self-promote vuln was open in prod. Revoked live (verified service_role-only) + corrected the migration to `revoke … from public, authenticated, anon`', status: 'done' },
+        { label: 'MIGRATIONS — all 4 APPLIED + verified live on Supabase (2026-06-29): atomic-daily-snapshot-accumulators, atomic-program-detail-merge, league-cohort-atomic, write-idempotency. Plus the deferred lead-boost step closed — owner ran 2026-05-08-lead-boosts.sql then re-ran write-idempotency.sql; the coach_lead_boosts_active_uniq partial unique index ((provider_id) WHERE status=\'active\') is verified live. CI green + CodeRabbit clean on every PR; branches kept', status: 'done' },
       ],
     },
     {
@@ -563,6 +592,24 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Client Home/Eat lead with a "Today · your move" directive (Home: workout→meal→habits→done with per-item CTA; Eat: next meal to log above the quiet calorie strip); Home "Weekly totals" trimmed 4→2. Train already led with its session hero + Start', status: 'done' },
         { label: 'Client meal logger / "Logged." / home week strip onto instrument plates (clipped one-tap action, squared mode tabs, BSPlate summaries, ink→accent ledger)', status: 'done' },
         { label: 'Client Goals (Overall + Nutrition) carry the real engine pace-projection ETA — least-squares projectGoal over 8 weeks + week-over-week slip → an "ETA" stat (projected date / Stalled / 1y+ / Refresh) replacing the demo "On track"/"Adherence", + an ETA chip in the hero; honest "—" when history is too sparse', status: 'done' },
+      ],
+    },
+    {
+      section: 'Data privacy & global compliance — GDPR/UK · CCPA/CPRA · ~19 US state laws · WA MHMDA · age gate (2026-06-22, Waves 1–4)',
+      items: [
+        { label: 'PUBLIC LEGAL DOCS (web): privacy.html (15 sections incl. Your privacy choices/GPC · Categories & retention · Notice of financial incentive), terms.html, data-compliance.html, subprocessors.html (versioned table), health-data-privacy.html (WA My Health My Data Act Consumer Health Data Privacy Policy). Mirrored in-app: BSPrivacyPage + BSDataCompliancePage (iosAppBroadsheetClient). compliance-spec.md is the canonical source of truth. ALL marked counsel-review-before-launch', status: 'done' },
+        { label: 'Data EXPORT — GET /api/account/export (#1380): RLS-scoped, recursive scrub() stripping *token/*secret/*key/*credential/^password at all nesting; OWNED-table list (client_workouts uses client_id) + sent_messages; profile-fetch error surfaced. Wired: client Settings (clientMeSettings exportData) + coach Danger-zone (dashProfileExtras "Export my data") + mobile (BSDataCompliancePage). Hardened over 4 CodeRabbit/Codex rounds → APPROVED', status: 'done' },
+        { label: 'Data DELETION — POST /api/account/delete: currentUser + createAdminClient. Purges owned rows (user_goals/weigh_ins/measurements/checkins/progress_photos/daily_health_snapshot/score_ledger/playlists/reminders/client_workouts[client_id]/meal_plans/programs/integrations/push_tokens/consent_log/account_action_requests/community_posts+likes+comments/messages[sender_id]/user_activity) + storage buckets (progress-photos/community-photos/meal-notes/coach-media), writes account_deletions audit, calls auth.admin.deleteUser. Preserves Stripe/tax (authoritative in Stripe). Type-DELETE confirm on web (client + coach) + mobile', status: 'done' },
+        { label: 'Privacy RIGHTS intake — public webform public/privacy-request.html (access/delete/correct/portability/opt-out/limit-sensitive/withdraw-consent/appeal) → POST /api/privacy-request → emails PRIVACY_EMAIL (default privacy@theshapecommunity.com) via sendEmail; validates email/type; authorized-agent path. Linked from privacy.html', status: 'done' },
+        { label: 'GPC (Global Privacy Control): src/lib/gpc.ts gpcOptOut(request) reads sec-gpc==1; middleware forwards x-gpc-optout; client-side pageShell consent IIFE honors navigator.globalPrivacyControl. Shape does not sell/share so functionally a no-op, but detected server + client + recorded', status: 'done' },
+        { label: 'Region-aware consent banner — pageShell.jsx shapeConsent() IIFE: region via Europe/* timezone, GPC honor, consent_log insert, safe DOM (no innerHTML). ?v=20260622b across 69 loaders', status: 'done' },
+        { label: '18+ AGE GATE at signup: mobile BSLogin DOB field ("Shape is 18+") + 18+ validation (throws under_18); shapeBackend signUp validates + writes date_of_birth metadata; 2026-06-22-age-verification.sql adds date_of_birth/over_18 cols + set_over_18() trigger before insert/update', status: 'done' },
+        { label: 'MIGRATIONS APPLIED + verified on Supabase (idempotent + RLS): 2026-06-22-consent-log.sql (append-only owner-RLS, 2 policies), 2026-06-22-age-verification.sql (date_of_birth/over_18 cols + set_over_18 trigger), 2026-06-22-account-deletions.sql (service-role only, no RLS policy = deny-all). Security advisors after: 0 ERROR (account_deletions no-policy + set_over_18 search-path WARN both by-design). PR #1381 squash-merged to main', status: 'done' },
+        { label: 'COUNSEL-REVIEW DOCS (docs/legal/, all DRAFT): ropa.md (Art.30 ROPA), dpia.md (Art.35), transfer-impact-assessment.md (SCCs/DPF), dpa-subprocessor-checklist.md, incident-response-plan.md, data-retention-schedule.md, legitimate-interests-assessment.md, accessibility-and-pci-notes.md (WCAG/SAQ A)', status: 'manual' },
+        { label: 'Contact email standardized to info@theshapecommunity.com on contact + all public pages; privacy/rights routed to privacy@theshapecommunity.com', status: 'done' },
+        { label: 'OWNER / COUNSEL before launch: attorney review of all public + counsel docs; appoint EU/UK Art.27 representative; sign DPAs/SCCs with sub-processors; confirm breach-notification contacts; decide MD MODPA (strictest) data-minimization posture', status: 'manual' },
+        { label: 'DONE — ToS strict BAN rules + Code of Conduct: new standalone public/code-of-conduct.html (everyone + coach + client conduct, safety, reporting/moderation, ban tiers, no ban-evasion, appeals); terms.html Sec 12 strengthened with enforcement tiers (warning → temp suspension → permanent), a zero-tolerance immediate-removal list, a coach higher-bar clause, a re-registration/ban-evasion ban, and a CoC link; Sec 5 incorporates the CoC; CoC linked in all legal-page footers; app BSTermsPage parity (Termination summary + Code of Conduct entry). Drafted via workflow + adversarial legal-consistency review. Merged as PR #1385 (CodeRabbit review fix: legal-page nav dropdowns now keyboard-accessible via :focus-within). Still DRAFT pending counsel review before launch', status: 'done' },
+        { label: 'DONE — grocery-list WEB port of the 2026-06-22 mobile redesign (ClientGrocery.html): list is the hero (dropped the TO BUY/HAVE/ALL view filter — all aisles inline, checked items dim), added the slim one-line progress strip (got/total · ~$ to go · % + fill), and a unified Instacart/Save-a-copy/Share action bar', status: 'done' },
       ],
     },
     {
@@ -589,7 +636,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Rate limiting on ALL /api routes (web cookie + app Bearer, single proxy chokepoint): auth writes 5/15min by IP; general 100/min keyed per-user (cookie user.id or Bearer sub) → IP fallback. Postgres-backed (check_rate_limit RPC; 2026-06-15-rate-limits.sql run on Supabase), fails open, 429 + Retry-After, skips webhooks/health/OPTIONS; bucket keys are hashed (HMAC) with a server secret so the public RPC cannot be called directly with a guessed key', status: 'done' },
         { label: 'Supabase Auth → Rate Limits: cap sign-in / sign-up / OTP / token at the Auth layer — the real login brute-force surface (client → Supabase directly, bypasses the Next app + its /api limiter)', status: 'manual' },
         { label: 'Input hardening: proxy rejects oversized bodies on ALL /api routes (413 by Content-Length; 1MB JSON / 30MB upload); shared readJson() (413 oversized + 400 malformed) now on EVERY JSON-body /api route — public + all authenticated (allowEmpty preserves empty-body routes; garmin/push webhooks excluded); fields already clamped (cleanText/isEmail/isISODate); no dangerouslySetInnerHTML so all output is escaped', status: 'done' },
-        { label: 'Leaked-password protection (HaveIBeenPwned) — Auth → Providers → Email. Pro-plan feature; DEFERRED until Supabase Pro upgrade', status: 'pending' },
+        { label: 'Leaked-password protection (HaveIBeenPwned) — ENABLED 2026-06-23 (Auth → Attack Protection; Pro-gated). Security advisor warning cleared', status: 'done' },
         { label: 'Advisor warnings noted, low-priority/by-design: SECURITY DEFINER RPCs callable by anon/authenticated (intentional gated-RPC pattern), function_search_path_mutable on ~18 older functions (new ones set search_path=public), 4 anon-insert "always true" policies on public intake tables (contact/applications — write-only by design), 2 public buckets allow listing (coach-media/community-photos); rate_limits has RLS on + no policies and check_rate_limit is anon/authenticated SECURITY DEFINER — both by design (lockbox limiter table only the fn touches; the proxy anon client must call the RPC; search_path pinned). the direct-RPC griefing vector (guessable api:u:<uuid> bucket) is CLOSED — bucket keys are hashed (HMAC) with RATE_LIMIT_SECRET (falls back to SUPABASE_SERVICE_ROLE_KEY, hardened in prod by default)', status: 'pending' },
       ],
     },
@@ -603,7 +650,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Shape Store gated to members (mobile + website): upgrade prompt unless active subscription (coaches allowed); Me-row 🔒 hint; checked via /api/stripe/subscription', status: 'done' },
         { label: 'Store redemption is real: points spend via /api/store/redeem (atomic balance check + negative score_ledger row + one-time code); 20 pts = $1; live balance + locker on both surfaces', status: 'done' },
         { label: 'Store fulfillment wired: merch collects a shipping address (member + ops emailed via Resend), credits fund a coach-credit wallet that auto-applies at /api/stripe/checkout-session and is debited in the webhook on a completed payment', status: 'done' },
-        { label: 'Migration 2026-06-08-store-redemptions.sql + 2026-06-08-store-fulfillment.sql applied on Supabase (store_redemptions, store_credits, RPCs)', status: 'manual' },
+        { label: 'Migration 2026-06-08-store-redemptions.sql + 2026-06-08-store-fulfillment.sql applied on Supabase (store_redemptions, store_credits, RPCs)', status: 'done' },
         { label: 'RESEND_API_KEY set (store reward + ops shipping emails); optional STORE_OPS_EMAIL for the ship-to inbox (falls back to first admin email)', status: auto(present(process.env.RESEND_API_KEY)) },
         { label: 'App-wide member gate (mobile BSAppShell + website /dashboard layout): paywall unless active $5/mo sub OR approved coach; mobile offers "Preview the app" + persistent Join banner; fail-closed but caches last-known membership so members are not locked out', status: 'done' },
         { label: 'Server-side member enforcement: Next proxy gates paid API prefixes (/api/client,/nutrition,/ai,/insights,/calendar,/conversations,/messages) → 402 unless active sub / coach / admin; Bearer + cookie; fails open on error (src/lib/supabase/middleware.ts + membership-core.ts)', status: 'done' },
@@ -614,13 +661,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
     {
       section: 'Notifications',
       items: [
-        { label: 'In-app notifications (needs migrations)', status: 'manual' },
+        { label: 'In-app notifications (needs migrations)', status: 'done' },
         { label: 'System push (FCM keys + webhook secret)', status: auto(pushReady) },
         { label: 'APNs key uploaded to Firebase (iOS)', status: 'manual' },
         { label: 'Device registers its push token at sign-in (registerPush wired into getCurrentSession)', status: 'done' },
-        { label: 'Supabase Database Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret)', status: 'manual' },
+        { label: 'Supabase Database Webhook: notifications INSERT → POST /api/push/dispatch (header x-push-secret)', status: 'done' },
         { label: 'Native build: npm i @capacitor/push-notifications + cap sync + Firebase config (google-services.json / GoogleService-Info.plist) + Push capability', status: 'manual' },
-        { label: 'TO BUILD — user-set reminder notifications: members schedule their own alerts for things to do & log (not just habits/workouts/meals). Per-type toggles + times in Settings → Notifications — e.g. a "remind me to log a weigh-in" toggle, check-ins, water, progress photos — scheduled rows written into notifications so the push spine delivers them', status: 'manual' },
+        { label: 'User-set reminder notifications — members add weigh-in/check-in/water/photo/custom reminders (time + days) in mobile Settings → Notifications; hourly tz-aware cron fires them via the notifications→push spine. Migration APPLIED (2026-06-19-user-reminders.sql). Desktop-website Settings parity is a follow-up', status: 'done' },
       ],
     },
     {
@@ -688,6 +735,10 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Garmin credentials set (GARMIN_CLIENT_ID/SECRET) — also needs Garmin program approval', status: auto(itemPresent('integrations', 'GARMIN')) },
         { label: 'Apple Health / Apple Watch native HealthKit plugin + /api/integrations/apple-health/sync', status: 'done' },
         { label: 'Apple Health live: iOS device build w/ HealthKit entitlement (TestFlight/App Store)', status: 'pending' },
+        { label: 'Daily steps / NEAT (#1415): device-synced (Apple Health ALLOWED_FIELDS + Garmin dailies → daily_health_snapshot.steps, non-negative-int validated) + progress stepsLatest/stepsAvg KPIs + steps in reconcile METRICS. Mobile: BSStepsCard + ring-instrument history (hero gauge + Week bars / Month / 3-Month) with a typeable editable goal (user_goals client_step_goal). Migration 2026-06-25-daily-steps.sql APPLIED', status: 'done' },
+        { label: 'TO BUILD — Shape Steps → Shape Score points. The "Shape Steps legend": every 5,000 steps = 1 Shape Step = +1 Shape Score point; hitting the daily steps goal = +3 bonus points (e.g. 12k steps on an 8k goal = 2 Shape Steps +2, + goal bonus +3 = +5). Plan: a pure tested module shapeStepsPoints(steps, goal) → {shapeSteps, basePts, bonus, total}; credit score_ledger ONCE/day idempotently (dedupe per user+day) from daily_health_snapshot.steps via a daily cron or award_step_points() RPC with an ANTI-FARM daily cap (re-syncs/huge counts can\'t be milked); a legend + live "N Shape Steps · +N pts" on the BSStepsCard/history + a row in the Shape Score "how points work" table. Open calls: the daily cap value, ledger category, cron-vs-on-read crediting', status: 'pending' },
+        { label: 'TO BUILD — Make the Shape Score legend ACCURATE + COMPLETE (every way to gain/lose/spend points). The current "how you earn" list (mobile BSShapeScorePage Points tab + public/newdesign/score.jsx "How you earn" + clientScore.jsx) is HARDCODED + partly FICTIONAL (lists unimplemented earns: protein +5 / macros +6 / hydration +2 / steps +2 / mobility +3 / sleep +3 / tough-session +4 / program-day +8 / intro-consult +8 / coach-feedback +6 / referral +50 — NONE are real score_ledger writes) and explains NO penalties (honest-data violation). Replace with the REAL ledger catalog — GAINS: PR Wall +12, weekly check-in +15, workout logged +10, community post +5, coach session kept +12, goal milestone +50/75/100/200, tier bonus +500/1000/2000/4000, momentum bonus +25→+100 (weekly ≥80, escalates), commitment hit +stake(5-50). LOSSES (daily accountability cron, currently undocumented): missed check-in −7, skipped assigned workout −5, broke habit streak −2, commitment miss −stake. SPEND: store redemption −cost. RULES: 0-pt floor · −30/week penalty cap · high-water tier (never demotes) · spending never lowers rank · coach can WAIVE a penalty. Add the planned Shape Steps row too. DECISION: present losses in the never-shaming tone ("protect your points") not punitively. Ideally make the legend data-driven (single source) so it never drifts from the ledger again', status: 'pending' },
+        { label: 'TO BUILD — Onboarding Shape Score explainer: a "how Shape Score works" explanation shown as soon as you create an account — either a step in the spotlight tour (BSOnboardingTour / dashTour) or a dedicated post-signup page. Covers the tiers ladder, the main ways to earn, that consistency/momentum compounds, that points are spendable in the Shape Store, and (gently) the accountability losses. Reuse the accurate legend content above so the two stay in sync', status: 'pending' },
         { label: 'Live Bluetooth HRM (standard HR profile straps/watches): ShapeHRM service + Radio heart-rate-sync card wired (demo fallback); native permissions declared', status: 'done' },
         { label: 'Live HRM on device: native build w/ @capacitor-community/bluetooth-le (npx cap sync); works today in Chrome via Web Bluetooth', status: 'pending' },
         { label: 'Real song BPM on Shape Radio: blocked until radio streams real audio — compute BPM at ingest then (Spotify tempo API deprecated for new apps)', status: 'pending' },
@@ -707,6 +758,11 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Spotify app out of Development mode (test accounts allowlisted, or production quota approved)', status: 'manual' },
         { label: 'Apple Music MusicKit auth flow (connect/disconnect, status)', status: 'done' },
         { label: 'Apple Music credentials set (TEAM_ID/KEY_ID/PRIVATE_KEY)', status: auto(itemPresent('integrations', 'APPLE_MUSIC')) },
+        { label: 'Apple Music: coach imports a soundtrack by picking from their library (mobile BSProSoundtracks + website "Pick from your Apple Music") + paste-a-link', status: 'done' },
+        { label: 'Apple Music: client opens/saves a coach playlist — provider-aware cards (mobile BSPlaylistCard + web), save gated to catalog (pl.) URLs via MusicKit', status: 'done' },
+        { label: 'Apple Music developer-token route tolerant of any .p8 paste format (multi-line / \\n-escaped / flattened / bare base64) — immune to Vercel env line-stripping', status: 'done' },
+        { label: 'Apple Music LIVE end-to-end (token mints ES256, kid 252AT36GZM; full Spotify parity, web + mobile)', status: 'done' },
+        { label: 'Apple Music limit: library playlists with no catalog equivalent are not member-shareable (Apple constraint) — coaches paste a shared/catalog link for those', status: 'done' },
         { label: 'Instacart grocery hand-off (products_link shopping list)', status: 'done' },
         { label: 'Grocery copy-to-clipboard fallback while Instacart access is pending', status: 'done' },
         { label: 'Instacart credentials set (INSTACART_API_KEY) — Developer Platform access requested; applications currently gated', status: auto(itemPresent('integrations', 'INSTACART')) },
@@ -721,7 +777,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Alternatives round-trip builder → client (train/nutrition read endpoints return them)', status: 'done' },
         { label: 'Swaps persist to the shared store + notify the trainer/nutritionist', status: 'done' },
         { label: "Coach Adjust program/plan → Apply persists to client_programs.detail + reflects on the client's Train/Eat tabs (intensity/sessions/focus · calories/macros)", status: 'done' },
-        { label: 'Migration 2026-06-05-client-program-detail.sql applied on Supabase (client_programs.detail jsonb)', status: 'manual' },
+        { label: 'Migration 2026-06-05-client-program-detail.sql applied on Supabase (client_programs.detail jsonb)', status: 'done' },
       ],
     },
     {
@@ -730,7 +786,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'window.shapeDb wired on mobile to the shared user_goals table', status: 'done' },
         { label: 'Swaps/prefs keyed consistently (meal/exercise name) across surfaces', status: 'done' },
         { label: '/m/ preview falls back to the shared Supabase project URL + publishable key', status: 'done' },
-        { label: 'user_goals migration applied to the live project (PK user_id,kind + RLS)', status: 'manual' },
+        { label: 'user_goals migration applied to the live project (PK user_id,kind + RLS)', status: 'done' },
         { label: 'Native Capacitor build: VITE_SUPABASE_URL/ANON set at build time', status: 'manual' },
       ],
     },
@@ -747,11 +803,11 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Website goal page ported to match mobile (Overall body-comp dashboard added) AND unified to user_goals(client_goals) — same key mobile uses + the one get_client_goals reads, so a goal set on either surface shows on both and to coaches (reads client_goals, falls back to legacy client, migrates flat goals[])', status: 'done' },
         { label: 'Overall tab "Your plans" + "This week · targets" now LIVE on both surfaces: plans from the assigned plan (ShapePlan/api/client/plan title + cadence) + coach detail (sessions/kcal) + program phase; weekly targets (Sessions done/target · Protein days · Sleep · 7d volume) from ShapeProgress train/nutrition/progress rollups. Demo fallback when signed-out / no data', status: 'done' },
         { label: 'Goals Training/Nutrition tabs wired to live account data (demo fallback): Training lifts/stats/milestones from ShapeProgress.train PRs; Nutrition milestones from the real weigh-in trajectory', status: 'done' },
-        { label: 'Shape points for completed goal milestones: award_my_goal_milestones() RPC credits +50/75/100/200 into score_ledger (idempotent, md5-uuid dedupe) on weigh-in log + Goals-page open — MIGRATION 2026-06-12-goal-milestone-points.sql (run on Supabase)', status: 'manual' },
-        { label: 'Stats accuracy pass: Progress weight + body-fat series now read client_weigh_ins (the snapshot columns had no writer); weigh-in sheet gained an optional Body fat % field — MIGRATION 2026-06-12-weigh-in-body-fat.sql (run on Supabase)', status: 'manual' },
+        { label: 'Shape points for completed goal milestones: award_my_goal_milestones() RPC credits +50/75/100/200 into score_ledger (idempotent, md5-uuid dedupe) on weigh-in log + Goals-page open — MIGRATION 2026-06-12-goal-milestone-points.sql (run on Supabase)', status: 'done' },
+        { label: 'Stats accuracy pass: Progress weight + body-fat series now read client_weigh_ins (the snapshot columns had no writer); weigh-in sheet gained an optional Body fat % field — MIGRATION 2026-06-12-weigh-in-body-fat.sql (run on Supabase)', status: 'done' },
         { label: 'Meal logs write real macros: POST /api/nutrition/meal-log accumulates kcal/protein/carbs/fat onto today\'s daily_health_snapshot (one-tap "ate as planned" + the full logger call it) — Nutrition tab / macro adherence now track actual logging', status: 'done' },
         { label: 'In-app live sessions roll duration into daily_health_snapshot.workout_minutes (accumulating) — the Progress volume series counts app workouts, not just device-synced ones', status: 'done' },
-        { label: 'Migrations applied on Supabase: 2026-06-13-client-goals-coach-read.sql + 2026-06-13-client-weigh-ins.sql', status: 'manual' },
+        { label: 'Migrations applied on Supabase: 2026-06-13-client-goals-coach-read.sql + 2026-06-13-client-weigh-ins.sql', status: 'done' },
       ],
     },
     {
@@ -761,12 +817,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Girth measurements (ACE core sites: waist·hips·chest·arm·thigh·calf) logged from the check-in; latest+Δ on the client Progress page; latest-per-site on the coach client profile (client_measurements, coach read via RPC)', status: 'done' },
         { label: 'Structured progress photos (front/side/back, date-stamped): PRIVATE progress-photos bucket via POST /api/client/progress-photos (service-role upload, 1-yr signed URL); timeline on client Progress; coach read via get_client_progress_photos', status: 'done' },
         { label: 'Health profile / intake (PAR-Q+ 7-question screening + injuries + medications + emergency contact + consent): REQUIRED one-time gate for signed-in clients entering the app; editable in Settings; ALWAYS visible to linked coaches via get_client_health_profile (not share-gated — liability)', status: 'done' },
-        { label: 'MIGRATION 2026-06-12-checkin-kit.sql (client_measurements + client_progress_photos + progress-photos bucket + client_checkins + 4 coach RPCs) — run on Supabase', status: 'manual' },
+        { label: 'MIGRATION 2026-06-12-checkin-kit.sql (client_measurements + client_progress_photos + progress-photos bucket + client_checkins + 4 coach RPCs) — run on Supabase', status: 'done' },
         { label: 'Website parity for the check-in kit: ClientProgress gains the weekly check-in form + measurements + photo timeline (via /api/client/checkin-kit + progress-photos); ClientMe gains the Health-profile (PAR-Q) editor; coachClientDetail renders latest check-in + health screening + measurements/photos (shared-overview extended)', status: 'done' },
-        { label: 'RESEARCH GAP — daily steps / NEAT: standard on every platform (8–10k targets, auto-sync); Shape has NO steps field (snapshot column + integration sync allowlist + targets UI needed)', status: 'manual' },
-        { label: 'RESEARCH GAP — e1RM (Epley) + tonnage from logged sets: pure computation over workout_set_logs (Everfit/TeamBuildr auto-update 1RM + drive progression off it)', status: 'manual' },
-        { label: 'RESEARCH GAP — energy + hunger ratings on the daily mood check-in (standard biofeedback fields); hydration logging UI (column + meal-log param already exist)', status: 'manual' },
-        { label: 'RESEARCH GAP (differentiators) — menstrual-cycle awareness (wearables have it; NO coaching platform surfaces it) · weekend-vs-weekday adherence split (recognized failure pattern, no platform computes it) · coach-set compliance variance band (Trainerize-style)', status: 'manual' },
+        { label: 'Daily steps / NEAT — BUILT (#1415): daily_health_snapshot.steps column (migration 2026-06-25-daily-steps.sql, applied) + Apple Health/Garmin sync allowlist (non-negative int) + BSStepsCard/BSStepsHistory ring instrument with an editable 6k–15k goal + progress series/KPIs; Shape Steps → Shape Score points (#1439)', status: 'done' },
+        { label: 'e1RM (Epley) + tonnage from logged sets — BUILT (#1420/#1421): pure tested e1rm.mjs (+ e1rm.ts twin) folds Epley over workout_set_logs (payload-first), drives a Progressing/Holding/Stalled verdict + suggestNextLoad autoregulation; surfaced via /api/client/strength + the mobile Strength page (see the two Strength items below)', status: 'done' },
+        { label: 'Strength / e1RM progression (#2) — client side: estimated 1RM + Progressing/Holding/Stalled engine, dedicated Strength page, PR-row e1RM, /api/client/strength endpoint (CI-green)', status: 'done' },
+        { label: 'Strength / e1RM progression (#2) — coach lift e1RM: get_client_lifts widened with e1rm (mobile + web), APPLIED + verified live (#1420)', status: 'done' },
+        { label: 'Migration: 2026-06-25-client-lifts-e1rm.sql (widens get_client_lifts with e1rm) — APPLIED + verified live (advisors 0 ERROR)', status: 'done' },
+        { label: 'Daily energy/hunger check-in card (BSDailyCheckinCard, 1–10) + dedicated hydration logger (BSHydrationCard, +250/500 ml quick-add + undo) — GET/POST /api/client/hydration + migration 2026-06-25-daily-energy-hunger.sql (APPLIED + verified live); shipped #1422', status: 'done' },
+        { label: 'Weekend-vs-weekday adherence split (differentiator A) — BUILT (#1449, v1 nutrition + habits): pure tz-free weekendSplit.mjs (+ src/lib/weekendSplit.ts twin, 16 tests) computes a per-dimension weekday-vs-weekend gap with a STATISTICAL flag gate (gap ≥15pp AND ≥1.65·SE AND positive in ≥60% of weeks — kills small-sample false alarms), display-only composite, lower-CI worstDimension. MEMBER: a Weekends card in the Progress Overall tab, computed client-side over cached endpoints (no new self endpoint). COACH: SECURITY DEFINER get_roster_weekend_split RPC (owner-gated; bucketed per member tz; excludes archived habits) + POST /api/coach/roster-weekend → a roster WKND −N chip + a client-detail "Weekend pattern" plate with a directive. MIGRATIONS 2026-06-27-client-timezone.sql + 2026-06-27-roster-weekend-split.sql — APPLIED + verified live (tz col, RPC SECURITY DEFINER, smoke-tested). Folded in: Progress-hub simplification (deleted dead BSMeKpis; removed the bare-adherence Insights grid → matches the web "no bare adherence %" rule; weekly points kept). FAST-FOLLOWS: training dimension (needs client_workouts.scheduled_date) · per-member change-from-baseline guard (v2) · threshold calibration on the live gap distribution', status: 'done' },
+        { label: 'RESEARCH GAP (remaining differentiators) — menstrual-cycle awareness (wearables have it; NO coaching platform surfaces it; privacy-first, sensitive reproductive-health data) · coach-set compliance variance band (Trainerize-style)', status: 'manual' },
+        { label: 'Sleep-logging redesign (Tier 1, #1430): daily sleep folded into the check-in card — device-first (read-only hours + efficiency/RHR/HRV when a wearable synced today, else editable manual-hour chips) + an always-on 1–10 Rested rating → daily_health_snapshot.sleep_quality; persists via /api/client/checkin (await+rollback); BSSleepSheet retired. MIGRATION 2026-06-26-sleep-quality.sql — APPLIED + verified live', status: 'done' },
+        { label: 'Sleep → engine: pure tested sleepRecoveryFromProgress wired into selfRecord so the (previously dead) recovery directive fires for real signed-in members', status: 'done' },
+        { label: 'Coach objective sleep: /api/clients/[id]/shared-overview returns sleep (latest hours + 7d trend + efficiency/RHR/HRV, RLS-scoped via providers_read_subscriber_snapshots) → web coachClientDetail + mobile coach profile (#1430)', status: 'done' },
+        { label: 'Sleep fast-follow (#1433, deferred from #1430) — BUILT + LIVE: sleep STAGES (deep/REM/light/awake) · bed/wake + LATENCY · RESPIRATORY rate captured from Oura v2 sync into daily_health_snapshot (MIGRATION 2026-06-26-sleep-detail.sql — APPLIED + verified live; other providers leave them null → honest "—"). Canonical recovery-READINESS score (pure recoveryReadiness.mjs + recovery-readiness.ts twin, tested) on the check-in card + the mobile BSSleepHistory detail page (stages bar, bed/wake, latency, respiratory, readiness ring, sparklines) + the coach view (shared-overview + web/mobile). Coach SLEEP-TRIAGE rule: dashSignals ruleSleepRecovery flags sleep_low (7d avg >1.5h under target) → directive + the coach "who needs you" feed (roster sleep batched via /api/coach/roster-sleep). Inherent provider limits (not Shape work): Apple HealthKit stages need a native iOS build; Garmin respiratory is not in its webhook schema', status: 'done' },
       ],
     },
     {
@@ -779,7 +843,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '"People you may know" empty-state suggestions from the follow graph (get_follow_suggestions: mutuals + follows-you, avatar-enriched); Recent = recently VIEWED profiles (recorded centrally in BSPublicProfile, live-synced)', status: 'done' },
         { label: 'Beyond people (All filter): Channels (deep-links into the channel thread) · Shape Kitchen recipes (in-place detail) · Workouts (preview + Start) · Coach plans for sale (opens the coach profile)', status: 'done' },
         { label: '"Coached by" chip on the member Terrain hero links to the coach\'s live Signal profile (ShapeCoachLookup provider→owner; fixed the dormant {stored,data} unwrap bug that kept it on demo data)', status: 'done' },
-        { label: 'Migration applied on Supabase: 2026-06-09-universal-search.sql (search_shape_people v2 — names + @handles + bio/goal keywords)', status: 'manual' },
+        { label: 'Migration applied on Supabase: 2026-06-09-universal-search.sql (search_shape_people v2 — names + @handles + bio/goal keywords)', status: 'done' },
         { label: 'Website-nav search parity: ⌕ in the pageShell header on every page (+ a mounted copy on the static index nav) — same RPC, role tags, tier-ringed avatars, rows → public profiles, Nora row → chat Help tab', status: 'done' },
       ],
     },
@@ -788,8 +852,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       items: [
         { label: 'Music tab on both profiles: own library (add / public-private toggle / ✉ send / ↗ share / remove) + others\' public playlists (▶ open / ＋ save-to-library)', status: 'done' },
         { label: 'Add flow imports straight from the connected Spotify library (reuses /api/integrations/spotify/playlists); paste-a-link fallback covers Apple Music + unconnected', status: 'done' },
-        { label: 'Migration applied on Supabase: 2026-06-09-member-playlists.sql (member_playlists + get_member_playlists)', status: 'manual' },
-        { label: 'Website profile Music-tab parity', status: 'pending' },
+        { label: 'Migration applied on Supabase: 2026-06-09-member-playlists.sql (member_playlists + get_member_playlists)', status: 'done' },
+        { label: 'Website profile Music tab — the desktop living profile (member + coach) renders the owner\'s playlist library via get_member_playlists (own → all, others → public). Display on web; owner adds/manages from the app (web add is a follow-up)', status: 'done' },
       ],
     },
     {
@@ -799,8 +863,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Login accepts email OR username (mobile BSLogin + website login.jsx) — username resolves to the login email via RPC, friendly miss message', status: 'done' },
         { label: 'Signup username step with debounced live availability (mobile create-account covers client + coach roles; website signup forms client/trainer/nutritionist); choice rides user_metadata and is claimed at signup or first confirmed login', status: 'done' },
         { label: 'Profile @handles prefer the real username (Settings identity seed + Terrain/Signal heroes)', status: 'done' },
-        { label: 'Migration applied on Supabase: 2026-06-09-usernames.sql', status: 'manual' },
-        { label: 'Website client signup still an application stub (collects but does not create the auth account) — username goes live there when that flow does', status: 'pending' },
+        { label: 'Migration applied on Supabase: 2026-06-09-usernames.sql', status: 'done' },
+        { label: 'Website client signup creates a REAL Supabase auth account (signup.jsx submitApplication client path: validates name/email/password + 18+ DOB gate + Terms + Turnstile, calls auth.signUp with username/dob/role metadata, then check-inbox or provisions profile + set_my_username → dashboard) — username goes live there; coach roles stay applications', status: 'done' },
       ],
     },
     {
@@ -808,6 +872,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       items: [
         { label: 'First-run app tour (skippable, replayable from Me → App tour): 7-step guided walkthrough that switches the underlying tab; persists to localStorage + user_goals(client_onboarding)', status: 'done' },
         { label: 'App tour coach variant (trainer + nutritionist) + new-accounts-only trigger (auto-shows only for accounts <24h old; existing users replay from Me → App tour)', status: 'done' },
+        { label: 'Interactive spotlight tour (mobile, Phase A): client + coach guided spotlight walkthroughs (engine + data-tour hooks), Radio finale on the client tour — spotlightGeom.mjs (TDD) + spotlightTour.js engine, BSOnboardingTour + BSProOnboardingTour replaced to call engine; reuses existing trigger/persistence', status: 'done' },
+        { label: 'Spotlight tour — website dashboard tours (Phase B): shared engine loaded on the 3 dashboard SPAs (Client/Trainer/Nutritionist) + dashTour.js adapter (hash-route navigation, shapeDb persistence, new-account auto-show + "Take a tour" replay); data-tour hooks on the web nav + per-route mastheads; client tour ends on the Shape Radio finale, coach tours end on Profile', status: 'done' },
         { label: 'Home ticker editor in Settings (client picks which metrics show)', status: 'done' },
         { label: 'Grocery coach-note split from the home Op-ed (two separate coach-editable messages)', status: 'done' },
         { label: 'Nutritionist Live Console pre-fills the existing grocery note per client', status: 'done' },
@@ -819,6 +885,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Find-a-coach bars (Train/Eat) filled in role color (trainer rust / nutritionist gold), compact, thicker border; tier name removed from the Settings identity avatar', status: 'done' },
         { label: 'Me tab is PROFILE-FIRST: opens as your living Terrain profile (masthead = logo + Vol·No + ME / Profile.) with the Shape Score card + tappable goal card in the header; Stats tab embeds the FULL progress page (Overall/Training/Nutrition, live ShapeProgress, forced-dark via BSContext); Signals + Climb wired live (streak, trajectory, momentum, disciplines, lifts, score). Tier unified across avatars/profile/score/Settings (one client-score source — live signed-in, Tempo/1284 preview)', status: 'done' },
         { label: 'Settings consolidated into ONE screen (BSSettings): merged the old Me-page hub in — Account · Preferences · Nutrition · Training · Health integrations · Notifications · Privacy · Membership & billing · More (Goals/Habits/Library/Progress/Score/Store/Leaderboard/Sessions) · Appearance/Radio/Light-fx/Ticker · About · Account actions. Cards are divider rows (no boxes); identity card kept as the summary', status: 'done' },
+        { label: 'Web dashboard widgets are draggable + resizable (GridStack 11.x, vendored): every card-style tab renders cards as grid widgets — drag to reorder (⠿ handle), resize (flush corner triangle), layout persisted per role+tab to user_goals(dashboard_layout). Engine = public/newdesign/dashGrid.jsx (React createPortal into grid items; direct height-fit + ResizeObserver for async cards; atomic grid.load order; 1-col mobile breakpoint). Live across all 3 profiles: client Today/Score/Habits/Progress/Workouts/Nutrition/Goal + trainer & nutritionist Today/Score/Goal. Single-purpose pages (builders, calendars, feeds, rosters, profiles) deliberately excluded. No new API route (front-end + user_goals key). Verified on preview at desktop + 430px mobile', status: 'done' },
       ],
     },
     {
@@ -842,7 +909,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Member-created channels: create / discover / join / host add-members / channel chat', status: 'done' },
         { label: 'Public/private channels + per-user pin-to-top', status: 'done' },
         { label: 'Realtime messages + per-row unread badges + persisted unread + Chat-tab badge', status: 'done' },
-        { label: 'Channel migrations applied in Supabase (channels, visibility, realtime publication, unread RPCs)', status: 'manual' },
+        { label: 'Channel migrations applied in Supabase (channels, visibility, realtime publication, unread RPCs)', status: 'done' },
       ],
     },
     {
@@ -856,12 +923,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach chat thread renders the voice-memo player + meal photo inline', status: 'done' },
         { label: "'Log Now' on a meal preview opens the full logger; calendar preview keeps one-tap 'Ate it as planned'", status: 'done' },
         { label: "Shop list auto-builds from the week's meal ingredients (deduped, aisle-grouped) — matches the meals", status: 'done' },
+        { label: "Grocery list redesigned (mobile): slim 'List name ▾' selector + one-line progress strip + every aisle inline (checklist is the hero) + one bottom action bar (Instacart/Save/Share); a Home 'Shop list' card deep-links straight to it. Website port pending", status: 'done' },
         { label: 'Swap meal: pick which meal first, then the coach-approved alternate', status: 'done' },
         { label: 'Meal-search recents add to the meal + filter as you type', status: 'done' },
-        { label: 'meal-notes storage bucket migration applied (audio + image mime types, 15 MB)', status: 'manual' },
-        { label: 'community-photos storage bucket + community_posts.photo_url migration applied (public read, owner-folder write) — photo posts on feed + profiles, mobile + website', status: 'manual' },
-        { label: 'user_follows table + get_follow_stats/toggle_follow/get_follow_list RPCs migration applied — follower/following on public profiles, mobile + website', status: 'manual' },
-        { label: 'follow requests migration applied (user_follows.status + shape_profile_visibility + list/respond_follow_request RPCs) — private profiles require approval, public follow instantly; toggle_follow + respond_follow_request emit notifications (follow / follow_request / follow_accept)', status: 'manual' },
+        { label: 'meal-notes storage bucket migration applied (audio + image mime types, 15 MB)', status: 'done' },
+        { label: 'community-photos storage bucket + community_posts.photo_url migration applied (public read, owner-folder write) — photo posts on feed + profiles, mobile + website', status: 'done' },
+        { label: 'user_follows table + get_follow_stats/toggle_follow/get_follow_list RPCs migration applied — follower/following on public profiles, mobile + website', status: 'done' },
+        { label: 'follow requests migration applied (user_follows.status + shape_profile_visibility + list/respond_follow_request RPCs) — private profiles require approval, public follow instantly; toggle_follow + respond_follow_request emit notifications (follow / follow_request / follow_accept)', status: 'done' },
         { label: 'Food-database free-text search in the logger (Search tab uses local recents today)', status: 'pending' },
         { label: 'Native mic + camera plugins for the iOS App Store build (WebView file/Media fallback today)', status: 'pending' },
       ],
@@ -893,8 +961,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Coach media: trainers/nutritionists upload demo PHOTOS & VIDEOS for each plan/program/workout in the draft editor (BSCoachDraftEditor) → public coach-media bucket (own <uid>/ folder, 200MB/img+video) → detail.media. Migration 2026-06-09-coach-media.sql + 2026-06-09-coach-sale-plans-detail.sql (sale-plan RPCs return detail). Clients preview the media strip on the coach profile sale-plan rows (mobile + website)', status: 'done' },
         { label: 'Real coach accounts resolve on BOTH surfaces: app fetches live trainers/nutritionists + each real saved photo (get_public_profile.avatar); website marketplace now does the same — merges live coaches ahead of the demo directory (deduped), real cards link to the live profile (?u=<owner>), demo links pass &avatar= so derived profiles show the card photo. marketplace.jsx ?v=5', status: 'done' },
         { label: 'Website signed-out marketing: real face photos on the spotlight + grid; coach-customizable COVER image band behind the avatar (darkened/tinted; demo covers + real profile_custom.cover.image); facet gem avatars; filter dropdowns', status: 'done' },
-        { label: 'Sweep now-dead marketplace constants + BSCoachDetailPublic/publicProfile.jsx (superseded by the living profile as the coach destination)', status: 'pending' },
-        { label: 'TO BUILD — coach credential verification: application requires proof of certification (NASM/ACE/ISSA/NSCA; state-appropriate for nutritionists — licensure applies in some states) + proof of professional liability insurance (COI upload). Private doc storage + expiry dates on the provider row, admin review queue, "Verified" badge on marketplace/profile, expiry re-verification reminders via the notifications spine. Backs the liability story; makes "vetted coaches" literally true', status: 'manual' },
+        { label: 'Dead-code sweep re-audited (2026-06-19): nothing safe to remove — BSCoachDetailPublic is still the mobile marketplace coach-detail page, the BSM_MARKETPLACE_* constants are each referenced, ListingRow was already removed, and publicProfile.jsx is actively loaded by TrainerPublic/NutritionistPublic.html + coachDirectory.js. No action.', status: 'done' },
+        { label: 'Stored-XSS fix (2026-06-19): the profile Music tab rendered the user-supplied member_playlists.url into an anchor href — a javascript:/data: URL would execute on click. Fixed in livingDesktop.jsx (safeMusicUrl: http(s) + Spotify/Apple hosts only) + a NOT VALID CHECK on member_playlists.url (2026-06-19-member-playlists-url-guard.sql APPLIED) as DB-level defense-in-depth covering the mobile open path', status: 'done' },
+        { label: 'Coach credential verification (web) — coach uploads COI + certs + submits (coach dashboard profile card); admin verifies at /dashboard/credentials; ✓ Verified badge on marketplace + living profile; weekly expiry-reminder cron. Migration APPLIED (2026-06-19-coach-credential-verification.sql: private coach-credentials bucket + review columns + public verified flag). Mobile badge is a follow-up', status: 'done' },
       ],
     },
     {
@@ -915,7 +984,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Preview mode: demo/seed people show stock faces (app + website) so prospects see avatars on bubbles + profiles', status: 'done' },
         { label: 'Client Terrain profile ported from design handoff: ascent-card hero (facet you-are-here) + THE CLIMB section (start→now→summit)', status: 'done' },
         { label: "THE CLIMB Start/Now/Target + % wired to your real body-comp goal + weigh-ins on your own profile (demo arc for others)", status: 'done' },
-        { label: 'Migrations applied in Supabase: public-profile friends-visibility + public-profile avatar + avatar-ungated', status: 'manual' },
+        { label: 'Migrations applied in Supabase: public-profile friends-visibility + public-profile avatar + avatar-ungated', status: 'done' },
         { label: 'Profile customization (app + website): bio + profile song (Spotify embed) + Hinge-style prompts + social links + cover image + personal accent + pinned highlight + headline stats — self-serve editor, surfaced to others via get_public_profile custom. Migration 2026-06-08-profile-custom.sql', status: 'done' },
         { label: 'THE CLIMB is aspect-customizable: in-box tabs (Body weight / Body fat / Strength / Shape Score / Day streak) + a customize picker; the ridgeline now-dot tracks the selected aspect (app + website)', status: 'done' },
         { label: 'Client ascent hero = progress to your next LEVEL (tier): next level labelled by the flag in the next-tier color; fixed avatar overlap + jump on tab switch (app + website)', status: 'done' },
@@ -927,7 +996,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Profile "Log activity" composer (Substack-style) on BOTH member (Terrain) + coach (Signal) profiles: publish Note / Photo / Video (upload via coach-media OR paste a watch link) / Workout (type + stat fields) / Link (website/article card). Rich payload rides in community_posts.metrics (kind/video_url/link/workoutStats) — no migration; shared BSActivityBody renders every type. Profile feed loads the author\'s real posts', status: 'done' },
         { label: 'Post visibility is 3-state on the composer (all profile types): Public (profile + feed) · Profile (visible to everyone on the profile, kept OUT of the feed) · Just me (private). Feed reads exclude profile/private (mobile listCommunityPosts + website /api/community/feed). Migration 2026-06-09-community-profile-visibility.sql (privacy CHECK + RLS so profile reads like public)', status: 'done' },
         { label: 'Profile reads on every paper: avatar gem inner + initials, Shape Score card, goal card, Me KPIs no longer hardcode cream/black — all follow the paper theme (light papers fixed)', status: 'done' },
-        { label: 'Wire remaining illustrative sub-data (some sigil-ring inputs, certs, field-notes) to fully real rollups', status: 'pending' },
+        { label: 'Illustrative profile sub-data, resolved (2026-06-19): a verified coach\'s Certifications now render their REAL submitted cert types via get_coach_certs (2026-06-19-coach-certs-public.sql APPLIED, paths withheld, verified-only). The Signal sigil rings stay illustrative by design (practice focus, not a workout/PR metric); field-notes already load the author\'s real community posts', status: 'done' },
       ],
     },
     {
@@ -974,10 +1043,31 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Daily evaluator /api/cron/score-accountability (vercel.json 07:00 UTC, CRON_SECRET-gated, service-role, fail-open per user). ALL migrations applied; CRON_SECRET set + deployed; cron auth verified live (200). The full A–E system is active', status: 'done' },
       ],
     },
+    {
+      section: 'Funnel analytics',
+      items: [
+        { label: 'Funnel analytics — DONE. Migration applied live (analytics_events + track_event + get_funnel, service-role-only); War Room funnel panel live; 12-month purge cron (daily 03:30 UTC). The mobile track() wiring bug (events silently no-op\'d) was fixed in #1407 — the 5 events now emit + are consent-gated (region-aware, fail-closed)', status: 'done' },
+      ],
+    },
   ];
 }
 
-export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
+async function buildFunnelSnapshot(cohortDays = 0): Promise<WarRoomSnapshot['funnel']> {
+  const to = new Date();
+  const from = cohortDays > 0 ? new Date(Date.now() - cohortDays * 86400000) : new Date('2020-01-01');
+  const empty = { cohortDays, generatedFor: 'all', rows: buildFunnel({}), biggestDrop: null };
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('get_funnel', { p_from: from.toISOString(), p_to: to.toISOString() });
+    if (error || !Array.isArray(data)) return empty; // migration not applied yet → graceful empty
+    const counts: Record<string, number> = {};
+    for (const r of data as Array<{ step: string; count: number }>) counts[r.step] = Number(r.count) || 0;
+    const rows = buildFunnel(counts);
+    return { cohortDays, generatedFor: cohortDays ? `last ${cohortDays}d` : 'all', rows, biggestDrop: rows.find(r => r.isBiggestDrop)?.key ?? null };
+  } catch { return empty; }
+}
+
+export async function buildWarRoomSnapshot(cohortDays = 0): Promise<WarRoomSnapshot> {
   const config = buildConfig();
   const apiRoutes = buildApiRoutes();
   const [services, inventory] = await Promise.all([
@@ -995,6 +1085,8 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
   const total = requiredGroups.length;
   const label = score === total ? 'Launch-ready config' : score === 0 ? 'Not configured' : 'Partially configured';
 
+  const funnel = await buildFunnelSnapshot(cohortDays);
+
   return {
     generatedAt: new Date().toISOString(),
     runtime: {
@@ -1011,5 +1103,6 @@ export async function buildWarRoomSnapshot(): Promise<WarRoomSnapshot> {
     checklist,
     readiness: { score, total, label },
     architecture: SHAPE_ARCHITECTURE,
+    funnel,
   };
 }

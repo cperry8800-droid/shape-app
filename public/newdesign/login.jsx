@@ -16,50 +16,6 @@ function LoginMark() {
   );
 }
 
-function SocialButton({ icon, label, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      width: "100%",
-      background: "rgba(8,7,6,0.72)",
-      border: "1px solid rgba(242,237,228,0.18)",
-      color: INK,
-      padding: "11px 12px",
-      borderRadius: 6,
-      fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 11,
-      fontWeight: 700,
-      letterSpacing: "0.1em",
-      textTransform: "uppercase",
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-      transition: "background 0.15s ease, border-color 0.15s ease",
-    }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(15,13,12,0.88)"; e.currentTarget.style.borderColor = "rgba(242,237,228,0.36)"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(8,7,6,0.72)"; e.currentTarget.style.borderColor = "rgba(242,237,228,0.18)"; }}
-    >
-      {icon}<span>{label}</span>
-    </button>
-  );
-}
-
-const GoogleIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
-    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 3l5.7-5.7C34.2 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
-    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16.1 19 13 24 13c3 0 5.8 1.1 7.9 3l5.7-5.7C34.2 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
-    <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2c-1.9 1.3-4.3 2.1-7.3 2.1-5.3 0-9.7-3.1-11.3-7.6l-6.5 5c3.4 6.6 10.1 10.9 17.8 10.9z"/>
-    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.6l6.3 5.2C41.2 36 44 30.4 44 24c0-1.3-.1-2.4-.4-3.5z"/>
-  </svg>
-);
-
-const AppleIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill={INK} aria-hidden>
-    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-  </svg>
-);
-
 const EmailIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <rect x="3" y="5" width="18" height="14" rx="2"/>
@@ -97,8 +53,15 @@ function LoginCard() {
   // Protection with the matching TURNSTILE_SECRET_KEY).
   const captchaOn = typeof window !== "undefined" && window.ShapeTurnstile && window.ShapeTurnstile.enabled();
   const [captchaToken, setCaptchaToken] = React.useState("");
+  // If the Cloudflare human-check can't load/connect (outage, a network, or an
+  // extension blocking challenges.cloudflare.com), degrade open so login is never
+  // hard-blocked forever on "confirming you're human…".
+  const [captchaUnavailable, setCaptchaUnavailable] = React.useState(false);
   const captchaRef = React.useRef(null);
   const captchaIdRef = React.useRef(null);
+  // Mirror the latest token to a ref so the grace-period timer can read it.
+  const captchaTokenRef = React.useRef("");
+  React.useEffect(() => { captchaTokenRef.current = captchaToken; }, [captchaToken]);
   // The widget is hidden at the phone code-entry step. Track whether its container
   // is currently mounted so that, when we leave and return (e.g. "Change number"),
   // we tear down the spent single-use widget and render a FRESH challenge — instead
@@ -111,7 +74,17 @@ function LoginCard() {
       return;
     }
     if (!captchaRef.current || captchaIdRef.current != null) return;
-    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => { captchaIdRef.current = id; });
+    setCaptchaUnavailable(false);
+    let alive = true;
+    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => {
+      if (!alive) return;
+      captchaIdRef.current = id;
+      if (id == null) setCaptchaUnavailable(true); // the Turnstile script never loaded
+    });
+    // The widget can mount but never return a token (its error-callback fires when
+    // Cloudflare is unreachable) — fall open after a short grace period.
+    const failTimer = setTimeout(() => { if (alive && !captchaTokenRef.current) setCaptchaUnavailable(true); }, 7000);
+    return () => { alive = false; clearTimeout(failTimer); };
   }, [captchaVisible]);
   // Tokens are single-use — clear after a failed attempt so a retry re-solves.
   const resetCaptcha = () => { setCaptchaToken(""); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
@@ -124,6 +97,54 @@ function LoginCard() {
         body: JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token }),
       }).catch(() => {});
     }
+    // First confirmed login after a WEBSITE signup must provision the account,
+    // exactly like the mobile app's signIn: the website signup creates the auth
+    // user but NO public.profiles row (there's no DB trigger, and set_my_username
+    // only UPDATEs an existing row), so create it here from the signup metadata,
+    // persist the DOB (→ the over_18 trigger), then claim the pending @username.
+    // All best-effort + non-blocking, and ONLY create when missing — never clobber
+    // an existing profile (coach / mobile-created accounts log in here too).
+    try {
+      const u = session && session.user;
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (sb && u && u.id) {
+        const meta = u.user_metadata || {};
+        let row = null;
+        try {
+          const res = await sb.from('profiles').select('id, username, role, date_of_birth').eq('id', u.id).maybeSingle();
+          row = (res && res.data) || null;
+        } catch (e) {}
+        // Provision ONLY from a genuine website-signup's metadata (full_name +
+        // role + username + date_of_birth, all set by signup.jsx). Never fabricate
+        // a profile with a placeholder name / assumed role / no DOB for a login
+        // that didn't come through the website signup (e.g. a phone-OTP user, or an
+        // account that should already have a server-created profile) — that would
+        // mint junk client rows and skip the DOB/18+ gate. Otherwise leave it be.
+        const isWebsiteSignup = !!(meta.full_name && meta.role && meta.username && meta.date_of_birth);
+        if (!row && isWebsiteSignup) {
+          try {
+            // Role is FIXED to client — NEVER copy meta.role/meta.roles. The profiles
+            // INSERT policy only checks auth.uid() = id, so honoring client-supplied
+            // role metadata would let anyone self-mint a trainer/nutritionist profile.
+            // Coaches are provisioned server-side via the /api/apply approval flow.
+            await sb.from('profiles').upsert({
+              id: u.id,
+              email: u.email,
+              full_name: meta.full_name,
+              role: 'client',
+              roles: ['client'],
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'id' });
+          } catch (e) {}
+        }
+        if (meta.date_of_birth && (!row || !row.date_of_birth)) {
+          try { await sb.from('profiles').update({ date_of_birth: meta.date_of_birth }).eq('id', u.id); } catch (e) {}
+        }
+        if (meta.username && (!row || !row.username)) {
+          try { await sb.rpc('set_my_username', { p_username: String(meta.username).replace(/^@/, '') }); } catch (e) {}
+        }
+      }
+    } catch (e) {}
     let nextDashboard = role === 'shape_radio' ? '/newdesign/Radio.html'
       : role === 'trainer' ? '/newdesign/TrainerDashboard.html'
       : role === 'nutritionist' ? '/newdesign/NutritionistDashboard.html'
@@ -144,11 +165,11 @@ function LoginCard() {
     if (!sb) { setErrMsg("Auth is still loading. Try again in a second."); return; }
     const e164 = normalizePhoneE164(phone);
     if (!e164 || e164.length < 8) { setErrMsg("Enter a valid phone number, e.g. +1 555 123 4567."); return; }
-    if (captchaOn && !captchaToken) { setErrMsg("Just a moment — confirming you're human…"); return; }
+    if (captchaOn && !captchaToken && !captchaUnavailable) { setErrMsg("Just a moment — confirming you're human…"); return; }
     setPhone(e164);
     setSubmitting(true);
     const otpOpts = { shouldCreateUser: true };
-    if (captchaOn) otpOpts.captchaToken = captchaToken;
+    if (captchaOn && captchaToken) otpOpts.captchaToken = captchaToken;
     const { error } = await sb.auth.signInWithOtp({ phone: e164, options: otpOpts });
     setSubmitting(false);
     if (error) { if (captchaOn) resetCaptcha(); setErrMsg(error.message || "Could not send the code."); return; }
@@ -172,7 +193,7 @@ function LoginCard() {
     e.preventDefault();
     if (submitting) return;
     setErrMsg("");
-    if (captchaOn && !captchaToken) { setErrMsg("Just a moment — confirming you're human…"); return; }
+    if (captchaOn && !captchaToken && !captchaUnavailable) { setErrMsg("Just a moment — confirming you're human…"); return; }
     setSubmitting(true);
     try {
       const sb = window.shapeDb && window.shapeDb.client;
@@ -192,7 +213,7 @@ function LoginCard() {
         if (resolved === null) { setErrMsg("No account with that username — check the spelling or sign in with your email."); setSubmitting(false); return; }
         if (resolved) loginEmail = resolved;
       }
-      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password, options: captchaOn ? { captchaToken } : {} });
+      const { data, error } = await sb.auth.signInWithPassword({ email: loginEmail, password, options: (captchaOn && captchaToken) ? { captchaToken } : {} });
       if (error || !data.session) {
         if (captchaOn) resetCaptcha();
         setErrMsg(error ? error.message : "Could not sign in.");
@@ -230,25 +251,19 @@ function LoginCard() {
       WebkitBackdropFilter: "blur(14px) saturate(1.05)",
       border: "1px solid rgba(242,237,228,0.16)",
       borderRadius: 10,
-      padding: "26px 26px 22px",
+      padding: "20px 24px 18px",
       boxShadow: "0 28px 90px rgba(0,0,0,0.56), 0 0 0 1px rgba(255,255,255,0.02) inset",
       position: "relative",
     }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderTopLeftRadius: 10, borderTopRightRadius: 10, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 16%, ${TEAL} 84%, transparent 100%)`, opacity: 0.62 }} />
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 16 }}>Welcome back</div>
-      <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 10px", lineHeight: 0.96 }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL, marginBottom: 10 }}>Welcome back</div>
+      <h1 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 6px", lineHeight: 0.98 }}>
         Log in to <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: "1.4px #f2ede4" }}>Shape</em>.
       </h1>
-      <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(242,237,228,0.68)", margin: "0 0 28px", lineHeight: 1.5 }}>Pick up where you left off. Your coaches, your plans, your progress.</p>
-
-      {/* Social buttons */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 22 }}>
-        <SocialButton icon={<GoogleIcon />} label="Google" />
-        <SocialButton icon={<AppleIcon />} label="Apple" />
-      </div>
+      <p style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.68)", margin: "0 0 16px", lineHeight: 1.45 }}>Pick up where you left off. Your coaches, your plans, your progress.</p>
 
       {/* Email / Phone method toggle */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, background: "rgba(8,7,6,0.76)", border: "1px solid rgba(242,237,228,0.2)", borderRadius: 7, padding: 4, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, background: "rgba(8,7,6,0.76)", border: "1px solid rgba(242,237,228,0.2)", borderRadius: 7, padding: 4, marginBottom: 14 }}>
         {[["email", "Email"], ["phone", "Phone"]].map(([v, l]) => (
           <button key={v} type="button" onClick={() => { setMethod(v); setErrMsg(""); setOtpSent(false); setOtp(""); }} style={{
             padding: "9px 10px", borderRadius: 5, border: 0,
@@ -260,7 +275,7 @@ function LoginCard() {
       </div>
 
       {/* Form */}
-      <form onSubmit={method === "phone" ? (otpSent ? verifyPhoneOtp : sendPhoneOtp) : submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <form onSubmit={method === "phone" ? (otpSent ? verifyPhoneOtp : sendPhoneOtp) : submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {method === "phone" ? (
           <>
             <div>
@@ -347,9 +362,15 @@ function LoginCard() {
           <div style={{ marginTop: 4, padding: "10px 14px", borderRadius: 6, background: "rgba(220,80,80,0.1)", border: "1px solid rgba(220,80,80,0.3)", color: "#e27a7a", fontFamily: sans, fontSize: 13 }}>{errMsg}</div>
         ) : null}
 
-        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token). */}
+        {/* Turnstile bot challenge — hidden at the phone code-entry step (verify needs no token).
+            Falls open if it can't load/connect, so it can't lock anyone out. */}
         {captchaOn && !(method === "phone" && otpSent) ? (
-          <div ref={captchaRef} style={{ minHeight: 65 }} />
+          <div>
+            <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
+            {captchaUnavailable ? (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>Couldn't load the human-check — you can still sign in.</div>
+            ) : null}
+          </div>
         ) : null}
 
         <button type="submit" disabled={submitting} style={{

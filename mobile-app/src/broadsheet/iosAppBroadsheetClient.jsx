@@ -3,12 +3,15 @@ import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
+import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
+import { shapeStepsPoints } from '../services/shapeSteps.mjs';
+import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
 
 const { useState: useStateBSC } = React;
 const {
-  useBS, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
+  useBS, BSBackButton, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
   BSTabBar, BSFooter, BSLogo, BSPlate,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
@@ -166,10 +169,12 @@ function useBSPresence() {
   return v;
 }
 
+const BS_HEADER_AVATAR = 34; // canonical top-header avatar (+ paired search/pencil/gear) size
+
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
 // in without prop-threading. Always sits to the LEFT of the profile avatar.
-function BSSearchCorner({ size = 34, ink = null }) {
+function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null }) {
   const t = useBS();
   // `ink` matches the profile mastheads' pencil/gear chrome (tinted fill +
   // 0.3-alpha border + 14px glyph) so the corner buttons read as one set.
@@ -195,7 +200,7 @@ function useBSIdentityTick() {
     return () => window.removeEventListener('shape:identity', f);
   }, []);
 }
-function BSHeaderTools({ onProfile, size = 34 }) {
+function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -208,7 +213,7 @@ function BSHeaderTools({ onProfile, size = 34 }) {
 // Top-right tools for sub-pages — search + the profile avatar (taps through to
 // Settings/profile via a window event, handled in BSClientAppInner), so a page
 // needn't thread props. Drop it into a page's back-button row, right-aligned.
-function BSMeCorner({ size = 30 }) {
+function BSMeCorner({ size = BS_HEADER_AVATAR }) {
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -230,72 +235,109 @@ function BSRadioFx() {
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
-// ── First-run app tour ──────────────────────────────────────────────────────
-// A skippable ~60-second walkthrough that appears once when you first land in
-// the app (persisted to localStorage + user_goals 'client_onboarding'), and can
-// be replayed anytime from Me → App tour. Each step switches the underlying tab
-// (via onNavigate) so the real screen shows behind the card.
-const BS_TOUR_STEPS = [
-  { key: 'welcome', tab: 'home', emoji: '👋', eyebrow: 'WELCOME', title: 'Welcome to Shape.', body: 'Here’s a quick tour of how to get around. You can skip it and dive straight in — and replay it anytime from the Me tab.' },
-  { key: 'home', tab: 'home', emoji: '🏠', eyebrow: 'HOME TAB', title: 'Your day, at a glance.', body: 'Your week strip, today’s workout and meals, plus quick chips to log, check habits, and see your Shape Score.' },
-  { key: 'train', tab: 'train', emoji: '🏋️', eyebrow: 'TRAIN TAB', title: 'Train.', body: 'Your program for each day. Preview a session, start a guided workout, or swap an exercise for a coach-approved alternative.' },
-  { key: 'eat', tab: 'eat', emoji: '🍎', eyebrow: 'EAT TAB', title: 'Eat.', body: 'Your meals and macros for the day. Log what you ate, swap meals, browse recipes, and build a grocery list.' },
-  { key: 'chat', tab: 'chat', emoji: '💬', eyebrow: 'CHAT TAB', title: 'Coaches & community.', body: 'Message your coaches, join the community feed and channels, and DM friends — all in one place.' },
-  { key: 'me', tab: 'me', emoji: '👤', eyebrow: 'ME TAB', title: 'You.', body: 'Your profile and Shape Score, goals, saved library, and settings. Tip: tap your avatar on any screen to come back here.' },
-  { key: 'done', tab: 'home', emoji: '🎉', eyebrow: 'YOU’RE SET', title: 'That’s the tour.', body: 'Replay it whenever from Me → App tour. Now — let’s get to work.' },
-];
 
 function bsMarkTourSeen() {
   try { localStorage.setItem('shape.tourSeen', '1'); } catch (e) {}
   try { window.shapeDb?.saveUserGoals?.('client_onboarding', { tourSeen: true, at: new Date().toISOString() }); } catch (e) {}
 }
 
+// One-time "How Shape Score works" intro — own seen-flag (separate user_goals kind
+// so it never clobbers client_onboarding.tourSeen).
+function bsMarkScoreIntroSeen() {
+  try { localStorage.setItem('shape.scoreIntroSeen', '1'); } catch (e) {}
+  try { window.shapeDb?.saveUserGoals?.('client_score_intro', { seen: true, at: new Date().toISOString() }); } catch (e) {}
+}
+
 function BSOnboardingTour({ onClose, onNavigate }) {
   const t = useBS();
-  const accent = t.ACCENT;
-  const [i, setI] = useStateBSC(0);
-  const step = BS_TOUR_STEPS[i];
-  const last = i === BS_TOUR_STEPS.length - 1;
-  const isWelcome = step.key === 'welcome';
+  React.useEffect(() => {
+    const root = document.getElementById('bs-phone-surface') || document.body;
+    const q = (k) => () => root.querySelector('[data-tour="' + k + '"]');
+    const go = (tab) => () => onNavigate && onNavigate(tab);
+    const steps = [
+      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Welcome', title: 'Welcome to Shape.', body: "A quick tour of where everything lives — about 30 seconds." },
+      { navigate: go('home'), anchor: q('hero-home'), fallback: q('tab-home'), eyebrow: 'Home', title: 'Your day, at a glance.', body: "Your next move, meals and habits — all on the home screen." },
+      { navigate: go('train'), anchor: q('hero-train'), fallback: q('tab-train'), eyebrow: 'Train', title: "Today’s session.", body: "Your workout, ready to start — coach-built, with the moves and loads." },
+      { navigate: go('eat'), anchor: q('hero-eat'), fallback: q('tab-eat'), eyebrow: 'Eat', title: 'Meals & logging.', body: "Your plan for the day. Tap a meal to log it in one tap." },
+      { navigate: go('eat'), anchor: q('hero-grocery'), fallback: q('tab-eat'), eyebrow: 'Grocery', title: 'Grocery lists.', body: "Your week’s meals become a shopping list, sorted by aisle — auto-built for you." },
+      { navigate: go('home'), anchor: q('hero-habits'), fallback: q('tab-home'), eyebrow: 'Habits', title: 'Daily habits.', body: "Check off the small things that add up — every one feeds your Shape Score." },
+      { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: 'Chat', title: 'Coaches & community.', body: "Message your coaches and see the community feed." },
+      { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: 'You', title: 'Your Shape Score.', body: "Your profile, progress and the one number that tells the truth." },
+      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: '🎵 Shape Radio.', body: "Ad-free workout mixes, curated by BPM. Free with your membership.", onCta: () => onNavigate && onNavigate('radio') },
+    ];
+    const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
+    return () => tour.destroy();
+  }, []);
+  return null;
+}
 
-  React.useEffect(() => { if (step.tab) onNavigate?.(step.tab); }, [i]);
-
-  const finish = () => { bsMarkTourSeen(); onClose?.(); };
-  const next = () => { if (last) finish(); else setI(v => v + 1); };
-  const back = () => setI(v => Math.max(0, v - 1));
-
-  const ctaStyle = { width: '100%', borderRadius: 13, border: 0, background: accent, color: '#06231f', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghostStyle = { width: '100%', borderRadius: 13, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' };
-
-  const overlay = (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 220, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.58)' }}>
-      <div style={{ margin: '0 14px 92px', borderRadius: 20, border: `1px solid ${t.RULE}`, background: t.PAPER, boxShadow: '0 18px 50px rgba(0,0,0,0.5)', padding: '20px 18px 18px', position: 'relative' }}>
-        <button onClick={finish} aria-label="Skip tour" style={{ position: 'absolute', top: 12, right: 14, border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>✕</button>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{step.eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{step.title}</div>
-        <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK70, lineHeight: 1.5 }}>{step.body}</div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {BS_TOUR_STEPS.map((s, k) => (
-            <span key={s.key} style={{ width: k === i ? 18 : 6, height: 6, borderRadius: 999, background: k === i ? accent : t.HAIR }} />
-          ))}
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50 }}>{i + 1} / {BS_TOUR_STEPS.length}</span>
+// First-launch "How Shape Score works" explainer — a one-time full-screen panel
+// shown as soon as a new account opens the app (before the app tour). Explains the
+// one-number idea, the tier ladder, the main ways to earn, that consistency
+// compounds, that points are spendable, and (gently) that lapsing dips the number.
+function BSScoreIntro({ onClose, onOpenScore }) {
+  const t = useBS();
+  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const rust = t.RUST || '#c0533b';
+  _bsScrollTopOnMount();
+  const tierColor = (n) => (typeof bsTierColor === 'function' ? bsTierColor(n) : accent);
+  const dismiss = () => { bsMarkScoreIntroSeen(); onClose && onClose(); };
+  const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent };
+  const sec = (label, color) => (
+    <div style={{ marginTop: 18, marginBottom: 8 }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: color || t.INK70 }}>{label}</div>
+      <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${color || accent})` }} />
+    </div>
+  );
+  const earn = [['Weekly check-in', '+15'], ['Log a workout', '+10'], ['Daily steps', '+1 / 5k'], ['New PR · community post', '+12 · +5'], ['Goal milestone', '+50-200'], ['Momentum (hold 80+)', '+25-100']];
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
         </div>
-        {isWelcome ? (
-          <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9 }}>
-            <button onClick={next} style={ctaStyle}>Take a quick tour →</button>
-            <button onClick={finish} style={ghostStyle}>Skip for now</button>
-          </div>
-        ) : (
-          <div style={{ marginTop: 18, display: 'flex', gap: 9 }}>
-            <button onClick={back} style={{ ...ghostStyle, width: 92, flex: '0 0 auto' }}>Back</button>
-            <button onClick={next} style={{ ...ctaStyle, flex: 1 }}>{last ? 'Start exploring →' : 'Next →'}</button>
-          </div>
-        )}
+        <button onClick={dismiss} aria-label="Skip" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: t.INK50 }}>SKIP</button>
+      </div>
+      <div style={{ padding: '0 18px 28px' }}>
+        <div style={eyebrow}>Welcome · Shape Score</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', margin: '6px 0 10px', lineHeight: 1.05 }}>How your Shape <span style={{ fontStyle: 'italic', color: accent }}>Score</span> works.</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>One number for showing up. Everything you log feeds it — and it climbs as you stay consistent. Here's the gist.</div>
+
+        {sec('Climb the tiers')}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginBottom: 10 }}>Earn points to climb — and your tier <b style={{ color: t.INK }}>never goes down</b> once you reach it.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {SHAPE_SCORE_TIERS.map((tr) => (
+            <div key={tr.name} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 9, alignItems: 'center' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: tierColor(tr.name) }} />
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK }}>{tr.name}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, marginLeft: 7 }}>{tr.range}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'right' }}>{tr.perk}</span>
+            </div>
+          ))}
+        </div>
+
+        {sec('Ways to earn')}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {earn.map(([k, p]) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK }}>{k}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: accent }}>{p}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 9 }}><b style={{ color: t.INK }}>Consistency compounds</b> — hold your momentum and the weekly bonus grows.</div>
+
+        {sec('Spend what you earn')}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Turn points into real rewards — session credit, gear and more — in the <b style={{ color: t.INK }}>Shape Store</b>. Spending never lowers your rank.</div>
+
+        {sec('Protect your points', rust)}
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep them. Skip a committed check-in or workout and the number dips a little — a coach can always waive it, and you never drop below 0.</div>
+
+        <button onClick={dismiss} style={{ marginTop: 24, width: '100%', borderRadius: 6, border: 0, background: accent, color: '#04201d', cursor: 'pointer', padding: '13px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Got it</button>
+        <button onClick={() => { bsMarkScoreIntroSeen(); if (onOpenScore) onOpenScore(); if (onClose) onClose(); }} style={{ marginTop: 9, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent }}>See my score →</button>
       </div>
     </div>
   );
-  const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
-  return target ? createPortal(overlay, target) : overlay;
 }
 
 function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
@@ -309,6 +351,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const [marketRole, setMarketRole] = useStateBSC(null); // 'trainer' | 'nutritionist' | null
   const [identityVersion, setIdentityVersion] = useStateBSC(0); // bumped on profile save → re-render avatars now
   const [showTour, setShowTour] = useStateBSC(false); // first-run app tour overlay
+  const [showScoreIntro, setShowScoreIntro] = useStateBSC(false); // first-run "how Shape Score works" explainer
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   const goSettings = () => { setSettingsStart(''); setShowSettings(true); };
   const goEditProfile = () => { setSettingsStart('edit-profile'); setShowSettings(true); };
@@ -411,6 +454,33 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
 
+  // First-run Shape Score explainer: auto-show ONCE for newly-created accounts that
+  // haven't seen it (its own seen-flag) — shown before the app tour so a new member
+  // understands the scoring system as soon as they're in.
+  React.useEffect(() => {
+    let alive = true;
+    let done = false;
+    try { done = localStorage.getItem('shape.scoreIntroSeen') === '1'; } catch (e) {}
+    if (done) return undefined;
+    const NEW_MS = 24 * 60 * 60 * 1000;
+    const decide = () => {
+      if (!alive || done) return;
+      const u = window.ShapeAuth?.getCachedState?.().user;
+      if (!u) return;
+      const created = u.created_at ? Date.parse(u.created_at) : NaN;
+      if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return;
+      done = true;
+      if (window.shapeDb?.getUserGoals) {
+        window.shapeDb.getUserGoals('client_score_intro')
+          .then(d => { if (!alive) return; if (d && d.seen) { try { localStorage.setItem('shape.scoreIntroSeen', '1'); } catch (e) {} } else setShowScoreIntro(true); })
+          .catch(() => { if (alive) setShowScoreIntro(true); });
+      } else { setShowScoreIntro(true); }
+    };
+    decide();
+    const tid = setTimeout(decide, 1200);
+    return () => { alive = false; clearTimeout(tid); };
+  }, []);
+
   // First-run app tour: auto-show ONLY for newly-created accounts (created in the
   // last 24h) that haven't seen it — localStorage fast-path + cloud user_goals so
   // it doesn't re-appear across devices. Replayable anytime via `shape:startTour`.
@@ -426,6 +496,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       if (!u) return; // signed out / not resolved yet — the tour is for new accounts
       const created = u.created_at ? Date.parse(u.created_at) : NaN;
       if (!(Number.isFinite(created) && Date.now() - created < NEW_MS)) return; // existing account
+      // Let the one-time Shape Score intro go first — the tour auto-shows once the
+      // intro has been seen (a later launch), so the two never stack.
+      try { if (localStorage.getItem('shape.scoreIntroSeen') !== '1') return; } catch (e) {}
       done = true; // guard the retry below from double-firing
       if (window.shapeDb?.getUserGoals) {
         window.shapeDb.getUserGoals('client_onboarding')
@@ -442,6 +515,22 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     window.addEventListener('shape:startTour', start);
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
+
+  // Capture the device timezone once per login so coach-side SQL can bucket each
+  // member's Sat/Sun in their own zone (weekend-vs-weekday adherence split).
+  // identityVersion bumps on shape:identity (login / profile save), so this fires
+  // once on mount and again when the auth state settles — the `signedIn` guard
+  // ensures we only post for a real account, never for a signed-out preview.
+  const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+  React.useEffect(() => {
+    if (!signedIn) return;            // only persist for a real account
+    // Persist the device's RESOLVED zone — including a genuine 'UTC' (London/
+    // Reykjavik); only skip when detection fails, so real-UTC members aren't
+    // permanently suppressed on the coach path.
+    let tz = null;
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { tz = null; }
+    if (tz) { window.ShapeProfile?.setTimezone?.(tz); }
+  }, [signedIn]);
 
   // Required one-time health profile (PAR-Q screening) for signed-in clients —
   // checked after auth resolves; 'unknown' renders the app normally so the
@@ -462,6 +551,28 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => { on = false; clearTimeout(tid); };
   }, []);
 
+  // One-time identity-intent step ("What brings you here?") — shown once, BEFORE
+  // the health screen, so Day 1 reflects what the member is here for. Keyed off
+  // client_onboarding.intentSeen (NOT the goal field, which has a silent default).
+  const [intentGate, setIntentGate] = useStateBSC('unknown'); // unknown | needed | ok
+  React.useEffect(() => {
+    let on = true;
+    const check = async () => {
+      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+      if (!uid) { if (on) setIntentGate('ok'); return; } // signed-out preview skips
+      try {
+        const onb = await window.shapeDb?.getUserGoals?.('client_onboarding');
+        if (on) setIntentGate(onb && onb.intentSeen ? 'ok' : 'needed');
+      } catch (e) { if (on) setIntentGate('ok'); } // never lock out on a fetch error
+    };
+    check();
+    const tid = setTimeout(check, 1600); // auth may resolve after first paint
+    return () => { on = false; clearTimeout(tid); };
+  }, []);
+
+  if (intentGate === 'needed') {
+    return <BSIntentStep onDone={() => setIntentGate('ok')} />;
+  }
   if (healthGate === 'needed') {
     return <BSHealthIntake onDone={() => setHealthGate('ok')} />;
   }
@@ -522,6 +633,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       />
       <BSRadioPrompt />
       {showSearch && <BSUniversalSearch onClose={() => setShowSearch(false)} />}
+      {showScoreIntro && <BSScoreIntro onClose={() => setShowScoreIntro(false)} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
     </div>
   );
@@ -1170,8 +1282,8 @@ function BSLibraryDetail({ item, onBack }) {
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Library</button>
-        <BSMeCorner size={28} />
+        <BSBackButton onClick={onBack} label="Library" />
+        <BSMeCorner />
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1219,8 +1331,8 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, padding: 0 }}>← Back</button>
-          <BSMeCorner size={28} />
+          <BSBackButton onClick={onBack} />
+          <BSMeCorner />
         </div>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
         <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
@@ -1315,7 +1427,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onBack} style={headBtn}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
         <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
       </div>
@@ -2048,7 +2160,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const habitFlashTimer = React.useRef(null);
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
-  const [sleepSheet, setSleepSheet] = useStateBSC(false);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
@@ -2351,28 +2462,33 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // `stakes` = never-shaming upside copy on the levers that carry a real Shape Score
     // commitment (kept = earns + momentum; lapsing dips the number). Framed as "keep /
     // protect", never "or lose". Only the penalize-able levers carry it.
+    // CTAs are framed as a first-person PROMISE ("I'll …"), not a command — tapping
+    // the day's next move feels like making a pledge you then keep (commitment &
+    // consistency). The head stays the directive; the button is the promise.
     const engineMove = engineFlag ? ({
-      checkin:   { head: 'Send your weekly check-in.', cta: ['Check in →', () => setCheckinPage(true)], c: t.ACCENT, stakes: 'keep your momentum + protect 15 pts' },
-      training:  { head: 'Keep the streak alive.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN, stakes: 'hold your streak + momentum' },
-      nutrition: { head: 'Log a meal today.', cta: ['Open Eat →', () => goEat()], c: _teal, stakes: 'keep your momentum going' },
-      goal:      { head: 'Your goal pace slipped.', cta: ['Log weigh-in →', () => setGoalsPage(true)], c: t.AMBER },
-      score:     { head: 'Grab a win today.', cta: ['Open habits →', () => setHabitsPage(true)], c: t.AMBER },
-      sleep:     { head: "Log last night's sleep.", cta: ['Log sleep →', () => setSleepSheet(true)], c: t.AMBER },
+      checkin:   { head: 'Send your weekly check-in.', cta: ["I'll check in →", () => setCheckinPage(true)], c: t.ACCENT, stakes: 'keep your momentum + protect 15 pts' },
+      training:  { head: 'Keep the streak alive.', cta: ["I'll keep my streak →", () => setHabitsPage(true)], c: t.GREEN, stakes: 'hold your streak + momentum' },
+      nutrition: { head: 'Log a meal today.', cta: ["I'll log a meal →", () => goEat()], c: _teal, stakes: 'keep your momentum going' },
+      goal:      { head: 'Your goal pace slipped.', cta: ["I'll weigh in →", () => setGoalsPage(true)], c: t.AMBER },
+      score:     { head: 'Grab a win today.', cta: ["I'll grab a win →", () => setHabitsPage(true)], c: t.AMBER },
+      // `sleep` deliberately omitted — logging last night's sleep is consolidated
+      // into the "How are you · today" check-in card below (its Sleep · last night
+      // row + recovery readiness), so it never spawns a separate directive box.
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
-    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ['Begin session →', () => setShowWorkoutPreview(true)], c: t.RUST });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ['Log it →', () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
+    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST });
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
-    if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ['Open habits →', () => setHabitsPage(true)], c: t.GREEN });
-    if (!todo.length) return { done: true, head: "You're all set today.", sub: 'Everything logged — nice work.', c: t.GREEN };
+    if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ["I'll finish my habits →", () => setHabitsPage(true)], c: t.GREEN });
+    // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
+    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN };
     const lead = todo[0];
     return { head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c, sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null), heroMealId: lead.mealId || null };
   })();
 
   return (
     <BSPage>
-      {sleepSheet && <BSSleepSheet onClose={() => setSleepSheet(false)} onSave={(hours) => { setSleepSheet(false); window.ShapeSleep?.log({ hours }); window.__bsToast?.('Sleep logged', 'ok'); }} />}
       <BSMasthead
         compact
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.png`} alt="Shape" style={{ display: 'block', margin: '6px auto -2px', height: 56, width: 'auto', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
@@ -2519,15 +2635,15 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           the signal engine's top flag when it has one, else the plan's next move.
           Everything below steps down a level (this is the only glowing plate). */}
       {todayDirective && (
-        <BSPlate c={todayDirective.c} tick bracket pad="17px 18px 17px 24px" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
+        <BSPlate c={todayDirective.c} tick bracket pad="13px 18px 13px 24px" data-tour="hero-home" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: todayDirective.c }}>{todayDirective.done ? 'Today · done' : 'Today · your move'}</span>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][_now.getDay()]} {_now.getDate()}</span>
           </div>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 24, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
-          {todayDirective.sub && <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
+          {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
           {todayDirective.cta && (
-            <button onClick={todayDirective.cta[1]} style={{ marginTop: 13, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+            <button onClick={todayDirective.cta[1]} style={{ marginTop: 10, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
           )}
         </BSPlate>
       )}
@@ -2541,7 +2657,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const rust = t.RUST;
         // "Up next" cards ride the shared instrument plate (chrome's BSPlate).
         const AgendaCard = ({ c, children }) => (
-          <BSPlate c={c} tick bracket pad="14px 16px 14px 22px" style={{ margin: `0 ${t.padX}px 12px` }}>{children}</BSPlate>
+          <BSPlate c={c} tick bracket pad="11px 16px 11px 22px" style={{ margin: `0 ${t.padX}px 9px` }}>{children}</BSPlate>
         );
         const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
         const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
@@ -2584,13 +2700,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
               <span style={metaRight}>{_wkShortMeta}</span>
             </div>
-            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
               {selWorkout.title}
             </div>
             {_wkCompact.length > 0 && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 9 }}>
                 {_wkCompact.map(([n, name, sub, wt], i, arr) => (
-                  <div key={`${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                  <div key={`${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
                     <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
@@ -2601,7 +2717,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 ))}
               </div>
             )}
-            <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
@@ -2652,7 +2768,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               <span style={eyebrow(teal)}>Meals · {mealsLogged}/{selMeals.length} logged</span>
               <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Nutri plan</span>
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
               {mealsDayWord} <span style={{ fontStyle: 'italic', color: teal }}>meals.</span>
             </div>
             {/* GLANCE — the next meal only; the rest live in Eat (one tap). Logging
@@ -2665,7 +2781,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               const isHeroTarget = !!(todayDirective && todayDirective.heroMealId === next.id);
               return (
                 <>
-                  <div style={{ marginTop: 6, padding: '11px 0 12px', borderBottom: more > 0 ? `1px solid ${t.HAIR}` : 0 }}>
+                  <div style={{ marginTop: 4, padding: '8px 0 9px', borderBottom: more > 0 ? `1px solid ${t.HAIR}` : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{logged ? 'Latest' : 'Next'} · {slotLabel(next)} · {fmtAt(mealMinutes(next))}</span>
                       {logged && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>✓ Logged</span>}
@@ -2689,7 +2805,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 </>
               );
             })()}
-            <div style={{ marginTop: 8, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               {(() => {
                 // Credit the real assigning nutritionist when a live plan exists.
                 const who = (livePlan && livePlan.meals && livePlan.meals.coach) || 'Dr. Maya Patel';
@@ -2715,54 +2831,73 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
         const openHabits = selDayHabits.filter(h => !h.done); // completed habits leave the card
         return (
-          <BSPlate c={t.GREEN} tick bracket pad="14px 16px 14px 22px" role="button" ariaLabel="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits · {done}/{selDayHabits.length} done</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>+{pts}{possible ? ` / ${possible} pts` : ' pts'}</span>
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              Daily <span style={{ fontStyle: 'italic', color: t.GREEN }}>habits.</span>
+          <div data-tour="hero-habits" role="button" aria-label="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 9px`, textAlign: 'left', borderRadius: 16, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '15px 16px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, lineHeight: 1.1, letterSpacing: '-0.02em', color: t.INK }}>Daily habits</div>
+                <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 3 }}>{selDayHabits.length === 0 ? 'Nothing tracked yet' : `${done} of ${selDayHabits.length} done today`}</div>
+              </div>
+              {possible > 0 && (
+                <span style={{ flexShrink: 0, padding: '5px 11px', borderRadius: 999, background: `${t.GREEN}1f`, color: t.GREEN, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>+{pts} / {possible} pts</span>
+              )}
             </div>
             {/* Transient credit after checking a habit — the points land, the row leaves */}
             {habitFlash && (
-              <div style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, background: `${t.ACCENT}14`, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT }}>✓ +{habitFlash.pts} pts → Shape Score</div>
+              <div style={{ marginTop: 11, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: `${t.ACCENT}1f`, color: t.ACCENT, fontFamily: t.BODY, fontSize: 12, fontWeight: 700 }}>✓ +{habitFlash.pts} pts added to your Shape Score</div>
             )}
             {selDayHabits.length === 0 ? (
-              <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
-                No habits yet — tap to add your first one.
+              <div style={{ marginTop: 11, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
+                Tap to add your first habit.
               </div>
             ) : openHabits.length === 0 ? (
-              <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
-                All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today. ✓
+              <div style={{ marginTop: 12, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
+                All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today.
               </div>
             ) : (
-              <div style={{ marginTop: 11 }}>
-                {/* Compact to one tight group — first 3 open habits, check off inline;
-                    the full list lives in the Habits view via "View →". */}
+              <div style={{ marginTop: 12 }}>
+                {/* First 3 open habits — check off inline; the full list lives in Habits via "View all". */}
                 {openHabits.slice(0, 3).map((h, i, arr) => {
                   const avoid = h.type === 'avoid';
                   const pillC = avoid ? t.RUST : t.GREEN;
+                  const last = i === arr.length - 1 && openHabits.length <= 3;
                   return (
-                    <div key={`${h.name}-${i}`} style={{ display: 'grid', gridTemplateColumns: '22px 54px 1fr auto 24px', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: (i === arr.length - 1 && openHabits.length <= 3) ? 0 : `1px solid ${t.HAIR}` }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', color: pillC, background: `${pillC}1f`, border: `1px solid ${pillC}66`, borderLeft: `3px solid ${pillC}`, padding: '3px 8px', textTransform: 'uppercase', fontWeight: 800, textAlign: 'center', justifySelf: 'start', borderRadius: 4 }}>{avoid ? 'AVOID' : 'DO'}</span>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{`${avoid ? 'Avoid' : 'Do'} · +${Math.round(h.pts)} pts`}</div>
-                      </div>
-                      <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 22, height: 22, borderRadius: 4, flexShrink: 0, justifySelf: 'end', border: `1.5px solid ${pillC}`, background: `${pillC}10`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 9.5, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
+                    <div key={`${h.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
+                      <span style={{ flexShrink: 0, fontFamily: t.BODY, fontSize: 11, fontWeight: 700, color: pillC, background: `${pillC}1f`, padding: '3px 9px', borderRadius: 999 }}>{avoid ? 'Avoid' : 'Do'}</span>
+                      <div style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+                      <span style={{ flexShrink: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
+                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
                     </div>
                   );
                 })}
                 {openHabits.length > 3 && (
-                  <div style={{ padding: '8px 0 1px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>+ {openHabits.length - 3} more · view all →</div>
+                  <div style={{ padding: '9px 0 1px', fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, fontWeight: 600 }}>+{openHabits.length - 3} more</div>
                 )}
               </div>
             )}
-            <div style={{ marginTop: 10, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Tap a box to check off · card opens habits</span>
-              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${t.GREEN}`, background: 'transparent', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>View →</span>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ flexShrink: 0, padding: '8px 15px', borderRadius: 10, background: `${t.GREEN}1a`, color: t.GREEN, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700 }}>View all →</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* TODAY — daily check-in (energy/hunger/sleep/rested) + hydration, one plate */}
+      <BSTodayCard />
+
+      {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        return (
+          <BSPlate c={teal} notch={9} spine={2.5} pad="13px 16px 13px 22px" role="button" ariaLabel="Open your shopping list" onClick={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Shop list · this week</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK }}>
+                  Your <span style={{ fontStyle: 'italic', color: teal }}>shopping list.</span>
+                </div>
+                <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Auto-built from your meals · sorted by aisle</div>
+              </div>
+              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Open →</span>
             </div>
           </BSPlate>
         );
@@ -3099,52 +3234,70 @@ function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
 const bsSpotifyGlyph = (size = 22, fill = '#fff') => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.299.421-1.02.599-1.559.3z"/></svg>
 );
+// Apple logo glyph (Apple Music), reused like the Spotify one.
+const bsAppleGlyph = (size = 22, fill = '#fff') => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} aria-hidden="true"><path d="M17.05 12.04c-.03-2.86 2.34-4.23 2.44-4.3-1.33-1.95-3.4-2.22-4.14-2.25-1.77-.18-3.45 1.04-4.35 1.04-.9 0-2.28-1.02-3.75-.99-1.93.03-3.71 1.12-4.7 2.85-2 3.48-.51 8.63 1.44 11.45.95 1.38 2.09 2.93 3.58 2.87 1.44-.06 1.98-.93 3.72-.93 1.73 0 2.22.93 3.74.9 1.54-.03 2.52-1.41 3.46-2.79 1.09-1.6 1.54-3.15 1.57-3.23-.03-.02-3.01-1.16-3.04-4.57zM14.2 4.38c.79-.96 1.33-2.29 1.18-3.62-1.14.05-2.53.76-3.35 1.72-.73.85-1.37 2.21-1.2 3.51 1.27.1 2.57-.65 3.37-1.61z"/></svg>
+);
 
-function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
+function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, url, provider, tracks }) {
   const t = useBS();
   const [open, setOpen] = useStateBSC(false);
   const [saveState, setSaveState] = useStateBSC('idle'); // idle | saving | saved | error
   const [saveMsg, setSaveMsg] = useStateBSC('');
   const list = Array.isArray(tracks) ? tracks : [];
-  const isSpotifyUrl = typeof spotifyUrl === 'string' && /(^|\.)spotify\.com\//i.test(spotifyUrl);
-  // Only genuine Spotify playlist links can be followed into a user's library.
-  const canSaveToSpotify = isSpotifyUrl && /playlist[/:]/i.test(spotifyUrl);
-  const openSpotify = () => {
-    const url = isSpotifyUrl ? spotifyUrl : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
-    try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = url; } catch (e2) {} }
+  const isApple = provider === 'apple';
+  const pUrl = url || spotifyUrl || '';
+  const pName = isApple ? 'Apple Music' : 'Spotify';
+  const glyph = isApple ? bsAppleGlyph : bsSpotifyGlyph;
+  const isProvUrl = isApple ? /music\.apple\.com\//i.test(pUrl) : /(^|\.)spotify\.com\//i.test(pUrl);
+  // Only genuine playlist links can be followed into a user's library. For Apple
+  // that means a CATALOG playlist (a `pl.` id) — saveAppleMusicPlaylist can't add
+  // a personal library URL (`/library/playlist/p.xxx`), so don't offer Save for it.
+  const canSave = isApple ? (/music\.apple\.com\//i.test(pUrl) && /\/pl\.[A-Za-z0-9-]+/i.test(pUrl)) : (isProvUrl && /playlist[/:]/i.test(pUrl));
+  const openProvider = () => {
+    const fallback = isApple
+      ? `https://music.apple.com/search?term=${encodeURIComponent(String(title || 'playlist'))}`
+      : `https://open.spotify.com/search/${encodeURIComponent(String(title || 'playlist'))}`;
+    const u = isProvUrl ? pUrl : fallback;
+    try { window.open(u, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = u; } catch (e2) {} }
   };
-  // Follow (save) the coach's playlist into the signed-in member's own Spotify
-  // library via /api/integrations/spotify/save-playlist. Native goes through the
-  // bridge (Bearer token); the /m/ web build falls back to a same-origin cookie
-  // call. A missing/expired Spotify connection surfaces as a "connect" message.
-  const saveToSpotify = async () => {
+  // Follow (save) the coach's playlist into the signed-in member's own library.
+  // Spotify goes through /api/integrations/spotify/save-playlist (bridge or a
+  // /m/ cookie fallback); Apple Music writes client-side via MusicKit (no server
+  // route). A missing/expired connection surfaces as a "connect" message.
+  const saveToLibrary = async () => {
     if (saveState === 'saving' || saveState === 'saved') return;
     setSaveState('saving'); setSaveMsg('');
     try {
-      let done = false;
-      const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveSpotifyPlaylist;
-      if (typeof fn === 'function') {
-        try { await fn(spotifyUrl); done = true; }
-        catch (e) { if (!/not configured|VITE_API_BASE_URL/i.test(e && e.message || '')) throw e; }
-      }
-      if (!done) {
-        const res = await fetch('/api/integrations/spotify/save-playlist', {
-          method: 'POST', credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: spotifyUrl }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Could not save to Spotify.');
+      if (isApple) {
+        const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveAppleMusicPlaylist;
+        if (typeof fn !== 'function') throw new Error('Apple Music is not available here.');
+        await fn(pUrl);
+      } else {
+        let done = false;
+        const fn = window.ShapeIntegrations && window.ShapeIntegrations.saveSpotifyPlaylist;
+        if (typeof fn === 'function') {
+          try { await fn(pUrl); done = true; }
+          catch (e) { if (!/not configured|VITE_API_BASE_URL/i.test(e && e.message || '')) throw e; }
+        }
+        if (!done) {
+          const res = await fetch('/api/integrations/spotify/save-playlist', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: pUrl }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Could not save to Spotify.');
+        }
       }
       setSaveState('saved');
-      try { window.__bsToast && window.__bsToast('Saved to your Spotify', 'ok'); } catch (e) {}
+      try { window.__bsToast && window.__bsToast('Saved to your ' + pName, 'ok'); } catch (e) {}
     } catch (e) {
-      const msg = (e && e.message) || 'Could not save to Spotify.';
+      const msg = (e && e.message) || ('Could not save to ' + pName + '.');
       setSaveState('error'); setSaveMsg(msg);
-      // For "not linked / not signed in" errors the popup already shows an
-      // inline "Connect Spotify to save" CTA — skip the toast so it isn't
-      // doubled up. Only surface a toast for other (e.g. network) failures.
-      const needsConnect = /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(msg);
+      // For "not linked / not signed in" errors the popup shows an inline
+      // "Connect … to save" CTA — skip the toast so it isn't doubled up.
+      const needsConnect = /sign ?in|connect (spotify|apple)|authentic|log ?in|unauthor|reconnect|before saving|not connected|not configured|not available/i.test(msg);
       if (!needsConnect) { try { window.__bsToast && window.__bsToast(msg, 'error'); } catch (e2) {} }
     }
   };
@@ -3156,7 +3309,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
     <div onClick={() => setOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, maxHeight: '82%', overflowY: 'auto', borderTop: `1px solid ${t.RULE}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(24, '#fff')}</div>
+          <div style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 11, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{glyph(24, '#fff')}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em' }}>{title}</div>
@@ -3168,7 +3321,7 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
         </div>
         <div style={{ marginTop: 6 }}>
           {list.length === 0 ? (
-            <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, padding: '10px 2px', letterSpacing: '0.03em' }}>Open in Spotify to see the full tracklist.</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, padding: '10px 2px', letterSpacing: '0.03em' }}>Open in {pName} to see the full tracklist.</div>
           ) : list.map((tr, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 2px', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 'none' }}>
               <div style={{ width: 16, textAlign: 'right', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{i + 1}</div>
@@ -3180,29 +3333,29 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
             </div>
           ))}
         </div>
-        {canSaveToSpotify && (
-          <button onClick={saveToSpotify} disabled={saveState === 'saving'} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: `1px solid ${color}`, background: saveState === 'saved' ? color : 'transparent', color: saveState === 'saved' ? '#04201d' : color, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: saveState === 'saving' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            {saveState === 'saved' ? '✓ Saved to Spotify' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Try again' : '♡ Save to my Spotify'}
+        {canSave && (
+          <button onClick={saveToLibrary} disabled={saveState === 'saving'} style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 999, border: `1px solid ${color}`, background: saveState === 'saved' ? color : 'transparent', color: saveState === 'saved' ? '#04201d' : color, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: saveState === 'saving' ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {saveState === 'saved' ? '✓ Saved to ' + pName : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Try again' : '♡ Save to my ' + pName}
           </button>
         )}
-        {canSaveToSpotify && saveState === 'error' && (
-          // Most failures here mean the member hasn't linked Spotify (or isn't
-          // signed in) — point them to where they connect it instead of showing
+        {canSave && saveState === 'error' && (
+          // Most failures here mean the member hasn't linked the service (or
+          // isn't signed in) — point them to where they connect it instead of
           // the raw error. Other errors (e.g. network) still show their message.
-          /sign ?in|connect spotify|authentic|log ?in|unauthor|reconnect|before saving|not connected/i.test(saveMsg) ? (
+          /sign ?in|connect (spotify|apple)|authentic|log ?in|unauthor|reconnect|before saving|not connected|not configured|not available/i.test(saveMsg) ? (
             <button
               onClick={() => { setOpen(false); try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }}
               style={{ width: '100%', marginTop: 8, padding: '11px 12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${color}`, background: 'transparent', cursor: 'pointer', display: 'block', textAlign: 'center' }}
             >
-              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color }}>Connect Spotify to save →</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color }}>Connect {pName} to save →</div>
               <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Settings · Connected apps</div>
             </button>
           ) : (
             <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.02em', lineHeight: 1.4, textAlign: 'center' }}>{saveMsg}</div>
           )
         )}
-        <button onClick={openSpotify} style={{ width: '100%', marginTop: canSaveToSpotify ? 8 : 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          {bsSpotifyGlyph(15, '#04201d')} Open in Spotify
+        <button onClick={openProvider} style={{ width: '100%', marginTop: canSave ? 8 : 16, padding: '13px', borderRadius: 999, border: 0, background: color, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {glyph(15, '#04201d')} Open in {pName}
         </button>
         <button onClick={() => setOpen(false)} style={{ width: '100%', marginTop: 8, padding: '12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' }}>Close</button>
       </div>
@@ -3216,13 +3369,13 @@ function BSPlaylistCard({ kicker, title, meta, color, spotifyUrl, tracks }) {
         onClick={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } }}
         style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', border: 0, background: 'transparent', cursor: 'pointer', width: '100%', textAlign: 'left' }}>
-        <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{bsSpotifyGlyph(22, '#fff')}</div>
+        <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 10, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{glyph(22, '#fff')}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color, fontWeight: 700, marginBottom: 2 }}>{kicker}</div>
           <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 15, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
           <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2, letterSpacing: '0.04em', lineHeight: 1.35 }}>{meta}</div>
         </div>
-        <button onClick={(e) => { e.stopPropagation(); openSpotify(); }} aria-label="Open in Spotify" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
+        <button onClick={(e) => { e.stopPropagation(); openProvider(); }} aria-label={`Open in ${pName}`} style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: `1px solid ${color}`, background: 'transparent', color, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>▶</button>
       </div>
       {sheet}
     </>
@@ -3381,7 +3534,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
 
       {/* Today hero — the session at a glance, on the instrument plate. */}
-      <BSPlate c={t.ACCENT} tick bracket pad="11px 12px 11px 17px" style={{ margin: `12px ${t.padX}px 0` }}>
+      <BSPlate c={t.ACCENT} tick bracket pad="11px 12px 11px 17px" data-tour="hero-train" style={{ margin: `12px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
           <span style={{ color: t.ACCENT }}>{day === bsWeekdayIdx() ? 'Today' : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day]}{cur.timeLabel ? ` · ${cur.timeLabel}` : ''}</span>
           <span style={{ color: t.INK50 }}>Week {bsProgramWeek()} · D{day + 1}</span>
@@ -3403,7 +3556,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', color: t.INK50, textTransform: 'uppercase' }}>Coach</div>
           </div>
           {effMoves.length > 0 ? (
-            <button onClick={() => setSession(true)} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
+            <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label="Start session" style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
           ) : (
             <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 999, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Rest</span>
           )}
@@ -3487,14 +3640,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Coach');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, tracks: p.songs }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your coach`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Jordan Chen · Your coach', title: 'Pull heavy.', meta: '52m · 95-138 BPM · 14 tracks' }];
         return (
           <>
             <BSTrackHeader kicker="From Jordan" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} tracks={p.tracks} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
               ))}
             </div>
           </>
@@ -3665,6 +3818,30 @@ if (typeof window !== 'undefined' && !window.ShapeMealTimes) {
   };
 }
 
+// Editable daily STEP GOAL — what the steps rings are measured against. Persisted
+// to localStorage (instant + offline) and user_goals('client_step_goal')
+// (cross-device). The steps card + history both read it via useBSStepGoal() so
+// they always agree; .set() also broadcasts shape:stepGoal so live screens update.
+const BS_DEFAULT_STEP_GOAL = 8000;
+if (typeof window !== 'undefined' && !window.ShapeStepGoal) {
+  let _sg = BS_DEFAULT_STEP_GOAL;
+  let _userSet = false; // a user edit this session wins over a late cloud hydrate
+  try { const v = Number(localStorage.getItem('shape.stepGoal')); if (Number.isFinite(v) && v >= 1000) _sg = v; } catch (e) {}
+  const _clampSg = (n) => Math.max(1000, Math.min(50000, Math.round(Number(n) || BS_DEFAULT_STEP_GOAL)));
+  const _applySg = (v) => {
+    _sg = v;
+    try { localStorage.setItem('shape.stepGoal', String(v)); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('shape:stepGoal', { detail: v })); } catch (e) {}
+  };
+  window.ShapeStepGoal = {
+    get: () => _sg,
+    set: (n) => { _userSet = true; const v = _clampSg(n); _applySg(v); try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_step_goal', { goal: v }); } catch (e) {} return v; },
+    // hydrate from the cloud doc WITHOUT re-saving (avoids a write loop). A user edit
+    // made this session always wins, so a slow getUserGoals can't revert a fresh save.
+    hydrate: (n) => { if (_userSet) return; const v = Number(n); if (Number.isFinite(v) && v >= 1000 && _clampSg(v) !== _sg) _applySg(_clampSg(v)); },
+  };
+}
+
 // Shared meal-time formatting so the schedule reads the same everywhere (the
 // preview eyebrow, the day-log rows, the swap sheet): meal's own time, else the
 // client's meal-time preference for that slot, rendered 12-hour.
@@ -3734,8 +3911,8 @@ function BSMealPreview({ meal, onBack, onLog }) {
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← Back</button>
-        <BSMeCorner size={28} />
+        <BSBackButton onClick={onBack} />
+        <BSMeCorner />
       </div>
 
       {/* Hero photo — clipped instrument plate (falls back to a halftone if the image fails) */}
@@ -5674,6 +5851,15 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
     if (el) el.scrollTop = 0;
   }, [day, previewMealId, previewRecipe, previewDayBrief, view, skRecipe]);
 
+  // Deep-link from the Home "Shop list" card: Home sets a pending flag then
+  // switches to the Eat tab; on mount we jump straight to the grocery list.
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.__bsPendingGrocery) {
+      window.__bsPendingGrocery = false;
+      setView('grocery');
+    }
+  }, []);
+
   // In-app "name your list" sheet — portaled so it overlays the grocery /
   // library full-screen views from which it's triggered.
   const newListSheet = newListName !== null ? createPortal((
@@ -5873,7 +6059,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
         const done = !nextMeal;
         const c = done ? t.GREEN : _teal;
         return (
-          <BSPlate c={c} tick bracket pad="11px 14px 11px 20px" style={{ margin: `13px ${t.padX}px 0`, textAlign: 'left' }}>
+          <BSPlate c={c} tick bracket pad="11px 14px 11px 20px" data-tour="hero-eat" style={{ margin: `13px ${t.padX}px 0`, textAlign: 'left' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c }}>{done ? 'Today · eaten' : 'Today · your move'}</span>
               <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{loggedN}/{total} meals</span>
@@ -5969,7 +6155,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
           <>
             <BSTrackHeader kicker="For the week" title="Grocery list" actionLabel="Open" onAction={() => setView('grocery')} />
             <div style={{ padding: `12px ${t.padX}px 0` }}>
-              <button onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
+              <button type="button" data-tour="hero-grocery" onClick={() => setView('grocery')} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', minHeight: 60, borderRadius: 12, border: `1px solid ${t.HAIR}`, background: 'transparent' }}>
                 <div style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, background: '#a07a2e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>◎</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#a07a2e', fontWeight: 700, marginBottom: 2 }}>From {who} · this week</div>
@@ -5987,14 +6173,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {} }) {
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, tracks: p.songs }))
+        const items = lists.length ? lists.map(p => ({ k: `${p.by} · Your nutritionist`, title: p.name, meta: `${p.len} · ${p.bpm} BPM · ${p.tracks} tracks${p.attached ? ` · ${p.attached}` : ''}`, url: p.url, provider: p.provider, tracks: p.songs }))
           : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
         return (
           <>
             <BSTrackHeader kicker="From Maya" title="Playlists" />
             <div style={{ padding: `12px ${t.padX}px 0`, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((p, i) => (
-                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color="#1db954" spotifyUrl={p.url} tracks={p.tracks} />
+                <BSPlaylistCard key={i} kicker={p.k} title={p.title} meta={p.meta} color={p.provider === 'apple' ? '#fa243c' : '#1db954'} provider={p.provider} url={p.url} tracks={p.tracks} />
               ))}
             </div>
           </>
@@ -6427,7 +6613,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
 // profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
 // each person is a live link to their public profile (onOpenProfile).
 function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, ownerPhoto, onClose, onOpenProfile }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
   const [list, setList] = useStateBSC(null);
   const [avatars, setAvatars] = useStateBSC({});
   const [group, setGroup] = useStateBSC('all'); // all | coaches | members
@@ -6625,7 +6811,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", TEAL = '#34d6c5';
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
   const uid = userId || (isSelf ? ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || null) : null);
@@ -6735,14 +6921,14 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
 function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   return (
     <div style={{ paddingBottom: 13, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontFamily: MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
         <span style={{ color: c, fontWeight: 800 }}>{tierName} Tier</span>
         {streak ? <><span style={{ color: bsTHexA(INK, 0.4) }}>·</span><span style={{ color: '#c0533b' }}>{streak} week streak</span></> : null}
       </div>
-      <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
+      <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
       <div style={{ marginTop: 8 }}>
         <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} />
       </div>
@@ -6836,7 +7022,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   const COOK = '#d8a23a';
   const dotColor = activity === 'cooking' ? COOK : '#34d6c5';
   const showDot = activity ? true : (online === undefined ? live : online);
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", FTEAL = '#34d6c5';
   const inset = Math.max(2, Math.round(size * 0.055));
   // The gem's inner window is dark on dark papers (keeps the established look) but
   // on a LIGHT paper a black gem reads as a blob and dark initials vanish — so on
@@ -6997,7 +7183,7 @@ function bsLinkHref(key, val) {
 }
 // Render block — the song, prompts, and social links a member added.
 function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const cu = custom || {};
   c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
@@ -7063,6 +7249,27 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
 function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
 function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
 function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
+// Physical date of an activity as MM/DD — for the profile feed's date gutter.
+// Prefers a real timestamp; else derives the date from the relative `ago`
+// string (bsAgoShort's "2h"/"3d"/"Jun 24" output, incl. demo cards).
+function bsAgoToDate(ago) {
+  if (!ago) return null;
+  const s = String(ago).trim();
+  let m;
+  if ((m = s.match(/^(\d+)\s*m$/i))) return new Date(Date.now() - (+m[1]) * 60000);
+  if ((m = s.match(/^(\d+)\s*h$/i))) return new Date(Date.now() - (+m[1]) * 3600000);
+  if ((m = s.match(/^(\d+)\s*d$/i))) return new Date(Date.now() - (+m[1]) * 86400000);
+  if ((m = s.match(/^(\d+)\s*w$/i))) return new Date(Date.now() - (+m[1]) * 604800000);
+  const dt = new Date(`${s} ${new Date().getFullYear()}`); // "Jun 24" → this year
+  return isNaN(dt.getTime()) ? null : dt;
+}
+function bsCardDateLabel(a) {
+  if (!a) return '';
+  let d = a.created_at ? new Date(a.created_at) : null;
+  if (!d || isNaN(d.getTime())) d = bsAgoToDate(a.ago || a.time);
+  if (!d || isNaN(d.getTime())) return '';
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
 // Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
 // shared by the member (Terrain) and coach (Signal) profile feeds so both render
 // the same rich types.
@@ -7207,7 +7414,7 @@ function BSPostSendSheet({ post, onClose, c, INK, BG }) {
     </BSPostSheetShell>
   );
 }
-function BSPostActions({ post, c, INK, BG, onReposted }) {
+function BSPostActions({ post, c, INK, BG, onReposted, onEdit }) {
   const t = useBS();
   const ink = INK || t.INK;
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
@@ -7247,6 +7454,7 @@ function BSPostActions({ post, c, INK, BG, onReposted }) {
         <button aria-label="Send privately" onClick={() => { if (!guard()) return; setOpenS(true); }} style={iconPill}>{bsFeedIcon('send', 13)}</button>
         <button aria-label="Share" onClick={() => bsSharePostExternal(post)} style={iconPill}>{bsFeedIcon('share', 13)}</button>
         <button aria-label="Repost" disabled={reBusy} onClick={doRepost} style={{ ...iconPill, opacity: reBusy ? 0.6 : 1 }}>{bsFeedIcon('repost', 13)}</button>
+        {onEdit && post.postId && <button aria-label="Edit post" onClick={onEdit} style={{ ...iconPill, fontSize: 13 }}>✎</button>}
       </div>
       {openC && <BSPostCommentsSheet post={post} comments={cmts} onAdded={(cm) => setCmts(prev => [...prev, cm])} onClose={() => setOpenC(false)} c={accent} INK={ink} BG={BG} />}
       {openS && <BSPostSendSheet post={post} onClose={() => setOpenS(false)} c={accent} INK={ink} BG={BG} />}
@@ -7271,7 +7479,7 @@ function bsMapActivityPosts(data) {
       k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false,
       // Engagement plumbing — real posts carry their id + live like/comment
       // state so the action row under each card works (demo cards have none).
-      id: p.id || null, who: p.name || '', likes: typeof p.likes === 'number' ? p.likes : 0, liked: !!p.liked,
+      id: p.id || null, privacy: p.privacy || null, who: p.name || '', likes: typeof p.likes === 'number' ? p.likes : 0, liked: !!p.liked,
       comments: Array.isArray(p.comments) ? p.comments : [], repostOf: p.repostOf || null,
     };
   });
@@ -7327,6 +7535,15 @@ function bsBuildZones(p) {
   return null;
 }
 // logged activity instead of the demo cards once people are posting.
+// Normalize a post's comments ONCE so the count and the rendered list agree
+// (CodeRabbit L7483): backend rows may carry `body` instead of `text`, so fold
+// `text || body` into `text` and keep every commentable row — body-only comments
+// are preserved (not dropped) and counted exactly as they render.
+function bsNormComments(comments) {
+  return Array.isArray(comments)
+    ? comments.map((c) => (c ? { ...c, text: c.text || c.body || '' } : c)).filter((c) => c && c.text)
+    : [];
+}
 function bsActivityFromPost(p) {
   if (!p) return null;
   const ws = Array.isArray(p.workoutStats) ? p.workoutStats.filter(Boolean) : null;
@@ -7382,6 +7599,7 @@ function bsActivityFromPost(p) {
     typeLabel: isRun ? 'Run' : 'Workout',
     title,
     body: p.note || '',
+    created_at: p.created_at || null,
     ago: bsAgoShort(p.created_at) || p.time || '',
     city: p.sourceProviderLabel ? `via ${p.sourceProviderLabel}` : '',
     statsRow,
@@ -7405,15 +7623,74 @@ function bsActivityFromPost(p) {
     // Liker user-ids (for the followed-likers facepile + the likers sheet) and
     // the real comments (with author ids, for the followed-comments inline view).
     likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
-    postComments: Array.isArray(p.comments) ? p.comments.filter((c) => c && c.text) : [],
-    replies: Array.isArray(p.comments) ? p.comments.length : 0,
+    postComments: bsNormComments(p.comments),
+    replies: bsNormComments(p.comments).length,
+  };
+}
+// Profile "Personal activities" → the rich BSActivityCard `a` shape. Workout/
+// sensor posts use the SAME mapper the community feed uses (bsActivityFromPost);
+// non-activity posts (note/photo/video/link) fall back to a minimal `a` so they
+// still render (title + caption). Honest-absent fields are fine — the card guards
+// them. `role` is forced to the profile owner's so the (hidden-author) tier chip
+// reads correctly even on posts that didn't stamp an author role.
+function bsProfileCardFromPost(p, ownerRole) {
+  if (!p) return null;
+  // Edit affordance needs the raw post's kind + privacy + media to reopen the
+  // composer faithfully; carry them on every card (workout + slim) for ctx.onEdit.
+  const editFields = { editKind: p.kind || null, privacy: p.privacy || null, photo: p.photo || null, video: p.video || null, link: p.link || null };
+  const act = bsActivityFromPost(p);
+  if (act) return { ...act, ...editFields, ...(ownerRole ? { role: ownerRole } : {}) };
+  // Match the old bsMapActivityPosts filter: the profile "Personal activities" feed
+  // is ONLY posts deliberately published via the Log Activity composer (an explicit
+  // metrics.kind) OR rich media — NOT plain community-feed/chat text posts (no kind /
+  // media / workout), which would otherwise leak onto the profile as "Note" cards.
+  const hasWorkout = Array.isArray(p.workoutStats) && p.workoutStats.length > 0;
+  if (!(p.kind || p.photo || p.video || p.link || hasWorkout)) return null;
+  // Slim Log-Activity card. `real:true` routes engagement (real likes/comments/share)
+  // through the post id, just like the feed cards. Media (photo/video/link) rides on
+  // the `a` shape so BSActivityCard can render the image / inline video / link card.
+  const rawTitle = String(p.status || '').trim();
+  const GENERIC = /^(workout|photo|video|link|note|article)$/i;
+  return {
+    real: true,
+    key: p.id ? `post-${p.id}` : `act-${p.author_id || ''}-${p.created_at || ''}`,
+    postId: p.id || null,
+    liked: !!p.liked,
+    userId: p.author_id || null,
+    who: p.name || 'Shape member',
+    role: ownerRole || p.role || 'Client',
+    coach: null, program: '', delta: null,
+    activityType: String(p.kind || '').toLowerCase(),
+    cosign: (p.cosign && typeof p.cosign === 'object' && p.cosign.name) ? p.cosign : null,
+    typeLabel: p.kind ? (String(p.kind).charAt(0).toUpperCase() + String(p.kind).slice(1)) : 'Note',
+    title: (rawTitle && !GENERIC.test(rawTitle)) ? rawTitle : (p.kind === 'photo' ? 'Photo' : p.kind === 'video' ? 'Video' : p.kind === 'link' ? 'Link' : 'Note'),
+    body: p.note || '',
+    // Log-Activity media — guarded no-ops on community workout cards (which lack them).
+    photo: p.photo || null,
+    video: p.video || null,
+    link: p.link || null,
+    // Edit affordance — reopen the composer with the post's kind + privacy.
+    editKind: p.kind || null,
+    privacy: p.privacy || null,
+    created_at: p.created_at || null,
+    ago: bsAgoShort(p.created_at) || p.time || '',
+    city: '',
+    statsRow: [], fullStats: [],
+    breakdown: null, zones: null, trace: null, cadenceTrace: null, elevTrace: null, paceTrace: null, powerTrace: null,
+    route: false, routeObj: null,
+    kudos: typeof p.likes === 'number' ? p.likes : 0,
+    likerIds: Array.isArray(p.likerIds) ? p.likerIds : [],
+    // Count only commentable rows (text||body) so the reply count matches what
+    // postComments renders — body-only comments preserved (CodeRabbit L7483).
+    postComments: bsNormComments(p.comments),
+    replies: bsNormComments(p.comments).length,
   };
 }
 // The body of an activity card (title · body · photo · inline video / video+link
 // cards · workout stats · metric) — shared by both profile feeds.
 function BSActivityBody({ it, c, INK, card }) {
   const tt = useBS();
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const TEAL = tt.isLight ? '#0a8f87' : '#34d6c5';
   return (
     <>
@@ -7433,21 +7710,24 @@ function BSActivityBody({ it, c, INK, card }) {
 // "Log activity" composer — a Substack-style multi-type publisher on your own
 // Terrain profile. Pick a type (Note / Photo / Video / Workout / Link), fill it
 // in, and it publishes to your public feed + profile via ShapeCommunity.createPost.
-function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const TEAL = c;
-  const [kind, setKind] = useStateBSC('note');
-  const [title, setTitle] = useStateBSC('');
-  const [body, setBody] = useStateBSC('');
-  const [photoUrl, setPhotoUrl] = useStateBSC('');
-  const [videoUrl, setVideoUrl] = useStateBSC('');
-  const [linkUrl, setLinkUrl] = useStateBSC('');
-  const [woType, setWoType] = useStateBSC('Strength');
+  const ed = editPost || null;
+  const seedKind = ed ? (ed.kind || (ed.video ? 'video' : ed.link ? 'link' : ed.photo ? 'photo' : (Array.isArray(ed.workoutStats) && ed.workoutStats.length ? 'workout' : 'note'))) : 'note';
+  const [kind, setKind] = useStateBSC(seedKind);
+  const [title, setTitle] = useStateBSC(ed ? (ed.title || '') : '');
+  const [body, setBody] = useStateBSC(ed ? (ed.body || ed.note || '') : '');
+  const [photoUrl, setPhotoUrl] = useStateBSC(ed ? (ed.photo || '') : '');
+  const [videoUrl, setVideoUrl] = useStateBSC(ed ? (ed.video || '') : '');
+  const [linkUrl, setLinkUrl] = useStateBSC(ed && ed.link ? (ed.link.url || '') : '');
+  const [woType, setWoType] = useStateBSC(ed && ed.activityType ? (ed.activityType.charAt(0).toUpperCase() + ed.activityType.slice(1)) : 'Strength');
   const [woA, setWoA] = useStateBSC(''), [woB, setWoB] = useStateBSC(''), [woC, setWoC] = useStateBSC('');
   const [busy, setBusy] = useStateBSC(false);
   const [upBusy, setUpBusy] = useStateBSC(false);
+  const [delBusy, setDelBusy] = useStateBSC(false);
   // Visibility: 'public' (profile + feed) · 'profile' (profile only, everyone) · 'private' (just me)
-  const [vis, setVis] = useStateBSC('public');
+  const [vis, setVis] = useStateBSC(ed ? (ed.privacy || 'public') : 'public');
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
 
   const TYPES = [
@@ -7508,8 +7788,28 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
         const host = bsLinkHost(u);
         payload = { ...base, title: title.trim() || host || 'Link', note: body.trim(), metrics: { kind: 'link', link: { url: u, title: title.trim() || host, desc: body.trim() } } };
       }
-      await window.ShapeCommunity?.createPost?.(payload);
-      window.__bsToast?.('Published to your profile', 'ok');
+      if (ed && ed.postId) {
+        const editMetrics = { ...(payload.metrics || {}) };
+        const origKind = ed.kind || null;
+        // F3 — preserve existing workout stats: when re-saving a workout post whose
+        // stat fields were left empty (the edit sheet doesn't seed them), DON'T send
+        // workoutStats/lift/load — an empty [] would clobber the real stored stats.
+        if (kind === 'workout' && origKind === 'workout' && !woA.trim() && !woB.trim() && !woC.trim()) {
+          delete editMetrics.workoutStats; delete editMetrics.lift; delete editMetrics.load;
+        }
+        // F4 — clear stale type-specific keys when the post's type changed on edit, so
+        // mergePostPatch removes the now-irrelevant data (null ⇒ delete).
+        if (origKind && origKind !== kind) {
+          if (kind !== 'workout') { editMetrics.workoutStats = null; editMetrics.lift = null; editMetrics.load = null; }
+          if (kind !== 'link') editMetrics.link = null;
+          if (kind !== 'video') editMetrics.video_url = null;
+        }
+        await window.ShapeCommunity?.update?.({ postId: ed.postId || ed.id, title: payload.title, note: payload.note, photoUrl: payload.photoUrl || null, video: editMetrics.video_url !== undefined ? editMetrics.video_url : (payload.metrics?.video_url || null), metrics: editMetrics, privacy: vis });
+        window.__bsToast?.('Post updated', 'ok');
+      } else {
+        await window.ShapeCommunity?.createPost?.(payload);
+        window.__bsToast?.('Published to your profile', 'ok');
+      }
       onPosted && onPosted();
       onClose && onClose();
     } catch (err) { window.__bsToast?.(err?.message || 'Could not publish.', 'err'); setBusy(false); }
@@ -7522,8 +7822,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
       <div onClick={(e) => e.stopPropagation()} className="bs-scroll" style={{ width: '100%', background: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: '18px 18px calc(16px + env(safe-area-inset-bottom, 0px))', maxHeight: '92%', overflowY: 'auto', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Publish</div>
-            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>Log <span style={{ fontStyle: 'italic', color: TEAL }}>activity.</span></div>
+            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>{ed ? 'Edit' : 'Publish'}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 26, letterSpacing: '-0.02em', color: INK, lineHeight: 1 }}>{ed ? <>Edit <span style={{ fontStyle: 'italic', color: TEAL }}>post.</span></> : <>Log <span style={{ fontStyle: 'italic', color: TEAL }}>activity.</span></>}</div>
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 0, color: bsTHexA(INK, 0.6), fontSize: 22, cursor: 'pointer', padding: 4 }}>×</button>
         </div>
@@ -7610,7 +7910,10 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
         </div>
 
         <div style={{ position: 'sticky', bottom: 0, marginLeft: -18, marginRight: -18, marginTop: 14, padding: '10px 18px calc(6px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 34%)` }}>
-          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? 'Publishing…' : 'Publish →'}</button>
+          {ed && ed.postId && (
+            <button onClick={async () => { if (!window.confirm('Delete this post? This cannot be undone.')) return; setDelBusy(true); try { await window.ShapeCommunity?.remove?.({ postId: ed.postId }); window.__bsToast?.('Post deleted', 'ok'); onPosted && onPosted(); onClose && onClose(); } catch (err) { window.__bsToast?.(err?.message || 'Could not delete.', 'err'); setDelBusy(false); } }} disabled={delBusy} style={{ width: '100%', minHeight: 42, borderRadius: 999, background: 'transparent', color: bsTHexA(INK, 0.5), border: `1px solid ${bsTHexA(INK, 0.2)}`, cursor: delBusy ? 'default' : 'pointer', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>{delBusy ? 'Deleting…' : 'Delete post'}</button>
+          )}
+          <button onClick={submit} disabled={!canPost} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: canPost ? TEAL : bsTHexA(INK, 0.12), color: canPost ? '#04201d' : bsTHexA(INK, 0.4), border: 0, cursor: canPost ? 'pointer' : 'default', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>{busy ? (ed ? 'Saving…' : 'Publishing…') : (ed ? 'Save changes →' : 'Publish →')}</button>
         </div>
       </div>
     </div>,
@@ -7619,7 +7922,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted }) {
 }
 
 function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false }) {
-  const MONO = "'JetBrains Mono', monospace", SERIF = "'Newsreader', Georgia, serif", SANS = "'Inter', system-ui, sans-serif";
+  const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   const init = initial || {};
   const [bio, setBio] = useStateBSC(init.bio || '');
   const [songUrl, setSongUrl] = useStateBSC((init.song && init.song.url) || '');
@@ -7846,7 +8149,7 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
 // Add a playlist (paste a Spotify/Apple Music link), toggle public/private,
 // share to a member (✉) or externally (↗), open in the provider app, and — on
 // someone else's profile — save their public playlist into your own library.
-function bsProviderColor(p) { return p === 'apple' ? '#fc3c44' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
+function bsProviderColor(p) { return p === 'apple' ? '#fa243c' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
 function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
 function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
   const t = useBS();
@@ -8036,35 +8339,26 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). TEAL accent is constant.
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const BSPlate = window.BSPlate;
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
-  // The ONE directive for the Me headline — same engine source as Home "Your
-  // move" (cross-domain; a coach override wins). Honest: only shows when there's
-  // a real, named lever.
-  const [meDir, setMeDir] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!meMode || !isSelf) return undefined;
-    let on = true;
-    (async () => {
-      try {
-        const S = typeof window !== 'undefined' && window.ShapeSignals;
-        if (!S || !S.selfRecord || !S.directive) return;
-        const rec = await S.selfRecord();
-        if (!on || !rec) return;
-        const d = S.directive(rec);
-        if (d && d.action && d.verdict && d.verdict !== '—') setMeDir(d);
-      } catch (e) { /* honest: no directive */ }
-    })();
-    return () => { on = false; };
-  }, [meMode, isSelf]);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   useBSPresence();
-  React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  // Local reaction state for the shared BSActivityCard on this profile feed.
+  // Reactions toggle optimistically + best-effort persist the like (same backend
+  // path as the community feed). The surfaces the profile doesn't host (full
+  // detail page / likers sheet / send-to-DM) get slim fallbacks below.
+  const [actLikes, setActLikes] = useStateBSC({});
+  const [profExprOpen, setProfExprOpen] = useStateBSC(null);
+  const [actExpr, setActExpr] = useStateBSC({});
+  const profLpTimerRef = React.useRef(null);
+  const profLpFiredRef = React.useRef(false);
+  React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
   // Profile customization (song/prompts/links/bio): self loads its own doc;
   // others read it from the public-profile RPC (`custom`).
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
@@ -8077,7 +8371,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   const selfScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   // Signed in on my OWN profile → show REAL data (zeroed for a fresh account),
   // never the demo persona's numbers. Demo sub-data is the signed-out preview only.
-  const signedInSelf = isSelf && !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const signedInSelf = isSelf && signedIn;
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
@@ -8323,23 +8618,80 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
   // posts). Loaded for anyone; on your own profile you can add one.
   const myId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
   const feedAuthorId = isSelf ? (person.userId || myId) : (person.userId || null);
-  const [photoPosts, setPhotoPosts] = useStateBSC([]);
+  const [photoPosts, setPhotoPosts] = useStateBSC([]); // raw author posts (r.data)
   const [showLog, setShowLog] = useStateBSC(false);
+  const [feedReloadNonce, setFeedReloadNonce] = useStateBSC(0);
+  const [editingActivity, setEditingActivity] = useStateBSC(null);
   // Profile activity feed — every "log activity" post the member published
-  // (note / photo / video / workout / link), newest first.
+  // (note / photo / video / workout / link), newest first. Kept as RAW posts so
+  // they map through bsProfileCardFromPost into the shared BSActivityCard.
   const loadPhotoPosts = React.useCallback(() => {
     if (!feedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
     window.ShapeCommunity.listByAuthor(feedAuthorId, { withPhotoOnly: false })
-      .then((r) => setPhotoPosts(bsMapActivityPosts(r?.data)))
+      .then((r) => setPhotoPosts(Array.isArray(r?.data) ? r.data : []))
       .catch(() => {});
   }, [feedAuthorId]);
-  React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts]);
+  React.useEffect(() => { loadPhotoPosts(); }, [loadPhotoPosts, feedReloadNonce]);
+  // Render the whole personal-activities feed as the rich BSActivityCard `a` shape:
+  // published author posts via the shared mapper; the realFeed/demo `it` items
+  // (PRs/logged activities — no raw post backing) via a slim it→a adapter.
+  const itToCard = (it) => {
+    // PR demo items carry the full title in `it.t` ("New PR — Back squat"); the
+    // card reconstructs a PR title as `${lift} — new PR`, so pull the lift out of
+    // it.t (this also makes the format match the community feed). Non-PR items
+    // use kind 'workout' so the card renders a.title directly.
+    const isPr = !!it.hot;
+    const lift = isPr ? String(it.t || '').replace(/^\s*new pr\s*[—–-]\s*/i, '').trim() : '';
+    return {
+      real: false, key: it._k || null, postId: null, who: name, role: 'Client', tier: tierKey, hot: isPr,
+      kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
+      body: it.b || '', ago: it.time || '', city: '', activityType: '',
+      stats: it.metric ? [[it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
+    };
+  };
   const feedEff = (() => {
-    // Signed in → only real activity (your published posts + logged PRs); never the
-    // demo field-notes. Demo feed is the signed-out preview only.
-    const base = (isSelf && realFeed && realFeed.length) ? realFeed : (signedInSelf ? [] : feed);
-    return photoPosts.length ? [...photoPosts, ...base] : base;
+    // Signed in → only REAL activity (the profile owner's published posts + logged
+    // PRs); never the demo field-notes — on your OWN profile or anyone else's. The
+    // demo feed is the signed-out preview only (honest-data rule: no fabricated
+    // activity on a signed-in view of any real profile).
+    const base = (isSelf && realFeed && realFeed.length) ? realFeed : (signedIn ? [] : feed);
+    const cards = (photoPosts || []).map((p) => bsProfileCardFromPost(p, 'Client')).filter(Boolean);
+    const baseCards = (base || []).map((it, i) => itToCard({ ...it, _k: `it-${i}` }));
+    return [...cards, ...baseCards];
   })();
+  // Profile reaction handler — optimistic toggle + best-effort backend like via
+  // the SAME path the community feed uses (ShapeCommunity.toggleLike). Sample
+  // cards (no postId) toggle visually only.
+  const profileApplyReaction = (a, key, _iAmAuthorsCoach, expr) => {
+    const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
+    const willLike = expr != null ? true : !wasLiked;
+    setActLikes((prev) => ({ ...prev, [key]: willLike }));
+    setActExpr((prev) => { const next = { ...prev }; if (willLike && expr != null) next[key] = expr; else if (!willLike) delete next[key]; return next; });
+    if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
+  };
+  // ctx for the shared BSActivityCard on this profile. Theme + working reactions +
+  // share/repost; the detail page / likers sheet / send-to-DM picker + inline
+  // comments are now hosted here too (useBSCardSheets), so the cards behave EXACTLY
+  // like the community feed instead of toasting.
+  const cardSheets = useBSCardSheets();
+  const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
+  // Owner edit — only on your OWN profile, only on a real (UUID-backed) published
+  // post; reopens BSLogActivitySheet with the post's data (kind/privacy/media).
+  const profileOnEdit = isSelf ? (a) => {
+    const realId = bsRealPostId({ id: a.postId });
+    if (!realId) return;
+    setEditingActivity({ postId: realId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' });
+  } : undefined;
+  const profileCtx = {
+    t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
+    card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
+    actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
+    exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
+    tierByUser: (person.userId ? { [person.userId]: tierKey } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    setOpenProfile: (p) => setFollowProfile(p),
+    feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
+    ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
+  };
   const realArc = (realGoal && realGoal.start != null && realGoal.target != null) ? (() => {
     const unit = realGoal.unit || 'kg';
     const s = Number(realGoal.start), n = Number(realGoal.now != null ? realGoal.now : s), tg = Number(realGoal.target);
@@ -8444,11 +8796,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <BSSearchCorner size={30} ink={INK} />
-              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+              <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
               </button>
-              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+              <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
               </button>
             </div>
@@ -8457,16 +8809,16 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       ) : (
         /* Others' public profile (pushed): back + avatar corner. */
         <div style={{ padding: '44px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: bsTHexA(INK, 0.06), border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           {isSelf
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <BSSearchCorner size={30} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
               </div>
-            : <BSMeCorner size={30} />}
+            : <BSMeCorner />}
         </div>
       )}
       {/* Identity heading — tier/streak + name + handle·goal + follows, above the
@@ -8488,7 +8840,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
           const hp = Math.max(0.06, Math.min(heroPct, 0.66));
           const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
           return (
-          <div style={{ borderRadius: 20, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)})`, position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
+            {/* instrument-plate frame around the whole hero — matches the two plates inside it */}
+            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 17px) 0, 100% 17px, 100% 100%, 0 100%)', background: bsTHexA(c, 0.45) }} />
+            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c, zIndex: 3 }} />
+            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${c}`, borderBottom: `1.5px solid ${c}`, opacity: 0.7, zIndex: 3 }} />
+            <div style={{ position: 'relative', zIndex: 1, margin: 1.25, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', overflow: 'hidden', background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)}), ${BG}` }}>
             {custom && custom.cover && custom.cover.image && (
               <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: H, zIndex: 0 }}>
                 <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
@@ -8529,7 +8886,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {/* coached-by band */}
             {showCoachBand && (
             <div style={{ padding: '0 14px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 12, background: bsTHexA(TEAL, 0.07), border: `1px solid ${bsTHexA(TEAL, 0.22)}` }}>
+              <BSPlate c={TEAL} notch={12} bracket pad="9px 12px">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{blockEff}</div>
                   <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
@@ -8541,7 +8899,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2, whiteSpace: 'nowrap' }}>{coachNameEff} <span style={{ color: bsTHexA(INK, 0.4) }}>›</span></div></div>
                 </button>
                 </>}
-              </div>
+                </div>
+              </BSPlate>
             </div>
             )}
             {/* Shape Score band — merged into the header (points + to-next + the four
@@ -8560,8 +8919,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                 ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
                 : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
               return (
-                <div style={{ padding: '0 14px 14px' }}>
-                  <div onClick={onOpenScore} style={{ borderRadius: 12, border: `1px solid ${bsTHexA(c, 0.5)}`, background: `linear-gradient(165deg, ${bsTHexA(c, 0.24)}, ${bsTHexA(c, 0.06)})`, padding: '11px 12px', cursor: 'pointer' }}>
+                <div style={{ padding: '0 14px 14px' }} data-tour="hero-me">
+                  <BSPlate c={c} notch={12} bracket pad="11px 12px" onClick={onOpenScore} role="button" tabIndex={0} ariaLabel="Open your Shape Score" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
                         <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
@@ -8578,10 +8937,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </BSPlate>
                 </div>
               );
             })()}
+            </div>
           </div>
           );
         })()}
@@ -8589,21 +8949,32 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {meMode && isSelf && (
         <div style={{ padding: '14px 18px 0' }}>
-          <BSMeGoalCard c={c} onOpen={onOpenGoals} />
+          <BSMeGoalCard c={c} onOpen={onOpenGoals} compact />
         </div>
       )}
 
-      {meMode && isSelf && meDir && meDir.action && (
-        <div style={{ padding: '12px 18px 0' }}>
-          <div style={{ borderRadius: 12, border: `1px solid ${bsTHexA(TEAL, 0.4)}`, background: bsTHexA(TEAL, 0.07), padding: '10px 13px' }}>
-            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: TEAL }}>Today · your move</div>
-            <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, fontWeight: 600, color: INK }}>{meDir.action.label}</div>
-            {meDir.reason && meDir.reason !== '—' && (
-              <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.55), lineHeight: 1.45 }}>{meDir.reason}</div>
-            )}
-          </div>
+      {meMode && isSelf && (
+        <div style={{ padding: '12px 0 0' }}>
+          <BSStepsCard />
         </div>
       )}
+
+      {isSelf && (
+        <div style={{ padding: '12px 18px 0' }}>
+          <button onClick={onOpenProgress} aria-label="Open your progress" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 10, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(INK, 0.04), padding: '13px 14px' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>Progress<span style={{ color: c }}>.</span></div>
+              <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {['Streak', 'Trends', 'Overall', 'Training', 'Nutrition'].map((x) => (
+                  <span key={x} style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 3, padding: '2px 6px' }}>{x}</span>
+                ))}
+              </div>
+            </div>
+            <span aria-hidden style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.16)}`, display: 'grid', placeItems: 'center', color: c, fontSize: 16, fontWeight: 700, flexShrink: 0 }}>›</span>
+          </button>
+        </div>
+      )}
+
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
@@ -8616,7 +8987,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             <div ref={activityRef} />
             <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
-              { key: 'stats', label: 'Stats' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
               { key: 'playlists', label: 'Music' },
@@ -8624,25 +8994,6 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
                 <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
-              </div>
-            )}
-            {tab === 'stats' && (
-              <div style={{ marginBottom: 22 }}>
-                {!isSelf && <BSScoreCardDark points={score} tierKey={tierKey} tierName={tierName} c={c} />}
-                {isSelf
-                  ? <>
-                      <BSMeKpis embedded onOpen={onOpenProgress} />
-                      {/* The full 3-tab Progress hub used to be embedded here as a
-                          second copy — it now lives ONLY on the Progress page. */}
-                      <button onClick={onOpenProgress} style={{ width: '100%', marginTop: 16, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 14, border: `1px solid ${bsTHexA(INK, 0.18)}`, background: bsTHexA(INK, 0.05), padding: '14px 16px' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 700, color: INK, letterSpacing: '-0.01em' }}>Full progress & trends</div>
-                          <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Overall · Training · Nutrition</div>
-                        </div>
-                        <span style={{ color: c, fontSize: 16, fontWeight: 700 }}>→</span>
-                      </button>
-                    </>
-                  : <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.45), marginTop: 14, textAlign: 'center' }}>Training & nutrition detail is private.</div>}
               </div>
             )}
             {tab === 'climb' && (<>
@@ -8761,18 +9112,18 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   </button>
                 )}
               </div>
-              <div style={{ position: 'relative', paddingLeft: 26, marginTop: 16 }}>
-                <div style={{ position: 'absolute', left: 6, top: 6, bottom: 10, width: 0, borderLeft: `1.5px dashed ${bsTHexA(c, 0.4)}` }} />
+              <div style={{ marginTop: 16 }}>
                 {feedEff.length === 0 && (
                   <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
-                {feedEff.map((it, i) => (
-                  <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
-                    <div style={{ position: 'absolute', left: -26, top: 15, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 9, height: 9, transform: 'rotate(45deg)', background: BG, border: `2px solid ${it.hot ? TEAL : c}` }} /></div>
-                    <div style={{ ...card, padding: '13px 15px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: it.hot ? TEAL : c }}>▲ {it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
-                      <BSActivityBody it={it} c={c} INK={INK} card={card} />
-                      <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={it.hot ? TEAL : c} INK={INK} BG={BG} />
+                {feedEff.map((a, i) => (
+                  <div key={a.key || i} style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
+                    {/* The activity's date in a tight left gutter — replaces the timeline diamond. */}
+                    <div style={{ flex: '0 0 30px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, fontVariantNumeric: 'tabular-nums', color: (a.hot || a.delta) ? TEAL : bsTHexA(INK, 0.45) }}>{bsCardDateLabel(a) || '—'}</div>
+                    {/* The SAME rich card the community chat feed renders, with the
+                        author header hidden (the profile owns the identity). */}
+                    <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
+                      <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                     </div>
                   </div>
                 ))}
@@ -8787,6 +9138,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadPhotoPosts} />}
+      {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
+      {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr })}
 
       {/* dock — Message others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -8865,7 +9218,7 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
 function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [offerTab, setOfferTab] = useStateBSC('All');
@@ -8881,6 +9234,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [ringLive, setRingLive] = useStateBSC(null);
   const [showLog, setShowLog] = useStateBSC(false);
+  const [coachFeedReloadNonce, setCoachFeedReloadNonce] = useStateBSC(0);
+  const [editingActivity, setEditingActivity] = useStateBSC(null);
   const [coachPosts, setCoachPosts] = useStateBSC([]);
   const sigMyId = (() => { try { return (window.ShapeAuth?.getCachedState?.() || {}).user?.id || null; } catch (e) { return null; } })();
   const sigFeedAuthorId = isSelf ? (person.userId || sigMyId) : (person.userId || null);
@@ -8889,12 +9244,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const loadCoachPosts = React.useCallback(() => {
     if (!sigFeedAuthorId || !window.ShapeCommunity?.listByAuthor) return;
     window.ShapeCommunity.listByAuthor(sigFeedAuthorId, { withPhotoOnly: false })
-      .then((r) => setCoachPosts(bsMapActivityPosts(r?.data)))
+      .then((r) => setCoachPosts(Array.isArray(r?.data) ? r.data : []))
       .catch(() => {});
   }, [sigFeedAuthorId]);
-  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts]);
+  React.useEffect(() => { loadCoachPosts(); }, [loadCoachPosts, coachFeedReloadNonce]);
   useBSPresence();
-  React.useEffect(() => { if (person.userId && window.ShapeProfiles?.getPublicProfile) { window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (d) setLive(d); }).catch(() => {}); } }, [person.userId]);
+  React.useEffect(() => { setLive(null); if (!person.userId || !window.ShapeProfiles?.getPublicProfile) return undefined; let on = true; window.ShapeProfiles.getPublicProfile(person.userId).then((d) => { if (on && d) setLive(d); }).catch(() => {}); return () => { on = false; }; }, [person.userId]);
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf]);
   // Live sigil rings for your own coach profile (habits / client workouts / own activity).
   React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
@@ -8959,6 +9314,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
   const [reviewerProfile, setReviewerProfile] = useStateBSC(null);
+  // Local reaction state for the shared BSActivityCard on this coach profile feed
+  // (optimistic toggle + best-effort persist via the same backend path as the feed).
+  const [actLikes, setActLikes] = useStateBSC({});
+  const [profExprOpen, setProfExprOpen] = useStateBSC(null);
+  const [actExpr, setActExpr] = useStateBSC({});
+  const profLpTimerRef = React.useRef(null);
+  const profLpFiredRef = React.useRef(false);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   React.useEffect(() => {
@@ -9036,6 +9398,57 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     : [['Tip', 'The 3 cues that fix most squats', 'Brace, spread the floor, own the bottom. Save this for leg day.', '2d'], ['Win', 'Jonah pulled 2× bodyweight today', 'Showed up every week. That’s the whole secret.', '4d']];
   const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
+  // Render this coach's personal-activities feed as the SAME rich BSActivityCard
+  // the community feed uses (author header hidden — the profile owns identity).
+  // Published author posts map via the shared mapper; the demo field-notes
+  // ([kick, title, body, time] tuples) via a slim adapter.
+  const ownerRole = isNutri ? 'Nutritionist' : 'Trainer';
+  const tupleToCard = (k, t2, b, time, idx) => ({
+    real: false, key: `note-${idx}`, postId: null, who: name, role: ownerRole, tier: baseTier, hot: false,
+    kind: 'workout', typeLabel: k || 'Note', title: t2 || '', body: b || '', ago: time || '',
+    city: '', activityType: '', stats: [], likers: [], comments: [],
+  });
+  // Signed in → only REAL published posts; never the demo "Tip/Win" field-notes —
+  // on your OWN coach profile or anyone else's (honest-data rule, mirroring the
+  // member profile's `signedIn ? [] : feed` gating). Demo tuples are the signed-out
+  // preview only. (The illustrative sub-data — disciplines/certs/offerings — stays
+  // on `ownZero` own-profile zeroing; only this activity feed is fully gated.)
+  const coachDemoFeed = signedIn ? [] : feed;
+  const coachFeedEff = [
+    ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
+    ...coachDemoFeed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
+  ];
+  // Profile reaction handler — optimistic toggle + best-effort backend like via
+  // the SAME path the community feed uses. Sample cards (no postId) toggle visually.
+  const profileApplyReaction = (a, key, _iAmAuthorsCoach, expr) => {
+    const wasLiked = actLikes[key] != null ? actLikes[key] : a.liked;
+    const willLike = expr != null ? true : !wasLiked;
+    setActLikes((prev) => ({ ...prev, [key]: willLike }));
+    setActExpr((prev) => { const next = { ...prev }; if (willLike && expr != null) next[key] = expr; else if (!willLike) delete next[key]; return next; });
+    if (a.postId && willLike !== wasLiked) { const lk = window.ShapeCommunity?.toggleLike?.({ postId: a.postId }); if (lk && lk.catch) lk.catch(() => {}); }
+  };
+  // ctx for the shared card on this profile: theme + working reactions/share/repost;
+  // the detail page / likers sheet / send-to-DM picker + inline comments are hosted
+  // here too (useBSCardSheets), so the cards behave EXACTLY like the community feed.
+  const cardSheets = useBSCardSheets();
+  const profMyRole = (window.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client';
+  // Owner edit — only on your OWN coach profile, only on a real (UUID-backed) post;
+  // reopens BSLogActivitySheet with the post's data (kind/privacy/media).
+  const profileOnEdit = isSelf ? (a) => {
+    const realId = bsRealPostId({ id: a.postId });
+    if (!realId) return;
+    setEditingActivity({ postId: realId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' });
+  } : undefined;
+  const profileCtx = {
+    t: tTheme, cardInk: INK, muted: bsTHexA(INK, 0.55), hair: bsTHexA(INK, 0.1),
+    card: tTheme.isLight ? tTheme.PAPER2 : bsTHexA(INK, 0.05),
+    actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr,
+    exprOpenKey: profExprOpen, setExprOpenKey: setProfExprOpen, lpTimerRef: profLpTimerRef, lpFiredRef: profLpFiredRef,
+    tierByUser: (person.userId ? { [person.userId]: baseTier } : {}), avatarByUser: {}, feedAvatars: {}, myRole: profMyRole, coachClientIds: new Set(), myFollowingSet: null,
+    setOpenProfile: (p) => setReviewerProfile(p),
+    feedApplyReaction: profileApplyReaction, onEdit: profileOnEdit,
+    ...cardSheets.ctx, // actComments, actCmtOpen, setActivityDetail/LikerSheetFor/SendPostFor
+  };
   const initials = bsInitials(name) || (person.init || '?');
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // Tap a reviewer → open who wrote the review (their public profile).
@@ -9060,11 +9473,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                 <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <BSSearchCorner size={30} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                <button onClick={() => setShowCustomizer(true)} aria-label="Edit profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
-                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                <button onClick={onOpenSettings} aria-label="Settings" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
                 </button>
               </div>
@@ -9072,18 +9485,18 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>
         ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${bsTHexA(INK, 0.18)}`, color: INK, borderRadius: 999, padding: '5px 11px', cursor: 'pointer', fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← Back</button>
+          <BSBackButton onClick={onBack} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
             {isSelf
               ? <>
-                  <BSSearchCorner size={30} ink={INK} />
-                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={30} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </>
-              : <BSMeCorner size={30} />}
+              : <BSMeCorner />}
           </div>
         </div>
         )}
@@ -9122,7 +9535,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         </div>
 
         {/* hero stat */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
+        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
@@ -9276,15 +9689,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                 </button>
               )}
             </div>
-            <div style={{ position: 'relative', paddingLeft: 22, marginTop: 16 }}>
-              <div style={{ position: 'absolute', left: 4, top: 4, bottom: 8, width: 1.5, background: `linear-gradient(180deg, ${bsTHexA(c, 0.5)}, ${bsTHexA(c, 0.05)})` }} />
-              {[...coachPosts, ...feed.map(([k, t2, b, time]) => ({ k, t: t2, b, time }))].map((it, i) => (
-                <div key={i} style={{ position: 'relative', marginBottom: 12 }}>
-                  <div style={{ position: 'absolute', left: -22, top: 16, width: 9, height: 9, borderRadius: 999, background: c, boxShadow: `0 0 0 3px ${BG}, 0 0 10px ${bsTHexA(c, 0.6)}` }} />
-                  <div style={{ ...card, padding: '13px 15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, background: bsTHexA(c, 0.12), padding: '3px 7px', borderRadius: 5 }}>{it.k}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.4) }}>{it.time}</span></div>
-                    <BSActivityBody it={it} c={c} INK={INK} card={card} />
-                    <BSPostActions post={{ postId: it.id || null, who: it.who || name, title: it.t, body: it.b, likes: it.likes, liked: it.liked, comments: it.comments }} c={c} INK={INK} BG={BG} />
+            <div style={{ marginTop: 16 }}>
+              {coachFeedEff.length === 0 && (
+                <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+              )}
+              {coachFeedEff.map((a, i) => (
+                <div key={a.key || i} style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
+                  {/* The activity's date in a tight left gutter — replaces the timeline dot. */}
+                  <div style={{ flex: '0 0 30px', paddingTop: 12, textAlign: 'right', fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, fontVariantNumeric: 'tabular-nums', color: bsTHexA(c, 0.6) }}>{bsCardDateLabel(a) || '—'}</div>
+                  {/* The SAME rich card the community chat feed renders, author header hidden. */}
+                  <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                   </div>
                 </div>
               ))}
@@ -9297,6 +9712,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
 
       {showCustomizer && <BSProfileCustomizer initial={custom} c={c} INK={INK} BG={BG} coach onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
+      {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
+      {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}
 
       {/* dock — Message / Work-with others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
@@ -9921,7 +10338,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>Vol. 1 · No. 1</div>
           </div>
-          <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} size={30} />
+          <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onClose} aria-label="Back" style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'grid', placeItems: 'center', paddingBottom: 2 }}>‹</button>
@@ -10116,6 +10533,365 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   return surface ? createPortal(view, surface) : view;
 }
 
+// Shared host for the three deep-interaction surfaces an activity card opens — the
+// full-screen activity-detail page, the send-to-DM picker, and the "who reacted"
+// sheet — rendered IDENTICALLY to the community feed's inline blocks. The profile
+// feeds (member Terrain + coach Signal) render this so their cards behave exactly
+// like the feed instead of toasting. `applyReaction` keeps a like one unified count
+// wherever it's tapped (card or detail page).
+function BSCardSheetHost({ activityDetail, setActivityDetail, sendPostFor, setSendPostFor, likerSheetFor, setLikerSheetFor, actLikes, actExpr, actComments, applyReaction, setOpenProfile, feedAvatars = {}, draft, setDraft, sendActComment }) {
+  const t = useBS();
+  return (
+    <>
+      {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
+      {activityDetail && (() => {
+        const d = activityDetail;
+        const liked = actLikes[d.key] != null ? !!actLikes[d.key] : !!d.a.liked;
+        const myExpr = liked ? (actExpr[d.key] || null) : null;
+        const baseKudos = Math.max(0, (d.a.kudos || 0) - (d.a.liked ? 1 : 0));
+        const count = baseKudos + (liked ? 1 : 0);
+        const comments = [...(d.a.real ? (d.a.postComments || []) : (d.a.comments || [])), ...(actComments[d.key] || [])];
+        return <BSActivityDetail d={d} liked={liked} count={count} myExpr={myExpr} comments={comments} feedAvatars={feedAvatars}
+          onClose={() => setActivityDetail(null)}
+          onReact={() => applyReaction(d.a, d.key, d.iAmAuthorsCoach, null)}
+          onProfile={setOpenProfile}
+          onOpenLikers={() => setLikerSheetFor({ who: d.who, likers: d.allLikers })}
+          draft={draft} setDraft={setDraft}
+          onSend={() => sendActComment(d.key, d.a.postId || null)} />;
+      })()}
+      {likerSheetFor && createPortal(
+        <div onClick={() => setLikerSheetFor(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0 12px' }}><div style={{ width: 38, height: 4, borderRadius: 99, background: t.RULE }} /></div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 }}>Reactions</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 12 }}>Who reacted</div>
+            {(likerSheetFor.likers || []).length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, padding: '10px 0' }}>No reactions yet.</div>}
+            {(likerSheetFor.likers || []).map((l, i) => (
+              <button key={i} onClick={() => { if (l.userId || l.name) { setOpenProfile({ who: l.name || 'Shape member', kind: String(l.role || 'client').toUpperCase() === 'TRAINER' ? 'TRAINER' : String(l.role || '').toUpperCase() === 'NUTRITIONIST' ? 'NUTRI' : 'CLIENT', init: bsInitials(l.name || '?'), userId: l.userId || undefined, public: true, photo: l.photo }); setLikerSheetFor(null); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR}`, padding: '10px 2px', cursor: 'pointer', textAlign: 'left' }}>
+                <BSFacetAvatar size={38} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 14.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name || 'Shape member'}</div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{l.role || 'Client'}</div>
+                </div>
+                {l.follows && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}`, borderRadius: 999, padding: '3px 8px', flexShrink: 0 }}>Following</span>}
+              </button>
+            ))}
+          </div>
+        </div>,
+        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
+      )}
+    </>
+  );
+}
+
+// Owns the activity-card engagement sheets' state (detail / send / likers + inline
+// comments) for a profile feed. Called with the OTHER hooks (no late deps), so it's
+// rules-of-hooks safe; `renderSheets` is called in the main return with the values
+// only available later (the profile's reaction handler + open-profile setter).
+function useBSCardSheets() {
+  const [activityDetail, setActivityDetail] = useStateBSC(null);
+  const [sendPostFor, setSendPostFor] = useStateBSC(null);
+  const [likerSheetFor, setLikerSheetFor] = useStateBSC(null);
+  const [actComments, setActComments] = useStateBSC({});
+  const [actCmtDraft, setActCmtDraft] = useStateBSC('');
+  const sendActComment = (key, postId) => {
+    const body = (actCmtDraft || '').trim();
+    if (!body) return;
+    setActComments((prev) => ({ ...prev, [key]: [...(prev[key] || []), { who: 'You', body }] }));
+    setActCmtDraft('');
+    // Persist ONLY to a real post-backed activity (the explicit postId). Profile
+    // demo cards carry synthetic keys (it-*/act-*) with no postId → local-only,
+    // never a bogus addComment to a non-id key. (The community feed's
+    // key-as-postId fallback is feed-specific and does NOT apply here.)
+    if (postId) { const c0 = window.ShapeCommunity?.addComment?.({ postId, body }); if (c0 && c0.catch) c0.catch(() => {}); }
+  };
+  const ctx = { actComments, actCmtOpen: null, setActivityDetail, setLikerSheetFor, setSendPostFor };
+  const renderSheets = ({ applyReaction, setOpenProfile, actLikes, actExpr, feedAvatars = {} }) => (
+    <BSCardSheetHost
+      activityDetail={activityDetail} setActivityDetail={setActivityDetail}
+      sendPostFor={sendPostFor} setSendPostFor={setSendPostFor}
+      likerSheetFor={likerSheetFor} setLikerSheetFor={setLikerSheetFor}
+      actLikes={actLikes} actExpr={actExpr} actComments={actComments}
+      applyReaction={applyReaction} setOpenProfile={setOpenProfile} feedAvatars={feedAvatars}
+      draft={actCmtDraft} setDraft={setActCmtDraft} sendActComment={sendActComment} />
+  );
+  return { ctx, renderSheets };
+}
+
+// The rich Strava-style activity card — shared by the community feed (BSClientFeed)
+// AND the profile "Personal activities" feed. Module-level + ctx-injected so both
+// surfaces render the SAME card. `ctx` bundles the host's state/handlers; the
+// community feed builds it once per render, the profile builds a slim version
+// (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
+// `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
+function BSActivityCard({ a, ctx, hideAuthor = false }) {
+  const {
+    t, cardInk, muted, hair, card,
+    actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
+    exprOpenKey, setExprOpenKey, lpTimerRef, lpFiredRef,
+    tierByUser, avatarByUser, feedAvatars, myRole, coachClientIds, myFollowingSet,
+    setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
+    onEdit, // optional owner-edit (profile only; community feed passes nothing)
+  } = ctx;
+    // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
+    // tier name + color to it; members keep the client ramp. Real posts resolve the
+    // author's live tier (batched points → tier), with a stable name-hash fallback.
+    const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
+    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : (a.tier || bsPostTier({ who: a.who }));
+    const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
+    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
+    const key = a.key || `${a.who}|${a.ago}`;
+    // Seed from the post's live like state; local toggles override. The kudos
+    // count from the row already includes my own like, so subtract the seed
+    // before re-adding the local state (no double count).
+    const liked = actLikes[key] != null ? !!actLikes[key] : !!a.liked;
+    const baseKudos = Math.max(0, (a.kudos || 0) - (a.liked ? 1 : 0));
+    const comments = actComments[key] || [];
+    const cmtOpen = actCmtOpen === key;
+    const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
+    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
+    // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
+    // tally stays one unified count. PR/milestone (a new-best delta, or the demo
+    // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
+    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
+    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
+    const cheer = bsReactionVerb(actType);
+    const stats = a.real ? a.statsRow
+      : Array.isArray(a.stats) ? a.stats
+      : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
+      : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
+      : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
+    const showRoute = a.real ? !!a.route : a.kind === 'run';
+    // Real GPS points (Strava/Garmin imports normalize them server-side) draw
+    // the actual route; the tier-tinted tile is the fallback for routeless flags.
+    const routeObj = a.real && a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
+    const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
+    const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
+    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
+    // Redesign hierarchy: lead with ONE hero metric (load for lifts, distance for
+    // runs) at the existing stat-plate value styling; demote the rest behind a
+    // disclosure. Delta + coach rows are HONEST slots — they render only when the
+    // post actually carries them (no fabricated "+10", no placeholder coach row).
+    const isRunCard = a.real ? (a.typeLabel === 'Run') : (a.kind === 'run');
+    const _primIdx = (() => {
+      const pat = isRunCard ? /dist/i : /load|weight/i;
+      let i = stats.findIndex(([k]) => pat.test(String(k || '')));
+      if (i < 0) i = stats.findIndex(([, v]) => /\d/.test(String(v)) && /(lb|kg|mi|km)\b/i.test(String(v)));
+      return i < 0 ? 0 : i;
+    })();
+    const heroStat = stats[_primIdx] || null;
+    const secStats = stats.filter((_, i) => i !== _primIdx);
+    const detailsOpen = !!actDetailsOpen[key];
+    const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
+    const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
+    const coachProgram = a.real ? (a.program || '') : '';
+    // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
+    // Sources, in order: my own optimistic co-sign (I'm this athlete's coach and
+    // just reacted) → the post's stamped co-sign (any of their coaches). Honest:
+    // null unless a real coach↔client link exists. `iAmAuthorsCoach` gates my tap.
+    const iAmAuthorsCoach = (myRole === 'trainer' || myRole === 'nutritionist') && !!a.userId && !!coachClientIds && coachClientIds.has(a.userId);
+    const myCoSign = actCoSign[key] || null;
+    const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
+    const coSignIsMine = !!myCoSign;
+    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
+    // Phase 2 — the verb shown on the button is MY chosen expression when I've
+    // reacted (long-press → pick), else the activity-default verb. `applyReaction`
+    // is the single path: tapping (expr=null) toggles the like; picking an
+    // expression always reacts + re-labels — both stay ONE unified count.
+    const myExpr = liked ? (actExpr[key] || null) : null;
+    const paletteOpen = exprOpenKey === key;
+    const palette = bsReactionPalette(cheer);
+    const applyReaction = (expr) => feedApplyReaction(a, key, iAmAuthorsCoach, expr);
+    // Social layer — the people I FOLLOW who reacted/commented surface on the card
+    // (avatars over the like row + their comments inline); everyone else opens on
+    // tap. Real posts: intersect the post's liker-ids / comment authors with my
+    // following set. Demo cards: the illustrative `likers`/`comments` arrays.
+    const followingSet = myFollowingSet;
+    const allLikers = a.real
+      ? (a.likerIds || []).map((id) => { const f = followingSet && followingSet.get(id); return { userId: id, name: f ? f.name : null, role: f ? f.role : 'Client', photo: feedAvatars[id] || null, follows: !!f }; })
+      : (a.likers || []).map((p) => ({ userId: null, name: p.name, role: p.role || 'Client', photo: bsDemoFace(p.name), follows: true }));
+    const followedLikers = allLikers.filter((l) => l.follows);
+    const allComments = a.real ? (a.postComments || []) : (a.comments || []);
+    const localComments = actComments[key] || [];
+    // The count shown ALWAYS matches what opens (fixes "says 6, shows 3"): the
+    // real comments on the post + anything added locally this session.
+    const commentCount = allComments.length + localComments.length;
+    const followedComments = a.real
+      ? allComments.filter((c) => c.userId && followingSet && followingSet.has(c.userId))
+      : allComments.filter((c) => c.follows);
+    const likeFacepile = followedLikers.slice(0, 4);
+    // Full stat set for the detail page (every stat, not the card's 3-up).
+    const detailStats = a.real ? (a.fullStats || stats) : (a.stats || stats);
+    // Open the full-screen activity page (stats focus or comments focus).
+    const openDetail = (focus) => setActivityDetail({
+      a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
+      title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
+      routeObj, showRoute, breakdown: a.breakdown || null,
+      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
+      verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
+    });
+    return (
+      <div style={{ background: card, overflow: 'hidden' }}>
+        <div style={{ height: 1, background: tc }} />
+        <div style={{ padding: '10px 13px 11px' }}>
+          {/* author + activity type — or, when hideAuthor (profile feed), a slim
+              header: the type chip on the right + the relative time on the left
+              (the profile's own card chrome already owns the author identity). */}
+          {hideAuthor ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
+              {/* owner edit — only when the host supplies onEdit (profile) AND the
+                  card is a real published post; the community feed passes no onEdit,
+                  and demo/PR cards have no postId, so this stays profile-own-posts. */}
+              {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
+              <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
+            </div>
+          ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
+              </div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+            </div>
+            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
+          </div>
+          )}
+          {/* HERO — activity name + the promoted primary metric. Tapping the
+              title/metric/caption (or the route below) opens the full session-
+              details page. */}
+          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
+            {heroStat && (
+              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 9px', marginTop: 7 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: cardInk, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{heroStat[1]}</span>
+                {prDelta && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '3px 7px', borderRadius: 999, lineHeight: 1 }}>↑ {prDelta}</span>}
+                <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{heroStat[0]}</span>
+              </div>
+            )}
+            {/* caption — the human line, unchanged */}
+            {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
+          </div>
+          {/* Log-Activity media — photo · inline video / video-link card · link card.
+              GUARDED by a.photo/a.video/a.link, so it's a zero-render no-op on the
+              community workout cards (which carry none of these). Markup lifted from
+              the old BSActivityBody; theme-token styled. */}
+          {a.photo && <img src={a.photo} alt="" loading="lazy" style={{ display: 'block', width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 12, marginTop: 10 }} />}
+          {a.video && (bsIsDirectVideoUrl(a.video)
+            ? <video src={a.video} controls playsInline style={{ display: 'block', width: '100%', maxHeight: 320, borderRadius: 12, marginTop: 10, background: '#000' }} />
+            : <a href={a.video} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: `${tc}2e`, color: tc, display: 'grid', placeItems: 'center', fontSize: 12 }}>▷</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Watch video</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.video)} ↗</span></span></a>)}
+          {a.link && <a href={a.link.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, textDecoration: 'none', border: `1px solid ${hair}`, borderRadius: 11, padding: '11px 13px' }}><span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: `${tc}2e`, color: tc, display: 'grid', placeItems: 'center', fontSize: 13 }}>↗</span><span style={{ minWidth: 0, flex: 1 }}><span style={{ display: 'block', fontFamily: t.BODY, fontWeight: 600, fontSize: 13, color: cardInk, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.link.title || bsLinkHost(a.link.url)}</span><span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, color: muted }}>{bsLinkHost(a.link.url)} ↗</span></span></a>}
+          {/* coach attribution — honest slot: renders ONLY when the post names a
+              program + coach; suppressed entirely for self-coached / opted-out */}
+          {coachLine && (
+            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, padding: '4px 11px', cursor: 'pointer' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Programmed by</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
+            </button>
+          )}
+          {/* GPS route — the REAL polyline when the post carries points;
+              halftone tile in the member's tier color otherwise (endurance hero).
+              Tap opens the full session-details page. */}
+          {routeObj ? (
+            <div onClick={() => openDetail('stats')} style={{ cursor: 'pointer' }}><BSActivityRoutePreview route={routeObj} /></div>
+          ) : showRoute && (
+            <div onClick={() => openDetail('stats')} style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
+              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
+            </div>
+          )}
+          {/* The card stays a glance — the full metric readout lives on the
+              Session-details page (this link / tapping the hero opens it). */}
+          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 11, padding: '10px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc }}>Session details · full activity</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
+          </button>
+          {/* coach co-sign — a solid role-colored badge so one coach co-sign reads
+              heavier than any peer reaction. Renders only on a real coach↔client
+              link (my own, or one stamped on the post); honest-absent otherwise */}
+          {coSign && (
+            <div style={{ marginTop: 11 }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box', cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+              </button>
+            </div>
+          )}
+          {/* phase 2 — expressive palette (opens on a press-and-hold of the
+              reaction). Picking a word re-labels MY reaction but stays the same
+              unified like (one count). All text, no emoji. */}
+          {paletteOpen && (
+            <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
+              {palette.map((w) => {
+                const on = liked && (myExpr || cheer) === w;
+                return (
+                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>{bsFeedIcon('react', 11)}<span>{w}</span></button>
+                );
+              })}
+              <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
+            </div>
+          )}
+          {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
+              above the reaction row. Tap → the full "who reacted" sheet. */}
+          {likeFacepile.length > 0 && (() => {
+            const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
+            const fpLabel = fpNames.length
+              ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
+              : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
+            return (
+              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {likeFacepile.map((l, i) => (
+                    <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                  ))}
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
+              </button>
+            );
+          })()}
+          {/* actions — the reaction verb primary/heaviest; Comment + Share
+              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
+          {(() => {
+            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
+            return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
+            <button
+              onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
+              onPointerUp={() => clearTimeout(lpTimerRef.current)}
+              onPointerLeave={() => clearTimeout(lpTimerRef.current)}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
+              title="Hold for more reactions"
+              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
+            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
+            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
+            <span style={{ marginLeft: 'auto' }} />
+            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
+            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
+          </div>
+            );
+          })()}
+          {/* followed comments — people I FOLLOW comment under the card by
+              default (modern row: facet avatar + aligned name/text); the rest
+              open in the full-screen activity page */}
+          {followedComments.length > 0 && (
+            <div style={{ marginTop: 11 }}>
+              {followedComments.slice(0, 2).map((c, i) => (
+                <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
+              ))}
+              {commentCount > Math.min(2, followedComments.length) && (
+                <button onClick={() => openDetail('comments')} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 1, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {commentCount} comments ›</button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+}
+
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
   useBSPresence(); // re-render avatars as people come online / go offline
@@ -10123,6 +10899,46 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [tab, setTab] = useStateBSC('feed');
   const [filter, setFilter] = useStateBSC('COMMUNITY');
   const [teamsSel, setTeamsSel] = useStateBSC('coaches');
+  // Auto-hide the sub-tab rows (Feed role chips, Team Coaches/Friends) on
+  // scroll-down; reveal on scroll-up or near the top. One scroll listener on the
+  // BSPage scroller — found by walking up from the always-rendered main tab row
+  // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
+  // collapses via bsSubStyle().
+  const [subHidden, setSubHidden] = useStateBSC(false);
+  React.useEffect(() => { setSubHidden(false); }, [tab]);
+  // Attach the scroll-direction listener via a CALLBACK ref on the (always-
+  // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
+  // after opening a DM/profile (which early-returns + unmounts the BSPage
+  // scroller) and backing out. Walks up to the scroller; the ref fn is stable.
+  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false });
+  const bsSubAnchorRef = React.useCallback((node) => {
+    const st = bsScroll.current;
+    if (st.sc && st.fn) { st.sc.removeEventListener('scroll', st.fn); st.sc = null; st.fn = null; }
+    if (!node || typeof getComputedStyle !== 'function') return;
+    let sc = node.parentElement;
+    while (sc && sc !== document.body) {
+      const oy = getComputedStyle(sc).overflowY;
+      if (oy === 'scroll' || oy === 'auto') break;
+      sc = sc.parentElement;
+    }
+    if (!sc || sc === document.body) return;
+    st.sc = sc; st.last = sc.scrollTop; st.ticking = false;
+    st.fn = () => {
+      if (st.ticking) return;
+      st.ticking = true;
+      requestAnimationFrame(() => {
+        const y = st.sc.scrollTop, dy = y - st.last;
+        if (y < 28) setSubHidden(false);
+        else if (dy > 6) setSubHidden(true);
+        else if (dy < -6) setSubHidden(false);
+        st.last = y; st.ticking = false;
+      });
+    };
+    sc.addEventListener('scroll', st.fn, { passive: true });
+  }, []);
+  // marginBottom (gap compensation) is NOT transitioned — it snaps, so the parent
+  // flex `gap` doesn't visibly shift mid-collapse while maxHeight animates.
+  const bsSubStyle = (gap) => ({ maxHeight: subHidden ? 0 : 80, opacity: subHidden ? 0 : 1, overflow: 'hidden', pointerEvents: subHidden ? 'none' : 'auto', transition: 'max-height 240ms cubic-bezier(.4,0,.2,1), opacity 150ms ease', ...(gap ? { marginBottom: subHidden ? -gap : 0 } : null) });
   const [draft, setDraft] = useStateBSC('');
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
@@ -10131,18 +10947,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
-  // Nora's voice (off by default) + tone toggle. Lives in localStorage via
-  // window.ShapeVoice; the thread mirrors it so toggles re-render immediately.
-  const [voicePrefs, setVoicePrefs] = useStateBSC(() => (window.ShapeVoice ? window.ShapeVoice.get() : { enabled: false, tone: 'supportive' }));
-  const setVoiceEnabled = (b) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setEnabled(b) : { enabled: b, tone: 'supportive' });
-  const setVoiceTone = (tn) => setVoicePrefs(window.ShapeVoice ? window.ShapeVoice.setTone(tn) : { enabled: false, tone: tn });
+  // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
+  // default); the global voice on/off + tone still live in Settings → Nora voice.
+  // (We do NOT force the tone here — that would overwrite the user's own setting
+  // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
   const speakReply = (text, opts) => { try { window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts); } catch (e) {} };
-  // Reflect a tone that arrives async (account sync on login, or a change on another surface).
-  React.useEffect(() => {
-    const h = () => { try { if (window.ShapeVoice) setVoicePrefs(window.ShapeVoice.get()); } catch (e) {} };
-    window.addEventListener('shape:voice', h);
-    return () => window.removeEventListener('shape:voice', h);
-  }, []);
   // Clear any thread persisted by older builds so stale history doesn't reappear.
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   const sendSupport = async () => {
@@ -10397,6 +11206,20 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const cardInk = t.INK;
   const muted = t.INK50;
   const hair = t.RULE;
+  // Sub-tab chip — minimal "bracket-frame": plain text at rest; accent corner
+  // brackets (top-left + bottom-right) + accent text + dot when active. A render
+  // FUNCTION (called inline like renderPost/Row), not a <Component/>, so it
+  // doesn't remount the chips on the parent's frequent re-renders. Shared by the
+  // Feed role chips and the Team Coaches/Friends selector so both match.
+  const bsSubTab = ({ key, on, color, onClick, label, badge }) => (
+    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 16px', minWidth: 96, boxSizing: 'border-box', background: 'transparent', border: 0, color: on ? color : muted, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {on && <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, width: 9, height: 9, borderTop: `1.5px solid ${color}`, borderLeft: `1.5px solid ${color}` }} />}
+      {on && <span aria-hidden style={{ position: 'absolute', right: 0, bottom: 0, width: 9, height: 9, borderBottom: `1.5px solid ${color}`, borderRight: `1.5px solid ${color}` }} />}
+      <span style={{ width: 5, height: 5, borderRadius: 1.5, background: on ? color : muted, opacity: on ? 1 : 0.6, flexShrink: 0 }} />
+      {label}
+      {badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1, marginLeft: 1 }}>{badge > 9 ? '9+' : badge}</span>}
+    </button>
+  );
   const ROLE = {
     SHAPE: { color: TEALB, label: 'Client' },
     TRAINER: { color: '#ff7a59', label: 'Trainer' },
@@ -10478,6 +11301,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       hearts: typeof p.likes === 'number' ? p.likes : (p.likeCount || 0),
       replies: Array.isArray(p.comments) ? p.comments.length : (p.commentCount || 0),
       comments: Array.isArray(p.comments) ? p.comments.map(c => ({ who: c.author_name || c.who || 'Member', body: c.body || c.text || '' })) : [],
+      // Fields needed so the Edit seed can pre-populate the sheet correctly.
+      note: p.note || null,
+      status: p.status || null,
+      video: p.video || null,
+      link: p.link || null,
+      privacy: p.privacy || null,
+      metaKind: p.kind || null,
     };
   };
   const [posts, setPosts] = useStateBSC(SAMPLE);
@@ -10486,6 +11316,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // same community posts that are workouts / sensor-imported sessions). Demo cards
   // are the signed-out / no-activity-yet fallback.
   const [activityFeed, setActivityFeed] = useStateBSC([]);
+  // Declared BEFORE the post-loader effect below (its dep array reads feedNonce) —
+  // moving it here avoids a temporal-dead-zone ReferenceError when BSClientFeed renders.
+  const [feedNonce, setFeedNonce] = useStateBSC(0);
   React.useEffect(() => {
     let active = true;
     (async () => {
@@ -10515,7 +11348,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       } catch { /* keep sample */ }
     })();
     return () => { active = false; };
-  }, []);
+  }, [feedNonce]);
   const [tierByUser, setTierByUser] = useStateBSC({}); // userId → real tier (from Shape Score)
   const [avatarByUser, setAvatarByUser] = useStateBSC({}); // userId → profile photo (data URL)
   // Each chip is its own channel: SHAPE = individual members, TRAINER/NUTRI/
@@ -10559,6 +11392,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Photo post — upload to community-photos then create a post carrying the URL.
   const feedPhotoRef = React.useRef(null);
   const [photoBusy, setPhotoBusy] = useStateBSC(false);
+  const [showLog, setShowLog] = useStateBSC(false);
+  const canChatNow = useBSCanChat();
+  const [editingPost, setEditingPost] = useStateBSC(null);
   const onFeedPhoto = () => { try { feedPhotoRef.current && feedPhotoRef.current.click(); } catch (e) {} };
   const onFeedPhotoFile = async (e) => {
     const file = e?.target?.files?.[0];
@@ -10739,6 +11575,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <button aria-label="Send post" onClick={() => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } setSendPostFor({ postId: id, who: p.name, title: p.status, body: p.note }); }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('send', 13)}</button>
           <button aria-label="Share post" onClick={() => bsSharePostExternal({ who: p.name, title: p.status, body: p.note, postId: bsRealPostId(p) })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('share', 13)}</button>
           <button aria-label="Repost" onClick={async () => { const id = bsRealPostId(p); if (!id) { window.__bsToast?.('Sample post — engagement lights up on real posts.', 'info'); return; } try { await bsRepostPost({ postId: id, who: p.name, title: p.status, body: p.note }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0 }}>{bsFeedIcon('repost', 13)}</button>
+          {isMe && bsRealPostId(p) && (
+            <button aria-label="Edit post" onClick={() => setEditingPost({ postId: bsRealPostId(p), title: p.status || '', body: p.body || p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, kind: p.metaKind || null, privacy: p.privacy || 'community' })} style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: muted, cursor: 'pointer', padding: 0, fontSize: 13 }}>✎</button>
+          )}
         </div>
         {actCmtOpen === p.id && (
           <div style={{ alignSelf: 'stretch', marginTop: 10, borderTop: `1px solid ${hair}`, paddingTop: 10 }}>
@@ -10769,245 +11608,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     { kind: 'workout', typeLabel: 'Ride', activityType: 'cycle', who: 'Marcus Bell', role: 'Client', city: 'River Rd · NJ', tier: 'PEAK', ago: '1h', body: 'Threshold intervals on the climb. Held the watts on every rep.', title: 'Tempo ride · 25 mi', stats: [['Distance', '25.1 mi'], ['Avg speed', '19.3 mph'], ['Time', '1:18:04'], ['Avg power', '241 W'], ['Max power', '612 W'], ['Avg HR', '148 bpm'], ['Max HR', '171 bpm'], ['Cadence', '89 rpm'], ['Elevation', '1,240 ft'], ['Calories', '1,180'], ['Max speed', '34.2 mph']], zones: [['Z1', 8], ['Z2', 22], ['Z3', 30], ['Z4', 28], ['Z5', 12]], trace: [126, 132, 140, 152, 161, 149, 138, 145, 158, 167, 154, 142, 150, 163, 170, 156, 144, 152, 165, 171, 158, 146, 154, 166, 169, 151, 140, 157, 168, 159], paceTrace: [17.2, 18.4, 21.0, 24.5, 22.1, 18.0, 16.4, 19.2, 23.6, 26.1, 21.4, 17.8, 19.6, 24.0, 27.2, 20.8, 16.9, 19.0, 23.1, 28.4, 22.6, 18.2, 20.1, 24.8, 26.6, 19.4, 16.2, 20.6, 25.4, 21.8], powerTrace: [198, 224, 268, 312, 286, 210, 182, 236, 298, 332, 274, 204, 244, 306, 348, 262, 190, 232, 296, 358, 284, 214, 252, 318, 336, 246, 186, 258, 322, 276], cadenceTrace: [84, 86, 88, 91, 90, 85, 83, 87, 90, 93, 89, 84, 88, 92, 94, 88, 83, 87, 91, 95, 90, 85, 89, 93, 94, 87, 82, 90, 94, 89], elevTrace: [120, 138, 172, 226, 290, 248, 196, 244, 318, 402, 356, 288, 232, 308, 396, 470, 412, 340, 286, 360, 452, 528, 470, 398, 462, 540, 480, 396, 312, 240], breakdown: { label: 'Intervals', rows: [['Climb 1', '6:24', '298 W'], ['Climb 2', '6:02', '312 W'], ['Climb 3', '5:48', '326 W']] }, kudos: 23, replies: 3 },
     { kind: 'workout', who: 'Casey Morgan', role: 'Client', city: 'Shape · Brooklyn', tier: 'FORM', ago: '2h', body: 'Squats felt locked in. RPE 8 across the board, no missed reps.', title: 'Lower strength · Block 3', duration: '52 min', exercises: 6, rpe: 8.5, kudos: 38, replies: 4 },
     { kind: 'pr', who: 'Devon Wells', role: 'Client', city: 'Iron House · Chicago', tier: 'TEMPO', ago: '2h', body: 'Eight months in. First time the bar moved this clean.', lift: 'Bench Press', topset: '1×5', load: '225 lb', e1rm: '253 lb', kudos: 142, replies: 18 },
-    { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3 },
-    { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9 },
+    { kind: 'run', who: 'Sofia Park', role: 'Nutritionist', city: 'Prospect Park · NYC', tier: 'BASE', ago: '3h', body: 'Easy Zone 2. Kept it conversational the whole way.', distance: '5.1 mi', pace: '9:30/mi', duration: '48:27', elev: '180 ft', route: true, kudos: 17, replies: 3, stats: [['Distance', '5.1 mi'], ['Avg pace', '9:30/mi'], ['Best pace', '8:58/mi'], ['Time', '48:27'], ['Avg HR', '141 bpm'], ['Max HR', '158 bpm'], ['Cadence', '168 spm'], ['Elevation', '180 ft'], ['Calories', '590'], ['Stride', '1.04 m'], ['Ground', '268 ms'], ['Training', '2.1 · LO']], zones: [['Z1', 22], ['Z2', 58], ['Z3', 16], ['Z4', 4], ['Z5', 0]], trace: [128, 134, 138, 136, 140, 142, 139, 144, 141, 138, 143, 145, 142, 139, 144, 146, 143, 140, 145, 147, 144, 141, 146, 148, 145, 142, 147, 149, 152, 138], cadenceTrace: [162, 165, 167, 168, 166, 169, 168, 170, 169, 167, 170, 171, 169, 167, 170, 172, 170, 168, 171, 172, 171, 169, 172, 173, 171, 170, 172, 174, 173, 168], elevTrace: [60, 64, 70, 78, 74, 68, 76, 84, 80, 72, 80, 92, 88, 80, 76, 84, 96, 90, 82, 88, 98, 92, 86, 94, 102, 96, 88, 80, 72, 64], paceTrace: [600, 588, 582, 590, 578, 585, 575, 583, 590, 580, 572, 581, 588, 574, 582, 570, 579, 586, 572, 580, 588, 575, 583, 590, 576, 584, 578, 586, 572, 580], breakdown: { label: 'Mile splits', rows: [['Mile 1', '9:42/mi', 'Warm-up'], ['Miles 2–3', '9:30/mi', 'Steady'], ['Miles 4–5', '9:24/mi', 'Smooth'], ['Last 0.1', '8:58/mi', 'Strides']] } },
+    { kind: 'workout', who: 'Maya Okafor', role: 'Trainer', city: 'Shape · coaching floor', tier: 'LEGEND', ago: '4h', body: 'Demo day with the strength group. Everyone left with a PR attempt logged.', title: 'Coaching floor · group lift', duration: '60 min', exercises: 5, rpe: 7, kudos: 64, replies: 9, stats: [['Top set', '185 lb'], ['Total sets', '24'], ['Avg HR', '132 bpm'], ['Max HR', '158 bpm'], ['Calories', '510'], ['Volume', '12,400 lb']], zones: [['Z1', 34], ['Z2', 38], ['Z3', 20], ['Z4', 7], ['Z5', 1]], trace: [104, 118, 132, 120, 110, 124, 140, 128, 114, 126, 146, 134, 118, 130, 150, 138, 120, 132, 152, 140, 122, 134, 148, 136, 116, 128, 144, 130, 112, 108], breakdown: { label: 'Working sets', rows: [['Back squat', '5 × 5 @ 185', 'RPE 7'], ['Bench', '5 × 5 @ 145', 'RPE 7'], ['Row', '4 × 8 @ 135', 'RPE 8'], ['Accessories', '3 circuits', 'RPE 6']] } },
   ];
-  const ActivityCard = ({ a }) => {
-    // Coaches climb a separate ladder (Certified·Pro·Elite·Master·Icon) — map the
-    // tier name + color to it; members keep the client ramp. Real posts resolve the
-    // author's live tier (batched points → tier), with a stable name-hash fallback.
-    const isCoachAuthor = a.role === 'Trainer' || a.role === 'Nutritionist';
-    const realTier = a.real ? ((a.userId && tierByUser[a.userId]) || bsPostTier({ who: a.who })) : a.tier;
-    const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
-    const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
-    const key = a.key || `${a.who}|${a.ago}`;
-    // Seed from the post's live like state; local toggles override. The kudos
-    // count from the row already includes my own like, so subtract the seed
-    // before re-adding the local state (no double count).
-    const liked = actLikes[key] != null ? !!actLikes[key] : !!a.liked;
-    const baseKudos = Math.max(0, (a.kudos || 0) - (a.liked ? 1 : 0));
-    const comments = actComments[key] || [];
-    const cmtOpen = actCmtOpen === key;
-    const typeLabel = a.real ? a.typeLabel : (a.typeLabel || (a.kind === 'pr' ? 'Strength' : a.kind === 'run' ? 'Run' : 'Workout'));
-    const title = a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title);
-    // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
-    // tally stays one unified count. PR/milestone (a new-best delta, or the demo
-    // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
-    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
-    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
-    const cheer = bsReactionVerb(actType);
-    const stats = a.real ? a.statsRow
-      : Array.isArray(a.stats) ? a.stats
-      : a.kind === 'pr' ? [['Top set', a.topset], ['Load', a.load], ['Est. 1RM', a.e1rm]]
-      : a.kind === 'run' ? [['Distance', a.distance], ['Pace', a.pace], ['Time', a.duration]]
-      : [['Time', a.duration], ['Moves', `${a.exercises}`], ['RPE', `${a.rpe}`]];
-    const showRoute = a.real ? !!a.route : a.kind === 'run';
-    // Real GPS points (Strava/Garmin imports normalize them server-side) draw
-    // the actual route; the tier-tinted tile is the fallback for routeless flags.
-    const routeObj = a.real && a.routeObj && Array.isArray(a.routeObj.points) && a.routeObj.points.length >= 2 ? a.routeObj : null;
-    const roleKind = a.role === 'Trainer' ? 'TRAINER' : a.role === 'Nutritionist' ? 'NUTRI' : 'CLIENT';
-    const avatarPhoto = a.real ? ((a.userId && avatarByUser[a.userId]) || undefined) : bsDemoFace(a.who);
-    const openCardProfile = () => setOpenProfile({ who: a.who, kind: roleKind, tier: realTier, init: bsInitials(a.who), city: a.city, userId: a.real ? a.userId : undefined, public: true, photo: avatarPhoto });
-    // Redesign hierarchy: lead with ONE hero metric (load for lifts, distance for
-    // runs) at the existing stat-plate value styling; demote the rest behind a
-    // disclosure. Delta + coach rows are HONEST slots — they render only when the
-    // post actually carries them (no fabricated "+10", no placeholder coach row).
-    const isRunCard = a.real ? (a.typeLabel === 'Run') : (a.kind === 'run');
-    const _primIdx = (() => {
-      const pat = isRunCard ? /dist/i : /load|weight/i;
-      let i = stats.findIndex(([k]) => pat.test(String(k || '')));
-      if (i < 0) i = stats.findIndex(([, v]) => /\d/.test(String(v)) && /(lb|kg|mi|km)\b/i.test(String(v)));
-      return i < 0 ? 0 : i;
-    })();
-    const heroStat = stats[_primIdx] || null;
-    const secStats = stats.filter((_, i) => i !== _primIdx);
-    const detailsOpen = !!actDetailsOpen[key];
-    const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
-    const coachLine = a.real && a.coach ? a.coach : null;  // suppressed entirely when absent
-    const coachProgram = a.real ? (a.program || '') : '';
-    // Coach co-sign — one coach co-sign reads heavier than any peer reaction.
-    // Sources, in order: my own optimistic co-sign (I'm this athlete's coach and
-    // just reacted) → the post's stamped co-sign (any of their coaches). Honest:
-    // null unless a real coach↔client link exists. `iAmAuthorsCoach` gates my tap.
-    const iAmAuthorsCoach = (myRole === 'trainer' || myRole === 'nutritionist') && !!a.userId && !!coachClientIds && coachClientIds.has(a.userId);
-    const myCoSign = actCoSign[key] || null;
-    const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
-    const coSignIsMine = !!myCoSign;
-    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
-    // Phase 2 — the verb shown on the button is MY chosen expression when I've
-    // reacted (long-press → pick), else the activity-default verb. `applyReaction`
-    // is the single path: tapping (expr=null) toggles the like; picking an
-    // expression always reacts + re-labels — both stay ONE unified count.
-    const myExpr = liked ? (actExpr[key] || null) : null;
-    const paletteOpen = exprOpenKey === key;
-    const palette = bsReactionPalette(cheer);
-    const applyReaction = (expr) => feedApplyReaction(a, key, iAmAuthorsCoach, expr);
-    // Social layer — the people I FOLLOW who reacted/commented surface on the card
-    // (avatars over the like row + their comments inline); everyone else opens on
-    // tap. Real posts: intersect the post's liker-ids / comment authors with my
-    // following set. Demo cards: the illustrative `likers`/`comments` arrays.
-    const followingSet = myFollowingSet;
-    const allLikers = a.real
-      ? (a.likerIds || []).map((id) => { const f = followingSet && followingSet.get(id); return { userId: id, name: f ? f.name : null, role: f ? f.role : 'Client', photo: feedAvatars[id] || null, follows: !!f }; })
-      : (a.likers || []).map((p) => ({ userId: null, name: p.name, role: p.role || 'Client', photo: bsDemoFace(p.name), follows: true }));
-    const followedLikers = allLikers.filter((l) => l.follows);
-    const allComments = a.real ? (a.postComments || []) : (a.comments || []);
-    const localComments = actComments[key] || [];
-    // The count shown ALWAYS matches what opens (fixes "says 6, shows 3"): the
-    // real comments on the post + anything added locally this session.
-    const commentCount = allComments.length + localComments.length;
-    const followedComments = a.real
-      ? allComments.filter((c) => c.userId && followingSet && followingSet.has(c.userId))
-      : allComments.filter((c) => c.follows);
-    const likeFacepile = followedLikers.slice(0, 4);
-    // Full stat set for the detail page (every stat, not the card's 3-up).
-    const detailStats = a.real ? (a.fullStats || stats) : (a.stats || stats);
-    // Open the full-screen activity page (stats focus or comments focus).
-    const openDetail = (focus) => setActivityDetail({
-      a, key, tc, tierDisplay, role: a.role, who: a.who, ago: a.ago, city: a.city, avatarPhoto, roleKind, realTier,
-      title, typeLabel, heroStat, detailStats, prDelta, coachLine, coachProgram, coSign, coSignColor, body: a.body,
-      routeObj, showRoute, breakdown: a.breakdown || null,
-      zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, sport: _rawType,
-      verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
-    });
-    return (
-      <div style={{ background: card, overflow: 'hidden' }}>
-        <div style={{ height: 1.5, background: tc }} />
-        <div style={{ padding: '10px 13px 11px' }}>
-          {/* author + activity type */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
-              </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
-            </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
-          </div>
-          {/* HERO — activity name + the promoted primary metric. Tapping the
-              title/metric/caption (or the route below) opens the full session-
-              details page. */}
-          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
-            {heroStat && (
-              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 9px', marginTop: 7 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: cardInk, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{heroStat[1]}</span>
-                {prDelta && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '3px 7px', borderRadius: 999, lineHeight: 1 }}>↑ {prDelta}</span>}
-                <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{heroStat[0]}</span>
-              </div>
-            )}
-            {/* caption — the human line, unchanged */}
-            {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
-          </div>
-          {/* coach attribution — honest slot: renders ONLY when the post names a
-              program + coach; suppressed entirely for self-coached / opted-out */}
-          {coachLine && (
-            <button onClick={() => setOpenProfile({ who: coachLine, kind: 'TRAINER', tier: realTier, init: bsInitials(coachLine), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 8, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, padding: '4px 11px', cursor: 'pointer' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Programmed by</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
-            </button>
-          )}
-          {/* GPS route — the REAL polyline when the post carries points;
-              halftone tile in the member's tier color otherwise (endurance hero).
-              Tap opens the full session-details page. */}
-          {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ cursor: 'pointer' }}><BSActivityRoutePreview route={routeObj} /></div>
-          ) : showRoute && (
-            <div onClick={() => openDetail('stats')} style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
-              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
-            </div>
-          )}
-          {/* The card stays a glance — the full metric readout lives on the
-              Session-details page (this link / tapping the hero opens it). */}
-          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 11, padding: '10px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc }}>Session details · full activity</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
-          </button>
-          {/* coach co-sign — a solid role-colored badge so one coach co-sign reads
-              heavier than any peer reaction. Renders only on a real coach↔client
-              link (my own, or one stamped on the post); honest-absent otherwise */}
-          {coSign && (
-            <div style={{ marginTop: 11 }}>
-              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box', cursor: 'pointer' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
-              </button>
-            </div>
-          )}
-          {/* phase 2 — expressive palette (opens on a press-and-hold of the
-              reaction). Picking a word re-labels MY reaction but stays the same
-              unified like (one count). All text, no emoji. */}
-          {paletteOpen && (
-            <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
-              {palette.map((w) => {
-                const on = liked && (myExpr || cheer) === w;
-                return (
-                  <button key={w} onClick={() => { applyReaction(w); setExprOpenKey(null); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, height: 28, padding: '0 12px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : `${tc}12`, color: on ? '#fff' : tc, border: `1px solid ${on ? tc : `${tc}66`}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', lineHeight: 1 }}>{bsFeedIcon('react', 11)}<span>{w}</span></button>
-                );
-              })}
-              <button aria-label="Close reactions" onClick={() => setExprOpenKey(null)} style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 999, cursor: 'pointer', background: 'transparent', color: muted, border: `1px solid ${hair}`, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, lineHeight: 1 }}>×</button>
-            </div>
-          )}
-          {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
-              above the reaction row. Tap → the full "who reacted" sheet. */}
-          {likeFacepile.length > 0 && (() => {
-            const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
-            const fpLabel = fpNames.length
-              ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
-              : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
-            return (
-              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  {likeFacepile.map((l, i) => (
-                    <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
-                  ))}
-                </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
-              </button>
-            );
-          })()}
-          {/* actions — the reaction verb primary/heaviest; Comment + Share
-              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
-          {(() => {
-            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
-            return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
-            <button
-              onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
-              onPointerUp={() => clearTimeout(lpTimerRef.current)}
-              onPointerLeave={() => clearTimeout(lpTimerRef.current)}
-              onContextMenu={(e) => e.preventDefault()}
-              onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
-              title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
-            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
-            <span style={{ marginLeft: 'auto' }} />
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
-          </div>
-            );
-          })()}
-          {/* followed comments — people I FOLLOW comment under the card by
-              default (modern row: facet avatar + aligned name/text); the rest
-              open in the full-screen activity page */}
-          {followedComments.length > 0 && (
-            <div style={{ marginTop: 11 }}>
-              {followedComments.slice(0, 2).map((c, i) => (
-                <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
-              ))}
-              {commentCount > Math.min(2, followedComments.length) && (
-                <button onClick={() => openDetail('comments')} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 1, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {commentCount} comments ›</button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+  // Bundle every closure dep the shared BSActivityCard needs (recompute each
+  // render is fine — it's a plain object). The community feed renders the card
+  // via this ctx; the profile builds its own slim ctx.
+  const feedCtx = {
+    t, cardInk, muted, hair, card,
+    actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
+    exprOpenKey, setExprOpenKey, lpTimerRef, lpFiredRef,
+    tierByUser, avatarByUser, feedAvatars, myRole, coachClientIds, myFollowingSet,
+    setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
   const Pill = ({ on, onClick, children, badge = 0 }) => (
@@ -11105,7 +11717,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <BSHeaderTools onProfile={onProfile} size={32} />
+          <BSHeaderTools onProfile={onProfile} />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>Chat</div>
@@ -11139,7 +11751,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       </div>
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
-      <div style={{ padding: `6px ${t.padX}px 0` }}>
+      <div ref={bsSubAnchorRef} style={{ padding: `6px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
           {[['feed', 'Feed', 0], ['teams', 'Team', coachUnread + friendUnread], ['channels', 'Channels', chUnread], ['support', 'Support', 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
@@ -11269,9 +11881,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           if (tab === 'channels') {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '0 2px 2px' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>Your channels</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{chUnread > 0 ? `${chUnread} unread · ` : ''}{chDisplay.length} channel{chDisplay.length === 1 ? '' : 's'}</span>
                 </div>
                 {/* Search + a compact "+" box that opens the create form */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -11318,18 +11929,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             return (
               <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 96 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 120, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>Support · you & the Shape team</div>
-                    {/* Nora's voice — off by default, fully usable without it. */}
-                    <button onClick={() => setVoiceEnabled(!voicePrefs.enabled)} title="Speak Nora's replies" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 9px', borderRadius: 999, border: `1px solid ${voicePrefs.enabled ? '#2e6fa0' : hair}`, background: voicePrefs.enabled ? '#2e6fa01f' : 'transparent', color: voicePrefs.enabled ? '#2e6fa0' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                      {voicePrefs.enabled ? '🔊' : '🔇'} Voice {voicePrefs.enabled ? 'on' : 'off'}
-                    </button>
-                    <div style={{ display: 'inline-flex', borderRadius: 999, border: `1px solid ${hair}`, overflow: 'hidden' }}>
-                      {['supportive', 'direct'].map(tn => (
-                        <button key={tn} onClick={() => setVoiceTone(tn)} title={tn === 'supportive' ? 'Warm and encouraging' : 'Concise and factual'} style={{ padding: '5px 10px', border: 0, background: voicePrefs.tone === tn ? '#2e6fa0' : 'transparent', color: voicePrefs.tone === tn ? '#fff' : muted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tn}</button>
-                      ))}
-                    </div>
-                  </div>
                   {supportMsgs.map((m, i) => (
                     m.me ? (
                       <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '86%' }}>
@@ -11369,17 +11968,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           }
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
-            <div style={{ padding: `16px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div inert={subHidden} style={bsSubStyle(16)}>
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10 }}>
-                {selectors.map(sec => {
-                  const on = active.key === sec.key;
-                  return (
-                    <button key={sec.key} onClick={() => setTeamsSel(sec.key)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 999, border: `1px solid ${on ? sec.color : hair}`, background: on ? `${sec.color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      <span style={{ width: 5, height: 5, borderRadius: 3, background: sec.color }} />{sec.label}
-                      {sec.badge > 0 && <span style={{ minWidth: 13, height: 13, borderRadius: 999, background: '#ff5a5f', color: '#fff', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', lineHeight: 1 }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
-                    </button>
-                  );
-                })}
+                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, color: sec.color, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
+              </div>
               </div>
               {active.key === 'friends' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -11398,16 +11991,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         })()
       ) : (
         <>
-          {/* Role filter chips */}
+          {/* Role filter chips — auto-hide on scroll-down (bsSubStyle) */}
+          <div inert={subHidden} style={bsSubStyle(0)}>
           <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 10, padding: `7px ${t.padX}px 5px` }}>
-            {CHIP_KEYS.map(k => {
-              const on = filter === k;
-              return (
-                <button key={k} onClick={() => setFilter(k)} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '8px 7px', minWidth: 90, boxSizing: 'border-box', borderRadius: 5, border: `1px solid ${on ? ROLE[k].color : hair}`, borderLeft: on ? `3px solid ${ROLE[k].color}` : `1px solid ${hair}`, background: on ? `${ROLE[k].color}1f` : 'transparent', color: cardInk, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <span style={{ width: 5, height: 5, borderRadius: 1.5, background: ROLE[k].color }} />{chipLabel(k)}
-                </button>
-              );
-            })}
+            {CHIP_KEYS.map(k => bsSubTab({ key: k, on: filter === k, color: ROLE[k].color, onClick: () => setFilter(k), label: chipLabel(k) }))}
+          </div>
           </div>
 
           {filter === 'COMMUNITY' ? (
@@ -11416,10 +12004,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                   workouts/runs (bsActivityFromPost over the live community posts).
                   Signed-out / no-activity-yet falls back to the demo cards so the
                   preview still shows a full feel. */}
-              {/* Call ActivityCard as a function (not <ActivityCard/>) so it
-                  inlines into this render — rendering it as an element remounts
-                  the card every keystroke (new fn identity), dropping the
-                  comment input's focus/keyboard. */}
+              {/* BSActivityCard is module-level (stable identity) — render it as
+                  an element with the feed's ctx; the comment composer lives in the
+                  full-screen detail page, so the card carries no focus-sensitive
+                  input and won't lose keyboard on re-render. */}
               {(() => {
                 const realMode = loggedIn && postsLive;
                 const cards = realMode ? activityFeed : COMMUNITY_ACTIVITIES;
@@ -11431,7 +12019,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}>{ActivityCard({ a })}</React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} /></React.Fragment>);
               })()}
             </div>
           ) : (
@@ -11444,9 +12032,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {tab === 'feed' && (
         <>
           <input ref={feedPhotoRef} type="file" accept="image/*" onChange={onFeedPhotoFile} style={{ display: 'none' }} />
-          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} pinned placeholder="Message…" />
+          <BSMessageComposer value={draft} onChange={setDraft} onSend={post} onPhoto={onFeedPhoto} photoBusy={photoBusy} onTag={() => { setTagOpen(true); setTagQuery(''); }} tags={tagged} onRemoveTag={removeTagged} onLog={canChatNow ? () => setShowLog(true) : null} pinned placeholder="Message…" />
         </>
       )}
+      {showLog && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} onClose={() => setShowLog(false)} onPosted={() => { setShowLog(false); setFeedNonce(n => n + 1); }} />}
+      {editingPost && <BSLogActivitySheet c={TEALB} INK={t.INK} BG={t.PAPER} editPost={editingPost} onClose={() => setEditingPost(null)} onPosted={() => { setEditingPost(null); setFeedNonce(n => n + 1); }} />}
       {tagOpen && createPortal(
         <div onClick={() => setTagOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', zIndex: 100000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: t.PAPER, color: t.INK, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '14px 18px calc(20px + env(safe-area-inset-bottom, 0px))', maxHeight: '72%', overflowY: 'auto', boxShadow: '0 -24px 70px rgba(0,0,0,0.55)' }}>
@@ -11644,7 +12234,7 @@ function useBSCanChat() {
   return v;
 }
 
-function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
+function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false, onTag, onLog, tags = [], onRemoveTag, placeholder = 'Message...', pinned = false, unlocked = false, voice = false }) {
   const t = useBS();
   const canSend = value.trim().length > 0 || (tags && tags.length > 0);
   const canChat = useBSCanChat();
@@ -11833,6 +12423,14 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
       display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 17, lineHeight: 1,
     }}>@</button>
   ) : null;
+  // ＋ Log activity — opens the full Note/Photo/Video/Workout/Link composer.
+  const logBtn = onLog ? (
+    <button onClick={onLog} aria-label="Log activity" title="Log an activity (photo / video / workout)" style={{
+      flexShrink: 0, width: 33, height: 34, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 17,
+      background: pinned ? t.SURFACE : t.PAPER, color: t.INK, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 18, lineHeight: 1,
+    }}>＋</button>
+  ) : null;
   // Mic (push-to-talk) — only on Nora's support composer; reuses the left-button style.
   const micBtn = voiceOk ? (
     <button onClick={toggleVoice} aria-label={voiceState === 'listening' ? 'Stop listening' : 'Speak to Nora'} title={voiceState === 'listening' ? 'Stop' : 'Speak to Nora'} style={{
@@ -11848,7 +12446,7 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="9" y1="22" x2="15" y2="22" /></svg>}
     </button>
   ) : null;
-  const leftBtns = (photoBtn || tagBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{micBtn}</div> : null;
+  const leftBtns = (photoBtn || tagBtn || logBtn || micBtn) ? <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>{photoBtn}{tagBtn}{logBtn}{micBtn}</div> : null;
   // Listening / transcribing / error status line above the field.
   const voiceStatus = (voice && (voiceState !== 'idle' || voiceErr)) ? (
     <div style={{ padding: '0 2px 6px', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: voiceErr ? t.AMBER : (voiceState === 'listening' ? t.RUST : t.INK50) }}>
@@ -12039,13 +12637,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
       {/* Custom header with back chevron — no tab bar on the thread screen */}
       <div style={{ padding: '64px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-            background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-            fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}>
-            ← Back
-          </button>
+          <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
         </div>
         <button onClick={() => !thread.group && openP(thread.who)} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
@@ -12236,21 +12828,27 @@ const SHAPE_SCORE_PROFILES = {
     total: 1284, goal: 5000, streak: 14, tier: 'Tempo', tierShort: 'TMP', nextTier: 'Form',
     pointsToNext: 716, available: 940, lifetime: 3420, redeemedCount: 7, week: '+36',
     weekRatio: 0.72, streakRatio: 0.64, tierRatio: 0.26, spendRatio: 0.94,
+    // EARN — the real score_ledger mechanisms (matches the RPCs). Keep honest:
+    // only ways that actually credit points are listed.
     activities: [
-      { name: 'Session kept', pts: '+12-18', cap: 'Variable', note: 'With a coach' },
-      { name: 'Workout logged', pts: '+6-10', cap: 'Per log', note: 'Solo or programmed' },
-      { name: 'New PR logged', pts: '+12', cap: 'Per PR', note: 'Any lift or run' },
-      { name: 'Meal logged', pts: '+3', cap: 'Per meal', note: 'Photo, search or voice' },
-      { name: 'Protein target hit', pts: '+5', cap: 'Daily', note: 'Daily nutrition goal' },
-      { name: 'Calories on target', pts: '+3', cap: 'Daily', note: 'Within your range' },
-      { name: 'Sleep target met', pts: '+3', cap: 'Daily', note: '7+ hours, wearable verified' },
-      { name: 'Steps goal', pts: '+2', cap: 'Daily', note: '8,000+ steps' },
-      { name: 'Hydration goal', pts: '+2', cap: 'Daily', note: 'Water target met' },
-      { name: 'Daily check-in', pts: '+2', cap: 'Daily', note: 'Mood & energy' },
-      { name: 'Habit streak', pts: '+2-4', cap: 'Per streak', note: 'Any logged habit' },
-      { name: 'Weekly review', pts: '+15', cap: 'Weekly', note: 'Submitted on time' },
-      { name: 'Program purchased', pts: '+6/wk', cap: 'Active', note: 'Unlocks bonus logging' },
-      { name: 'Meal plan purchased', pts: '+4/wk', cap: 'Active', note: 'Unlocks bonus logging' },
+      { name: 'Weekly check-in', pts: '+15', cap: 'Weekly', note: 'Submit your check-in' },
+      { name: 'Log a workout', pts: '+10', cap: 'Daily', note: 'Any real logged session' },
+      { name: 'Daily steps', pts: '+1 / 5k', cap: 'Daily', note: '+3 at your goal' },
+      { name: 'Coach session kept', pts: '+12', cap: 'Per session', note: 'Marked complete' },
+      { name: 'New PR', pts: '+12', cap: 'Per lift / mo', note: 'A new personal best' },
+      { name: 'Community post', pts: '+5', cap: 'Per post', note: 'Share to the feed' },
+      { name: 'Goal milestone', pts: '+50-200', cap: '25/50/75/100%', note: 'Progress to your goal' },
+      { name: 'Momentum bonus', pts: '+25-100', cap: 'Weekly', note: 'Hold 80+ momentum' },
+      { name: 'Hit your commitment', pts: '+ stake', cap: 'Weekly', note: 'Your 5-50 pt bet' },
+      { name: 'Reach a new tier', pts: '+500-4k', cap: 'One-time', note: 'First time you hit it' },
+    ],
+    // PROTECT YOUR POINTS — the accountability clawback (daily cron). Framed
+    // constructively, never punitively (matches the never-shaming tone).
+    penalties: [
+      { name: 'Skip your weekly check-in', pts: '-7', cap: 'Weekly', note: 'Just check in next week' },
+      { name: 'Miss an assigned workout', pts: '-5', cap: 'Per workout', note: 'Logging can lag a day' },
+      { name: 'Break a habit streak', pts: '-2', cap: 'Per streak', note: 'A 3+ day streak lost' },
+      { name: 'Miss a commitment', pts: '- stake', cap: 'Weekly', note: 'The bet you set' },
     ],
     ledger: [
       ['APR 18', '+14', 'Session kept - Maya Okafor'],
@@ -12356,6 +12954,74 @@ const _NP_CAPS = [2, 3, 4, 6, 8];
 // person is notified about, per TYPE × per CHANNEL, plus master mute, quiet
 // hours (tz-aware) and a daily cap. Reads/writes the notification_settings /
 // notification_preferences tables — the SAME source /api/ai/notify(+cron) read.
+const _REM_KINDS = [['weigh_in', 'Weigh-in'], ['checkin', 'Weekly check-in'], ['water', 'Water'], ['photo', 'Progress photo'], ['custom', 'Custom']];
+const _REM_DOW = [['S', 0], ['M', 1], ['T', 2], ['W', 3], ['T', 4], ['F', 5], ['S', 6]];
+// Member-set reminders — standalone nudges (weigh-in / check-in / water / photo /
+// custom) the hourly cron fires. Lives in Settings → Notifications (clients only).
+function BSReminderManager() {
+  const t = useBS();
+  const [list, setList] = useStateBSC(null);
+  const [draft, setDraft] = useStateBSC(null);
+  const load = () => Promise.resolve(window.ShapeReminders?.list?.() || { reminders: [] }).then((r) => setList((r && r.reminders) || []));
+  React.useEffect(() => { load(); }, []);
+  const kindLabel = (k) => (_REM_KINDS.find((x) => x[0] === k) || [, 'Reminder'])[1];
+  const daysLabel = (days) => (days && days.length === 7) ? 'Every day' : (days || []).map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(' ');
+  const save = async () => {
+    const d = draft; if (!d) return; setDraft(null);
+    await window.ShapeReminders?.save?.({ id: d.id, kind: d.kind, label: d.label, atTime: d.atTime, days: d.days, enabled: d.enabled !== false });
+    load();
+  };
+  const del = async (id) => { setList((l) => (l || []).filter((x) => x.id !== id)); await window.ShapeReminders?.remove?.(id); load(); };
+  const toggleEnabled = async (r) => { setList((l) => (l || []).map((x) => x.id === r.id ? { ...x, enabled: !x.enabled } : x)); await window.ShapeReminders?.save?.({ id: r.id, kind: r.kind, label: r.label, atTime: r.at_time, days: r.days, enabled: !r.enabled }); load(); };
+  const fld = { background: 'transparent', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 9, padding: '8px 10px', fontFamily: t.MONO, fontSize: 12, outline: 'none' };
+
+  return (
+    <React.Fragment>
+      <div style={{ marginTop: 18, marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Your reminders</div>
+        {!draft && <button type="button" onClick={() => setDraft({ kind: 'weigh_in', label: '', atTime: '09:00', days: [1, 2, 3, 4, 5], enabled: true })} style={{ background: 'transparent', border: `1px solid ${t.ACCENT}`, color: t.ACCENT, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>＋ Add</button>}
+      </div>
+
+      {list === null ? (
+        <div style={{ padding: '8px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+      ) : (
+        (list.length === 0 && !draft) ? (
+          <div style={{ padding: '10px 0', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>No reminders yet — add one to nudge yourself to weigh in, check in, hydrate, or anything else.</div>
+        ) : list.map((r, i) => (
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 0', borderBottom: i < list.length - 1 ? `1px solid ${t.HAIR}` : 0, opacity: r.enabled ? 1 : 0.5 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{r.label || kindLabel(r.kind)}</div>
+              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{r.at_time} · {daysLabel(r.days)}</div>
+            </div>
+            <button type="button" onClick={() => toggleEnabled(r)} aria-pressed={r.enabled} aria-label={`${r.enabled ? 'Disable' : 'Enable'} reminder: ${r.label || kindLabel(r.kind)}`} style={{ width: 40, height: 24, borderRadius: 999, border: `1px solid ${r.enabled ? t.ACCENT : t.RULE}`, background: r.enabled ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: r.enabled ? 18 : 2, width: 18, height: 18, borderRadius: 999, background: r.enabled ? '#fff' : t.INK50 }} /></button>
+            <button type="button" onClick={() => setDraft({ id: r.id, kind: r.kind, label: r.label || '', atTime: r.at_time, days: r.days || [], enabled: r.enabled })} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>Edit</button>
+            <button type="button" onClick={() => del(r.id)} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          </div>
+        ))
+      )}
+
+      {draft && (
+        <div style={{ marginTop: 10, padding: '14px', border: `1px solid ${t.RULE}`, borderRadius: 12 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {_REM_KINDS.map(([k, l]) => <button type="button" key={k} onClick={() => setDraft((d) => ({ ...d, kind: k }))} style={{ padding: '6px 10px', borderRadius: 999, border: `1px solid ${draft.kind === k ? t.ACCENT : t.RULE}`, background: draft.kind === k ? `${t.ACCENT}22` : 'transparent', color: draft.kind === k ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{l}</button>)}
+          </div>
+          {draft.kind === 'custom' && <input value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))} placeholder="What should we remind you?" aria-label="Custom reminder label" maxLength={80} style={{ ...fld, width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Time</span>
+            <input type="time" value={draft.atTime} onChange={(e) => setDraft((d) => ({ ...d, atTime: e.target.value }))} aria-label="Reminder time" style={{ ...fld, colorScheme: t.isLight ? 'light' : 'dark' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {_REM_DOW.map(([l, idx], i) => { const on = (draft.days || []).includes(idx); return (<button type="button" key={i} onClick={() => setDraft((d) => { const set = new Set(d.days || []); if (set.has(idx)) set.delete(idx); else set.add(idx); return { ...d, days: Array.from(set).sort((a, b) => a - b) }; })} style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>{l}</button>); })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => setDraft(null)} style={{ background: 'transparent', border: `1px solid ${t.RULE}`, color: t.INK70, borderRadius: 999, padding: '8px 14px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>Cancel</button>
+            <button type="button" onClick={save} disabled={!(draft.days || []).length} style={{ background: (draft.days || []).length ? t.ACCENT : t.RULE, border: 0, color: '#fff', borderRadius: 999, padding: '8px 16px', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+}
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const { BSPage, BSDetailHeader } = window;
@@ -12437,6 +13103,7 @@ function BSNotifyPrefs({ onBack, role }) {
                   </div>
                 </div>
               ))}
+              {!isCoach && <BSReminderManager />}
               <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.</div>
             </React.Fragment>
           )}
@@ -13473,27 +14140,41 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [g, setG] = useStateBSC({ ...overall });
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 };
-  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, outline: 'none' };
-  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input type="number" value={g[k]} onChange={(e) => setG({ ...g, [k]: e.target.value === '' ? '' : Number(e.target.value) })} style={field} /></label>;
+  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 13px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 6, fontFamily: t.DISPLAY, fontSize: 15.5, color: t.INK, outline: 'none', transition: 'border-color .15s, box-shadow .15s' };
+  // Keep the raw string while editing (so decimals like 76.8 type cleanly);
+  // numeric fields are coerced to Number on save (`saveGoal`).
+  const saveGoal = () => { const n = (v) => { if (v === '' || v == null) return ''; const x = Number(v); return Number.isFinite(x) ? x : ''; }; onSave({ ...g, start: n(g.start), now: n(g.now), target: n(g.target) }); };
+  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? 'Start' : k === 'now' ? 'Now' : 'Target'}</span><input className="bs-field bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={field} /></label>;
   const sheet = (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Edit · Goal</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>Title</span><input value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-            <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+      {/* Title-page header — masthead + hero title (matches the other pages) */}
+      <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>{num('start')}{num('now')}{num('target')}</div>
-          <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={3} style={{ ...field, resize: 'vertical', fontSize: 14, lineHeight: 1.4 }} /></label>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => onSave(g)} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Edit · Goal</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></h1>
+        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+      </div>
+      {/* Scrollable form — scrollbar hidden */}
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <label style={{ display: 'block' }}><span style={lbl}>Title</span><input className="bs-field" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder="e.g. Lean by August" style={field} /></label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 11 }}>
+          <label style={{ display: 'block' }}><span style={lbl}>Target date</span><input className="bs-field" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
+          <label style={{ display: 'block' }}><span style={lbl}>Unit</span><input className="bs-field" value={g.unit || ''} onChange={(e) => setG({ ...g, unit: e.target.value.slice(0, 6) })} placeholder="kg" style={field} /></label>
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 11 }}>{num('start')}{num('now')}{num('target')}</div>
+        <label style={{ display: 'block' }}><span style={lbl}>Your why</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ ...field, resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
+      </div>
+      {/* Pinned footer — squared / clipped CTA */}
+      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 10, background: t.PAPER }}>
+        <button onClick={onClose} style={{ padding: '14px 22px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
+        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Save goal</button>
       </div>
     </div>
   );
@@ -13949,43 +14630,979 @@ function BSWeighInSheet({ overall, onClose, onSave }) {
   return target ? createPortal(sheet, target) : sheet;
 }
 
-// One-tap "last night's sleep" logger — the focused entry the home "Log sleep"
-// directive points at (NOT the weekly check-in). Writes sleep_hours onto today's
-// daily_health_snapshot via window.ShapeSleep.log so the recovery readiness +
-// the directive that asked for it refresh. Modeled on BSWeighInSheet.
-function BSSleepSheet({ onClose, onSave }) {
+// Live daily step goal — re-renders on shape:stepGoal and hydrates the cloud
+// value once on mount (signed-in, cross-device). Both the card + history use it.
+function useBSStepGoal() {
+  const [g, setG] = useStateBSC((typeof window !== 'undefined' && window.ShapeStepGoal && window.ShapeStepGoal.get()) || BS_DEFAULT_STEP_GOAL);
+  React.useEffect(() => {
+    const on = (e) => setG((e && e.detail) || (window.ShapeStepGoal && window.ShapeStepGoal.get()) || BS_DEFAULT_STEP_GOAL);
+    window.addEventListener('shape:stepGoal', on);
+    if (window.ShapeAuth?.getCachedState?.()?.user?.id && window.shapeDb?.getUserGoals) {
+      window.shapeDb.getUserGoals('client_step_goal').then((d) => { if (d && Number(d.goal) >= 1000) window.ShapeStepGoal?.hydrate(Number(d.goal)); }).catch(() => {});
+    }
+    return () => window.removeEventListener('shape:stepGoal', on);
+  }, []);
+  return g;
+}
+
+// Bottom-sheet editor for the daily step goal (stepper + presets). Portals into
+// the phone surface above the steps overlay (zIndex 80 > the overlay's 70).
+function BSStepGoalSheet({ value, accent, onClose, onSave }) {
   const t = useBS();
-  const accent = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
-  const [hrs, setHrs] = useStateBSC('');
-  const inputRef = React.useRef(null);
-  React.useEffect(() => { const id = setTimeout(() => inputRef.current && inputRef.current.focus(), 60); return () => clearTimeout(id); }, []);
-  const val = parseFloat(hrs);
-  const ok = Number.isFinite(val) && val > 0 && val <= 24;
-  const QUICK = [6, 6.5, 7, 7.5, 8, 8.5];
+  const [txt, setTxt] = useStateBSC(String(Math.max(1000, Math.min(50000, Math.round(Number(value) || BS_DEFAULT_STEP_GOAL)))));
+  const num = parseInt(txt, 10);
+  const ok = Number.isFinite(num) && num >= 1000 && num <= 50000;
+  const setNum = (n) => setTxt(String(Math.max(1000, Math.min(50000, Math.round(n)))));
+  const PRESETS = [6000, 8000, 10000, 12000, 15000];
+  const rust = t.RUST || '#c0533b';
   const sheet = (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Log · Sleep</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Last night's <span style={{ fontStyle: 'italic', color: accent }}>sleep.</span></div>
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '14px 16px' }}>
-          <input ref={inputRef} value={hrs} onChange={(e) => setHrs(e.target.value.replace(/[^0-9.]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(val); }} inputMode="decimal" placeholder="0.0" style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em' }} />
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK50 }}>hrs</span>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>Daily step goal</div>
+        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Set your <span style={{ fontStyle: 'italic', color: accent }}>goal.</span></div>
+        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${t.RULE}`, borderRadius: 14, background: t.PAPER2, padding: '10px 12px' }}>
+          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) - 500)} aria-label="Decrease goal" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>−</button>
+          <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+            <input value={txt} onChange={(e) => setTxt(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onSave(num); }} inputMode="numeric" pattern="[0-9]*" aria-label="Daily step goal" style={{ width: '100%', boxSizing: 'border-box', textAlign: 'center', border: 0, borderBottom: `1.5px solid ${bsTHexA(accent, 0.5)}`, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', padding: '0 0 2px' }} />
+            <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>steps / day · tap to type</div>
+          </div>
+          <button onClick={() => setNum((parseInt(txt, 10) || BS_DEFAULT_STEP_GOAL) + 500)} aria-label="Increase goal" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>+</button>
         </div>
         <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {QUICK.map((q) => (
-            <button key={q} onClick={() => setHrs(String(q))} style={{ flex: '1 0 auto', padding: '9px 0', minWidth: 46, borderRadius: 10, border: `1px solid ${val === q ? accent : t.RULE}`, background: val === q ? `${accent}1f` : 'transparent', color: val === q ? accent : t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700 }}>{q}</button>
+          {PRESETS.map((p) => (
+            <button key={p} onClick={() => setNum(p)} style={{ flex: '1 0 auto', padding: '9px 0', minWidth: 52, borderRadius: 10, border: `1px solid ${num === p ? accent : t.RULE}`, background: num === p ? `${accent}1f` : 'transparent', color: num === p ? accent : t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700 }}>{p / 1000}k</button>
           ))}
         </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Updates today's recovery readiness</div>
+        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: ok ? t.INK50 : rust, fontWeight: 600 }}>{ok ? 'Every ring fills toward this' : 'Enter 1,000–50,000'}</div>
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button onClick={onClose} style={{ padding: '13px 20px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Cancel</button>
-          <button onClick={() => ok && onSave(val)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? accent : t.RULE, color: ok ? '#fff' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save sleep</button>
+          <button onClick={() => ok && onSave(num)} disabled={!ok} style={{ flex: 1, padding: '13px', borderRadius: 999, border: 0, background: ok ? accent : t.RULE, color: ok ? '#fff' : t.INK50, cursor: ok ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Save goal</button>
         </div>
       </div>
     </div>
   );
   const target = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   return target ? createPortal(sheet, target) : sheet;
+}
+
+// Steps history / timeline — opened by tapping the steps card. Ring instrument over a
+// Week / Month / 3-Month range from the device-synced steps series (same
+// /api/client/progress series.steps the card reads), with avg · best · goal-hits.
+function BSStepsHistory({ onClose }) {
+  const t = useBS();
+  // Rings correlate with the user's Shape Score tier (steel → gold → teal →
+  // violet → rose); a ring only fills to that color once the day/week is COMPLETE.
+  const accent = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const ringMuted = bsTHexA(t.INK, 0.32); // in-progress (not yet at goal)
+  const TARGET = useBSStepGoal();
+  const [goalEdit, setGoalEdit] = useStateBSC(false);
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [series, setSeries] = useStateBSC(null);
+  const [range, setRange] = useStateBSC(7);
+  _bsScrollTopOnMount();
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      setSeries(p && p.series && Array.isArray(p.series.steps) ? p.series.steps : []);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  // Signed-out preview gets a sample series (real dates so the labels read).
+  const demo = React.useMemo(() => {
+    const out = []; const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const base = 7200 + Math.round(Math.sin(i / 3.5) * 1900) + ((i * 53) % 1700) - 600;
+      out.push({ date: d.toISOString().slice(0, 10), value: Math.max(2400, base) });
+    }
+    return out;
+  }, []);
+  const data = signedIn ? (series || []) : demo;
+  // Calendar-correct window. A real local "today", a date→value map, and the EXACT
+  // calendar days the active range renders — so the stat row matches the rows shown,
+  // "today" reflects today (not the last synced sample), and missed-sync days stay
+  // visible gaps instead of being silently dropped from the average/grid.
+  const isoOf = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+  const todayIso = isoOf(new Date());
+  const byDate = {};
+  data.forEach((p) => { const v = Number(p.value); if (Number.isFinite(v)) byDate[p.date] = v; });
+  const windowDays = (() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const out = [];
+    if (range <= 7) {
+      const mon = new Date(today); mon.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); out.push(isoOf(d)); }
+    } else {
+      for (let i = range - 1; i >= 0; i--) { const d = new Date(today); d.setDate(today.getDate() - i); out.push(isoOf(d)); }
+    }
+    return out.map((iso) => ({ date: iso, value: byDate[iso] != null ? byDate[iso] : null }));
+  })();
+  const vals = windowDays.filter((d) => d.value != null).map((d) => d.value);
+  const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+  const best = vals.length ? Math.max(...vals) : 0;
+  const hits = vals.filter((v) => v >= TARGET).length;
+  const todayHas = byDate[todayIso] != null; // did today actually sync? (else show "—", not a fabricated 0)
+  const todayV = todayHas ? byDate[todayIso] : 0;
+  const RANGES = [[7, 'Week'], [30, 'Month'], [90, '3 Months']];
+  const hair = bsTHexA(t.INK, 0.1);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const parseD = (iso) => { const d = new Date(String(iso) + 'T00:00:00'); return isNaN(d.getTime()) ? null : d; };
+  const dow = (iso) => { const d = parseD(iso); return d ? DOW[d.getDay()] : ''; };
+  const dnum = (iso) => { const d = parseD(iso); return d ? d.getDate() : ''; };
+  const md = (iso) => { const d = parseD(iso); return d ? `${MON[d.getMonth()]} ${d.getDate()}` : ''; };
+  // Month / date-range label for the section header (so the day numbers have context).
+  const monLabel = (() => {
+    const f = parseD(windowDays[0] && windowDays[0].date);
+    const l = parseD(windowDays[windowDays.length - 1] && windowDays[windowDays.length - 1].date);
+    if (!f || !l) return '';
+    return f.getMonth() === l.getMonth() && f.getFullYear() === l.getFullYear()
+      ? `${MON[f.getMonth()]} ${f.getDate()}–${l.getDate()}`
+      : `${MON[f.getMonth()]} ${f.getDate()} – ${MON[l.getMonth()]} ${l.getDate()}`;
+  })();
+  const ledger =<div style={{ height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.55)}, ${accent})` }} />;
+
+  // SVG gauge ring. ticks → the instrument hero; center → overlaid content.
+  // live → today (a breathing halo + the hero's avatar-style outer pulse ring); a
+  // goal-hit arc auto-shimmers; index staggers the one-shot draw-in. All continuous
+  // motion is transform/opacity only (GPU-safe across the 30-ring month grid). The
+  // one blur is static + hero-only. Keyframes live in the injected <style> above.
+  const ring = ({ size, sw, frac, hit, ticks = false, center = null, live = false, breathe = false, index = 0 }) => {
+    const tickPad = ticks ? 12 : 0;
+    const r = (size - sw) / 2 - tickPad;
+    const cx = size / 2, cy = size / 2;
+    const C = 2 * Math.PI * r;
+    const off = C * (1 - Math.max(0, Math.min(1, frac)));
+    const heroGlow = ticks && hit; // hero, goal hit → glow when filled
+    return (
+      <div style={{ position: 'relative', width: size, height: size, '--bsr': accent }}>
+        {/* Hero only — an avatar-style pulsing OUTER ring that signals "today · live". */}
+        {live && ticks && <div aria-hidden className="bs-ring-live" style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `1.5px solid ${accent}`, boxShadow: `0 0 16px ${bsTHexA(accent, hit ? 0.7 : 0.45)}`, pointerEvents: 'none' }} />}
+        {/* Breathing GLOW halo — a circular box-shadow (follows border-radius, so NO
+            square filter-region clip), scaled + faded by the breath keyframe. The
+            glow sits on the ring; the transparent center lets the arc show through. */}
+        {(live || breathe) && frac > 0 && <div aria-hidden className={'bs-ring-halo' + (ticks ? ' bs-ring-halo--hero' : '')} style={{ position: 'absolute', inset: tickPad + sw / 2, borderRadius: '50%', boxShadow: `0 0 ${ticks ? 16 : 8}px ${ticks ? 3 : 1}px ${accent}`, pointerEvents: 'none' }} />}
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block', transform: 'rotate(-90deg)' }}>
+          {ticks && Array.from({ length: 48 }).map((_, i) => {
+            const a = (i / 48) * 2 * Math.PI; const major = i % 4 === 0;
+            const ri = r + sw / 2 + 5, ro = ri + (major ? 7 : 4);
+            return <line key={i} x1={cx + Math.cos(a) * ri} y1={cy + Math.sin(a) * ri} x2={cx + Math.cos(a) * ro} y2={cy + Math.sin(a) * ro} stroke={bsTHexA(t.INK, major ? 0.42 : 0.16)} strokeWidth={major ? 1.5 : 1} strokeLinecap="round" />;
+          })}
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={bsTHexA(t.INK, 0.1)} strokeWidth={sw} />
+          {frac > 0 && <circle className={'bs-ring-arc' + (hit ? ' bs-ring-arc--hit' : '')} cx={cx} cy={cy} r={r} fill="none" stroke={hit ? accent : ringMuted} strokeWidth={sw} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} style={{ '--bsc': C, '--bso': off, animationDelay: `${Math.min(index, 30) * 22}ms` + (hit ? `, ${(index % 7) * 180}ms` : ''), ...(heroGlow ? { filter: `drop-shadow(0 0 4px ${bsTHexA(accent, 0.85)})` } : {}) }} />}
+        </svg>
+        {center != null && <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>{center}</div>}
+      </div>
+    );
+  };
+
+  // History rendered as day-rings — a coherent ring system from hero → history.
+  const renderRings = () => {
+    // Shared calendar pieces (byDate / todayIso / windowDays are computed in the
+    // component scope so the stat row and these rings render the SAME calendar days).
+    const headerRow = (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 10 }}>
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((h, i) => <div key={i} style={{ textAlign: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, fontWeight: 700 }}>{h}</div>)}
+      </div>
+    );
+    const calCell = (iso, value, size, k, idx = 0) => {
+      const has = value != null; const hit = has && value >= TARGET;
+      return (
+        <div key={k} style={{ textAlign: 'center', opacity: has ? 1 : 0.4 }} title={has ? `${md(iso)} · ${value.toLocaleString()}` : md(iso)}>
+          {ring({ size, sw: size >= 36 ? 3.4 : 3, frac: has ? value / TARGET : 0, hit, live: iso === todayIso, breathe: hit, index: idx, center: <span style={{ fontFamily: t.MONO, fontSize: size >= 36 ? 10 : 8, fontWeight: 700, color: hit ? accent : bsTHexA(t.INK, 0.5) }}>{dnum(iso)}</span> })}
+          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: hit ? accent : bsTHexA(t.INK, 0.45), fontVariantNumeric: 'tabular-nums', minHeight: 12 }}>{has ? value.toLocaleString() : '·'}</div>
+        </div>
+      );
+    };
+
+    if (range <= 7) {
+      // Weekly — the current Mon–Sun week (windowDays) as a vertical list: each day's
+      // ring + a bar filling toward goal + the steps/goal readout (future days dimmed).
+      const WD = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+      return (
+        <div>
+          {windowDays.map((d, i) => {
+            const iso = d.date;
+            const value = d.value;
+            const has = value != null;
+            const hit = has && value >= TARGET;
+            const pct = has ? Math.max(0, Math.min(1, value / TARGET)) : 0;
+            return (
+              <div key={iso} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0', borderBottom: i < 6 ? `1px solid ${hair}` : 'none', opacity: has ? 1 : 0.42 }}>
+                <div style={{ flexShrink: 0, width: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: hit ? accent : t.INK50 }}>{WD[i]}</div>
+                <div style={{ flexShrink: 0 }}>
+                  {ring({ size: 40, sw: 3.4, frac: pct, hit, live: iso === todayIso, breathe: hit, index: i, center: <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: hit ? accent : bsTHexA(t.INK, 0.5) }}>{dnum(iso)}</span> })}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{md(iso)}</span>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: hit ? accent : t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{has ? value.toLocaleString() : '—'}<span style={{ color: t.INK50, fontSize: 10, fontWeight: 600 }}> / {TARGET.toLocaleString()}</span></span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
+                    <div className="bs-bar-fill" style={{ width: `${pct * 100}%`, '--bw': `${pct * 100}%`, height: '100%', borderRadius: 999, background: hit ? accent : ringMuted, animationDelay: `${i * 45}ms` }} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    if (range <= 30) {
+      // Month calendar — windowDays = last 30 calendar days; missing days render as
+      // dimmed gaps (no fabricated 0), weekday-aligned, count under each ring.
+      const first = parseD(windowDays[0] && windowDays[0].date);
+      const pad = first ? (first.getDay() + 6) % 7 : 0;
+      return (
+        <div>
+          {headerRow}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, rowGap: 9, justifyItems: 'center' }}>
+            {Array.from({ length: pad }).map((_, i) => <div key={'p' + i} style={{ width: 40, height: 54 }} />)}
+            {windowDays.map((d, i) => calCell(d.date, d.value, 40, 'd' + i, i))}
+          </div>
+        </div>
+      );
+    }
+    // 3 months → weekly aggregate rings over windowDays. Ring + center = recorded days
+    // at goal that week (N/n); the number below is the week's AVERAGE steps/day over its
+    // RECORDED days (missed-sync days don't drag the average to 0).
+    const weeks = [];
+    for (let i = 0; i < windowDays.length; i += 7) {
+      const chunk = windowDays.slice(i, i + 7);
+      const vs = chunk.filter((d) => d.value != null).map((d) => d.value);
+      const a = vs.length ? Math.round(vs.reduce((x, y) => x + y, 0) / vs.length) : 0;
+      weeks.push({ start: chunk[0] && chunk[0].date, avg: a, hitDays: vs.filter((v) => v >= TARGET).length, n: chunk.length });
+    }
+    return (
+      <div>
+        <div style={{ marginBottom: 16, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.02em', color: t.INK50, fontWeight: 500, lineHeight: 1.55 }}>
+          Each ring is <span style={{ color: t.INK, fontWeight: 700 }}>one week</span> — the fill &amp; <span style={{ color: accent }}>N/7</span> are days that hit goal; the number is the week&apos;s <span style={{ color: t.INK, fontWeight: 700 }}>avg steps/day</span>.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18, justifyItems: 'center' }}>
+          {weeks.map((w, i) => {
+            const perfect = w.n > 0 && w.hitDays >= w.n;
+            return (
+              <div key={i} style={{ textAlign: 'center' }} title={`Week of ${md(w.start)} · ${w.avg.toLocaleString()} avg/day · ${w.hitDays}/${w.n} days at goal`}>
+                <div style={{ marginBottom: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Wk {md(w.start)}</div>
+                {ring({ size: 52, sw: 4.2, frac: w.n ? w.hitDays / w.n : 0, hit: perfect, breathe: perfect, index: i, center: <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: perfect ? accent : bsTHexA(t.INK, 0.6) }}>{w.hitDays}/{w.n}</span> })}
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{w.avg.toLocaleString()}<span style={{ fontFamily: t.MONO, fontSize: 7.5, color: t.INK50, marginLeft: 2, fontWeight: 600 }}>/day</span></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const overlay = (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, background: t.PAPER, display: 'flex', flexDirection: 'column' }}>
+      <style>{`
+        @keyframes bsRingDraw { from { stroke-dashoffset: var(--bsc); } to { stroke-dashoffset: var(--bso); } }
+        .bs-ring-arc { animation: bsRingDraw .62s cubic-bezier(.22,.61,.36,1) both; }
+        @keyframes bsRingBreath { 0%,100% { transform: scale(1); opacity:.30 } 50% { transform: scale(1.09); opacity:.72 } }
+        .bs-ring-halo { transform-origin: 50% 50%; animation: bsRingBreath 3.4s ease-in-out infinite; will-change: transform, opacity; }
+        .bs-ring-halo--hero { animation-duration: 4.2s; }
+        @keyframes bsRingShimmer { 0%,100% { opacity:.6 } 50% { opacity:1 } }
+        .bs-ring-arc--hit { animation: bsRingShimmer 3.6s ease-in-out infinite; will-change: opacity; }
+        @keyframes bsRingLive { 0%,100% { transform: scale(1); opacity:.8 } 50% { transform: scale(1.13); opacity:.12 } }
+        .bs-ring-live { animation: bsRingLive 2.6s ease-in-out infinite; }
+        @keyframes bsBarGrow { from { width: 0 } to { width: var(--bw) } }
+        .bs-bar-fill { animation: bsBarGrow .6s cubic-bezier(.22,.61,.36,1) both; }
+        @media (prefers-reduced-motion: reduce) {
+          .bs-ring-arc { animation: none !important; }
+          .bs-ring-arc--hit { animation: none !important; opacity: 1 !important; }
+          .bs-ring-halo { animation: none !important; opacity:.22 !important; transform: none !important; }
+          .bs-ring-live { animation: none !important; opacity:.5 !important; transform: none !important; }
+          .bs-bar-fill { animation: none !important; }
+        }
+      `}</style>
+      <div style={{ flex: '0 0 auto', padding: '48px 24px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+          </div>
+          <BSMeCorner />
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={onClose} aria-label="Back" style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontSize: 26, lineHeight: 1, padding: 0, marginLeft: -3 }}>‹</button>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK }}>Shape <span style={{ fontStyle: 'italic', color: accent }}>steps.</span></div>
+        </div>
+      </div>
+      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 44px' }}>
+        {data.length === 0 ? (
+          <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, textAlign: 'center', padding: '60px 0', textTransform: 'uppercase', letterSpacing: '0.1em' }}>No steps synced yet</div>
+        ) : (
+          <>
+            {/* HERO INSTRUMENT RING — today */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+              {ring({
+                size: 168, sw: 9, frac: todayHas ? todayV / TARGET : 0, hit: todayHas && todayV >= TARGET, ticks: true, live: true,
+                center: (
+                  <>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Shape Steps · Today</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 36, fontWeight: 600, letterSpacing: '-0.035em', color: t.INK, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{todayHas ? todayV.toLocaleString() : '—'}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: todayHas && todayV >= TARGET ? accent : t.INK50, fontWeight: 700 }}>{todayHas ? `${Math.round((todayV / TARGET) * 100)}% · goal ${TARGET.toLocaleString()}` : `No steps yet today · goal ${TARGET.toLocaleString()}`}</div>
+                  </>
+                ),
+              })}
+            </div>
+            {/* editable daily goal — what every ring is measured against */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: -10, marginBottom: 22 }}>
+              <button onClick={() => setGoalEdit(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '6px 7px 6px 14px', borderRadius: 999, border: `1px solid ${bsTHexA(t.INK, 0.16)}`, background: 'transparent', cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Daily goal</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{TARGET.toLocaleString()}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent, fontWeight: 800, border: `1px solid ${bsTHexA(accent, 0.4)}`, borderRadius: 999, padding: '4px 9px' }}>Edit ✎</span>
+              </button>
+            </div>
+            {/* range — minimal underline tabs */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 30, borderBottom: `1px solid ${hair}`, marginBottom: 22 }}>
+              {RANGES.map(([r, label]) => (
+                <button key={r} onClick={() => setRange(r)} style={{ background: 'transparent', border: 0, padding: '0 0 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: range === r ? t.INK : t.INK50, borderBottom: `1.5px solid ${range === r ? accent : 'transparent'}`, marginBottom: -1 }}>{label}</button>
+              ))}
+            </div>
+            {/* flat stat row */}
+            <div style={{ display: 'flex', marginBottom: 28 }}>
+              {[['Avg / day', avg.toLocaleString()], ['Best day', best.toLocaleString()], ['Goal hits', `${hits}/${vals.length}`]].map(([l, v], i) => (
+                <div key={l} style={{ flex: 1, paddingLeft: i ? 18 : 0, borderLeft: i ? `1px solid ${hair}` : 'none' }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 600, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                  <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+            {/* history — day-rings, with the editorial eyebrow + ledger */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 7 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{range === 7 ? 'The week' : range === 30 ? 'The month' : '90 days'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{monLabel}</span>
+              </div>
+              {ledger}
+            </div>
+            {renderRings()}
+          </>
+        )}
+      </div>
+      {goalEdit && <BSStepGoalSheet value={TARGET} accent={accent} onClose={() => setGoalEdit(false)} onSave={(nv) => { try { window.ShapeStepGoal?.set(nv); } catch (e) {} setGoalEdit(false); }} />}
+    </div>
+  );
+  const portal = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
+  return portal ? createPortal(overlay, portal) : overlay;
+}
+
+// Sleep duration → "Xh Ym", rounding total minutes ONCE so e.g. 7.9917h reads
+// "8h 0m" rather than "7h 60m".
+function bsSleepHM(h) {
+  const total = Math.round(Number(h) * 60);
+  return `${Math.floor(total / 60)}h ${total % 60}m`;
+}
+
+// Sleep detail / history page — the recovery-readiness ring, last night's stage
+// breakdown (deep/REM/light/awake), bed/wake window, latency + respiratory rate,
+// and the trend sparklines. Device-sourced (currently Oura); fields a wearable
+// doesn't expose render an honest "—". Opened from the check-in card.
+function BSSleepHistory({ onClose }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5');
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [p, setP] = useStateBSC(null);
+  _bsScrollTopOnMount();
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((d) => { if (on) setP(d || {}); }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  const series = (p && p.series) || {};
+  const kpis = (p && p.kpis) || {};
+  const sleepPts = Array.isArray(series.sleep) ? series.sleep : [];
+  const hasSleep = sleepPts.length > 0;
+  const lastOf = (arr) => (Array.isArray(arr) && arr.length ? Number(arr[arr.length - 1].value) : null);
+  const sleepLast = lastOf(series.sleep);
+  const rested = lastOf(series.sleepQuality);
+  const readiness = kpis.readiness != null ? Number(kpis.readiness) : null;
+  const band = kpis.readinessLabel || null;
+  const stages = kpis.sleepStages || null;
+  const eff = kpis.sleepEfficiency != null ? Number(kpis.sleepEfficiency) : null;
+  const rhr = kpis.restingHr != null ? Number(kpis.restingHr) : null;
+  const hrv = kpis.hrvLatest != null ? Number(kpis.hrvLatest) : null;
+  const latency = kpis.sleepLatencyLatest != null ? Number(kpis.sleepLatencyLatest) : null;
+  const resp = kpis.respiratoryLatest != null ? Number(kpis.respiratoryLatest) : null;
+  const fmtTime = (iso) => { if (!iso) return null; const d = new Date(iso); return isNaN(d.getTime()) ? null : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); };
+  const bed = fmtTime(kpis.bedTime); const wake = fmtTime(kpis.wakeTime);
+  const readinessColor = readiness == null ? t.INK50 : readiness >= 80 ? teal : readiness >= 60 ? blue : readiness >= 40 ? (t.AMBER || '#e8b14a') : (t.RUST || '#c0533b');
+
+  // Sleep-hours sparkline (last 14 nights).
+  const spark = (pts, color) => {
+    const vals = (Array.isArray(pts) ? pts : []).map((s) => Number(s.value)).filter((v) => Number.isFinite(v)).slice(-14);
+    if (vals.length < 2) return null;
+    const min = Math.min(...vals), max = Math.max(...vals), rng = max - min || 1;
+    const d = vals.map((v, i) => [(i / (vals.length - 1)) * 150, 34 - ((v - min) / rng) * 28 - 3]).map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+    return <svg viewBox="0 0 150 34" width="100%" height="34" preserveAspectRatio="none" style={{ display: 'block' }}><path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  };
+
+  const eyebrow = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 };
+  const plate = { borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(blue, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 13, marginBottom: 12 };
+  const tile = (label, val, unit) => (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ ...eyebrow, fontSize: 8, color: t.INK50 }}>{label}</div>
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: val == null ? t.INK50 : t.INK, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{val == null ? '—' : val}{val != null && unit ? <span style={{ fontSize: 10, color: t.INK50, marginLeft: 2 }}>{unit}</span> : null}</div>
+    </div>
+  );
+  // Stage breakdown bar (deep/rem/light/awake minutes → proportional segments).
+  const STAGES = [['Deep', stages && stages.deep, '#3a4f8a'], ['REM', stages && stages.rem, blue], ['Light', stages && stages.light, bsTHexA(blue, 0.45)], ['Awake', stages && stages.awake, t.INK50]];
+  const stageTotal = STAGES.reduce((a, [, m]) => a + (Number.isFinite(Number(m)) ? Number(m) : 0), 0);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 10px' }}>
+        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK }}>← BACK</button>
+        <BSMeCorner />
+      </div>
+      <div style={{ padding: '0 18px 90px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: blue, marginBottom: 6 }}>RECOVERY · SLEEP</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: blue }}>sleep.</span></div>
+
+        {!signedIn && (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '20px 0' }}>Sign in to see your sleep & recovery detail.</div>
+        )}
+        {signedIn && !hasSleep && (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '20px 0' }}>
+            No sleep data yet. Connect a sleep tracker (Oura, Apple Health, Garmin or Whoop) and your nightly sleep, stages and recovery readiness will show here.
+            <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} }} style={{ display: 'block', marginTop: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Connect a device →</button>
+          </div>
+        )}
+
+        {signedIn && hasSleep && (
+          <>
+            {/* Recovery readiness hero */}
+            <div style={{ ...plate, borderLeft: `3px solid ${bsTHexA(readinessColor, 0.7)}` }}>
+              <div style={eyebrow}>Recovery readiness · today</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, color: readinessColor, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{readiness == null ? '—' : readiness}</span>
+                {readiness != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>/ 100</span>}
+                {band && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: readinessColor }}>{band}</span>}
+              </div>
+              <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
+                <div style={{ width: `${readiness == null ? 0 : Math.max(2, Math.min(100, readiness))}%`, height: '100%', borderRadius: 999, background: readinessColor }} />
+              </div>
+              <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>
+                {readiness == null ? 'Readiness needs a night of sleep data to score.'
+                  : readiness >= 80 ? 'Primed — your body is well recovered. A good day to push.'
+                  : readiness >= 60 ? 'Ready — recovered enough to train as planned.'
+                  : readiness >= 40 ? 'Run down — ease the intensity and prioritize tonight’s sleep.'
+                  : 'Depleted — recovery is low. Favor rest, easy movement and an early night.'}
+              </div>
+            </div>
+
+            {/* Last night */}
+            <div style={plate}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                <span style={eyebrow}>Last night</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: blue }}>{sleepLast != null ? bsSleepHM(sleepLast) : '—'}</span>
+              </div>
+              {(bed || wake) && (
+                <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50, marginBottom: 10 }}>{bed || '—'} <span style={{ color: t.INK50 }}>→</span> {wake || '—'}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10 }}>
+                {tile('Rested', rested, '/10')}
+                {tile('Efficiency', eff, '%')}
+                {tile('Latency', latency, 'm')}
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                {tile('Resting HR', rhr, '')}
+                {tile('HRV', hrv, 'ms')}
+                {tile('Respiratory', resp, '/min')}
+              </div>
+            </div>
+
+            {/* Stage breakdown */}
+            <div style={plate}>
+              <div style={eyebrow}>Sleep stages · last night</div>
+              {stageTotal > 0 ? (
+                <>
+                  <div style={{ display: 'flex', height: 12, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: t.HAIR }}>
+                    {STAGES.map(([lab, m, col]) => { const mn = Number.isFinite(Number(m)) ? Number(m) : 0; return mn > 0 ? <div key={lab} title={`${lab} ${mn}m`} style={{ width: `${(mn / stageTotal) * 100}%`, background: col }} /> : null; })}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
+                    {STAGES.map(([lab, m, col]) => (
+                      <div key={lab} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: col }} />
+                        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK70 }}>{lab}</span>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 700, color: m == null ? t.INK50 : t.INK }}>{m == null ? '—' : `${m}m`}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.45, marginTop: 8 }}>Sleep stages need a wearable that tracks them (e.g. Oura). Your hours + rest are shown above.</div>
+              )}
+            </div>
+
+            {/* Trends */}
+            <div style={plate}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <span style={eyebrow}>Sleep · last 14 nights</span>
+                {kpis.sleepAvg != null && <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>avg {kpis.sleepAvg}h</span>}
+              </div>
+              {spark(series.sleep, blue) || <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>Not enough nights yet.</div>}
+              {Array.isArray(series.recovery) && series.recovery.length >= 2 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ ...eyebrow, marginBottom: 6 }}>Device recovery score</div>
+                  {spark(series.recovery, readinessColor)}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Today instrument plate — the home daily check-in + hydration, consolidated into
+// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
+// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
+// when a wearable synced last night, else manual hour chips). Hydration folds in as a
+// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
+// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
+// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
+function BSTodayCard() {
+  const t = useBS();
+  const BSPlate = window.BSPlate;
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const amber = t.isLight ? '#b9802a' : '#e8b14a';
+  const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+
+  // ── check-in state ──
+  const [energy, setEnergy] = useStateBSC(null);
+  const [hunger, setHunger] = useStateBSC(null);
+  const [sleepHours, setSleepHours] = useStateBSC(null);   // today's logged/synced hours (number)
+  const [rested, setRested] = useStateBSC(null);           // today's 1-10 rested rating
+  const [sleepMeta, setSleepMeta] = useStateBSC(null);     // { efficiency, rhr, hrv } from a wearable, when present
+  const [sleepSynced, setSleepSynced] = useStateBSC(false); // true only when hours came from a device sync (read-only)
+  const [logged, setLogged] = useStateBSC(false);
+  const [editing, setEditing] = useStateBSC(false);
+  const [saving, setSaving] = useStateBSC(false);
+  const [readiness, setReadiness] = useStateBSC(null);       // 0-100 recovery readiness (kpis.readiness)
+  const [readinessLabel, setReadinessLabel] = useStateBSC(null);
+  const [detail, setDetail] = useStateBSC(false);            // sleep history overlay open
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    const d = new Date();
+    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on || !p || !p.series) return;
+      if (p.kpis) { if (p.kpis.readiness != null) setReadiness(Number(p.kpis.readiness)); if (p.kpis.readinessLabel) setReadinessLabel(p.kpis.readinessLabel); }
+      const e = (p.series.energy || []).find((s) => s.date === todayIso);
+      const h = (p.series.hunger || []).find((s) => s.date === todayIso);
+      if (e) setEnergy(Math.round(Number(e.value)));
+      if (h) setHunger(Math.round(Number(h.value)));
+      // Sleep — device-first hours + the 1-10 rested rating, today's points.
+      const sToday = (p.series.sleep || []).find((s) => s.date === todayIso);
+      const qToday = (p.series.sleepQuality || []).find((s) => s.date === todayIso);
+      // Device-only recovery metrics for TODAY (a manual log never writes these) —
+      // their presence is the only honest signal that the hours came from a wearable.
+      const effToday = (p.series.sleepEfficiency || []).find((s) => s.date === todayIso);
+      const rhrToday = (p.series.restingHr || []).find((s) => s.date === todayIso);
+      const hrvToday = (p.series.hrv || []).find((s) => s.date === todayIso);
+      const meta = { efficiency: effToday ? Math.round(Number(effToday.value)) : null, rhr: rhrToday ? Math.round(Number(rhrToday.value)) : null, hrv: hrvToday ? Math.round(Number(hrvToday.value)) : null };
+      const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+      // A check-in counts as logged from a MANUAL signal: energy/hunger, the rested
+      // rating, or manually-entered sleep hours — never a passive device sync alone
+      // (so sleep/rested-only check-ins stay collapsed after reload, but a wearable
+      // syncing sleep doesn't fake a "logged ✓" the member never tapped).
+      if (e || h || qToday || (sToday && !hasDeviceMeta)) setLogged(true);
+      if (sToday) {
+        setSleepHours(Number(sToday.value));
+        setSleepSynced(hasDeviceMeta);
+        if (hasDeviceMeta) setSleepMeta(meta);
+      }
+      if (qToday) setRested(Math.round(Number(qToday.value)));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  // ── hydration state (always live) ──
+  const [hyd, setHyd] = useStateBSC(null);   // liters today
+  const [hydTarget, setHydTarget] = useStateBSC(3.0);
+  const [lastDelta, setLastDelta] = useStateBSC(0);
+  const [hydBusy, setHydBusy] = useStateBSC(false);
+  const hydSeq = React.useRef(0);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeHydration?.get) return undefined;
+    let on = true;
+    window.ShapeHydration.get().then((d) => { if (on && d && d.ok) { setHyd(Number(d.hydrationL) || 0); setHydTarget(Number(d.targetL) || 3.0); } }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+
+  // Optimistic update + rollback on failure + stale-response guard (hydSeq) + an
+  // in-flight lock (hydBusy) so rapid taps can't overlap. Signed-out preview updates
+  // locally only (no write).
+  const addWater = async (deltaL) => {
+    if (hydBusy) return;
+    // Signed-in but the live writer is missing → fail closed: never show an optimistic
+    // value that can't persist (honest data). Signed-out preview stays local-only below.
+    if (signedIn && !window.ShapeHydration?.add) { window.__bsToast?.('Hydration is unavailable — try again', 'err'); return; }
+    const prev = Number(hyd) || 0;
+    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
+    setHyd(optimistic); setLastDelta(deltaL);
+    if (!signedIn) return;   // preview/demo — local only
+    const seq = ++hydSeq.current;
+    setHydBusy(true);
+    try {
+      const d = await window.ShapeHydration.add(deltaL);
+      if (seq === hydSeq.current && d && d.ok) setHyd(Number(d.hydrationL) || 0);   // reconcile, ignore stale
+    } catch (e) {
+      if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); }                 // roll back the failed add
+      window.__bsToast?.('Could not log water — try again', 'err');
+    } finally {
+      if (seq === hydSeq.current) setHydBusy(false);
+    }
+  };
+  const undoWater = () => { if (lastDelta && !hydBusy) { addWater(-lastDelta); setLastDelta(0); } };
+
+  // ── derived ──
+  const nothingSet = energy == null && hunger == null && sleepHours == null && rested == null;
+  const showForm = !logged || editing;
+
+  const doLog = async () => {
+    if (nothingSet || saving) return;
+    // Signed-out preview: never fake a "logged ✓" — nothing is persisted. Nudge to join.
+    if (!signedIn) { window.__bsToast?.('Join Shape to save your check-in', 'ok'); return; }
+    // Live writer missing → fail closed: don't await an undefined call as "success".
+    if (!window.ShapeCheckin?.log) { window.__bsToast?.('Check-in is unavailable — try again', 'err'); return; }
+    setSaving(true);
+    try {
+      await window.ShapeCheckin.log({ energy, hunger, sleepHours, sleepQuality: rested });
+      setLogged(true); setEditing(false);   // only after the write succeeds
+    } catch (e) {
+      window.__bsToast?.('Could not save check-in — try again', 'err');
+    } finally { setSaving(false); }
+  };
+
+  // ── gauge (tap-to-set 1–10, filled with an end-anchor knob over 10 tap zones) ──
+  const Gauge = ({ label, val, set, c }) => {
+    const pct = Math.max(0, Math.min(1, (val || 0) / 10));
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
+        </div>
+        {/* gauge track (fill + segment ticks + end-anchor) inside a 44px tap row (track stays centered) */}
+        <div style={{ position: 'relative', height: 44 }}>
+          <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 9, borderRadius: 999, background: t.HAIR, border: `1px solid ${t.RULE}`, overflow: 'hidden' }}>
+            <div style={{ width: `${pct * 100}%`, height: '100%', background: c, transition: 'width .16s ease' }} />
+          </div>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} aria-hidden style={{ position: 'absolute', left: `${((i + 1) / 10) * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 1, height: 9, background: t.PAPER, opacity: 0.55 }} />
+          ))}
+          {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
+            {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; return (
+              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 44, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
+            ); })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── hydration display ──
+  const cur = Number(hyd) || 0;
+  const hpct = hydTarget > 0 ? Math.min(1, cur / hydTarget) : 0;
+  const L = (n) => `${(Math.round(n * 100) / 100)}`;
+  const ML = 0.25, ML2 = 0.5, OZ = 0.2366, OZ2 = 0.4732; // 8oz / 16oz in liters
+  const glassL = t.isMetric ? 0.25 : 0.2366;             // one quick-add ≈ one dot
+  const dotCount = Math.max(6, Math.min(14, Math.round((hydTarget || 3) / glassL)));
+  const filledDots = Math.max(0, Math.min(dotCount, Math.round(hpct * dotCount)));
+  const chips = t.isMetric ? [['+250 ml', ML], ['+500 ml', ML2]] : [['+8 oz', OZ], ['+16 oz', OZ2]];
+  const hydDisplay = t.isMetric ? `${L(cur)} / ${L(hydTarget)} L` : `${Math.round(cur * 33.814)} / ${Math.round(hydTarget * 33.814)} oz`;
+
+  return (
+    <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
+      <BSPlate c={teal} notch={11} spine={3} tick={signedIn} bracket pad="12px 15px 12px 20px">
+        {/* header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: showForm ? 9 : 7 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</span>
+          {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>Edit</button>}
+        </div>
+
+        {showForm ? (
+          <>
+            <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
+            <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
+            {/* SLEEP — device-first hours + an always-on Rested gauge */}
+            <div style={{ marginTop: 3, paddingTop: 9, borderTop: `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
+                {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
+              </div>
+              {sleepSynced ? (
+                // device-synced → read-only recovery snapshot (hours shown above)
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
+                  {[
+                    sleepMeta && sleepMeta.efficiency != null ? `${sleepMeta.efficiency}% efficient` : null,
+                    sleepMeta && sleepMeta.rhr != null ? `RHR ${sleepMeta.rhr}` : null,
+                    sleepMeta && sleepMeta.hrv != null ? `HRV ${sleepMeta.hrv}` : null,
+                  ].filter(Boolean).join(' · ') || 'Synced from your device'}
+                </div>
+              ) : (
+                // not synced → manual hours chips: stay visible, selectable, tap-again to clear
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
+                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={`${h} hours of sleep`} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                  ); })}
+                </div>
+              )}
+              <div style={{ marginTop: 9 }}>
+                <Gauge label="Rested" val={rested} set={setRested} c={blue} />
+              </div>
+            </div>
+            <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 4, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}>{saving ? 'Saving…' : 'Log today'}</button>
+          </>
+        ) : (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
+        )}
+
+        {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
+        <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Hydration</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
+          </div>
+          {/* dot progress — one dot ≈ one quick-add glass */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 9 }}>
+            {Array.from({ length: dotCount }).map((_, i) => (
+              <div key={i} aria-hidden style={{ flex: '1 1 0', minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : 'transparent', border: `1px solid ${i < filledDots ? teal : t.RULE}` }} />
+            ))}
+          </div>
+          {/* quick-add row */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {chips.map(([lab, d]) => (
+              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 6, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
+            ))}
+            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+          </div>
+        </div>
+
+        {/* recovery readiness + the door to the full sleep detail page */}
+        {signedIn && (
+          <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
+              {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
+            </span>
+            <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
+          </div>
+        )}
+      </BSPlate>
+      {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
+    </div>
+  );
+}
+
+// Daily steps / NEAT card — today's count vs the user's editable goal (set on the
+// steps history page, default 8k), DISPLAY-ONLY. Steps come
+// from a connected watch (Apple Health / Garmin sync writes daily_health_snapshot
+// .steps) — never manual entry, since a person can't know their own count. Tap the
+// card to open the steps timeline/history; when nothing is synced it prompts to
+// connect a device. Self-contained.
+function BSStepsCard() {
+  const t = useBS();
+  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
+  const BSPlate = window.BSPlate;
+  const TARGET = useBSStepGoal();
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [steps, setSteps] = useStateBSC(null);
+  const [history, setHistory] = useStateBSC(false);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      const series = p && p.series && Array.isArray(p.series.steps) ? p.series.steps : [];
+      const d = new Date();
+      const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const row = series.find((s) => s.date === todayIso);
+      setSteps({ today: row ? Math.round(Number(row.value) || 0) : null, ever: series.length > 0 });
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  // Signed-out preview shows a sample; signed-in shows TODAY's real count (0 until
+  // today syncs), and the connect-a-device prompt only when nothing has ever synced.
+  const hasData = signedIn ? !!(steps && steps.ever) : true;
+  const todayKnown = signedIn ? !!(steps && steps.today != null) : true; // synced today? (else show "—", not 0)
+  const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
+  const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
+  const hit = todayKnown && val >= TARGET;
+  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET); // today's running Shape Steps → points
+  const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
+  const openHistory = () => setHistory(true);
+  return (
+    <div style={{ margin: '0 18px 10px', boxSizing: 'border-box' }}>
+      <BSPlate
+        c={accent} notch={12} spine={3} tick={hasData && todayKnown} bracket pad="12px 14px 12px 17px"
+        onClick={hasData ? openHistory : undefined}
+        onKeyDown={hasData ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } } : undefined}
+        tabIndex={hasData ? 0 : undefined} role={hasData ? 'button' : undefined} ariaLabel="Open steps history"
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Shape Steps · Today</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Goal {TARGET.toLocaleString()}</span>
+        </div>
+        {hasData ? (
+          <>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 5 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{todayKnown ? val.toLocaleString() : '—'}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>steps</span>
+            </div>
+            <div style={{ marginTop: 8, height: 5, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
+              <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent, boxShadow: hit ? `0 0 8px ${accent}` : 'none' }} />
+            </div>
+            {todayKnown && (
+              <div style={{ marginTop: 7, display: 'flex', alignItems: 'baseline', gap: 6, paddingTop: 7, borderTop: `1px solid ${t.HAIR}` }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>Shape Steps</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stepPts.shapeSteps}</span>
+                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: stepPts.total > 0 ? accent : t.INK50 }}>{stepPts.total > 0 ? `+${stepPts.total} pts${stepPts.bonus > 0 ? ' · goal' : ''}` : 'Walk 5k for +1'}</span>
+              </div>
+            )}
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
+            </div>
+          </>
+        ) : (
+          <button onClick={openDevices} style={{ marginTop: 5, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.05em', color: accent, fontWeight: 700 }}>Connect a watch to track steps →</button>
+        )}
+      </BSPlate>
+      {history && <BSStepsHistory onClose={() => setHistory(false)} />}
+    </div>
+  );
+}
+
+function bsStrengthStatusMeta(status, t, tier) {
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  switch (status) {
+    case 'progressing': return { label: 'Progressing', color: tier || teal };
+    case 'stalled': return { label: 'Stalled', color: t.AMBER || '#c0533b' };
+    case 'holding': return { label: 'Holding', color: t.INK50 };
+    default: return { label: 'Building', color: t.INK50 };
+  }
+}
+
+function useBSStrength() {
+  const [data, setData] = useStateBSC(null);
+  React.useEffect(() => {
+    let on = true;
+    if (typeof window !== 'undefined' && window.ShapeStrength?.get) {
+      window.ShapeStrength.get().then((d) => { if (on && d) setData(d); }).catch(() => {});
+    }
+    return () => { on = false; };
+  }, []);
+  return data;
+}
+
+function BSStrengthHistory({ onClose, focusKey = null }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tier = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  const data = useBSStrength();
+  const lifts = (data && Array.isArray(data.lifts)) ? data.lifts : [];
+  const ordered = focusKey ? [...lifts].sort((a, b) => (a.key === focusKey ? -1 : b.key === focusKey ? 1 : 0)) : lifts;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 60, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px 10px' }}>
+        <button onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: t.INK }}>← BACK</button>
+        <BSMeCorner />
+      </div>
+      <div style={{ padding: '0 18px 90px' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 6 }}>STRENGTH · ESTIMATED 1RM</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', marginBottom: 16 }}>Your <span style={{ fontStyle: 'italic', color: teal }}>strength.</span></div>
+        {ordered.length === 0 && (
+          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.5, padding: '24px 0' }}>
+            Log a few sessions with weight and reps to see your estimated max climb. Strength is computed from your logged sets — nothing to show yet.
+          </div>
+        )}
+        {ordered.map((l) => {
+          const sm = bsStrengthStatusMeta(l.status, t, tier);
+          const vals = (l.series || []).map((p) => p.e1rm);
+          const top = l.topSet;
+          return (
+            <div key={l.key} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(sm.color, 0.6)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <div style={{ fontFamily: t.BODY, fontSize: 15, fontWeight: 700, color: t.INK }}>{l.name}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: sm.color, border: `1px solid ${bsTHexA(sm.color, 0.4)}`, borderRadius: 3, padding: '3px 8px', background: bsTHexA(sm.color, 0.12) }}>{sm.label}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{l.currentE1rm != null ? Math.round(l.currentE1rm) : '—'}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{l.unit} e1RM</span>
+                {l.deltaPct != null && (
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: sm.color, marginLeft: 'auto' }}>{l.deltaPct >= 0 ? '+' : '−'}{Math.abs(l.deltaPct * 100).toFixed(1)}%</span>
+                )}
+              </div>
+              {vals.length >= 2 && <BSStrengthSpark vals={vals} color={sm.color} />}
+              {top && (
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 8, letterSpacing: '0.04em' }}>
+                  top set {top.load}×{top.reps}{top.rpe != null ? ` @ RPE ${top.rpe}` : ''} · best {Math.round(l.bestE1rm)} {l.unit}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BSStrengthSpark({ vals, color }) {
+  const t = useBS();
+  if (!Array.isArray(vals) || vals.length < 2) return null;
+  const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1;
+  const W = 100, top = 6, bot = 94, span = bot - top;
+  const yOf = (v) => bot - ((v - lo) / rng) * span;
+  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(2)} ${yOf(v).toFixed(2)}`).join(' ');
+  const gid = `e1rm-${String(color).replace(/[^a-z0-9]/gi, '')}`;
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: 64, display: 'block' }} aria-hidden>
+      <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.22" /><stop offset="100%" stopColor={color} stopOpacity="0.02" /></linearGradient></defs>
+      <path d={`${line} L100 100 L0 100 Z`} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BSStrengthCard({ onOpen }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tier = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  const data = useBSStrength();
+  const lifts = (data && Array.isArray(data.lifts)) ? data.lifts : [];
+  const lead = lifts[0] || null;
+  const sm = lead ? bsStrengthStatusMeta(lead.status, t, tier) : null;
+  return (
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(tier, 0.6)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tier }}>STRENGTH · ESTIMATED 1RM</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK50 }}>View strength →</div>
+      </div>
+      {lead ? (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
+          <span style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 700, color: t.INK }}>{lead.name}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, color: t.INK, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{lead.currentE1rm != null ? Math.round(lead.currentE1rm) : '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> {lead.unit}</span></span>
+          {sm && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: sm.color }}>{sm.label}</span>}
+        </div>
+      ) : (
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 8 }}>Log sets with weight & reps to track your estimated max.</div>
+      )}
+    </button>
+  );
 }
 
 function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
@@ -14129,7 +15746,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{headInfo.eyebrow}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', padding: 0 }}>← Back</button>
-            <BSMeCorner size={26} />
+            <BSMeCorner />
           </div>
         </div>
         <h1 style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>{hHead ? hHead + ' ' : ''}<span style={{ fontStyle: 'italic', color: accent }}>{hLast}.</span></h1>
@@ -14196,11 +15813,24 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           always returns here). Saves to client_goals.primaryGoal and mirrors
           the profile's client_identity.goal so the edit-profile chips agree. */}
       {editPrimary && createPortal(
-        <div onClick={() => setEditPrimary(false)} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px 18px` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Edit · Overall goal</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>Your primary <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
+          {/* Title-page header — masthead + hero title */}
+          <div style={{ flex: '0 0 auto', padding: `44px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {BSLogo && <BSLogo size={16} color={t.INK} />}
+                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+              </div>
+              <button onClick={() => setEditPrimary(false)} aria-label="Close" style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Edit · Overall goal</div>
+            <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>Your primary <span style={{ fontStyle: 'italic', color: teal }}>goal.</span></h1>
+            <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+          </div>
+          {/* Scrollable chip body — scrollbar hidden */}
+          <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 13 }}>Pick one · syncs with your profile</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
               {['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'].map((g) => {
                 const on = (data.primaryGoal || '') === g;
                 return (
@@ -14214,12 +15844,14 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
                     } catch (e) {}
                     setEditPrimary(false);
                     window.__bsToast?.(`Goal set · ${g}`, 'ok');
-                  }} style={{ padding: '9px 14px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+                  }} style={{ padding: '11px 15px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : t.PAPER2, color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
                 );
               })}
             </div>
-            <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Syncs with your profile · pick to save</div>
-            <button onClick={() => setEditPrimary(false)} style={{ marginTop: 14, width: '100%', padding: '13px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Close</button>
+          </div>
+          {/* Pinned footer */}
+          <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: t.PAPER }}>
+            <button onClick={() => setEditPrimary(false)} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Close</button>
           </div>
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
@@ -14241,7 +15873,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
   const t = useBS();
   // Follow the paper theme so the card reads on light papers too (was fixed cream).
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace";
   // Signed in → real points + REAL composite bars (honest '—' when a pillar is
   // too sparse to score); the demo 1284 / 88·74·62·92 is the signed-out preview only.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
@@ -14299,7 +15931,7 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const t = useBS();
   // Follow the paper theme so the goal text reads on light papers too.
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
-  const SERIF = "'Newsreader', Georgia, serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
+  const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', sans-serif";
   const [g, setG] = useStateBSC(null);
   React.useEffect(() => {
     let on = true;
@@ -14320,8 +15952,9 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
+  const BSPlate = window.BSPlate;
   return (
-    <button onClick={onOpen} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: onOpen ? 'pointer' : 'default', borderRadius: 6, border: `1px solid ${bsTHexA(TEAL, 0.28)}`, borderLeft: `3px solid ${TEAL}`, background: bsTHexA(TEAL, 0.06), padding: compact ? '12px 15px' : '17px 19px', marginBottom: compact ? 0 : 14 }}>
+    <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel="Open your goal" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 700 }}>Your goal{dateLabel ? ` · by ${dateLabel}` : ''}{onOpen ? ' ›' : ''}</span>
         <span style={{ fontFamily: MONO, fontSize: compact ? 9 : 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL, fontWeight: 800 }}>{Math.round(pct * 100)}% there</span>
@@ -14329,71 +15962,10 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
       <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
       <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
       <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
-    </button>
+    </BSPlate>
   );
 }
 
-// Inline training/nutrition KPI summary on the Me profile — a compact strip of
-// real numbers (ShapeProgress) with demo fallback; taps into the full progress
-// hub. Keeps Me about "you + your numbers" without the full hub inline.
-function BSMeKpis({ onOpen = () => {}, embedded = false }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [d, setD] = useStateBSC(null);
-  React.useEffect(() => {
-    if (!window.ShapeProgress) return undefined;
-    let on = true;
-    Promise.all([
-      window.ShapeProgress.progress ? window.ShapeProgress.progress().catch(() => null) : null,
-      window.ShapeProgress.train ? window.ShapeProgress.train().catch(() => null) : null,
-      window.ShapeProgress.nutrition ? window.ShapeProgress.nutrition().catch(() => null) : null,
-    ]).then(([prog, train, nutr]) => { if (on) setD({ prog, train, nutr }); }).catch(() => {});
-    return () => { on = false; };
-  }, []);
-  // Merge live ShapeProgress over the base — exactly like BSClientProgress — so the
-  // numbers match the full progress page. Signed in → zeroed base (no demo numbers
-  // on a real profile); signed-out preview → demo base.
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const PB = signedIn ? BSPROG_EMPTY : BSPROG_DEMO;
-  const O = { kpis: { ...PB.overall.kpis, ...((d && d.prog && d.prog.kpis) || {}) } };
-  const TR = { stats: { ...PB.train.stats, ...((d && d.train && d.train.stats) || {}) }, prs: (d && d.train && d.train.prs) || PB.train.prs };
-  const NU = { ...PB.nutri, ...((d && d.nutr) || {}), today: { ...PB.nutri.today, ...((d && d.nutr && d.nutr.today) || {}) } };
-  const k = O.kpis;
-  const wc = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v || 0))} lb`;
-  const cards = [
-    { l: 'Sessions / wk', v: String(TR.stats.thisWeekCount ?? 0), c: t.RUST },
-    { l: 'PRs', v: String((TR.prs || []).length), c: t.RUST },
-    { l: '7d volume', v: `${Math.round((TR.stats.volume7dLb || 0) / 1000)}k`, c: t.RUST },
-    { l: 'Protein', v: `${Math.round(NU.today.protein || 0)}g`, c: teal },
-    { l: 'Adherence', v: `${Math.round(((NU.adherentDays7 || 0) / 7) * 100)}%`, c: teal },
-    { l: 'Weight Δ', v: wc(k.weightChange), c: '#8a5cf6' },
-    { l: 'Body fat', v: `${(k.bodyFatLatest || 0).toFixed(1)}%`, c: '#8a5cf6' },
-    { l: 'Sleep', v: `${k.sleepAvg || 0} h`, c: '#8a5cf6' },
-  ];
-  return (
-    <div style={{ padding: embedded ? '6px 0 2px' : '8px 18px 4px' }}>
-      <div style={{ padding: '0 0 10px' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), fontWeight: 700 }}>Your progress</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {cards.map((s) => (
-          <button key={s.l} onClick={onOpen} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `2.5px solid ${s.c}`, background: bsTHexA(t.INK, 0.04), padding: '10px 9px 10px 11px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.v}</div>
-            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: s.c, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.l}</div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// The Me tab is PROFILE-FIRST: your living Terrain profile + score/goal/stats.
-// The header gear opens the single merged Settings screen (BSSettings) via the
-// shape:openProfile event; the goal card + Stats tab open the goal/progress pages.
-// ── WEEKLY CHECK-IN — the coaching-standard weekly ritual ────────────────────
-// Ratings (1–10) + wins/struggles/question + optional weight, girth
-// measurements and front/side/back progress photos. One per week (upserts on
-// the week's Monday); a linked coach reads it on the client profile.
 const BS_CHECKIN_RATINGS = [
   ['trainingAdherence', 'Training adherence', '#c0533b'],
   ['nutritionAdherence', 'Nutrition adherence', '#d8b25a'],
@@ -14553,6 +16125,81 @@ const BS_PARQ = [
   'Is a doctor currently prescribing medication for your blood pressure or a heart condition?',
   'Do you know of any other reason why you should not do physical activity?',
 ];
+// Common ongoing-condition quick-picks (free text still captures the rest).
+const BS_CONDITION_TAGS = ['Diabetes', 'High blood pressure', 'Asthma / respiratory', 'Heart condition', 'Thyroid', 'High cholesterol', 'Anxiety / depression', 'Arthritis / joint', 'Pregnant / postpartum'];
+// One-time "What brings you here?" identity step — captures intent up front and
+// frames the member's identity, then writes the SAME canonical goal keys the
+// Goals page + coach view already read (client_goals.primaryGoal + the profile's
+// client_identity.goal). Marks client_onboarding.intentSeen so it shows once.
+function BSIntentStep({ onDone }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  React.useEffect(() => { try { window.ShapeAnalytics?.track?.('onboarding_started'); } catch (e) {} }, []);
+  const [picked, setPicked] = useStateBSC(null);
+  const GOALS = ['Lose fat', 'Build muscle', 'Recomp', 'Maintain', 'Get stronger', 'Endurance', 'Mobility', 'Athletic performance', 'General health', 'Tone up', 'Run a race', 'Postpartum'];
+  const IDENTITY = {
+    'Lose fat': 'someone who’s getting leaner',
+    'Build muscle': 'someone who builds muscle',
+    'Recomp': 'someone reshaping their body',
+    'Maintain': 'someone who keeps it dialed in',
+    'Get stronger': 'someone who trains for strength',
+    'Endurance': 'an endurance athlete in the making',
+    'Mobility': 'someone who moves well for life',
+    'Athletic performance': 'an athlete leveling up',
+    'General health': 'someone investing in their health',
+    'Tone up': 'someone getting toned and strong',
+    'Run a race': 'a runner with a race on the calendar',
+    'Postpartum': 'someone rebuilding strength, step by step',
+  };
+  const persistIntent = async (g) => {
+    try {
+      if (g) {
+        const goals = (await window.shapeDb?.getUserGoals?.('client_goals')) || {};
+        await window.shapeDb?.saveUserGoals?.('client_goals', { ...goals, primaryGoal: g });
+        const ident = (await window.shapeDb?.getUserGoals?.('client_identity')) || {};
+        await window.shapeDb?.saveUserGoals?.('client_identity', { ...ident, goal: g });
+        window.ShapeIdentity = { ...(window.ShapeIdentity || {}), goal: g };
+        try { window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
+      }
+      const onb = (await window.shapeDb?.getUserGoals?.('client_onboarding')) || {};
+      await window.shapeDb?.saveUserGoals?.('client_onboarding', { ...onb, intentSeen: true });
+    } catch (e) {}
+  };
+  const pick = (g) => { setPicked(g); persistIntent(g); };
+  const skip = () => { persistIntent(null); onDone(); };
+
+  if (picked) {
+    return (
+      <BSPage>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: `0 ${t.padX}px`, textAlign: 'center' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>You're in</div>
+          <h1 style={{ margin: '14px 0 0', fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.08, color: t.INK }}>You're becoming <span style={{ fontStyle: 'italic', color: teal }}>{IDENTITY[picked] || 'someone who shows up'}.</span></h1>
+          <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 15, color: t.INK70, lineHeight: 1.5, maxWidth: 320 }}>Every workout, meal, and check-in is a vote for that person. We build the plan — you keep showing up.</div>
+          <button onClick={onDone} style={{ marginTop: 30, padding: '14px 36px', borderRadius: 999, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Let's go →</button>
+          <button onClick={() => setPicked(null)} style={{ marginTop: 14, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Change</button>
+        </div>
+      </BSPage>
+    );
+  }
+
+  return (
+    <BSPage>
+      <div style={{ padding: `72px ${t.padX}px 0` }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>Welcome to Shape</span>
+        <h1 style={{ margin: '12px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: t.INK }}>What brings you here <span style={{ fontStyle: 'italic', color: teal }}>today?</span></h1>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.5 }}>Pick the one that fits best — it shapes your plan, your coach match, and what each day leads with. You can change it anytime.</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginTop: 22 }}>
+          {GOALS.map((g) => (
+            <button key={g} onClick={() => pick(g)} style={{ padding: '11px 16px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.04em' }}>{g}</button>
+          ))}
+        </div>
+        <button onClick={skip} style={{ marginTop: 28, background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', padding: 0 }}>Skip for now →</button>
+      </div>
+    </BSPage>
+  );
+}
+
 function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -14560,20 +16207,40 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const [answers, setAnswers] = useStateBSC(() => (initial && Array.isArray(initial.parq) ? initial.parq : Array(BS_PARQ.length).fill(null)));
   const [injuries, setInjuries] = useStateBSC((initial && initial.injuries) || '');
   const [medications, setMedications] = useStateBSC((initial && initial.medications) || '');
+  // Prescription meds — mandatory yes/no; default 'yes' for legacy docs that
+  // already carry a medications free-text but no explicit flag.
+  const [rxMeds, setRxMeds] = useStateBSC((initial && initial.rxMeds) || ((initial && initial.medications) ? 'yes' : null));
+  const [conditions, setConditions] = useStateBSC((initial && initial.conditions) || '');
+  const [conditionTags, setConditionTags] = useStateBSC(() => (initial && Array.isArray(initial.conditionTags) ? initial.conditionTags : []));
+  const [pregnancy, setPregnancy] = useStateBSC((initial && initial.pregnancy) || null);
+  const [allergies, setAllergies] = useStateBSC((initial && initial.allergies) || null);
+  const [allergyDetails, setAllergyDetails] = useStateBSC((initial && initial.allergyDetails) || '');
   const [emName, setEmName] = useStateBSC((initial && initial.emergency && initial.emergency.name) || '');
   const [emPhone, setEmPhone] = useStateBSC((initial && initial.emergency && initial.emergency.phone) || '');
   const [consent, setConsent] = useStateBSC(!!(initial && initial.consentAt));
   const [busy, setBusy] = useStateBSC(false);
   const allAnswered = answers.every((a) => a === true || a === false);
-  const canSave = allAnswered && consent && !busy;
+  // Mandatory: PAR-Q, the prescription-med screen (+ list when yes), pregnancy,
+  // and the allergy screen (+ details when yes).
+  const rxOk = rxMeds === 'no' || (rxMeds === 'yes' && medications.trim().length > 0);
+  const allergyOk = allergies === 'no' || (allergies === 'yes' && allergyDetails.trim().length > 0);
+  const screenComplete = allAnswered && rxMeds !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
+  const canSave = screenComplete && consent && !busy;
+  const toggleTag = (tag) => setConditionTags((cur) => (cur.includes(tag) ? cur.filter((x) => x !== tag) : [...cur, tag]));
   const save = async () => {
     if (!canSave) return;
     setBusy(true);
     const doc = {
       parq: answers,
-      flagged: answers.some((a) => a === true),
+      flagged: answers.some((a) => a === true) || pregnancy === 'yes',
       injuries: injuries.trim() || null,
-      medications: medications.trim() || null,
+      rxMeds: rxMeds,
+      medications: rxMeds === 'yes' ? (medications.trim() || null) : null,
+      conditions: conditions.trim() || null,
+      conditionTags: conditionTags,
+      pregnancy: pregnancy,
+      allergies: allergies,
+      allergyDetails: allergies === 'yes' ? (allergyDetails.trim() || null) : null,
       emergency: { name: emName.trim() || null, phone: emPhone.trim() || null },
       consentAt: (initial && initial.consentAt) || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -14588,6 +16255,15 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
   const lbl = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 };
   const ta = { width: '100%', boxSizing: 'border-box', minHeight: 56, padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none', resize: 'vertical' };
   const field = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, outline: 'none' };
+  // Reusable yes/no(/n.a.) selector row — same look as the PAR-Q buttons.
+  const ynRow = (value, onPick, options) => (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {options.map(([labelTxt, v, c]) => {
+        const on = value === v;
+        return <button key={labelTxt} type="button" onClick={() => onPick(v)} style={{ flex: 1, padding: '9px 0', borderRadius: 5, border: `1px solid ${on ? c : t.RULE}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${t.RULE}`, background: on ? `${c}1c` : 'transparent', color: on ? c : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{labelTxt}</button>;
+      })}
+    </div>
+  );
   return (
     <BSPage>
       <div style={{ padding: `62px ${t.padX}px 0` }}>
@@ -14621,11 +16297,46 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
           )}
         </div>
         <div style={card}>
-          <div style={lbl}>History · helps your coach program safely</div>
-          <div style={{ ...lbl, marginBottom: 5 }}>Injuries or surgeries (past & current)</div>
-          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" style={{ ...ta, marginBottom: 10 }} />
-          <div style={{ ...lbl, marginBottom: 5 }}>Medications & conditions</div>
-          <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="e.g. Blood-pressure medication · asthma inhaler" style={ta} />
+          <div style={lbl}>Prescription medication · required</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Are you currently taking any prescription medication(s)?</div>
+          {ynRow(rxMeds, setRxMeds, [['No', 'no', teal], ['Yes', 'yes', t.RUST]])}
+          {rxMeds === 'yes' && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ ...lbl, marginBottom: 5 }}>List your prescription medication(s)</div>
+              <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="e.g. Lisinopril (blood pressure) · Levothyroxine (thyroid)" style={ta} />
+            </div>
+          )}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Allergies · required</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Do you have any allergies (food, medication, or other)?</div>
+          {ynRow(allergies, setAllergies, [['No', 'no', teal], ['Yes', 'yes', t.RUST]])}
+          {allergies === 'yes' && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ ...lbl, marginBottom: 5 }}>List your allergies</div>
+              <textarea value={allergyDetails} onChange={(e) => setAllergyDetails(e.target.value)} placeholder="e.g. Peanuts (severe) · penicillin · shellfish" style={ta} />
+            </div>
+          )}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Pregnancy · required</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK, lineHeight: 1.4, marginBottom: 8 }}>Are you currently pregnant, or have you given birth in the past 6 months?</div>
+          {ynRow(pregnancy, setPregnancy, [['No', 'no', teal], ['Yes', 'yes', t.RUST], ['N/A', 'na', t.INK50]])}
+        </div>
+        <div style={card}>
+          <div style={lbl}>Ongoing medical conditions · optional</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
+            {BS_CONDITION_TAGS.map((tag) => {
+              const on = conditionTags.includes(tag);
+              return <button key={tag} type="button" onClick={() => toggleTag(tag)} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tag}</button>;
+            })}
+          </div>
+          <div style={{ ...lbl, marginBottom: 5 }}>Anything else your coach should know</div>
+          <textarea value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="e.g. Type 2 diabetes — diet-managed · exercise-induced asthma" style={ta} />
+        </div>
+        <div style={card}>
+          <div style={lbl}>Injuries & surgeries · helps your coach program safely</div>
+          <textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" style={ta} />
         </div>
         <div style={card}>
           <div style={lbl}>Emergency contact</div>
@@ -14641,7 +16352,7 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
           </span>
         </label>
         <button onClick={save} disabled={!canSave} style={{ display: 'block', width: `calc(100% - ${t.padX * 2}px)`, margin: `0 ${t.padX}px`, padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: canSave ? teal : t.RULE, color: canSave ? '#04201d' : t.INK50, cursor: canSave ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{busy ? 'Saving…' : onBack ? 'Save health profile' : 'Save & enter Shape →'}</button>
-        {!allAnswered && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all 7 screening questions to continue</div>}
+        {!screenComplete && <div style={{ marginTop: 8, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Answer all required screening questions to continue</div>}
       </div>
     </BSPage>
   );
@@ -15252,7 +16963,7 @@ function BSCommitmentCard() {
         {!c ? (
           <React.Fragment>
             <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.35 }}>Put points on a weekly target — hit it for a bonus, miss it and lose the stake.</div>
-            <button onClick={() => { if (signedIn) setSheet(true); }} style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment' : 'Sign in to commit'}</button>
+            <button onClick={() => { if (signedIn) setSheet(true); else if (window.bsRequireAccount) window.bsRequireAccount('set a weekly commitment'); }} style={{ marginTop: 10, width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{signedIn ? 'Set a commitment' : 'Sign in to commit'}</button>
           </React.Fragment>
         ) : (
           <React.Fragment>
@@ -15320,6 +17031,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
   // signed in (null = pre-migration / no-data → section hidden); demo only signed-out.
   const momentum = profile.momentum || null;
   const activities = profile.activities || SHAPE_SCORE_PROFILES.client.activities;
+  const penalties = profile.penalties || (bsIsCoachRole(profile.roleLabel) ? [] : SHAPE_SCORE_PROFILES.client.penalties);
   const tiers = bsIsCoachRole(profile.roleLabel) ? SHAPE_SCORE_TIERS_COACH : SHAPE_SCORE_TIERS;
   const ledger = profile.ledger || SHAPE_SCORE_PROFILES.client.ledger;
   // Rewards — featured rows from the LIVE store catalogue (same ids the server
@@ -15440,9 +17152,11 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const val = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
         const hit = val >= 80;
+        const preview = !profile.live; // signed-out → demo bar; tapping prompts sign-in
+        const reqAuth = () => { try { window.bsRequireAccount && window.bsRequireAccount('build your momentum'); } catch (e) {} };
         return (
           <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
-            <BSPlate c={teal} tick bracket pad="12px 14px">
+            <BSPlate c={teal} tick bracket pad="12px 14px" onClick={preview ? reqAuth : undefined} onKeyDown={preview ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reqAuth(); } }) : undefined} role={preview ? 'button' : undefined} tabIndex={preview ? 0 : undefined} ariaLabel={preview ? 'Sign in to build your momentum' : undefined}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Momentum</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
@@ -15460,7 +17174,9 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
                       : `✓ +${momentum.points || 25} banked this week`)
                   : hit ? 'At the line · hold it to bank this week' : 'Reach 80 for a weekly bonus — grows to +100'}
               </div>
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
+              {preview
+                ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: teal }}>Sign in to start building your momentum →</div>
+                : <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.3 }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>}
             </BSPlate>
           </div>
         );
@@ -15526,20 +17242,43 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Redeem in the Shape Store →</div>
             </React.Fragment>
           )}
-          {scoreTab === 'points' && activities.map((a, i) => (
-            <div key={a.name} style={{
-              display: 'grid', gridTemplateColumns: '1fr 52px', gap: 12,
-              padding: '13px 0', borderBottom: i === activities.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-            }}>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
-                <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-                  <span>{a.cap}</span><span>-</span><span>{a.note}</span>
+          {scoreTab === 'points' && (() => {
+            const rust = t.RUST || '#c0533b';
+            const row = (a, i, arr, ptsColor) => (
+              <div key={a.name} style={{
+                display: 'grid', gridTemplateColumns: '1fr 60px', gap: 12,
+                padding: '12px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+              }}>
+                <div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{a.name}</div>
+                  <div style={{ marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
+                    <span>{a.cap}</span><span>·</span><span>{a.note}</span>
+                  </div>
                 </div>
+                <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: ptsColor }}>{a.pts}</div>
               </div>
-              <div style={{ alignSelf: 'center', textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: t.ACCENT }}>{a.pts}</div>
-            </div>
-          ))}
+            );
+            return (
+              <React.Fragment>
+                {activities.map((a, i) => row(a, i, activities, t.ACCENT))}
+                {penalties.length > 0 && (
+                  <React.Fragment>
+                    <div style={{ marginTop: 18 }}>
+                      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: rust }}>Protect your points</div>
+                      <div style={{ marginTop: 3, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.45)}, ${rust})` }} />
+                      <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.45 }}>Stay consistent to keep what you've earned — a coach can waive any of these.</div>
+                    </div>
+                    {penalties.map((a, i) => row(a, i, penalties, rust))}
+                  </React.Fragment>
+                )}
+                <div style={{ marginTop: 16, padding: '12px 13px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: bsTHexA(t.INK, 0.03) }}>
+                  <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 }}>Good to know</div>
+                  <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, lineHeight: 1.5 }}>You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.</div>
+                </div>
+                <div onClick={onOpenStore} style={{ padding: '13px 0 2px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, cursor: 'pointer' }}>Spend points in the Shape Store →</div>
+              </React.Fragment>
+            );
+          })()}
           {scoreTab === 'ledger' && ledger.map(([day, pts, label], i) => (
             <div key={`${day}-${label}`} style={{
               display: 'grid', gridTemplateColumns: '62px 1fr 52px', alignItems: 'center', gap: 10,
@@ -15606,9 +17345,21 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   const [store, setStore] = useStateBSC({ balance: null, redemptions: null, credit: null });
   const [notice, setNotice] = useStateBSC('');
   const [busyId, setBusyId] = useStateBSC('');
-  const [shipFor, setShipFor] = useStateBSC(null); // merch item awaiting a shipping address
+  const [confirmFor, setConfirmFor] = useStateBSC(null);   // non-merch item awaiting a one-tap confirm (a)
+  const [cart, setCart] = useStateBSC({});                 // merch cart { itemId: qty } (b)
+  const [checkoutOpen, setCheckoutOpen] = useStateBSC(false);
+  const [checkoutBusy, setCheckoutBusy] = useStateBSC(false);
   const balance = store.balance == null ? profile.available : store.balance;
   const credit = store.credit || { session: 0, nutrition: 0 };
+  // Merch cart — persisted so it survives leaving the Store. Only physical merch
+  // bundles into one shipment; credit/service stay single-item redemptions.
+  React.useEffect(() => { try { const r = JSON.parse(localStorage.getItem('shape.storeCart') || '{}'); if (r && typeof r === 'object') { const clean = {}; Object.entries(r).forEach(([id, q]) => { const p = BS_STORE_PRODUCTS.find((x) => x.id === id); const n = Math.floor(Number(q)); if (p && p.cat === 'Shape Merch' && n > 0) clean[id] = Math.min(9, n); }); setCart(clean); } } catch (e) {} }, []);
+  React.useEffect(() => { try { localStorage.setItem('shape.storeCart', JSON.stringify(cart)); } catch (e) {} }, [cart]);
+  const cartLines = Object.entries(cart).map(([id, qty]) => ({ p: BS_STORE_PRODUCTS.find((x) => x.id === id), qty: Number(qty) || 0 })).filter((l) => l.p && l.qty > 0);
+  const cartCount = cartLines.reduce((a, l) => a + l.qty, 0);
+  const cartTotal = cartLines.reduce((s, l) => s + l.p.cost * l.qty, 0);
+  const addToCart = (p) => setCart((c) => ({ ...c, [p.id]: Math.min(9, (c[p.id] || 0) + 1) }));
+  const setQty = (id, qty) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = Math.min(9, qty); return n; });
   const reloadStore = React.useCallback(async () => {
     try {
       const d = window.ShapeStore ? await window.ShapeStore.get() : null;
@@ -15656,38 +17407,67 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   // address before they can be redeemed (opens the shipping sheet first).
   const isMerch = (p) => p.cat === 'Shape Merch';
 
-  async function doRedeem(p, shipping) {
+  // Single-item redemption (credit / service / lead boost) — confirmed first (a).
+  async function doRedeem(p) {
     setBusyId(p.id);
     setNotice('');
     try {
       if (p.kind === 'lead_boost') {
         await window.ShapeStore.redeemLeadBoost(String(profile.roleLabel || 'trainer').toLowerCase(), p.days);
         setNotice(`Lead Boost is live for ${p.days} days — your marketplace ranking is boosted.`);
+        setConfirmFor(null);
         await reloadStore();
         return;
       }
-      const d = await window.ShapeStore.redeem(p.id, shipping);
-      const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : shipping ? ' We’ll ship it out — check your email.' : '';
+      const d = await window.ShapeStore.redeem(p.id);
+      const extra = d.credit ? ` $${(d.credit.cents / 100).toFixed(0)} ${d.credit.kind} credit is in your wallet.` : '';
       setNotice(`${p.name} redeemed! Code ${d.code}.${extra}`);
-      setShipFor(null);
+      setConfirmFor(null);
       await reloadStore();
     } catch (e) {
       const m = String((e && e.message) || '');
       if (m.includes('insufficient_points')) setNotice('Not enough points for that yet — keep earning!');
       else if (m.includes('membership_required')) setNotice('Become a Shape member to redeem your points.');
-      else if (m.includes('needs_shipping')) { setShipFor(p); return; }
       else setNotice('Redemption failed. Please try again.');
+      setConfirmFor(null);
     } finally {
       setBusyId('');
     }
   }
 
+  // Merch goes through the cart (one shipment); credit/service open a confirm.
   function handleRedeem(p) {
     if (purchasesLocked) { bsStartPlatformCheckout(); return; }
     if (p.locked || busyId) return;
     if (p.cost > balance) { setNotice('Not enough points for that yet — keep earning!'); return; }
-    if (isMerch(p)) { setShipFor(p); return; } // collect address first
-    doRedeem(p);
+    setConfirmFor(p);
+  }
+
+  // Checkout the whole merch cart as one order (atomic, one shipment).
+  async function placeOrder(shipping) {
+    if (checkoutBusy) return;
+    if (purchasesLocked) { bsStartPlatformCheckout(); return; }
+    setCheckoutBusy(true); setNotice('');
+    try {
+      const items = cartLines.map((l) => ({ itemId: l.p.id, qty: l.qty }));
+      const d = await window.ShapeStore.checkout(items, shipping);
+      const n = Array.isArray(d.items) ? d.items.length : items.length;
+      setNotice(`Order placed — ${n} item${n !== 1 ? 's' : ''} on the way. Codes are in your locker + email.`);
+      setCart({}); setCheckoutOpen(false);
+      await reloadStore();
+    } catch (e) {
+      const m = String((e && e.message) || '');
+      if (m.includes('insufficient_points')) setNotice('Not enough points to cover the cart — remove an item or earn more.');
+      else if (m.includes('membership_required')) setNotice('Become a Shape member to redeem your points.');
+      else setNotice('Checkout failed. Please try again.');
+    } finally {
+      setCheckoutBusy(false);
+    }
+  }
+
+  // The cart checkout is its own full-screen view.
+  if (checkoutOpen) {
+    return <BSStoreCheckout t={t} lines={cartLines} total={cartTotal} balance={balance} busy={checkoutBusy} notice={notice} onQty={setQty} onBack={() => setCheckoutOpen(false)} onPlace={placeOrder} />;
   }
 
   return (
@@ -15781,32 +17561,48 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       <BSSection title="Catalog" kicker={cat} meta={`${visible.length} items`} />
       <div style={{ padding: `0 ${t.padX}px` }}>
         {visible.map((p, i) => {
+          const merch = isMerch(p);
+          const inCart = cart[p.id] || 0;
           const canAfford = !p.locked && p.cost <= balance;
           const busy = busyId === p.id;
-          const tappable = !p.locked && (purchasesLocked || canAfford) && !busy;
+          // Non-merch redeems on tap (→ confirm). Merch uses the Add / qty control.
+          const rowTap = !merch && !p.locked && (purchasesLocked || canAfford) && !busy;
           return (
             <div key={`${p.cat}-${p.name}`}
-              onClick={tappable ? () => handleRedeem(p) : undefined}
+              onClick={rowTap ? () => handleRedeem(p) : undefined}
               style={{
                 padding: '13px 0', borderBottom: i === visible.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-                display: 'grid', gridTemplateColumns: '1fr 76px', gap: 12,
+                display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center',
                 opacity: p.locked ? 0.62 : 1,
-                cursor: tappable ? 'pointer' : 'default',
+                cursor: rowTap ? 'pointer' : 'default',
               }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{p.name}</div>
                   {p.tag && <BSTag color={p.locked ? t.RUST : t.ACCENT}>{p.tag}</BSTag>}
                 </div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-                  {p.brand} - {p.stock} - ~${p.retail} retail
+                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: canAfford ? t.ACCENT : t.INK50, fontWeight: 700 }}>
+                  {p.cost.toLocaleString()} pts <span style={{ color: t.INK50, fontWeight: 600 }}>· ~${p.retail}</span>
                 </div>
               </div>
-              <div style={{ textAlign: 'right', alignSelf: 'center' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: canAfford ? t.ACCENT : t.INK50 }}>{p.cost.toLocaleString()} pts</div>
-                <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: p.locked ? t.INK50 : busy ? t.ACCENT : purchasesLocked ? t.AMBER : canAfford ? t.GREEN : t.INK50 }}>
-                  {busy ? 'Redeeming…' : p.locked ? 'Tier locked' : purchasesLocked ? (<><span style={{ filter: 'grayscale(1)' }}>🔒</span> Members</>) : canAfford ? 'Redeem →' : `+${(p.cost - balance).toLocaleString()}`}
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                {p.locked ? (
+                  <span style={{ fontFamily: t.BODY, fontSize: 11.5, fontWeight: 600, color: t.INK50 }}>Tier locked</span>
+                ) : purchasesLocked ? (
+                  <button onClick={(e) => { e.stopPropagation(); bsStartPlatformCheckout(); }} style={{ fontFamily: t.BODY, fontSize: 11.5, fontWeight: 700, color: t.AMBER, background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>Members →</button>
+                ) : merch ? (
+                  inCart > 0 ? (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${t.ACCENT}`, borderRadius: 999, overflow: 'hidden' }}>
+                      <button onClick={(e) => { e.stopPropagation(); setQty(p.id, inCart - 1); }} aria-label={`Remove one ${p.name}`} style={{ width: 30, height: 30, border: 0, background: 'transparent', color: t.ACCENT, fontSize: 17, fontWeight: 700, cursor: 'pointer', lineHeight: 1, padding: 0 }}>−</button>
+                      <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.BODY, fontSize: 13.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{inCart}</span>
+                      <button onClick={(e) => { e.stopPropagation(); addToCart(p); }} aria-label={`Add one ${p.name}`} disabled={inCart >= 9} style={{ width: 30, height: 30, border: 0, background: 'transparent', color: inCart >= 9 ? t.INK50 : t.ACCENT, fontSize: 17, fontWeight: 700, cursor: inCart >= 9 ? 'default' : 'pointer', lineHeight: 1, padding: 0 }}>+</button>
+                    </div>
+                  ) : (
+                    <button onClick={(e) => { e.stopPropagation(); if (canAfford) addToCart(p); else setNotice('Not enough points for that yet — keep earning!'); }} style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700, color: canAfford ? t.ACCENT : t.INK50, background: canAfford ? `${t.ACCENT}14` : 'transparent', border: `1px solid ${canAfford ? t.ACCENT : t.RULE}`, borderRadius: 999, padding: '7px 15px', cursor: 'pointer' }}>{canAfford ? '+ Add' : `+${(p.cost - balance).toLocaleString()}`}</button>
+                  )
+                ) : (
+                  <span style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700, color: busy ? t.ACCENT : canAfford ? t.GREEN : t.INK50 }}>{busy ? 'Redeeming…' : canAfford ? 'Redeem →' : `+${(p.cost - balance).toLocaleString()}`}</span>
+                )}
               </div>
             </div>
           );
@@ -15814,46 +17610,137 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       </div>
 
       <BSFooter right="Store" />
-      {shipFor && <BSShipSheet t={t} item={shipFor} busy={busyId === shipFor.id} onClose={() => !busyId && setShipFor(null)} onSubmit={(addr) => doRedeem(shipFor, addr)} />}
+      {/* Sticky cart bar — bundles all merch into one shipment at checkout */}
+      {cartCount > 0 && (
+        <div style={{ position: 'sticky', bottom: 0, zIndex: 20, padding: `10px ${t.padX}px calc(10px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
+          <button onClick={() => { setNotice(''); setCheckoutOpen(true); }} style={{ width: '100%', minHeight: 50, borderRadius: 14, border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px', fontFamily: t.BODY, fontWeight: 700, fontSize: 14 }}>
+            <span>Cart · {cartCount} item{cartCount !== 1 ? 's' : ''}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{cartTotal.toLocaleString()} pts · Review →</span>
+          </button>
+        </div>
+      )}
+      {confirmFor && <BSRedeemConfirmSheet t={t} item={confirmFor} balance={balance} busy={busyId === confirmFor.id} onCancel={() => !busyId && setConfirmFor(null)} onConfirm={() => doRedeem(confirmFor)} />}
     </BSPage>
   );
 }
 
-// Shipping-address sheet for redeeming physical merch (portals into the phone
-// surface). Collects name + address, then redeems with it so ops can ship.
-function BSShipSheet({ t, item, busy, onClose, onSubmit }) {
-  const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const valid = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim();
-  const field = { width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' };
+// (a) One-tap confirm before a single-item redemption (credit / service / lead
+// boost). Shows the cost + the balance it leaves so a tap is deliberate.
+function BSRedeemConfirmSheet({ t, item, balance, busy, onCancel, onConfirm }) {
+  const after = Math.max(0, (balance || 0) - item.cost);
+  const Row = ({ label, value, accent }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '7px 0' }}>
+      <span style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>{label}</span>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: accent ? t.ACCENT : t.INK, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </div>
+  );
   const sheet = (
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '88%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Ship to</BSEyebrow>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '4px 0 2px' }}>{item.name}</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginBottom: 14 }}>{item.cost.toLocaleString()} pts · free shipping</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <input value={f.name} onChange={set('name')} placeholder="Full name" style={field} />
-          <input value={f.line1} onChange={set('line1')} placeholder="Address" style={field} />
-          <input value={f.line2} onChange={set('line2')} placeholder="Apt, suite (optional)" style={field} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 9 }}>
-            <input value={f.city} onChange={set('city')} placeholder="City" style={field} />
-            <input value={f.region} onChange={set('region')} placeholder="State" style={field} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-            <input value={f.postal} onChange={set('postal')} placeholder="ZIP" style={field} />
-            <input value={f.country} onChange={set('country')} placeholder="Country" style={field} />
-          </div>
+    <div onClick={onCancel} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: `20px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.RULE}` }}>
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK50 }}>Confirm redemption</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, margin: '4px 0 14px' }}>{item.name}</div>
+        <div style={{ borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '6px 14px' }}>
+          <Row label="Cost" value={`${item.cost.toLocaleString()} pts`} accent />
+          <div style={{ borderTop: `1px solid ${t.HAIR}` }} />
+          <Row label="Balance after" value={`${after.toLocaleString()} pts`} />
         </div>
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <button onClick={onClose} disabled={busy} style={{ flex: '0 0 auto', padding: '13px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => valid && !busy && onSubmit(f)} disabled={!valid || busy} style={{ flex: 1, minHeight: 46, borderRadius: 999, border: 0, background: valid ? t.ACCENT : t.RULE, color: valid ? t.PAPER : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: valid && !busy ? 'pointer' : 'default' }}>{busy ? 'Redeeming…' : `Redeem · ${item.cost.toLocaleString()} pts`}</button>
+        <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.45 }}>
+          {item.kind === 'lead_boost' ? 'Activates your marketplace boost immediately.' : 'A confirmation code lands in your locker and email — spend is final.'}
+        </div>
+        <div style={{ display: 'flex', gap: 9, marginTop: 16 }}>
+          <button onClick={onCancel} disabled={busy} style={{ flex: '0 0 auto', padding: '14px 24px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 14, fontWeight: 600, cursor: busy ? 'default' : 'pointer' }}>Cancel</button>
+          <button onClick={() => !busy && onConfirm()} disabled={busy} style={{ flex: 1, minHeight: 48, borderRadius: 999, border: 0, background: t.ACCENT, color: t.PAPER, fontFamily: t.BODY, fontSize: 14, fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>{busy ? 'Redeeming…' : `Redeem · ${item.cost.toLocaleString()} pts`}</button>
         </div>
       </div>
     </div>
   );
   const surface = (typeof document !== 'undefined') && document.getElementById('bs-phone-surface');
   return surface ? createPortal(sheet, surface) : sheet;
+}
+
+// (b) Merch cart checkout — review lines + qty, enter ONE shipping address, see
+// the points total + the balance it leaves, place the order (one shipment).
+function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack, onPlace }) {
+  const [f, setF] = useStateBSC({ name: '', line1: '', line2: '', city: '', region: '', postal: '', country: 'US' });
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+  const validShip = f.name.trim() && f.line1.trim() && f.city.trim() && f.postal.trim() && f.country.trim();
+  const after = (balance || 0) - total;
+  const short = after < 0;
+  const canPlace = lines.length > 0 && validShip && !short && !busy;
+  const field = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: 14, border: `1px solid ${t.HAIR}`, background: `${t.INK}09`, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' };
+  const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK70, margin: '14px 0 8px' };
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Store" kicker="Checkout" title={<>Your<br/>cart.</>} />
+      <div style={{ padding: `4px ${t.padX}px 0` }}>
+        {lines.length === 0 ? (
+          <div style={{ padding: '28px 0', textAlign: 'center', fontFamily: t.BODY, fontSize: 14, color: t.INK70 }}>
+            Your cart is empty.
+            <div style={{ marginTop: 12 }}><button onClick={onBack} style={{ padding: '10px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Back to store</button></div>
+          </div>
+        ) : (
+          <>
+            {/* Cart lines */}
+            <div style={{ borderRadius: 16, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '4px 14px' }}>
+              {lines.map((l, i) => (
+                <div key={l.p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: i === lines.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.p.name}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{l.p.cost.toLocaleString()} pts each</div>
+                  </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${t.RULE}`, borderRadius: 999, overflow: 'hidden' }}>
+                    <button onClick={() => onQty(l.p.id, l.qty - 1)} aria-label="Remove one" style={{ width: 30, height: 30, border: 0, background: 'transparent', color: t.INK70, fontSize: 17, fontWeight: 700, cursor: 'pointer', lineHeight: 1, padding: 0 }}>−</button>
+                    <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.BODY, fontSize: 13.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{l.qty}</span>
+                    <button onClick={() => onQty(l.p.id, l.qty + 1)} aria-label="Add one" disabled={l.qty >= 9} style={{ width: 30, height: 30, border: 0, background: 'transparent', color: l.qty >= 9 ? t.INK50 : t.INK70, fontSize: 17, fontWeight: 700, cursor: l.qty >= 9 ? 'default' : 'pointer', lineHeight: 1, padding: 0 }}>+</button>
+                  </div>
+                  <div style={{ minWidth: 64, textAlign: 'right', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{(l.p.cost * l.qty).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Totals */}
+            <div style={{ marginTop: 12, borderRadius: 16, border: `1px solid ${short ? t.RUST : `${t.ACCENT}66`}`, background: short ? `${t.RUST}10` : `${t.ACCENT}0f`, padding: '13px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK70 }}>Order total</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{total.toLocaleString()} <span style={{ fontSize: 13, color: t.INK50 }}>pts</span></span>
+              </div>
+              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontFamily: t.BODY, fontSize: 12.5, color: short ? t.RUST : t.INK50 }}>
+                <span>{short ? 'Short by' : 'Balance after'}</span>
+                <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{short ? (-after).toLocaleString() : after.toLocaleString()} pts</span>
+              </div>
+            </div>
+
+            {/* Shipping — one address for the whole order */}
+            <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 700, color: t.INK50, margin: '20px 0 4px' }}>Ship to</div>
+            <span style={lbl}>Full name</span>
+            <input value={f.name} onChange={set('name')} placeholder="Full name" aria-label="Full name" maxLength={120} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+            <span style={lbl}>Address</span>
+            <input value={f.line1} onChange={set('line1')} placeholder="Street address" aria-label="Street address" maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+            <div style={{ marginTop: 9 }}><input value={f.line2} onChange={set('line2')} placeholder="Apt, suite (optional)" aria-label="Apartment or suite (optional)" maxLength={200} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 9, marginTop: 9 }}>
+              <input value={f.city} onChange={set('city')} placeholder="City" aria-label="City" maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+              <input value={f.region} onChange={set('region')} placeholder="State" aria-label="State or region" maxLength={100} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 9 }}>
+              <input value={f.postal} onChange={set('postal')} placeholder="ZIP" aria-label="ZIP or postal code" maxLength={20} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+              <input value={f.country} onChange={set('country')} placeholder="Country" aria-label="Country" maxLength={60} style={field} onFocus={(e) => { e.target.style.borderColor = t.ACCENT; }} onBlur={(e) => { e.target.style.borderColor = t.HAIR; }} />
+            </div>
+            <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>Free shipping · points only.</div>
+
+            {/* Surface a checkout error here — the store-page notice is hidden behind this view */}
+            {!!notice && (
+              <div style={{ marginTop: 14, borderRadius: 12, border: `1px solid ${t.RUST}66`, background: `${t.RUST}14`, padding: '11px 14px', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{notice}</div>
+            )}
+
+            <button onClick={() => canPlace && onPlace(f)} disabled={!canPlace} style={{ width: '100%', minHeight: 52, marginTop: 14, borderRadius: 14, border: 0, background: canPlace ? t.ACCENT : t.RULE, color: canPlace ? t.PAPER : t.INK50, fontFamily: t.BODY, fontSize: 14.5, fontWeight: 700, cursor: canPlace ? 'pointer' : 'default' }}>
+              {busy ? 'Placing order…' : short ? 'Not enough points' : `Place order · ${total.toLocaleString()} pts`}
+            </button>
+          </>
+        )}
+      </div>
+      <BSFooter right="Checkout" />
+    </BSPage>
+  );
 }
 
 Object.assign(window, {
@@ -15885,14 +17772,10 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   return (
     <div style={{ padding: '64px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
-        <button onClick={onBack} style={{ borderRadius: t.RADIUS_SM,
-          background: 'transparent', border: 0, cursor: 'pointer', padding: 0,
-          fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700,
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}>← Back</button>
+        <BSBackButton onClick={onBack} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
-          {!noCorner && <BSMeCorner size={28} />}
+          {!noCorner && <BSMeCorner />}
         </div>
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
@@ -16147,6 +18030,7 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   const [setLogs, setSetLogs] = useStateBSC([]);
   const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
   const [logStatus, setLogStatus] = useStateBSC('');
+  const _bsStrength = useBSStrength();
 
   React.useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -16154,6 +18038,29 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
   }, []);
 
   const move = moves[moveIdx];
+  const _bsSug = (() => {
+    if (!move || !move.m) return null;
+    const lift = (_bsStrength && Array.isArray(_bsStrength.lifts))
+      ? _bsStrength.lifts.find((l) => l.key === String(move.m).trim().toLowerCase())
+      : null;
+    const s = suggestNextLoad(lift, move);
+    // Only surface progression-adding suggestions ('repeat' just echoes the "Last ·"
+    // line). The set inputs are lb-only (placeholder 'lb', load_unit defaults to lb),
+    // so suppress a kg suggestion — filling it as lb would corrupt the logged load.
+    return s && s.basis !== 'repeat' && s.unit === 'lb' ? s : null;
+  })();
+  const _bsFillSuggestion = () => {
+    if (!_bsSug) return;
+    let i = 0;
+    while (i < move.sets && completed[`${moveIdx}-${i}`]) i += 1;
+    if (i >= move.sets) i = move.sets - 1;
+    const cur = setInputs[`${moveIdx}-${i}`] || {};
+    // Don't clobber a load the athlete typed: only fill when the field is still the
+    // pre-filled default (move.l) or empty. Reps only when blank.
+    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === String(move.l || '');
+    if (loadIsDefault) updateSetInput(i, 'load', String(_bsSug.load));
+    if (_bsSug.reps != null && (cur.reps == null || String(cur.reps) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
+  };
   const totalSets = moves.reduce((s, m) => s + m.sets, 0);
   const doneSets = Object.values(completed).filter(Boolean).length;
   const elapsedSec = Math.floor((now - elapsedStart) / 1000);
@@ -16172,15 +18079,19 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
 
   const updateSetInput = (setIdx, field, value) => {
     const k = `${moveIdx}-${setIdx}`;
-    const current = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
-    const next = { ...current, [field]: value };
-    setSetInputs({ ...setInputs, [k]: next });
-    setSetLogs(setLogs.map((entry) => (
+    // Functional updaters so two updates in one handler (e.g. the suggestion chip
+    // filling load AND reps) compose instead of clobbering a stale-closure snapshot.
+    const other = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+    setSetInputs((prev) => {
+      const current = prev[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+      return { ...prev, [k]: { ...current, [field]: value } };
+    });
+    setSetLogs((prev) => prev.map((entry) => (
       entry.key === k
         ? {
             ...entry,
-            actualReps: field === 'reps' ? value : (entry.actualReps ?? next.reps),
-            actualLoad: field === 'load' ? value : (entry.actualLoad ?? next.load),
+            actualReps: field === 'reps' ? value : (entry.actualReps ?? other.reps),
+            actualLoad: field === 'load' ? value : (entry.actualLoad ?? other.load),
           }
         : entry
     )));
@@ -16220,6 +18131,10 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
       targetLoad: move.l,
       actualReps: actual.reps,
       actualLoad: actual.load,
+      // RPE was captured into setInputs but dropped here, so the rpe column never
+      // got a value; carry it (+ the lifter's unit) through to the set log.
+      rpe: actual.rpe,
+      unit: t.isMetric ? 'kg' : 'lb',
       startedAt: new Date(setStartedAt).toISOString(),
       finishedAt: new Date(endedAt).toISOString(),
       setDurationSeconds: duration,
@@ -16351,6 +18266,27 @@ function BSSession({ moves: movesProp, onBack, title = 'Live session' }) {
         <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>
         {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Last · {move.l}</div>}
       </div>
+
+      {/* Suggested next load (e1RM progression nudge) */}
+      {_bsSug && (
+        <div style={{ padding: `14px ${t.padX}px 0` }}>
+          <button
+            onClick={_bsFillSuggestion}
+            aria-label={`Use suggested load ${_bsSug.load} ${_bsSug.unit}`}
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 13px) 0, 100% 13px, 100% 100%, 0 100%)', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: t.PAPER2, padding: 14 }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Suggested</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Tap to use →</span>
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{_bsSug.load}<span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}> {_bsSug.unit}</span></span>
+              {_bsSug.reps != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>× {_bsSug.reps}</span>}
+            </div>
+            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>{_bsSug.rationale}</div>
+          </button>
+        </div>
+      )}
 
       {/* Plate math */}
       {perSide && (
@@ -16733,6 +18669,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       : [{ aisle: 'Items', items: [] }];
     aisles[0] = { ...aisles[0], items: [...aisles[0].items, item] };
     onUpdate({ ...list, aisles });
+    setOpenAisles((prev) => new Set(prev).add(aisles[0].aisle));   // reveal the aisle the new item landed in
     setNewName(''); setNewQty('');
   };
   const removeItem = (ai, ii) => {
@@ -16743,10 +18680,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
   list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
   const initialChecked = new Set(allKeys.filter(x => x.have).map(x => x.k));
   const [checked, setChecked] = useStateBSC(initialChecked);
-  const [activeAisle, setActiveAisle] = useStateBSC(0);
   React.useEffect(() => {
     setChecked(new Set(allKeys.filter(x => x.have).map(x => x.k)));
-    setActiveAisle(0);
   }, [list.id || list.name]);
 
   const toggle = (k) => {
@@ -16754,8 +18689,18 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     if (next.has(k)) next.delete(k); else next.add(k);
     setChecked(next);
   };
-  // Clear the checked items for a single aisle (keys are `${aisleIdx}-${itemIdx}`).
-  const resetAisle = (ai) => setChecked(prev => new Set([...prev].filter(k => !k.startsWith(`${ai}-`))));
+  // Collapsible aisles — the list can run long, so each aisle is a dropdown. A
+  // single-aisle list opens by default; multi-aisle lists start collapsed (a
+  // compact index of aisles) — tap a header to reveal its items.
+  const filledAisleNames = list.aisles.filter((a) => a.items.length).map((a) => a.aisle);
+  const [openAisles, setOpenAisles] = useStateBSC(() => new Set(filledAisleNames.length <= 1 ? filledAisleNames : []));
+  React.useEffect(() => {
+    const names = list.aisles.filter((a) => a.items.length).map((a) => a.aisle);
+    setOpenAisles(new Set(names.length <= 1 ? names : []));
+  }, [list.id || list.name]);
+  const toggleAisle = (name) => setOpenAisles((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+  const allAislesOpen = filledAisleNames.length > 0 && filledAisleNames.every((n) => openAisles.has(n));
+  const toggleAllAisles = () => setOpenAisles(allAislesOpen ? new Set() : new Set(filledAisleNames));
   const total = allKeys.length;
   const done = checked.size;
   const pct = Math.round((done / total) * 100);
@@ -16808,6 +18753,8 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
     const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
     items.forEach((it, n2) => { const ai = findAisle(it.n); aisles[ai].items.push({ id: `voice-${Date.now()}-${n2}`, n: it.n, q: it.q, meals: list.name, have: false }); });
     onUpdate({ ...list, aisles });
+    const _touched = new Set(items.map((it) => bsGroceryAisleFor(it.n)));   // reveal aisles the spoken items landed in
+    setOpenAisles((prev) => { const n = new Set(prev); _touched.forEach((x) => n.add(x)); return n; });
     window.__bsToast?.(`Added ${items.length} item${items.length === 1 ? '' : 's'} from voice`, 'ok');
   };
   const voiceTap = async () => {
@@ -16842,7 +18789,6 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
       setVState('rec');
     } catch (e) { window.__bsToast?.('Microphone unavailable', 'err'); setVState('idle'); }
   };
-  const RR = 22, RC = 2 * Math.PI * RR;
 
   return (
     <BSPage>
@@ -16857,19 +18803,16 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
 
       <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
 
-      {/* Which list is showing — source chip + name; tap to switch lists */}
+      {/* Which list is showing — a slim name selector; tap to switch lists */}
       {(() => {
-        const src = list.kind === 'recipe'
-          ? { label: 'Recipe list', c: t.AMBER }
-          : list.kind === 'custom'
-          ? { label: 'Your library', c: '#8a5cf6' }
-          : { label: 'Nutri plan · this week', c: rust };
+        const src = list.kind === 'recipe' ? { c: t.AMBER } : list.kind === 'custom' ? { c: '#8a5cf6' } : { c: rust };
         return (
           <div style={{ padding: `12px ${t.padX}px 0` }}>
-            <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${bsTHexA(src.c, 0.35)}`, borderLeft: `3px solid ${src.c}`, background: `${src.c}0d`, padding: '11px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: src.c }}>{src.label}</span>
-              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name === "This week's plan" ? '' : list.name}</span>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: src.c, letterSpacing: '0.1em' }}>SWITCH ▾</span>
+            <button onClick={() => setPickerOpen(true)} aria-label="Choose a grocery list" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}` }}>
+              <span style={{ flexShrink: 0, width: 9, height: 9, borderRadius: 999, background: src.c }} />
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, letterSpacing: '0.08em' }}>{total} ITEMS</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 13, fontWeight: 800, color: src.c, lineHeight: 1 }}>▾</span>
             </button>
           </div>
         );
@@ -16920,69 +18863,59 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         onUpdate({ ...list, aisles });
       }} />
 
-      <div style={{ padding: `8px ${t.padX}px 24px` }}>
-        {/* Progress card — instrument plate */}
-        <BSPlate c={rust} tick bracket pad="10px 11px 10px 16px" style={{ marginTop: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: rust }}>PROGRESS</div>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{done}<span style={{ fontSize: 13, color: t.INK50, fontFamily: t.MONO }}>/{total}</span></div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, color: rust, letterSpacing: '0.03em' }}>~${estLeft} to go · {list.aisles.length} aisles · est. 22 min</div>
+      <div style={{ padding: `0 ${t.padX}px 24px` }}>
+        {/* Slim progress strip — one line + a thin fill (replaces the heavy plate) */}
+        {total > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{done}/{total} got · <span style={{ color: rust }}>{done < total ? <>~${estLeft} to go</> : 'all set'}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: rust }}>{pct}%</span>
             </div>
-            <svg width="38" height="38" viewBox="0 0 56 56" style={{ flexShrink: 0 }}>
-              <circle cx="28" cy="28" r={RR} fill="none" stroke={t.HAIR} strokeWidth="5" />
-              <circle cx="28" cy="28" r={RR} fill="none" stroke={rust} strokeWidth="5" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={RC * (1 - (total ? done / total : 0))} transform="rotate(-90 28 28)" />
-              <text x="28" y="29" textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.MONO, fontSize: '13px', fontWeight: 800, fill: rust }}>{total ? pct : 0}%</text>
-            </svg>
+            <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: rust, borderRadius: 2, transition: 'width 0.2s ease' }} /></div>
           </div>
-          <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${total ? pct : 0}%`, background: rust, borderRadius: 2 }} /></div>
-          <button onClick={sendInstacart} style={{ width: '100%', marginTop: 9, borderRadius: 8, border: 0, background: rust, color: '#fff', padding: '8px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
-          <div style={{ marginTop: 7, display: 'flex', gap: 7 }}>
-            <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '7px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Save to library</button>
-            <button onClick={shareList} style={{ borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '7px 15px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
-          </div>
-        </BSPlate>
+        )}
 
-        {/* Aisle tabs — filter so the list doesn't fill the screen */}
-        {list.aisles.length > 0 && (() => {
-          const ai = Math.min(activeAisle, list.aisles.length - 1);
-          const aisle = list.aisles[ai];
+        {/* Expand / collapse every aisle at once */}
+        {total > 0 && filledAisleNames.length > 1 && (
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={toggleAllAisles} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: rust, padding: '4px 0' }}>{allAislesOpen ? 'Collapse all ▴' : 'Expand all ▾'}</button>
+          </div>
+        )}
+
+        {/* The checklist — each aisle is a collapsible dropdown (tap the header) */}
+        {list.aisles.map((aisle, ai) => {
+          if (!aisle.items.length) return null;
+          const adone = aisleDoneCount(ai), afull = adone >= aisle.items.length;
+          const open = openAisles.has(aisle.aisle);
           return (
-            <div style={{ marginTop: 22 }}>
-              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
-                {list.aisles.map((a, i) => {
-                  const on = i === ai; const dn = aisleDoneCount(i); const full = a.items.length > 0 && dn >= a.items.length;
-                  return (
-                    <button key={a.aisle} onClick={() => setActiveAisle(i)} style={{ flexShrink: 0, borderRadius: 999, border: `1px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', color: on ? '#fff' : (full ? t.INK50 : t.INK), padding: '7px 14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap', textDecoration: full ? 'line-through' : 'none' }}>{a.aisle}</button>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>AISLE · {aisleDoneCount(ai)}/{aisle.items.length} ITEMS</div>
-                <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{aisle.aisle}</div>
-                <div style={{ marginTop: 8 }}>
-                  {aisle.items.map((it, ii) => {
-                    const k = `${ai}-${ii}`; const on = checked.has(k);
-                    return (
-                      <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '14px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
-                        <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
-                          {it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em' }}>{it.meals}</div>}
-                        </div>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
-                          {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {aisle.items.length === 0 && <div style={{ padding: '14px 0', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{editable ? 'No items yet.' : 'Nothing here.'}</div>}
-                </div>
-              </div>
+            <div key={`${aisle.aisle}-${ai}`} style={{ marginTop: filledAisleNames.length > 1 ? 12 : 18 }}>
+              <button onClick={() => toggleAisle(aisle.aisle)} aria-expanded={open} aria-label={`${aisle.aisle}, ${adone} of ${aisle.items.length} got`} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '5px 0 10px', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, color: afull ? rust : t.INK50, flexShrink: 0, width: 10 }}>{open ? '▾' : '▸'}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', textDecoration: afull ? 'line-through' : 'none', opacity: afull ? 0.55 : 1 }}>{aisle.aisle}</span>
+                </span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', color: afull ? rust : t.INK50, flexShrink: 0 }}>{adone}/{aisle.items.length}</span>
+              </button>
+              {open && aisle.items.map((it, ii) => {
+                const k = `${ai}-${ii}`; const on = checked.has(k);
+                return (
+                  <div key={k} onClick={() => toggle(k)} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: '13px 0', cursor: 'pointer', borderTop: ii ? `1px solid ${t.HAIR}` : 0, opacity: on ? 0.5 : 1 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? rust : t.RULE}`, background: on ? rust : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
+                      {it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em' }}>{it.meals}</div>}
+                    </div>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 11, color: rust, fontWeight: 700 }}>{it.q}</span>
+                      {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label="Remove" style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0 }}>×</button>}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           );
-        })()}
+        })}
+        {total === 0 && <div style={{ padding: '30px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{editable ? 'Add your first item below.' : 'This list is empty.'}</div>}
 
         {/* Add item (editable lists) — type one, or speak the whole list */}
         {editable && (
@@ -17011,6 +18944,17 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
               {vState === 'rec' ? 'Stop & add items' : vState === 'busy' ? 'Adding from voice…' : 'Speak your list — auto-adds each item'}
             </button>
             {vState === 'rec' && <style>{`@keyframes bsGrocBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>}
+          </div>
+        )}
+
+        {/* Actions — one bar: Instacart primary, Save + Share secondary */}
+        {total > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <button onClick={sendInstacart} style={{ width: '100%', borderRadius: 8, border: 0, background: rust, color: '#fff', padding: '12px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>Send to Instacart →</button>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+              <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: grocerySaved ? `${rust}14` : 'transparent', color: rust, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? '✓ Saved' : '+ Save to library'}</button>
+              <button onClick={shareList} style={{ flex: 1, borderRadius: 8, border: `1px solid ${rust}`, background: 'transparent', color: rust, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Share</button>
+            </div>
           </div>
         )}
       </div>
@@ -17217,6 +19161,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showHelp, setShowHelp] = useStateBSC(false);
   const [showPrivacy, setShowPrivacy] = useStateBSC(false);
   const [showDataCompliance, setShowDataCompliance] = useStateBSC(false);
+  const [showCodeOfConduct, setShowCodeOfConduct] = useStateBSC(false);
+  const [showConsumerHealth, setShowConsumerHealth] = useStateBSC(false);
+  const [showSubprocessors, setShowSubprocessors] = useStateBSC(false);
   const [showAbout, setShowAbout] = useStateBSC(initialPage === 'about-shape');
   const [showPricing, setShowPricing] = useStateBSC(initialPage === 'pricing');
   const [showSessions, setShowSessions] = useStateBSC(false);
@@ -17428,12 +19375,45 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   };
 
   const requestAccountAction = async (action) => {
-    const confirms = {
-      Export: 'Email a copy of all your data to the address on file?',
-      Pause: 'Pause your membership? You keep your data and can resume anytime.',
-      Delete: 'Permanently delete your account and all data? This cannot be undone.',
-    };
-    if (!window.confirm(confirms[action] || `Confirm ${action}?`)) return;
+    // Export is now a real, self-serve download of the user's own data.
+    if (action === 'Export') {
+      const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+      if (!signedIn) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
+      if (!window.confirm('Download a copy of all the data Shape holds about you?')) return;
+      try {
+        const res = await fetch('/api/account/export', { credentials: 'same-origin' });
+        if (res.status === 401) { window.__bsToast?.('Sign in to export your data.', 'err'); return; }
+        if (!res.ok) throw new Error('export failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        window.__bsToast?.('Your data export is downloading.', 'ok');
+      } catch (err) {
+        window.__bsToast?.('Could not export — email privacy@theshapecommunity.com', 'err');
+      }
+      return;
+    }
+    // Delete is now a real, irreversible erasure — guard it with a typed confirm.
+    if (action === 'Delete') {
+      if (!(window.ShapeAuth?.getCachedState?.()?.user?.id)) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
+      if (!window.confirm('Permanently delete your account and ALL your data? This cannot be undone.')) return;
+      const typed = window.prompt('This erases your health data, history, photos, and account for good. Type DELETE to confirm.');
+      if ((typed || '').trim().toUpperCase() !== 'DELETE') { window.__bsToast?.('Deletion cancelled.', 'ok'); return; }
+      try {
+        const res = await fetch('/api/account/delete', { method: 'POST', credentials: 'same-origin' });
+        if (res.status === 401) { window.__bsToast?.('Sign in to delete your account.', 'err'); return; }
+        if (!res.ok) throw new Error('delete failed');
+        window.__bsToast?.('Your account and data have been deleted.', 'ok');
+        setTimeout(onLogout, 1500);
+      } catch (err) {
+        window.__bsToast?.('Could not delete — email privacy@theshapecommunity.com', 'err');
+      }
+      return;
+    }
+    if (!window.confirm('Pause your membership? You keep your data and can resume anytime.')) return;
     try {
       await fetch('/api/me/account-action', {
         method: 'POST', credentials: 'same-origin',
@@ -17441,7 +19421,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         body: JSON.stringify({ action }),
       }).catch(() => null);
       window.__bsToast?.(`${action} request submitted — we’ll email a confirmation.`, 'ok');
-      if (action === 'Delete') setTimeout(onLogout, 1500);
     } catch (err) {
       window.__bsToast?.(`${action} failed`, 'err');
     }
@@ -17749,19 +19728,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   );
                 })}
               </div>
+              {s.desc && <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
             </div>
           );
         }
         const value = s.key ? prefs[s.key] : s.r;
         const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
         return (
-          <div key={i} onClick={onTap} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder,
-            cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
-          }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-            {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+          <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
+            <div onClick={onTap} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
+            }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
+              {value && <BSEyebrow color={s.key ? t.ACCENT : undefined}>{value}</BSEyebrow>}
+            </div>
+            {s.desc && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
           </div>
         );
       })}
@@ -17782,6 +19764,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   }
   if (showDataCompliance) {
     return <BSDataCompliancePage onBack={() => setShowDataCompliance(false)} onContact={() => { setShowDataCompliance(false); setShowContact(true); }} />;
+  }
+  if (showCodeOfConduct) {
+    return <BSCodeOfConductPage onBack={() => setShowCodeOfConduct(false)} onContact={() => { setShowCodeOfConduct(false); setShowContact(true); }} />;
+  }
+  if (showConsumerHealth) {
+    return <BSConsumerHealthPage onBack={() => setShowConsumerHealth(false)} onContact={() => { setShowConsumerHealth(false); setShowContact(true); }} />;
+  }
+  if (showSubprocessors) {
+    return <BSSubprocessorsPage onBack={() => setShowSubprocessors(false)} onContact={() => { setShowSubprocessors(false); setShowContact(true); }} />;
   }
   if (showAbout) {
     return <BSAboutPage onBack={() => setShowAbout(false)} />;
@@ -17946,9 +19937,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       title: 'Privacy & data',
       meta: '',
       rows: [
-        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility },
-        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible },
-        { l: 'Share workout data', key: 'shareWorkoutData' },
+        { l: 'Profile visibility', key: 'profileVisibility', segmented: PREF_OPTIONS.profileVisibility, desc: 'Who can open your full profile — your activity, climb, and stats. Public: anyone on Shape. Just friends: only members you share a chat with. Private: hidden, so others see just your name and tier.' },
+        { l: 'Show when I’m online', key: 'onlineVisible', segmented: PREF_OPTIONS.onlineVisible, desc: 'When on, a live dot shows on your avatar so others can see you’re active in the app right now. Turn it off to browse privately — your presence is never shown.' },
+        { l: 'Share workout data', key: 'shareWorkoutData', desc: 'When on, your logged workouts, PRs, and activity can appear on your profile and in the community feed. Off keeps your training visible only to you and your linked coach(es).' },
       ],
     },
     {
@@ -17972,6 +19963,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: 'Terms of service',r: 'Legal', action: () => setShowTerms(true) },
         { l: 'Privacy policy',  r: 'Legal', action: () => setShowPrivacy(true) },
         { l: 'Data & compliance', r: 'Legal', action: () => setShowDataCompliance(true) },
+        { l: 'Code of conduct', r: 'Legal', action: () => setShowCodeOfConduct(true) },
+        { l: 'Consumer health data', r: 'Legal', action: () => setShowConsumerHealth(true) },
+        { l: 'Subprocessors', r: 'Legal', action: () => setShowSubprocessors(true) },
       ],
     },
     { title: 'Nutrition', meta: '', rows: nutritionRows },
@@ -17983,7 +19977,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const findSec = (title) => sections.find(s => s.title === title) || { rows: [] };
   const notifOn = ['workoutReminders', 'coachReplies', 'weeklyDigest', 'community'].filter(k => prefs[k] !== 'Off').length;
   const accountActionRows = [
-    { l: 'Export all my data', r: 'Request file', act: 'Export' },
+    { l: 'Export all my data', r: 'Download', act: 'Export' },
     { l: 'Pause membership', r: 'Keep account', act: 'Pause' },
     { l: 'Delete account', r: 'Permanent', act: 'Delete', alert: true },
   ];
@@ -18076,7 +20070,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {!editing ? (
           <div>
             <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
-              {[['Shape Score', () => setShowScore(true)], ['Streak', () => setShowProgress(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
+              {[['Shape Score', () => setShowScore(true)], ['Store', () => setShowStore(true)], ['About', () => setShowAbout(true)]].map(([l, on]) => (
                 <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '7px 5px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
               ))}
             </div>
@@ -18085,23 +20079,18 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           (() => {
             const teal = t.isLight ? '#0a8f87' : '#34d6c5';
             const acc = bsMyTierColor(); // avatar + form accent follow my Shape Score tier (not a chosen color)
-            const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 7 };
-            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', border: `1px solid ${t.RULE}`, background: t.PAPER2, borderRadius: 12, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
-            const sectionHead = (txt) => <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(acc, 0.85), margin: '18px 0 11px', display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 14, height: 1.5, background: acc, borderRadius: 2 }} />{txt}</div>;
+            const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, letterSpacing: 0, textTransform: 'none', color: t.INK70, marginBottom: 6 };
+            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.035), borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s, background 0.15s' };
+            const sectionHead = (txt) => <div style={{ fontFamily: t.BODY, fontSize: 12, fontWeight: 700, letterSpacing: 0, textTransform: 'none', color: t.INK50, margin: '22px 0 11px' }}>{txt}</div>;
             const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
             return (
             <div>
-              {/* Form header */}
-              <div style={{ marginBottom: 4 }}>
-                <BSEyebrow color={acc}>Edit · Profile</BSEyebrow>
-                <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Your <span style={{ fontStyle: 'italic', color: acc }}>profile.</span></div>
-              </div>
               {sectionHead('Photo & avatar')}
               {/* Avatar (tap ✎ to change the photo — no separate button) + the
                   tier-color note. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
                 <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
-                <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ minWidth: 0, fontFamily: t.BODY, fontSize: 12, fontWeight: 500, color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                   <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
                   {bsMyTier()} tier color
                 </div>
@@ -18113,7 +20102,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'inline-flex', border: `1px solid ${t.RULE}`, borderRadius: 999, overflow: 'hidden', background: t.PAPER2 }}>
                   {[['photo', 'Photo'], ['initials', 'Initials']].map(([val, label]) => {
                     const on = (draft.avatarMode || 'photo') === val;
-                    return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
+                    return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, letterSpacing: 0 }}>{label}</button>;
                   })}
                 </div>
               </div>
@@ -18149,7 +20138,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {pronounOpts.map(p => {
                     const on = draft.pronouns === p;
-                    return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '8px 13px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em' }}>{p}</button>;
+                    return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '9px 15px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.BODY, fontSize: 13, fontWeight: 500, letterSpacing: 0 }}>{p}</button>;
                   })}
                 </div>
               </div>
@@ -18162,14 +20151,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                   style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
               </label>
 
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 9, marginTop: 4 }}>
                 <button onClick={cancelEdit} style={{ borderRadius: 999,
-                  flex: '0 0 auto', padding: '13px 22px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+                  flex: '0 0 auto', padding: '14px 24px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer',
+                  fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 600,
                 }}>Cancel</button>
                 <button onClick={saveEdit} style={{ borderRadius: 999,
-                  flex: 1, padding: '13px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
-                  fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800,
+                  flex: 1, padding: '14px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
+                  fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 700,
                 }}>Save changes</button>
               </div>
             </div>
@@ -18634,7 +20623,7 @@ function BSContactPage({ onBack }) {
   };
   const contactActions = [
     { label: 'Call', value: '(203) 526-3314', action: () => { window.location.href = 'tel:+12035263314'; } },
-    { label: 'Email', value: 'christopher.perry@theshapecommunity.com', action: () => { window.location.href = 'mailto:christopher.perry@theshapecommunity.com'; } },
+    { label: 'Email', value: 'info@theshapecommunity.com', action: () => { window.location.href = 'mailto:info@theshapecommunity.com'; } },
     { label: 'Instagram', value: '@theshapecommunity', action: () => { window.location.href = 'https://instagram.com/theshapecommunity'; } },
   ];
   const submit = () => {
@@ -18964,6 +20953,74 @@ function BSClientNextPlate() {
     </div>
   );
 }
+// BSWeekendsCard — member weekday-vs-weekend adherence split in the Progress
+// hub Overall tab. Reads window.ShapeProgress.weekendSplit() (Task 4). All
+// states handled: null/insufficient → nothing; building → gentle plate;
+// ok flagged → headline gap + upside; ok steady → holds steady.
+// Signed-out / !isSelf → render nothing (no fabricated numbers).
+function BSWeekendsCard({ isSelf }) {
+  const t = useBS();
+  const BSPlate = window.BSPlate;
+  const [data, setData] = React.useState(null);
+  React.useEffect(() => {
+    if (!isSelf || !window.ShapeProgress?.weekendSplit) return;
+    let alive = true;
+    window.ShapeProgress.weekendSplit().then((d) => { if (alive) setData(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [isSelf]);
+
+  // Absent / too-thin → render nothing (honest empty: no card at all).
+  if (!isSelf || !data || data.status === 'insufficient') return null;
+
+  const dims = data.dimensions || {};
+  const present = ['nutrition', 'habits'].map((k) => [k, dims[k]]).filter(([, d]) => d);
+  if (data.status === 'building' || !present.length) {
+    return (
+      <div style={{ marginBottom: 18 }}>
+        <BSPlate c={t.ACCENT}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>WEEKENDS</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, marginTop: 4 }}>Still learning your weekend pattern.</div>
+          <div style={{ fontSize: 12, color: t.INK70, marginTop: 6 }}>A few more weekends of logging and this fills in.</div>
+        </BSPlate>
+      </div>
+    );
+  }
+
+  // Lead with the module's RANKED worst dimension (lower-CI bound), not array
+  // order — so when both are flagged the headline names the stronger signal.
+  const flagged = data.worstDimension
+    ? (present.find(([k]) => k === data.worstDimension) || null)
+    : null;
+  const label = (k) => (k === 'nutrition' ? 'Nutrition' : 'Habits');
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const headline = flagged
+    ? `Your weekends run ${Math.round(flagged[1].gapPp)} pts under your weekdays on ${label(flagged[0]).toLowerCase()}.`
+    : 'Your weekends hold steady with your weekdays.';
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <BSPlate c={flagged ? teal : t.ACCENT}>
+        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>WEEKENDS</div>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, marginTop: 4 }}>{headline}</div>
+        <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+          {present.map(([k, d]) => (
+            <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'baseline' }}>
+              <span style={{ fontSize: 13, color: t.INK }}>{label(k)}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}%
+              </span>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+                {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}
+              </span>
+            </div>
+          ))}
+        </div>
+        {flagged && <div style={{ fontSize: 12, color: t.INK70, marginTop: 8 }}>Closing that gap is your easiest win this month.</div>}
+      </BSPlate>
+    </div>
+  );
+}
+
 function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -18975,6 +21032,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const [trend, setTrend] = useStateBSC('weight');
   const [measRows, setMeasRows] = useStateBSC([]);
   const [photoRows, setPhotoRows] = useStateBSC([]);
+  const [strengthOpen, setStrengthOpen] = useStateBSC(null); // null | { key } when open
   React.useEffect(() => {
     let on = true;
     window.ShapeProgress?.progress?.().then((d) => { if (on && d) setProg(d); }).catch(() => {});
@@ -19023,17 +21081,9 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
         { k: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', l: 'Body fat', sub: kpis.bodyFatFirst != null ? `from ${kpis.bodyFatFirst.toFixed(1)}%` : null },
         { k: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', l: 'Resting HR', sub: kpis.restingHrDelta != null ? `${kpis.restingHrDelta > 0 ? '+' : kpis.restingHrDelta < 0 ? '−' : ''}${Math.abs(kpis.restingHrDelta)} vs prior wk` : null },
         { k: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', l: 'Sleep', sub: '30-day avg' },
+        { k: ana && ana.kpis && ana.kpis.weekly_points != null ? `${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}` : '—', l: 'Weekly points', sub: 'this week' },
       ])}
-      {ana && ana.kpis && (
-        <div style={{ ...card, marginBottom: 18 }}>
-          <Eyebrow>Insights · this week</Eyebrow>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[[`${ana.kpis.workout_adherence_pct}%`, 'Workout adherence'], [`${ana.kpis.macro_adherence_pct}%`, 'Macro adherence'], [ana.kpis.avg_sleep_label, 'Avg sleep'], [`${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}`, 'Weekly points']].map((m, i) => (
-              <div key={i}><div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, lineHeight: 1 }}>{m[0]}</div><div style={{ fontFamily: t.BODY, fontSize: 10.5, color: t.INK50, marginTop: 5 }}>{m[1]}</div></div>
-            ))}
-          </div>
-        </div>
-      )}
+      <BSWeekendsCard isSelf={signedIn} />
       <div style={{ ...card, marginBottom: 18 }}>
         <Eyebrow>Trends</Eyebrow>
         <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 12 }}>
@@ -19048,8 +21098,11 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
       <div style={card}>
         <Eyebrow>Personal records · from your sets</Eyebrow>
         {(O.prs || []).map((p, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-            <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{p.move}</div>
+          <div key={i} onClick={() => setStrengthOpen({})} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0, cursor: 'pointer' }}>
+            <div>
+              <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{p.move}</div>
+              {p.e1rm != null && <div style={{ fontFamily: t.MONO, fontSize: 9, color: teal, marginTop: 2 }}>≈ {Math.round(p.e1rm)} {p.unit} e1RM</div>}
+            </div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, letterSpacing: '-0.01em' }}>{Math.round(p.best)} {p.unit}</div>
             <div style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>{p.bestReps != null ? '× ' + p.bestReps : ''}</div>
           </div>
@@ -19113,6 +21166,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const maxVol = Math.max(1, ...volDays);
   const trainingView = (
     <div>
+      <BSStrengthCard onOpen={() => setStrengthOpen({})} />
       {kpiGrid([
         { k: String(ts.completedCount ?? 0), l: 'Workouts logged' },
         { k: String(ts.thisWeekCount ?? 0), l: 'This week' },
@@ -19238,7 +21292,8 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   if (embedded) {
     const Provider = (typeof window !== 'undefined' && window.BSContext && window.BSContext.Provider);
     const body = (
-      <div>
+      <div style={{ position: 'relative' }}>
+        {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
         {tabRow}
         <div style={{ marginTop: 16 }}>{tabBody}</div>
       </div>
@@ -19247,6 +21302,7 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   }
   return (
     <BSPage>
+      {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
       <BSDetailHeader onBack={onBack} eyebrow="Strength · body · recovery" kicker="Your progress" title={<>Progress.</>} />
       <BSClientNextPlate />
       <div style={{ padding: `12px ${t.padX}px 0` }}>{tabRow}</div>
@@ -19264,14 +21320,6 @@ function BSAboutPage({ onBack }) {
   // Same letter the website runs — drop-cap intro + two pull-quotes.
   const para = { fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.72, color: t.INK70, margin: '0 0 22px' };
   const pull = { fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 22, lineHeight: 1.18, letterSpacing: '-0.02em', fontWeight: 500, color: t.INK, margin: '30px 0' };
-  const pillars = [
-    ["Personal coaching, lower cost", "Browse, message, and hire vetted trainers and nutritionists before you pay anything. $5/mo flat to the platform. Your coach sets their own rate and gets paid directly."],
-    ["A real community", "Share your week if you want to — or don't. Either way, you can find tips, recipes, recommended coaches, and people who get what you're trying to do."],
-    ["Shape Radio + the soundtrack", "Ad-free mixes built for movement, included with every membership. Your coach can drop a playlist onto a workout and it plays right on the card."],
-    ["Lifestyle, structured", "Habit tracking, grocery lists that build themselves, meal plans you actually follow, Shape Score that reads the truth at the end of the week. Build the good ones. Break the bad ones."],
-    ["Goals that are yours", "Tell us what you're shaping toward — strength, weight, sleep, calm, a marathon, just feeling like yourself again. We help you plan around it and your coach holds the line."],
-    ["Public if you want, private always", "Your data is yours. Share your progress with the community when you feel like it. Keep it locked when you don't. There's no algorithm pushing you to overshare."],
-  ];
   return (
     <BSPage>
       {/* minimal back row (the hero is the title, mirroring the website) */}
@@ -19279,7 +21327,7 @@ function BSAboutPage({ onBack }) {
         <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← Back</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>About · Shape</span>
-          <BSMeCorner size={30} />
+          <BSMeCorner />
         </div>
       </div>
 
@@ -19291,10 +21339,6 @@ function BSAboutPage({ onBack }) {
         <p style={{ fontFamily: t.DISPLAY, fontSize: 16, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.005em', color: t.INK70, margin: '28px auto 0', maxWidth: 560, lineHeight: 1.55 }}>
           Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point.
         </p>
-        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }} aria-hidden>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.INK50 }}>The idea</span>
-          <span style={{ width: 1, height: 48, background: `linear-gradient(to bottom, transparent, ${teal})`, display: 'block' }} />
-        </div>
       </div>
 
       {/* THE IDEA — coach platform + social network (leads, right after the hero) */}
@@ -19341,21 +21385,6 @@ function BSAboutPage({ onBack }) {
         <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>The community isn't a forum. It's the people in your loop.</div>
 
         <p style={{ ...para, marginBottom: 0 }}>Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.</p>
-      </div>
-
-      {/* PILLARS */}
-      <div style={{ padding: `48px ${px}px 8px` }}>
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, marginBottom: 12 }}>What you get</div>
-          <h3 style={{ fontFamily: t.DISPLAY, fontSize: 30, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.05, color: t.INK }}>One place for the <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>whole loop</em>.</h3>
-        </div>
-        {pillars.map(([h, p], i) => (
-          <div key={i} style={{ borderTop: `1px solid ${t.RULE}`, paddingTop: 18, marginBottom: 26 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', color: tealB, marginBottom: 11 }}>{String(i + 1).padStart(2, '0')}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, letterSpacing: '-0.015em', fontWeight: 400, fontStyle: 'italic', color: t.INK, lineHeight: 1.18, marginBottom: 11 }}>{h}</div>
-            <p style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.55, margin: 0 }}>{p}</p>
-          </div>
-        ))}
       </div>
 
       {/* CTA */}
@@ -19496,14 +21525,15 @@ function BSTermsPage({ onBack, onContact }) {
     ['03', 'Memberships & payments', 'Client membership is billed monthly. Coach subscriptions, sessions, programs, and meal plans are priced by each provider. Payments are processed through Stripe.'],
     ['04', 'Coaches', 'Trainers and nutritionists operate as independent providers, responsible for credentials, scope of practice, taxes, service quality, and client delivery. Unless a coach shows a Verified badge, the credentials on their profile are self-reported and not independently verified by Shape.'],
     ['05', 'Content & conduct', 'Users keep ownership of uploaded content, but must avoid false claims, harassment, infringement, scraping, malware, impersonation, and unlawful activity.'],
+    ['05b', 'Code of Conduct', 'The Code of Conduct sets the standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Most problems start with a warning and a chance to fix things, but safety, fraud, illegal, and abuse violations are zero-tolerance, and coaches are held to a higher professional bar (credentials, scope of practice, client safety, no off-platform fee-dodging). Full text at theshapecommunity.com/code-of-conduct.html.'],
     ['06', 'Shape Score & rewards', 'Points can be earned through qualifying activity and redeemed in Shape Store. Points are not cash, are not transferable, and may be adjusted for abuse.'],
-    ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to christopher.perry@theshapecommunity.com.'],
+    ['07', 'IP', 'The Shape name, logo, design, and platform experience belong to Shape. Copyright concerns can be sent to info@theshapecommunity.com.'],
     ['08', 'Music & audio', 'Coach playlists, soundtracks, and Shape Radio play through your own connected music account (e.g., Spotify) under that provider\'s license to you. Shape does not host, stream, or license the music itself; your use of a connected music service follows that service\'s own terms.'],
     ['09', 'Health disclaimer', 'Shape is not medical care; training, nutrition, and coach guidance are informational and don\'t replace licensed medical advice. Health/screening info you enter (PAR-Q, injuries, medications) helps your coach work with you safely and is shared only with your linked coach(es); see the Privacy Policy and Data & Compliance page for how it\'s stored and protected.'],
     ['10', 'Liability', 'Shape limits liability to the extent allowed by law. Some jurisdictions may provide rights that cannot be waived.'],
     ['11', 'Disputes', 'The terms include informal dispute resolution, arbitration, class-action waiver language, and Delaware governing law.'],
-    ['12', 'Termination', 'Accounts may be closed by the user or removed by Shape for serious violations, fraud, safety issues, or breach of platform rules.'],
-    ['13', 'Changes & contact', 'Material changes are announced in advance. Questions go to christopher.perry@theshapecommunity.com or the contact page.'],
+    ['12', 'Termination', 'You can close your account anytime. Shape uses warnings and escalating steps for most issues, but bans immediately — without refund — for serious ones (safety, fraud, illegal activity, abuse, or breaking the Code of Conduct). Banned users may not register again or evade a ban. Appeals within 30 days.'],
+    ['13', 'Changes & contact', 'Material changes are announced in advance. Questions go to info@theshapecommunity.com or the contact page.'],
   ];
 
   return (
@@ -19517,7 +21547,7 @@ function BSTermsPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
         </div>
@@ -19583,17 +21613,17 @@ function BSPrivacyPage({ onBack, onContact }) {
   const t = useBS();
   const sections = [
     ['01', 'What we collect', 'Account details (name, email), your profile and goals, the workouts, meals, and habits you log, messages with your coach, payment info processed by Stripe, and basic device/usage data.'],
-    ['02', 'Health & medical data', 'Coaching involves sensitive health info: your PAR-Q screening, injuries, medications, emergency contact, body measurements, progress photos, weigh-ins, weekly check-ins, and wearable recovery data (HR, HRV, sleep). We treat it as sensitive — per-user row-level access and private signed-URL storage for photos/voice. Only you and your linked coach(es) see it; your safety screening is shared so a coach can work with you safely. Shape is a fitness platform, not a healthcare provider — this is consumer health data, not HIPAA PHI — but we still protect it. View, export, or delete it any time in Settings.'],
-    ['03', 'How we use it', 'To run your account, deliver coaching, personalize your plans and Shape Score, process payments, keep the platform safe, and improve the product.'],
-    ['04', 'Wearables & integrations', 'If you connect Strava, Whoop, Oura, Garmin, Apple Health, or Spotify, we access only what those scopes allow — to show your activity, recovery, and music. Disconnect any time in Settings.'],
-    ['05', 'Sharing', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. We do not sell your personal data.'],
+    ['02', 'Health & medical data', 'Coaching involves sensitive consumer health data: your PAR-Q screening, prescription medications, allergies, pregnancy status, medical conditions, injuries, emergency contact, body measurements, progress photos, weigh-ins, weekly check-ins, and wearable recovery data (HR, HRV, sleep). We ask for your consent before collecting it and treat it as sensitive — per-user row-level access and private signed-URL storage for photos/voice. Only you and your linked coach(es) see it; your safety screening is shared so a coach can work with you safely. Shape is a fitness platform, not a healthcare provider — this is consumer health data, not HIPAA PHI — but we still protect it. View, download, or delete it any time in Settings. Full detail is in our Consumer Health Data Privacy Policy at theshapecommunity.com/health-data-privacy.html.'],
+    ['03', 'How we use it', 'To run your account, deliver coaching, personalize your plans and Shape Score, process payments, keep the platform safe, and improve the product. We do not use your health or fitness data to train AI models, and do not sell it or use it for advertising.'],
+    ['04', 'Wearables & integrations', 'If you connect Apple Health, Strava, Whoop, Oura, Garmin, or Spotify, we access only what those scopes allow — to show your activity, recovery, and music. Each connection asks for your consent, and you can disconnect any time in Settings.'],
+    ['05', 'Sharing & AI', 'Your coach sees the data needed to coach you. We rely on processors like Supabase and Stripe to run the service. The "Nora" assistant and voice features are powered by OpenAI, which can receive health and fitness context to generate your response. We do not sell your personal data. The full processor list is at theshapecommunity.com/subprocessors.html.'],
     ['06', 'Public profile & leaderboard', 'Some profile info is visible to other members by design: your name/handle, photo, role, Shape Score and tier, and anything you post publicly. It can appear on your profile, in community feeds, search, and leaderboards. Set Public / Friends / Private in Settings. Your health, training, and nutrition data is never public — only you and your linked coach(es) see it.'],
     ['07', 'Cookies & tracking', 'On the web, Shape uses strictly-necessary cookies (login session, CSRF) and functional cookies (your preferences). Analytics is cookieless (Vercel) — no advertising pixels or cross-site tracking; Stripe sets fraud-prevention cookies on payment pages. The native app uses secure device storage, not cookies.'],
-    ['08', 'Your choices', 'You can view, edit, export, or delete your data from Settings, and control notifications and profile visibility.'],
+    ['08', 'Your choices & rights', 'Edit your data and control notifications and profile visibility in Settings. Access, correct, download, or delete your data, withdraw consent, or opt out from Settings → Privacy & data, or by emailing privacy@theshapecommunity.com. We do not sell or share your data for advertising; we recognize the Global Privacy Control signal. You may appeal a decision and use an authorized agent; we respond within the time the applicable law requires. The Shape Score rewards program is voluntary — see the Notice of Financial Incentive in the full Privacy Policy.'],
     ['09', 'Security', 'Data is encrypted in transit, access is row-level restricted per user, and integration tokens are stored server-side — never in the app bundle.'],
     ['10', 'Retention', 'We keep your data while your account is active and for a reasonable period afterward, unless you ask us to delete it sooner.'],
     ['11', 'Children', 'Shape is for users 18 and older. We do not knowingly collect data from children.'],
-    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions: christopher.perry@theshapecommunity.com.'],
+    ['12', 'Changes & contact', 'Material changes are announced in advance. Questions: info@theshapecommunity.com.'],
   ];
 
   return (
@@ -19607,7 +21637,7 @@ function BSPrivacyPage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           How Shape collects, uses, and protects your data — across training, nutrition, recovery, payments, and the coaches you work with.
         </div>
@@ -19646,13 +21676,14 @@ function BSDataCompliancePage({ onBack, onContact }) {
   const t = useBS();
   const sections = [
     ['01', 'Where your data lives', 'Shape runs on Supabase (managed Postgres database, authentication, and file storage) hosted in the United States. Files like progress photos and voice notes are kept in private storage buckets, served only through short-lived signed URLs.'],
-    ['02', 'Subprocessors', 'Supabase (database, auth, storage), Stripe (payments/payouts), Vercel (hosting), Cloudflare (DNS/network), Resend (email), OpenAI (the in-app "Nora" assistant — only your support questions, never health records), and the wearable/audio providers you connect (Strava, Garmin, Whoop, Apple Health, Oura, Spotify). Each is bound by contract to use data only to provide its service to Shape.'],
-    ['03', 'Security measures', 'TLS 1.2+ in transit; encryption at rest; per-user row-level security so only you and your linked coach reach your data; private, signed-URL storage for sensitive files; API rate limiting and request validation; integration tokens stored server-side, never in the app bundle; least-privilege keys; automated dependency audits and code review on every change.'],
-    ['04', 'Health & sensitive data', 'Health info you enter is consumer health data, not HIPAA PHI, and we treat it as sensitive. It is share-gated to the coach(es) you choose; your safety screening is shared so a coach can work with you safely. See the Privacy Policy\'s Health & medical data section for detail.'],
-    ['05', 'Your rights & requests', 'Access, export, correct, or delete your data from Settings or by email; we verify identity and respond within 30 days. We honor GDPR (EEA/UK) and CCPA/CPRA (California) rights. We do not sell personal data, and we do not use your health or fitness data for advertising or to train ML models. Email christopher.perry@theshapecommunity.com.'],
-    ['06', 'Coaches & data responsibility', 'Trainers and nutritionists are independent professionals. When coaching you they receive only the data needed and agree to keep it confidential, use it solely to coach you, and meet their own legal obligations. Shape provides the security tooling; coaches are responsible for their own conduct and compliance.'],
-    ['07', 'Breach response', 'If a breach affects your personal data, we notify you and any regulator required by law, typically within 72 hours of discovery.'],
-    ['08', 'Contact', 'christopher.perry@theshapecommunity.com for any data, security, or compliance question — same address for security reports.'],
+    ['02', 'Subprocessors', 'Supabase (database, authentication, file storage), Stripe (payments and payouts), Vercel (web hosting and product analytics), Cloudflare (DNS, network security, and the Turnstile bot check), OpenAI (the "Nora" assistant, voice transcription, and text-to-speech — see "AI features" below), Google Firebase Cloud Messaging (push notifications), Resend (email), and Instacart (only if you send a grocery list to it). You can also connect wearable and audio services (Apple Health, Strava, Garmin, Whoop, Oura, Spotify). Each is bound by contract to use your data only to provide its service to Shape. The full list — with the data each receives and where it is processed — is at theshapecommunity.com/subprocessors.html.'],
+    ['03', 'AI features', 'The "Nora" assistant, voice transcription, and text-to-speech are powered by OpenAI. Depending on the feature you use, the text sent can include health and fitness context — for example a summary of your recovery, sleep, weight, or training, or a voice meal-note you record. It is processed only to generate your response. Shape does not use your data to train AI models, and does not sell it or use it for advertising.'],
+    ['04', 'Security measures', 'TLS 1.2+ in transit; encryption at rest; per-user row-level security so only you and your linked coach reach your data; private, signed-URL storage for sensitive files; API rate limiting and request validation; integration tokens stored server-side, never in the app bundle; least-privilege keys; automated dependency audits and code review on every change.'],
+    ['05', 'Health & sensitive data', 'Coaching involves sensitive consumer health data — your PAR-Q screening, prescription medications, allergies, pregnancy status, medical conditions, injuries, body measurements, weigh-ins, progress photos, weekly check-ins, and wearable recovery data (HR, HRV, sleep). It is consumer health data, not HIPAA PHI, and we treat it as sensitive: per-user row-level access and private, signed-URL storage. It is share-gated to the coach(es) you choose; your safety screening is shared so a coach can work with you safely. We ask for your consent before collecting it. See our Consumer Health Data Privacy Policy at theshapecommunity.com/health-data-privacy.html.'],
+    ['06', 'Your rights & requests', 'Access, correct, delete, or download your data, withdraw consent, and opt out — from Settings or by emailing privacy@theshapecommunity.com. We honor GDPR (EEA/UK), CCPA/CPRA (California), the other US state privacy laws, and consumer-health-data laws including Washington\'s My Health My Data Act, and we recognize the Global Privacy Control signal. We do not sell your personal data, do not use it for advertising, and do not use your health or fitness data to train AI models. We respond within the timelines the applicable law requires.'],
+    ['07', 'Coaches & data responsibility', 'Trainers and nutritionists are independent professionals and independent recipients of the data you choose to share with them. When coaching you they receive only the data needed and agree to keep it confidential, use it solely to coach you, and meet their own legal obligations. Shape provides the security tooling; coaches are responsible for their own conduct and compliance.'],
+    ['08', 'Breach response', 'If a breach affects your personal data, we notify you and any regulator required by law, typically within 72 hours of discovery.'],
+    ['09', 'Contact', 'privacy@theshapecommunity.com for any data, security, or compliance question — same address for security reports.'],
   ];
 
   return (
@@ -19666,7 +21697,7 @@ function BSDataCompliancePage({ onBack, onContact }) {
       />
 
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 15, 2026</BSEyebrow>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
           Where your Shape data lives, who processes it, how we secure it, and how we handle privacy & compliance.
         </div>
@@ -19697,6 +21728,117 @@ function BSDataCompliancePage({ onBack, onContact }) {
       </div>
 
       <BSFooter right="Data" />
+    </BSPage>
+  );
+}
+
+// Shared render helpers for the in-app legal summary pages (Code of Conduct,
+// Consumer health data, Subprocessors) — same look as Terms/Privacy/Data.
+function BSLegalSections({ sections }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      {sections.map(([num, title, body], i, arr) => (
+        <div key={num} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: 12, padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
+          <div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
+            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function BSLegalActions({ url, onContact }) {
+  const t = useBS();
+  const btn = { borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' };
+  return (
+    <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
+      <button onClick={() => { window.location.href = url; }} style={{ ...btn, border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER }}>Open full</button>
+      {onContact && <button onClick={onContact} style={{ ...btn, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK }}>Contact support</button>}
+    </div>
+  );
+}
+
+function BSCodeOfConductPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Who it applies to', 'The Code applies to everyone on Shape — members, trainers, nutritionists, and dietitians — and is incorporated into the Terms of Service.'],
+    ['02', 'Community standards', "Be respectful and honest. No harassment, hate, threats, sexual misconduct, spam, scams, impersonation, or sharing someone else's private information. Keep it lawful and safe."],
+    ['03', 'Coaches — professional conduct', 'Coaches are held to a higher bar: hold real credentials, work within your scope of practice, protect client safety and boundaries, deliver what you sell, never dodge fees off-platform, protect client data, and make no medical claims.'],
+    ['04', 'Clients — conduct', "Treat coaches and members with respect, give honest feedback, and don't misuse the platform, the rewards, or other people's content."],
+    ['05', 'Safety', 'Shape is not an emergency service and is 18+. No dangerous, illegal, or unqualified medical advice. In an emergency, contact local services.'],
+    ['06', 'Reporting & moderation', 'Report anything that crosses a line. We review with evidence and proportionality; outcomes range from a warning to removal.'],
+    ['07', 'Enforcement & ban tiers', 'Most issues follow warning → temporary restriction → removal. Threats, sexual misconduct, fraud, illegal activity, abuse, and credential fraud are zero-tolerance — immediate ban, no refund. No ban evasion or re-registration.'],
+    ['08', 'A living document', 'We update the Code as the community grows; it is reviewed by counsel before launch. Full text on the web.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/code-of-conduct.html" onContact={onContact} />
+      <BSFooter right="Conduct" />
+    </BSPage>
+  );
+}
+
+function BSConsumerHealthPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'Scope & who this covers', "Covers \"consumer health data\" under Washington's My Health My Data Act and similar state laws. It supplements our Privacy Policy."],
+    ['02', 'Health data we collect', 'PAR-Q screening, medications, allergies, pregnancy status, medical conditions, injuries, emergency contact, body measurements, weigh-ins, progress photos, weekly check-ins, and wearable recovery data (HR, HRV, sleep).'],
+    ['03', 'Where it comes from', 'From you (what you enter) and, if you connect them, wearables and health services — Apple Health, Strava, Garmin, Whoop, Oura.'],
+    ['04', 'How we use it', 'To run your coaching — show your activity and recovery, let your coach work with you safely, and power the features you use. Never for advertising, and never to train AI models.'],
+    ['05', 'Who we share it with', 'Only the coach(es) you choose (your safety screening is shared so they can work with you safely) and the infrastructure subprocessors that store it. We never sell it.'],
+    ['06', 'Consent', "We ask for your consent before collecting health data, and you can withdraw it any time. Some features won't work without the data they need."],
+    ['07', 'Your rights', 'Access, download, correct, or delete your health data, and withdraw consent, from Settings → Privacy & data or by emailing privacy@theshapecommunity.com.'],
+    ['08', 'Security & access', 'Per-user row-level access and private, signed-URL storage for photos and voice. Only you and your linked coach(es) can see it.'],
+    ['09', 'No sale · no geofencing', 'We do not sell health data and do not use geofencing around health facilities. We recognize the Global Privacy Control signal.'],
+    ['10', 'Changes & contact', 'Material changes are announced in advance. Questions go to privacy@theshapecommunity.com.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/health-data-privacy.html" onContact={onContact} />
+      <BSFooter right="Health" />
+    </BSPage>
+  );
+}
+
+function BSSubprocessorsPage({ onBack, onContact }) {
+  const t = useBS();
+  const sections = [
+    ['01', 'What a subprocessor is', 'A third party that processes some of your data to help Shape run. Each is bound by contract to use your data only to provide its service to Shape.'],
+    ['02', 'Infrastructure', 'Supabase (database, authentication, file storage), Vercel (web hosting and product analytics), and Cloudflare (DNS, network security, and the Turnstile bot check).'],
+    ['03', 'Payments', 'Stripe (payments and payouts).'],
+    ['04', 'AI & communications', 'OpenAI (the "Nora" assistant, voice transcription, and text-to-speech), Google Firebase Cloud Messaging (push notifications), and Resend (email).'],
+    ['05', 'Optional connections', 'Instacart (only if you send it a grocery list) and the wearable/audio services you choose to connect (Apple Health, Strava, Garmin, Whoop, Oura, Spotify).'],
+    ['06', 'International transfers', 'Where data is processed outside your region, transfers rely on appropriate safeguards such as Standard Contractual Clauses.'],
+    ['07', 'Changes', 'We announce material changes to the subprocessor list in advance. The full list — with the data each receives — is on the web.'],
+  ];
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The third parties that help run Shape — each bound by contract to use your data only to provide its service.</div>
+      </div>
+      <BSSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/subprocessors.html" onContact={onContact} />
+      <BSFooter right="Subprocessors" />
     </BSPage>
   );
 }
@@ -19749,3 +21891,4 @@ function BSHelpPage({ onBack, onContact }) {
 }
 
 Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

@@ -22,6 +22,15 @@ type SessionRow = {
 
 const sessionAt = (s: SessionRow) => s.started_at || s.ended_at || s.created_at;
 
+// Parse a set-log value that may live in a column (number) or the payload jsonb
+// (free text like "230 lb"). The live-session writer now fills the columns, but
+// historical rows only have the payload, so fall back to it for older volume.
+function pnum(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (v == null) return NaN;
+  return parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -49,7 +58,7 @@ export async function GET() {
 
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('actual_load, actual_reps, rpe, completed, created_at')
+    .select('actual_load, actual_reps, rpe, completed, created_at, payload')
     .eq('client_id', user.id)
     .limit(5000);
 
@@ -68,19 +77,22 @@ export async function GET() {
   let rpeCount = 0;
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
-    const load = Number(r.actual_load);
-    const reps = Number(r.actual_reps);
+    // Prefer the column when it's a real positive value; null/0 → fall back to the
+    // payload the app historically wrote (so older sets still count toward volume).
+    const p = ((r as Record<string, unknown>).payload ?? {}) as Record<string, unknown>;
+    const colLoad = Number(r.actual_load);
+    const colReps = Number(r.actual_reps);
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load);
+    const reps = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps);
     if (Number.isFinite(load) && load > 0 && Number.isFinite(reps) && reps > 0) {
       const vol = load * reps;
       totalVolume += vol;
       if (now - new Date(r.created_at).getTime() <= 7 * DAY_MS) volume7d += vol;
     }
-    if (r.rpe != null) {
-      const rpe = Number(r.rpe);
-      if (Number.isFinite(rpe)) {
-        rpeSum += rpe;
-        rpeCount += 1;
-      }
+    const rpeVal = r.rpe != null ? Number(r.rpe) : pnum(p.rpe);
+    if (Number.isFinite(rpeVal)) {
+      rpeSum += rpeVal;
+      rpeCount += 1;
     }
   }
 

@@ -1,3 +1,12 @@
+// Hide the horizontal scrollbar on the availability grid (scroll still works).
+(function () {
+  if (typeof document === 'undefined' || document.getElementById('dash-hide-scroll-css')) return;
+  var s = document.createElement('style');
+  s.id = 'dash-hide-scroll-css';
+  s.textContent = '.dash-hide-scroll{scrollbar-width:none;-ms-overflow-style:none}.dash-hide-scroll::-webkit-scrollbar{display:none;width:0;height:0}';
+  document.head.appendChild(s);
+})();
+
 // Schedule v2 — the pro PLANNING view (dashboard-v2 gap step). A dedicated
 // page (NOT the Today summary) for both coach roles: a full month/week
 // calendar with sessions + consults color-coded BY CLIENT, click any event →
@@ -153,7 +162,7 @@ function DscAvailability({ role, live, initial }) {
       <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, margin: "8px 0 10px", maxWidth: 560 }}>
         Tap the hours you take clients. This is exactly what shows on your marketplace profile — members book into these blocks.
       </div>
-      <div style={{ overflowX: "auto" }} className="dash-roster-scroll">
+      <div style={{ overflowX: "auto" }} className="dash-roster-scroll dash-hide-scroll">
         <div style={{ display: "grid", gridTemplateColumns: "34px repeat(" + DSC_HOURS.length + ", 1fr)", gap: 3, minWidth: 520 }}>
           <span />
           {DSC_HOURS.map((h) => <span key={h} style={{ fontFamily: DSC_MONO, fontSize: 7, color: DSC_INK50, textAlign: "center" }}>{h % 12 === 0 ? 12 : h % 12}{h >= 12 ? "p" : "a"}</span>)}

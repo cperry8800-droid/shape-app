@@ -22,9 +22,11 @@ export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
-  const [cred, lic] = await Promise.all([
+  const [cred, lic, tr, nu] = await Promise.all([
     supabase.from('provider_credentials').select('*').eq('owner_id', user.id).maybeSingle(),
     supabase.from('provider_licenses').select('state, license_number, expires_on').eq('owner_id', user.id),
+    supabase.from('trainers').select('verified, verified_at').eq('owner_id', user.id).maybeSingle(),
+    supabase.from('nutritionists').select('verified, verified_at').eq('owner_id', user.id).maybeSingle(),
   ]);
   const c = (cred.data || null) as Record<string, unknown> | null;
   const licenses = ((lic.data || []) as Array<{ state: string; license_number?: string; expires_on?: string }>)
@@ -35,7 +37,38 @@ export async function GET(request: Request) {
     verifiedRd: !!c?.verified_rd,
     licenses,
   };
-  return NextResponse.json({ credential: c, licenses, status: credentialStatus(provider), requiredAttestations: REQUIRED_ATTESTATIONS });
+  // The PUBLIC "✓ Verified" badge state lives on the marketplace coach row(s) the
+  // admin approval mirrors onto (a coach may hold both roles).
+  const trRow = (tr.data || null) as { verified?: boolean; verified_at?: string } | null;
+  const nuRow = (nu.data || null) as { verified?: boolean; verified_at?: string } | null;
+  const verified = !!(trRow?.verified || nuRow?.verified);
+  // Only expose coach-facing credential fields — never admin-only columns
+  // (reviewed_by, review_notes, *_path, etc.); the review state is surfaced
+  // through the derived `review` object below.
+  const credential = c ? {
+    credentialType: (c.credential_type as string) || null,
+    cdrId: (c.cdr_id as string) || null,
+    insuranceCarrier: (c.insurance_carrier as string) || null,
+    insurancePolicy: (c.insurance_policy as string) || null,
+    insuranceExpires: (c.insurance_expires as string) || null,
+    attestations: (c.attestations as Record<string, boolean>) || {},
+  } : null;
+  return NextResponse.json({
+    credential,
+    licenses,
+    status: credentialStatus(provider),
+    requiredAttestations: REQUIRED_ATTESTATIONS,
+    review: {
+      status: (c?.review_status as string) || 'none',
+      submittedAt: (c?.submitted_at as string) || null,
+      reviewedAt: (c?.reviewed_at as string) || null,
+      notes: (c?.review_notes as string) || null,
+      hasCoi: !!c?.insurance_coi_path,
+      certCount: Array.isArray(c?.cert_files) ? (c!.cert_files as unknown[]).length : 0,
+    },
+    verified,
+    verifiedAt: trRow?.verified_at || nuRow?.verified_at || null,
+  });
 }
 
 export async function POST(request: Request) {
@@ -46,6 +79,24 @@ export async function POST(request: Request) {
   const parsed = await readJson<Record<string, unknown>>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
+
+  // Submit the (already-uploaded) documents for admin review. Role-agnostic — a
+  // trainer or nutritionist flips their credential row to `pending`; the admin
+  // queue (/dashboard/credentials) picks it up and mirrors the verified flag onto
+  // the marketplace row on approval.
+  if (body.action === 'submit') {
+    const { error } = await supabase
+      .from('provider_credentials')
+      .upsert(
+        { owner_id: user.id, review_status: 'pending', submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+        { onConflict: 'owner_id' }
+      );
+    if (error) {
+      console.error('[shape] credential submit failed:', error.message);
+      return NextResponse.json({ error: 'Could not submit for review.' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, review: 'pending' });
+  }
 
   const credentialType = String(body.credentialType ?? 'nutritionist').toLowerCase();
   if (!CREDENTIAL_TYPES.includes(credentialType)) {

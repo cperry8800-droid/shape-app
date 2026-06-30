@@ -1011,11 +1011,11 @@ function BSTabIcon({ name, size = 22 }) {
 // status tick + corner bracket. Two-tier rule: plates dress LIVE/ACTIONABLE
 // surfaces (heroes, up-next cards, stat tiles, CTAs); quiet rounded cards stay
 // for forms/sheets/lists, and chat bubbles stay round.
-function BSPlate({ c, notch = 12, spine = 3, tick = false, bracket = false, pad = '14px 16px', style, onClick, role, ariaLabel, children }) {
+function BSPlate({ c, notch = 12, spine = 3, tick = false, bracket = false, pad = '14px 16px', style, onClick, onKeyDown, tabIndex, role, ariaLabel, children }) {
   const t = useBS();
   const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
-    <div onClick={onClick} role={role} aria-label={ariaLabel} style={{ position: 'relative', ...(onClick ? { cursor: 'pointer' } : null), ...style }}>
+    <div onClick={onClick} onKeyDown={onKeyDown} tabIndex={tabIndex} role={role} aria-label={ariaLabel} style={{ position: 'relative', ...(onClick ? { cursor: 'pointer' } : null), ...style }}>
       <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(notch + 1), background: `${c}77` }} />
       <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(notch), background: `linear-gradient(165deg, ${c}1f, ${c}06 45%, ${t.PAPER2} 90%), ${t.PAPER}` }} />
       {spine > 0 && <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: spine, background: c }} />}
@@ -1072,7 +1072,7 @@ function BSTabBar({ tabs, active, onChange }) {
       {tabs.map((tab, i) => {
         const on = tab.key === active;
         return (
-          <button key={tab.key} onClick={() => onChange(tab.key)} style={{
+          <button key={tab.key} type="button" data-tour={'tab-' + tab.key} onClick={() => onChange(tab.key)} style={{
             border: 0, background: 'transparent',
             cursor: 'pointer', padding: '3px 0',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
@@ -1344,8 +1344,25 @@ function BSPhone({ children }) {
 }
 
 // Expose
+// Shared compact "Back" button — ONE consistent size/style for page-level back
+// navigation across the app (top-left of a page header). Replaces the many ad-hoc
+// inline variants (pills, heavy 1px-ink boxes, borderless text) so they all match.
+function BSBackButton({ onClick, label = 'Back', style }) {
+  const t = useBS();
+  return (
+    <button onClick={onClick} aria-label={label} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 7,
+      padding: '4px 9px', cursor: 'pointer', color: t.INK,
+      fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em',
+      textTransform: 'uppercase', lineHeight: 1, flexShrink: 0, ...style,
+    }}>
+      <span aria-hidden style={{ fontSize: 12, lineHeight: 1, marginTop: -1 }}>‹</span>{label}
+    </button>
+  );
+}
 Object.assign(window, {
-  BSContext, BSProvider, useBS,
+  BSContext, BSProvider, useBS, BSBackButton,
   BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,

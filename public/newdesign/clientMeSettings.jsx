@@ -332,8 +332,46 @@ function ClientMeSettings() {
     try { if (typeof window.__openChat === "function") { window.__openChat(); return; } } catch (e) {}
     window.location.href = "/contact.html";
   }
-  function deleteAccount() {
-    if (window.confirm("Delete your Shape account? This can't be undone. We'll confirm by email before anything is removed.")) contactSupport();
+  async function exportData(ev) {
+    const btn = ev && ev.currentTarget;
+    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!window.confirm("Download a copy of all the data Shape holds about you?")) return;
+    if (btn) btn.disabled = true; // guard against double-submission
+    try {
+      // no-store: the export is all of the user's personal data — never let it sit in the browser HTTP cache.
+      const res = await fetch("/api/account/export", { credentials: "same-origin", cache: "no-store" });
+      if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (!res.ok) throw new Error("export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `shape-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch (e) {
+      alert("Could not export your data right now. Email privacy@theshapecommunity.com and we'll send it.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+  async function deleteAccount(ev) {
+    const btn = ev && ev.currentTarget;
+    if (!signedIn) { window.location.href = "/login.html"; return; }
+    if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
+    const typed = window.prompt("This erases your health data, history, photos, and account for good. Type DELETE to confirm.");
+    if ((typed || "").trim().toUpperCase() !== "DELETE") return;
+    if (btn) btn.disabled = true; // destructive + non-idempotent — block re-clicks while in flight
+    try {
+      const res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
+      if (res.status === 401) { window.location.href = "/login.html"; return; }
+      if (!res.ok) throw new Error("delete failed");
+      alert("Your account and data have been deleted.");
+      try { if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut(); } catch (e) {}
+      window.location.href = "/";
+    } catch (e) {
+      alert("Could not delete your account right now. Email privacy@theshapecommunity.com and we'll handle it.");
+      if (btn) btn.disabled = false; // re-enable to retry (success navigates away)
+    }
   }
 
   const p = profile;
@@ -416,10 +454,15 @@ function ClientMeSettings() {
         </div>
       </Card>
 
+      <Card style={{ marginTop: 20 }}>
+        <SectionTitle>App tour</SectionTitle>
+        <Row label="Take a tour" value="Walk through your dashboard" action="START" onAction={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }} />
+      </Card>
+
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>
         <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <button onClick={contactSupport} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
+          <button onClick={exportData} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
           <button onClick={pauseMembership} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
           <button onClick={deleteAccount} style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
         </div>
@@ -462,12 +505,19 @@ const HP_PARQ = [
   "Is a doctor currently prescribing medication for your blood pressure or a heart condition?",
   "Do you know of any other reason why you should not do physical activity?",
 ];
+const HP_CONDITION_TAGS = ["Diabetes", "High blood pressure", "Asthma / respiratory", "Heart condition", "Thyroid", "High cholesterol", "Anxiety / depression", "Arthritis / joint", "Pregnant / postpartum"];
 function HealthProfileCard() {
   const [doc, setDoc] = React.useState(null);
   const [loaded, setLoaded] = React.useState(false);
   const [answers, setAnswers] = React.useState(Array(HP_PARQ.length).fill(null));
   const [injuries, setInjuries] = React.useState("");
   const [medications, setMedications] = React.useState("");
+  const [rxMeds, setRxMeds] = React.useState(null);
+  const [conditions, setConditions] = React.useState("");
+  const [conditionTags, setConditionTags] = React.useState([]);
+  const [pregnancy, setPregnancy] = React.useState(null);
+  const [allergies, setAllergies] = React.useState(null);
+  const [allergyDetails, setAllergyDetails] = React.useState("");
   const [emName, setEmName] = React.useState("");
   const [emPhone, setEmPhone] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -485,6 +535,9 @@ function HealthProfileCard() {
         setDoc(h);
         if (Array.isArray(h.parq)) setAnswers(h.parq);
         setInjuries(h.injuries || ""); setMedications(h.medications || "");
+        setRxMeds(h.rxMeds || (h.medications ? "yes" : null));
+        setConditions(h.conditions || ""); setConditionTags(Array.isArray(h.conditionTags) ? h.conditionTags : []);
+        setPregnancy(h.pregnancy || null); setAllergies(h.allergies || null); setAllergyDetails(h.allergyDetails || "");
         setEmName((h.emergency && h.emergency.name) || ""); setEmPhone((h.emergency && h.emergency.phone) || "");
       }).catch(() => setLoaded(true));
     return () => { cancelled = true; };
@@ -492,15 +545,25 @@ function HealthProfileCard() {
 
   if (!loaded) return null;
   const allAnswered = answers.every(a => a === true || a === false);
+  const rxOk = rxMeds === "no" || (rxMeds === "yes" && medications.trim().length > 0);
+  const allergyOk = allergies === "no" || (allergies === "yes" && allergyDetails.trim().length > 0);
+  const screenComplete = allAnswered && rxMeds !== null && pregnancy !== null && allergies !== null && rxOk && allergyOk;
+  const toggleTag = (tag) => setConditionTags(cur => (cur.includes(tag) ? cur.filter(x => x !== tag) : [...cur, tag]));
 
   const save = async () => {
-    if (!allAnswered || busy) return;
+    if (!screenComplete || busy) return;
     setBusy(true); setNote("");
     const next = {
       parq: answers,
-      flagged: answers.some(a => a === true),
+      flagged: answers.some(a => a === true) || pregnancy === "yes",
       injuries: injuries.trim() || null,
-      medications: medications.trim() || null,
+      rxMeds: rxMeds,
+      medications: rxMeds === "yes" ? (medications.trim() || null) : null,
+      conditions: conditions.trim() || null,
+      conditionTags: conditionTags,
+      pregnancy: pregnancy,
+      allergies: allergies,
+      allergyDetails: allergies === "yes" ? (allergyDetails.trim() || null) : null,
       emergency: { name: emName.trim() || null, phone: emPhone.trim() || null },
       consentAt: (doc && doc.consentAt) || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -519,6 +582,15 @@ function HealthProfileCard() {
 
   const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 52, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
   const lbl = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
+  const qTxt = { fontSize: 12.5, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 };
+  const ynRow = (value, onPick, options) => (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 6 }}>
+      {options.map(([labelTxt, v, c]) => {
+        const on = value === v;
+        return <button key={labelTxt} type="button" onClick={() => onPick(v)} style={{ padding: "7px 0", borderRadius: 8, border: `1px solid ${on ? c : "rgba(242,237,228,0.14)"}`, background: on ? c + "22" : "transparent", color: on ? c : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{labelTxt}</button>;
+      })}
+    </div>
+  );
 
   return (
     <Card style={{ marginTop: 20 }}>
@@ -544,14 +616,43 @@ function HealthProfileCard() {
           </div>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 12 }}>
-        <div><div style={lbl}>Injuries &amp; surgeries</div><textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} style={taStyle} /></div>
-        <div><div style={lbl}>Medications &amp; conditions</div><textarea value={medications} onChange={(e) => setMedications(e.target.value)} style={taStyle} /></div>
+      <div style={{ display: "grid", gap: 14, marginBottom: 12 }}>
+        <div>
+          <div style={lbl}>Prescription medication · required</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 14, alignItems: "center" }}>
+            <div style={qTxt}>Are you currently taking any prescription medication(s)?</div>
+            {ynRow(rxMeds, setRxMeds, [["No", "no", "#0ac5a8"], ["Yes", "yes", "#d2693f"]])}
+          </div>
+          {rxMeds === "yes" && <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="List your prescription medication(s) — e.g. Lisinopril (blood pressure)" style={{ ...taStyle, marginTop: 8 }} />}
+        </div>
+        <div>
+          <div style={lbl}>Allergies · required</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 14, alignItems: "center" }}>
+            <div style={qTxt}>Do you have any allergies (food, medication, or other)?</div>
+            {ynRow(allergies, setAllergies, [["No", "no", "#0ac5a8"], ["Yes", "yes", "#d2693f"]])}
+          </div>
+          {allergies === "yes" && <textarea value={allergyDetails} onChange={(e) => setAllergyDetails(e.target.value)} placeholder="List your allergies — e.g. Peanuts (severe) · penicillin" style={{ ...taStyle, marginTop: 8 }} />}
+        </div>
+        <div>
+          <div style={lbl}>Pregnancy · required</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 240px", gap: 14, alignItems: "center" }}>
+            <div style={qTxt}>Are you currently pregnant, or have you given birth in the past 6 months?</div>
+            {ynRow(pregnancy, setPregnancy, [["No", "no", "#0ac5a8"], ["Yes", "yes", "#d2693f"], ["N/A", "na", "#8a8378"]])}
+          </div>
+        </div>
+        <div>
+          <div style={lbl}>Ongoing medical conditions · optional</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 8 }}>
+            {HP_CONDITION_TAGS.map(tag => { const on = conditionTags.includes(tag); return <button key={tag} onClick={() => toggleTag(tag)} style={{ padding: "6px 11px", borderRadius: 999, border: `1px solid ${on ? "#0ac5a8" : "rgba(242,237,228,0.14)"}`, background: on ? "#0ac5a822" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>{tag}</button>; })}
+          </div>
+          <textarea value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="Anything else your coach should know — e.g. Type 2 diabetes (diet-managed)" style={taStyle} />
+        </div>
+        <div><div style={lbl}>Injuries &amp; surgeries</div><textarea value={injuries} onChange={(e) => setInjuries(e.target.value)} placeholder="e.g. Left knee ACL repair 2022 · lower-back tightness" aria-label="Injuries and surgeries" style={taStyle} /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 200px", gap: 14, alignItems: "end" }}>
         <div><div style={lbl}>Emergency contact · name</div><input value={emName} onChange={(e) => setEmName(e.target.value)} style={{ ...taStyle, minHeight: 0 }} /></div>
         <div><div style={lbl}>Emergency contact · phone</div><input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} style={{ ...taStyle, minHeight: 0 }} /></div>
-        <button onClick={save} disabled={!allAnswered || busy} style={{ background: allAnswered ? "#0ac5a8" : "rgba(242,237,228,0.12)", color: allAnswered ? "#1a1612" : "rgba(242,237,228,0.45)", border: 0, padding: "12px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: allAnswered ? "pointer" : "default" }}>{busy ? "Saving…" : "Save health profile"}</button>
+        <button onClick={save} disabled={!screenComplete || busy} style={{ background: screenComplete ? "#0ac5a8" : "rgba(242,237,228,0.12)", color: screenComplete ? "#1a1612" : "rgba(242,237,228,0.45)", border: 0, padding: "12px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: screenComplete ? "pointer" : "default" }}>{busy ? "Saving…" : "Save health profile"}</button>
       </div>
       {note && <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</div>}
     </Card>

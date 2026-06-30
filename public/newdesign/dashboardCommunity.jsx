@@ -203,6 +203,7 @@ function SessionDetailsModal({ p, onClose }) {
 function CommunityPage({ navItems, payoutCard, chatTabs }) {
   const ME = { who: "Priya M.", role: "Hypertrophy · 2,140" };
   const [composerOpen, setComposerOpen] = React.useState(false);
+  const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
   const [filter, setFilter] = React.useState("ALL");
 
@@ -247,38 +248,47 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
       return `${Math.floor(ms / 86_400_000)}d`;
     };
-    fetch('/api/community/feed', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (!alive || !d || !Array.isArray(d.posts) || !d.posts.length) return;
-        const live = d.posts.map(p => {
-          // Always render the body with the text-only 'post' renderer (the
-          // pr/run/workout/meal demo renderers need fields the feed API omits).
-          // BUT carry the real device metrics so activity posts get a Session
-          // details view (charts), mirroring the mobile app.
-          const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
-          const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
-          const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
-          return {
-            kind: 'post',
-            id: p.id || null,
-            who: p.author_name || 'Shape member',
-            role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
-            time: since(p.created_at),
-            title: p.title,
-            body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
-            photo: p.photo_url || null,
-            mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
-            likes: Array.isArray(p.likes) ? p.likes.length : 0,
-            comments: Array.isArray(p.comments) ? p.comments.length : 0,
-            tag: tagFor(p.activity_type),
-            isLive: true,
-            session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
-          };
-        });
-        setFeed([...live, ...DEMO_FEED]);
-      })
-      .catch(() => {});
+    const mapPost = (p, uid) => {
+      // Always render the body with the text-only 'post' renderer (the
+      // pr/run/workout/meal demo renderers need fields the feed API omits).
+      // BUT carry the real device metrics so activity posts get a Session
+      // details view (charts), mirroring the mobile app.
+      const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
+      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
+      const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
+      return {
+        kind: 'post',
+        id: p.id || null,
+        who: p.author_name || 'Shape member',
+        role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
+        time: since(p.created_at),
+        title: p.title,
+        body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
+        photo: p.photo_url || null,
+        mentions: (p.metrics && Array.isArray(p.metrics.mentions)) ? p.metrics.mentions : [],
+        likes: Array.isArray(p.likes) ? p.likes.length : 0,
+        comments: Array.isArray(p.comments) ? p.comments.length : 0,
+        tag: tagFor(p.activity_type),
+        isMe: !!(uid && p.author_id === uid),
+        video: (m && m.video_url) || null,
+        isLive: true,
+        session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
+      };
+    };
+    (async () => {
+      // Signed-in users see only the REAL community feed (a clean empty state when
+      // there's nothing yet); the demo sample posts are for signed-out preview only.
+      let signedIn = false;
+      let uid = null;
+      try { const sb = window.shapeDb && window.shapeDb.client; if (sb) { const { data } = await sb.auth.getUser(); uid = data && data.user && data.user.id; signedIn = !!uid; } } catch (e) {}
+      let live = [];
+      try {
+        const r = await fetch('/api/community/feed', { credentials: 'same-origin' });
+        if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.posts)) live = d.posts.map(p => mapPost(p, uid)); }
+      } catch (e) {}
+      if (!alive) return;
+      setFeed(signedIn ? live : [...live, ...DEMO_FEED]);
+    })();
     return () => { alive = false; };
   }, []);
 
@@ -427,7 +437,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     );
   }
 
-  function FeedItem({ p }) {
+  function FeedItem({ p, onEdit, onDeleted }) {
     const [liked, setLiked] = React.useState(false);
     const [likeCount, setLikeCount] = React.useState(p.likes);
     const [sendOpen, setSendOpen] = React.useState(false);
@@ -526,7 +536,8 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           {p.kind === "streak"  && <StreakStat p={p} />}
         </>)}
         {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
-        {p.photo && <img src={p.photo} alt="" loading="lazy" style={{ display: "block", width: "100%", maxHeight: 420, objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)" }} />}
+        {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
+        {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(242,237,228,0.08)" }} />}
         {Array.isArray(p.mentions) && p.mentions.length > 0 && (
           <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)" }}>
             with {p.mentions.map((mn, mi) => (
@@ -564,6 +575,25 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             ⇄ REPOST
           </button>
+          {p.isMe && p.isLive && p.id && onEdit && (
+            <button onClick={() => onEdit(p)} aria-label="Edit post"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+              ✎ EDIT
+            </button>
+          )}
+          {p.isMe && p.isLive && p.id && (
+            <button onClick={async () => {
+              if (!window.confirm("Delete this post?")) return;
+              try {
+                const res = await fetch("/api/community/feed?id=" + encodeURIComponent(p.id), { method: "DELETE", credentials: "same-origin" });
+                if (!res.ok) throw new Error("delete_failed");
+                if (typeof onDeleted === "function") onDeleted(p.id);
+              } catch (e) { try { window.alert("Could not delete."); } catch (e2) {} }
+            }} aria-label="Delete post"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "#c0533b", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+              × DELETE
+            </button>
+          )}
         </div>
         {sendOpen && <SendPostModal post={p} onClose={() => setSendOpen(false)} />}
         {sessionOpen && <SessionDetailsModal p={p} onClose={() => setSessionOpen(false)} />}
@@ -784,7 +814,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
         <button onClick={() => setComposerOpen(true)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>New post</button>
       </>}
     >
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
+      <div data-tour="hero-community" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {(() => {
             const filters = [
@@ -825,7 +855,10 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
                       {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing in this filter yet."}
                     </div>
                   )
-                  : visible.map((p, i) => <FeedItem key={p.id || i} p={p} />)}
+                  : visible.map((p, i) => <FeedItem key={p.id || i} p={p}
+                      onEdit={(post) => { setEditingPost(post); setComposerOpen(true); }}
+                      onDeleted={(id) => setFeed(prev => prev.filter(x => x.id !== id))}
+                    />)}
               </>
             );
           })()}
@@ -839,18 +872,49 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       {composerOpen && (
         <PostComposer
           me={ME}
-          onCancel={() => setComposerOpen(false)}
+          editing={editingPost}
+          onCancel={() => { setComposerOpen(false); setEditingPost(null); }}
           onSubmit={(post) => {
-            setFeed(prev => [{ id: "me-" + Date.now(), isMe: true, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post }, ...prev]);
             setComposerOpen(false);
+            if (post._edited && editingPost) {
+              // Optimistically replace the edited post in the feed
+              const patched = post._patchedPost;
+              setFeed(prev => prev.map(x => {
+                if (x.id !== (editingPost.postId || editingPost.id)) return x;
+                // Prefer the server's authoritative patched row (it reflects an
+                // intentional clear as null), then the optimistic payload via an
+                // explicit !== undefined check (not `||`, which drops '' / null
+                // clears), then the old value.
+                const pPhoto = patched ? (patched.photo_url ?? null) : undefined;
+                const pVideo = patched ? ((patched.metrics && patched.metrics.video_url) ?? null) : undefined;
+                const pBody = patched ? (patched.note ?? "") : undefined;
+                const pMentions = patched
+                  ? ((patched.metrics && Array.isArray(patched.metrics.mentions)) ? patched.metrics.mentions : [])
+                  : undefined;
+                return {
+                  ...x,
+                  body: pBody !== undefined ? pBody : (post.body !== undefined ? post.body : x.body),
+                  photo: pPhoto !== undefined ? pPhoto : (post.photo !== undefined ? post.photo : x.photo),
+                  video: pVideo !== undefined ? pVideo : (post.video !== undefined ? post.video : x.video),
+                  mentions: pMentions !== undefined ? pMentions : x.mentions,
+                  tag: post.tag !== undefined ? post.tag : x.tag,
+                };
+              }));
+              setEditingPost(null);
+              return;
+            }
+            setEditingPost(null);
+            // Optimistic create
+            setFeed(prev => [{ id: "me-" + Date.now(), isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post }, ...prev]);
             // Persist to the live feed (best-effort; the optimistic post already shows).
             const metrics = {};
             if (post.tag) metrics.tags = [String(post.tag).toUpperCase()];
             if (Array.isArray(post.mentions) && post.mentions.length) metrics.mentions = post.mentions;
+            if (post.video) { metrics.kind = 'video'; metrics.video_url = post.video; }
             fetch('/api/community/feed', {
               method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                title: (post.body || '').trim() || (post.photo ? 'Photo' : 'Post'),
+                title: (post.body || '').trim() || (post.photo ? 'Photo' : post.video ? 'Video' : 'Post'),
                 note: post.body || '',
                 activityType: post.kind || 'workout',
                 privacy: 'community',
@@ -865,21 +929,26 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   );
 }
 
-function PostComposer({ me, onCancel, onSubmit }) {
+function PostComposer({ me, onCancel, onSubmit, editing }) {
   const KINDS = [
     { value: "post", label: "Post", tag: "" },
     { value: "pr", label: "PR", tag: "STRENGTH" },
     { value: "workout", label: "Workout", tag: "STRENGTH" },
     { value: "run", label: "Run", tag: "RUNNING" },
     { value: "meal", label: "Meal", tag: "NUTRITION" },
+    { value: "video", label: "Video", tag: "" },
   ];
-  const [kind, setKind] = React.useState("post");
-  const [body, setBody] = React.useState("");
-  const [tag, setTag] = React.useState("");
-  const [photoUrl, setPhotoUrl] = React.useState("");
+  const ed = editing || null;
+  const [kind, setKind] = React.useState(ed ? (ed.kind || ((ed.video || ed.videoUrl) ? "video" : "post")) : "post");
+  const [body, setBody] = React.useState(ed ? (ed.body || "") : "");
+  const [tag, setTag] = React.useState(ed ? (ed.tag || "") : "");
+  const [photoUrl, setPhotoUrl] = React.useState(ed ? (ed.photo || ed.photoUrl || "") : "");
   const [photoBusy, setPhotoBusy] = React.useState(false);
+  const [videoUrl, setVideoUrl] = React.useState(ed ? (ed.video || ed.videoUrl || "") : "");
+  const [videoBusy, setVideoBusy] = React.useState(false);
   const fileRef = React.useRef(null);
-  const [tagged, setTagged] = React.useState([]); // [{ userId, name }]
+  const videoRef = React.useRef(null);
+  const [tagged, setTagged] = React.useState(ed && Array.isArray(ed.mentions) ? ed.mentions : []); // [{ userId, name }]
   const [tagQuery, setTagQuery] = React.useState("");
   const [tagResults, setTagResults] = React.useState([]);
   const [tagOpen, setTagOpen] = React.useState(false);
@@ -895,7 +964,7 @@ function PostComposer({ me, onCancel, onSubmit }) {
     return () => { on = false; };
   }, [tagOpen, tagQuery]);
   const toggleTag = (m) => setTagged((prev) => prev.some((x) => x.userId === m.userId) ? prev.filter((x) => x.userId !== m.userId) : [...prev, m]);
-  const canSubmit = (body.trim().length > 0 || !!photoUrl || tagged.length > 0) && !photoBusy;
+  const canSubmit = (body.trim().length > 0 || !!photoUrl || !!videoUrl || tagged.length > 0) && !photoBusy && !videoBusy;
   const uploadPhoto = async (file) => {
     const client = window.shapeDb && window.shapeDb.client;
     if (!client) throw new Error("Not connected.");
@@ -918,10 +987,52 @@ function PostComposer({ me, onCancel, onSubmit }) {
     catch (err) { alert((err && err.message) || "Could not upload photo."); }
     finally { setPhotoBusy(false); }
   };
-  const submit = () => {
+  const uploadVideo = async (file) => {
+    const client = window.shapeDb && window.shapeDb.client;
+    if (!client) throw new Error("Not connected.");
+    const { data: ures } = await client.auth.getUser();
+    const user = ures && ures.user; if (!user) throw new Error("Sign in to add a video.");
+    const ext = (((file.type || "").split("/")[1]) || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
+    const path = user.id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 7) + "." + ext;
+    const { error } = await client.storage.from("coach-media").upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+    if (error) throw error;
+    const { data } = client.storage.from("coach-media").getPublicUrl(path);
+    return (data && data.publicUrl) || null;
+  };
+  const onVideoFile = async (e) => {
+    const file = e.target && e.target.files && e.target.files[0];
+    if (e.target) e.target.value = "";
+    if (!file) return;
+    setVideoBusy(true);
+    try { const url = await uploadVideo(file); if (url) setVideoUrl(url); }
+    catch (err) { alert((err && err.message) || "Could not upload video."); }
+    finally { setVideoBusy(false); }
+  };
+  const submit = async () => {
     if (!canSubmit) return;
     const k = KINDS.find(x => x.value === kind) || KINDS[0];
-    onSubmit({ kind, body: body.trim(), tag: tag.trim() || k.tag || undefined, photo: photoUrl || undefined, mentions: tagged.length ? tagged : undefined });
+    const postPayload = { kind, body: body.trim(), tag: tag.trim() || k.tag || undefined, photo: photoUrl || undefined, video: videoUrl || undefined, mentions: tagged.length ? tagged : undefined };
+    if (ed) {
+      // Edit mode: PATCH the existing post
+      const patchMetrics = {};
+      // Always send tags/mentions (null when empty) so the server merge removes a
+      // cleared key — only set when non-empty, they could never be cleared on edit.
+      patchMetrics.tags = postPayload.tag ? [String(postPayload.tag).toUpperCase()] : null;
+      patchMetrics.mentions = (Array.isArray(postPayload.mentions) && postPayload.mentions.length) ? postPayload.mentions : null;
+      if (videoUrl) { patchMetrics.kind = "video"; patchMetrics.video_url = videoUrl; }
+      else if ((ed.video || ed.videoUrl) && !videoUrl) { patchMetrics.video_url = ""; }
+      try {
+        const res = await fetch("/api/community/feed", {
+          method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postId: ed.postId || ed.id, title: (postPayload.body || "").trim() || (postPayload.photo ? "Photo" : "Post"), note: postPayload.body || "", photoUrl: postPayload.photo || "", metrics: Object.keys(patchMetrics).length ? patchMetrics : undefined }),
+        });
+        if (!res.ok) throw new Error("edit_failed");
+        const result = await res.json();
+        onSubmit({ ...postPayload, _edited: true, _patchedPost: result.post });
+      } catch (err) { try { window.alert("Could not save edit."); } catch (e2) {} }
+    } else {
+      onSubmit(postPayload);
+    }
   };
   return (
     <div onClick={onCancel}
@@ -931,7 +1042,7 @@ function PostComposer({ me, onCancel, onSubmit }) {
         style={{ width: "min(560px, 100%)", background: "#1f1a16", color: INK, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 28, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>NEW POST</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{ed ? "EDIT POST" : "NEW POST"}</div>
             <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginTop: 4 }}>{me.who}</div>
             <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{me.role}</div>
           </div>
@@ -973,6 +1084,7 @@ function PostComposer({ me, onCancel, onSubmit }) {
         </div>
 
         <input ref={fileRef} type="file" accept="image/*" onChange={onPhotoFile} style={{ display: "none" }} />
+        <input ref={videoRef} type="file" accept="video/*" onChange={onVideoFile} style={{ display: "none" }} />
         {photoUrl ? (
           <div style={{ marginTop: 12, position: "relative", display: "inline-block" }}>
             <img src={photoUrl} alt="" style={{ display: "block", maxHeight: 180, maxWidth: "100%", borderRadius: 10, border: "1px solid rgba(242,237,228,0.14)" }} />
@@ -987,6 +1099,21 @@ function PostComposer({ me, onCancel, onSubmit }) {
             <button onClick={() => { setTagOpen(v => !v); setTagQuery(""); }} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: tagOpen ? "rgba(10,197,168,0.14)" : "rgba(242,237,228,0.04)", color: tagOpen ? TEAL_BRIGHT : INK, border: "1px solid " + (tagOpen ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.14)"), padding: "9px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", cursor: "pointer" }}>
               <span style={{ fontFamily: serif, fontWeight: 700, fontSize: 14, lineHeight: 1 }}>@</span> TAG PEOPLE{tagged.length ? ` · ${tagged.length}` : ""}
             </button>
+          </div>
+        )}
+        {kind === "video" && (
+          <div style={{ marginTop: 12 }}>
+            {videoUrl ? (
+              <div style={{ position: "relative" }}>
+                <video src={videoUrl} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 220, borderRadius: 10, background: "#000", border: "1px solid rgba(242,237,228,0.14)" }} />
+                <button onClick={() => setVideoUrl("")} aria-label="Remove video" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 999, background: "rgba(10,10,8,0.7)", color: INK, border: "1px solid rgba(242,237,228,0.2)", cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
+              </div>
+            ) : (
+              <button onClick={() => videoRef.current && videoRef.current.click()} disabled={videoBusy} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(242,237,228,0.04)", color: videoBusy ? "rgba(242,237,228,0.45)" : INK, border: "1px solid rgba(242,237,228,0.14)", padding: "9px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", cursor: videoBusy ? "default" : "pointer" }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                {videoBusy ? "UPLOADING…" : "ADD VIDEO"}
+              </button>
+            )}
           </div>
         )}
         {tagged.length > 0 && (
@@ -1013,7 +1140,7 @@ function PostComposer({ me, onCancel, onSubmit }) {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>{body.length} CHARS</span>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={onCancel} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.18)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-            <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? TEAL : "rgba(242,237,228,0.06)", color: canSubmit ? PAPER : "rgba(242,237,228,0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canSubmit ? "pointer" : "default" }}>Post</button>
+            <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? TEAL : "rgba(242,237,228,0.06)", color: canSubmit ? PAPER : "rgba(242,237,228,0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canSubmit ? "pointer" : "default" }}>{ed ? "Save" : "Post"}</button>
           </div>
         </div>
       </div>

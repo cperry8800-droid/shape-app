@@ -6,9 +6,9 @@ const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
 const TEAL = "#0ac5a8";         // refined cinema teal accent
 const TEAL_BRIGHT = "#2ee0c4";
 const RUST = "#d2693f";         // warm secondary accent
-const serif = "'Fraunces', 'Instrument Serif', serif";
-const sans = "'Space Grotesk', sans-serif";
-const mono = "'JetBrains Mono', monospace";
+const serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
+const sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
+const mono = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 
 function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   const bg = tone === "dark" ? "#0f1513" : "#efece6";
@@ -88,8 +88,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
     { kind: "link", label: "Progress", href: "ClientProgress.html" },
     { kind: "link", label: "Community", href: "ClientCommunity.html" },
-    { kind: "drop", label: "More", match: ["More", "Habits", "Goals", "Library", "Playlists", "My Team", "Shape Score"], items: [["Habits", "ClientHabits.html"], ["Goals", "ClientGoal.html"], ["Library", "ClientLibrary.html"], ["Playlists", "ClientPlaylists.html"], ["My Team", "ClientTeam.html"], ["Shape Score", "ClientScore.html"], ["My Profile", "ClientProfile.html"]] },
-    { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   trainer: [
     { kind: "link", label: "Dashboard", href: "TrainerDashboard.html" },
@@ -98,8 +96,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
     { kind: "link", label: "Messages", href: "TrainerMessages.html" },
     { kind: "link", label: "Business", href: "TrainerAnalytics.html" },
-    { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "TrainerCommunity.html"], ["Playlists", "TrainerPlaylists.html"], ["Shape Score", "TrainerScore.html"], ["Public profile", "MemberProfile.html"], ["My Profile", "TrainerProfile.html"]] },
-    { kind: "link", label: "Radio", href: "Radio.html" },
   ],
   nutritionist: [
     { kind: "link", label: "Dashboard", href: "NutritionistDashboard.html" },
@@ -108,8 +104,6 @@ const PORTAL_NAV = {
     { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
     { kind: "link", label: "Messages", href: "NutritionistMessages.html" },
     { kind: "link", label: "Business", href: "NutritionistAnalytics.html" },
-    { kind: "drop", label: "More", match: ["More", "Community", "Playlists", "Shape Score", "Public profile"], items: [["Community", "NutritionistCommunity.html"], ["Playlists", "NutritionistPlaylists.html"], ["Shape Score", "NutritionistScore.html"], ["Public profile", "MemberProfile.html"], ["My Profile", "NutritionistProfile.html"]] },
-    { kind: "link", label: "Radio", href: "Radio.html" },
   ],
 };
 
@@ -127,12 +121,51 @@ function navGroupsFor(authUser) {
 // to the person's public profile page.
 const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "#34d6c5"], [750, "#d8a23a"], [0, "#8a93a0"]];
 function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#8a93a0"; }
+function ssShade(hex, f) { const h = String(hex || "#888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Facet gem avatar (rotated rounded-square, tier gradient, counter-rotated
+// content) — matches the marketplace / living-profile / app avatar.
+function SsFacet({ photo, ini, color, size = 38 }) {
+  const inset = Math.max(2, Math.round(size * 0.055));
+  return (
+    <span style={{ width: size, height: size, flexShrink: 0, position: "relative", display: "inline-grid", placeItems: "center" }}>
+      <span style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${ssShade(color, 0.5)})`, boxShadow: `0 5px 16px ${color}55, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+        <span style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
+        <span style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
+          {photo
+            ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
+            : <span style={{ transform: "rotate(-45deg)", fontFamily: serif, fontWeight: 500, fontSize: size * 0.4, color: "#f2ede4", lineHeight: 1 }}>{ini}</span>}
+        </span>
+      </span>
+    </span>
+  );
+}
+// Not every page includes supabase.js, so the search lazy-loads the Supabase
+// client (window.shapeDb) on first use — CDN first, then /supabase.js.
+let _ssDbPromise = null;
+function ssEnsureDb() {
+  if (window.shapeDb && window.shapeDb.client) return Promise.resolve(window.shapeDb);
+  if (_ssDbPromise) return _ssDbPromise;
+  const load = (src) => new Promise((res, rej) => {
+    const existing = document.querySelector('script[data-ssdb="' + src + '"]');
+    if (existing) { existing.addEventListener("load", () => res()); existing.addEventListener("error", rej); return; }
+    const s = document.createElement("script"); s.src = src; s.async = true; s.setAttribute("data-ssdb", src);
+    // SRI on the pinned, immutable supabase-js vendor bundle (matches the static
+    // <script integrity> tags); /supabase.js is our own mutable same-origin wrapper.
+    if (src.indexOf("/vendor/supabase-js-") === 0) { s.integrity = "sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p"; s.crossOrigin = "anonymous"; }
+    s.onload = () => res(); s.onerror = rej; document.head.appendChild(s);
+  });
+  _ssDbPromise = (window.supabase && window.supabase.createClient ? Promise.resolve() : load("/vendor/supabase-js-2.108.2.umd.js"))
+    .then(() => (window.shapeDb && window.shapeDb.client) ? null : load("/supabase.js"))
+    .then(() => (window.shapeDb && window.shapeDb.client) ? window.shapeDb : null)
+    .catch((e) => { try { console.error("[shape] Supabase bundle failed to load", e); } catch (_) {} return null; });
+  return _ssDbPromise;
+}
 function SiteSearch({ signedIn = false }) {
   const [open, setOpen] = React.useState(false);
   const [q, setQ] = React.useState("");
   const [rows, setRows] = React.useState(null); // null = idle · [] = none
   const inputRef = React.useRef(null);
-  React.useEffect(() => { if (open) { const id = setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 60); return () => clearTimeout(id); } }, [open]);
+  React.useEffect(() => { if (open) { ssEnsureDb(); const id = setTimeout(() => { try { inputRef.current && inputRef.current.focus(); } catch (e) {} }, 60); return () => clearTimeout(id); } }, [open]);
   React.useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
@@ -144,11 +177,14 @@ function SiteSearch({ signedIn = false }) {
     if (!open || !query) { setRows(null); return undefined; }
     let dead = false;
     const id = setTimeout(() => {
-      const sb = window.shapeDb && window.shapeDb.client;
-      if (!sb) { setRows([]); return; }
-      sb.rpc("search_shape_people", { p_q: query, p_limit: 12 })
-        .then(r => { if (!dead) setRows(Array.isArray(r.data) ? r.data : []); })
-        .catch(() => { if (!dead) setRows([]); });
+      ssEnsureDb().then(db => {
+        if (dead) return;
+        const sb = db && db.client;
+        if (!sb) { setRows([]); return; }
+        sb.rpc("search_shape_people", { p_q: query, p_limit: 12 })
+          .then(r => { if (!dead) setRows(Array.isArray(r.data) ? r.data : []); })
+          .catch(() => { if (!dead) setRows([]); });
+      });
     }, 250);
     return () => { dead = true; clearTimeout(id); };
   }, [q, open]);
@@ -179,7 +215,7 @@ function SiteSearch({ signedIn = false }) {
               {noraHit && (
                 <button onClick={openNora} style={rowStyle}
                   onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                  <img src="/nora-avatar.png" alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover", border: `1.5px solid ${TEAL}` }} />
+                  <SsFacet photo="/nora-avatar.png" ini="N" color={TEAL} />
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Shape's Concierge · always online</span>
                     <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4" }}>Nora</span>
@@ -197,9 +233,7 @@ function SiteSearch({ signedIn = false }) {
                 ) : rows.map((p) => (
                   <a key={p.id} href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(p.id)}`} style={rowStyle}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                    {p.avatar
-                      ? <img src={p.avatar} alt="" style={{ width: 38, height: 38, borderRadius: 999, objectFit: "cover", border: `1.5px solid ${ssTierColor(p.points)}` }} />
-                      : <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 999, background: `${ssTierColor(p.points)}26`, border: `1.5px solid ${ssTierColor(p.points)}`, color: "#f2ede4", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>{String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()}</span>}
+                    <SsFacet photo={p.avatar || ""} ini={String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()} color={ssTierColor(p.points)} />
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: roleColorOf(p.role) }}>{roleLabelOf(p.role)}</span>
                       <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.full_name}</span>
@@ -409,7 +443,7 @@ function Footer({ logoHeight = 64 } = {}) {
           {[
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
             ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
-            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Data & compliance", "/data-compliance.html"]]],
+            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
@@ -430,6 +464,13 @@ function Footer({ logoHeight = 64 } = {}) {
 function ShapeMobileStyles() {
   return (
     <style>{`
+      /* Metrics-matched fallback fonts — the local fallback is scaled (size-adjust +
+         ascent/descent overrides) to occupy the SAME space as the web font, so the swap
+         on load doesn't reflow headers (Fraunces), sub-heads (JetBrains Mono) or body
+         (Space Grotesk). Metrics from @capsizecss (next/font formula). CLS guard. */
+      @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
+      @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
+      @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
       html, body { overflow-x: hidden; }
       /* Spatial Cinema chrome micro-interactions */
       .shape-nav-link, .shape-foot-link { transition: color .16s ease, border-color .16s ease; }
@@ -1207,3 +1248,82 @@ function ShapeHomeCards() {
 function shapeCardBtn(color) { return { width: 28, height: 28, borderRadius: 7, border: 0, background: "transparent", color, fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1 }; }
 
 Object.assign(window, { ShapeHomeCards });
+
+// Region-aware cookie/analytics consent + Global Privacy Control. EEA/UK visitors
+// see a banner; GPC is honored everywhere; the choice is recorded (and, when
+// signed in, logged to consent_log). No-ops once a choice exists. Loaded via
+// pageShell, so it covers every page that renders the shared shell.
+(function shapeConsent() {
+  if (typeof document === "undefined") return;
+  // Resolves true only when a consent_log row was actually written (so callers
+  // can gate a "logged" flag on a confirmed insert, not an attempt).
+  function logConsent(kind, granted, text) {
+    try {
+      var db = window.shapeDb;
+      if (!(db && db.client && db.client.auth)) return Promise.resolve(false);
+      return db.client.auth.getUser().then(function (r) {
+        var uid = r && r.data && r.data.user && r.data.user.id;
+        if (!uid) return false;
+        return db.client.from("consent_log").insert({ user_id: uid, kind: kind, granted: granted, policy_version: "2026-06-22", source: "banner", consent_text: text }).then(function () { return true; }).catch(function () { return false; });
+      }).catch(function () { return false; });
+    } catch (e) { return Promise.resolve(false); }
+  }
+  function start() {
+    try {
+      var KEY = "shape.consent.v1";
+      var gpc = (typeof navigator !== "undefined" && navigator.globalPrivacyControl === true);
+      if (gpc) {
+        window.__shapeGPC = true;
+        // Log the GPC opt-out once PER USER (not once per browser), and only after
+        // the insert is confirmed — so a signed-out visit (or a failed insert)
+        // doesn't permanently suppress logging for a later signed-in user here.
+        try {
+          var gdb = window.shapeDb;
+          if (gdb && gdb.client && gdb.client.auth) {
+            gdb.client.auth.getUser().then(function (r) {
+              var uid = r && r.data && r.data.user && r.data.user.id;
+              if (!uid) return;                                  // anon: nothing to log yet; their next signed-in visit logs it
+              var gkey = "shape.gpc.logged." + uid;
+              if (localStorage.getItem(gkey)) return;
+              logConsent("gpc_optout", true, "Global Privacy Control honored as an opt-out of sale/sharing.").then(function (ok) {
+                if (ok) { try { localStorage.setItem(gkey, "1"); } catch (e) {} }
+              });
+            }).catch(function () {});
+          }
+        } catch (e) {}
+      }
+      if (localStorage.getItem(KEY)) return;                 // already chose
+      if (gpc) { try { localStorage.setItem(KEY, "reject"); } catch (e) {} return; } // GPC = opt out, no banner
+      var tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+      if (!/^Europe\//.test(tz)) return;                     // region-aware: show only for EEA/UK
+      function record(choice) {
+        try { localStorage.setItem(KEY, choice); } catch (e) {}
+        logConsent("cookies", choice === "accept", "Cookie/analytics consent banner choice: " + choice);
+      }
+      var bar = document.createElement("div");
+      bar.setAttribute("role", "dialog"); bar.setAttribute("aria-label", "Cookie consent");
+      // Use the design-system theme tokens (with the canonical palette as fallback,
+      // since this banner is injected outside any page stylesheet and must stay
+      // legible everywhere).
+      bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--paper,#1a1612);color:var(--ink,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
+      var txt = document.createElement("span");
+      txt.style.cssText = "flex:1;min-width:240px;line-height:1.5";
+      txt.appendChild(document.createTextNode("We use essential cookies to run Shape, and — only with your consent — privacy-friendly analytics. See our "));
+      var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--teal-bright,#2ee0c4)";
+      txt.appendChild(pl); txt.appendChild(document.createTextNode("."));
+      bar.appendChild(txt);
+      function btn(label, choice, primary) {
+        var b = document.createElement("button");
+        b.textContent = label;
+        b.style.cssText = "border:1px solid " + (primary ? "var(--teal,#0ac5a8)" : "rgba(242,237,228,0.25)") + ";background:" + (primary ? "var(--teal,#0ac5a8)" : "transparent") + ";color:" + (primary ? "var(--paper,#1a1612)" : "var(--ink,#f2ede4)") + ";padding:9px 16px;border-radius:7px;font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap";
+        b.onclick = function () { record(choice); if (bar.parentNode) bar.parentNode.removeChild(bar); };
+        return b;
+      }
+      bar.appendChild(btn("Reject non-essential", "reject", false));
+      bar.appendChild(btn("Accept", "accept", true));
+      document.body.appendChild(bar);
+    } catch (e) {}
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
+})();

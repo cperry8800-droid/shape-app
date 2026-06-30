@@ -126,7 +126,7 @@ function CoachClientDetailPage() {
   const liftRows = (Array.isArray(L.keyLifts) && L.keyLifts.length) ? (() => {
     const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
     const mx = best.length ? Math.max(...best) : 1;
-    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta); return { n: x.name || "Lift", v: b != null ? `${b} kg` : "—", d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
+    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const v = b != null ? (e1 != null ? `${b} kg · ${Math.round(e1)} e1RM` : `${b} kg`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
   })() : [
     { n: "Back Squat", v: "82.5 kg", d: "+7.5", p: 0.92 },
     { n: "Bench Press", v: "52.5 kg", d: "+5.0", p: 0.55 },
@@ -290,17 +290,81 @@ function CoachClientDetailPage() {
             );
           })()}
 
+          {data.sleep && (() => {
+            const s = data.sleep;
+            const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
+            const rc = s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
+            const cells = [
+              ["LAST NIGHT", fmtH(s.latest)],
+              ["7-DAY AVG", s.avg7 == null ? "—" : `${Number(s.avg7)}h`],
+              ["EFFICIENCY", s.efficiency == null ? "—" : `${s.efficiency}%`],
+              ["RESTING HR", s.rhr == null ? "—" : `${s.rhr}`],
+              ["HRV", s.hrv == null ? "—" : `${s.hrv}`],
+              ["RESTED", s.rested == null ? "—" : `${s.rested}/10`],
+              ["LATENCY", s.latency == null ? "—" : `${s.latency}m`],
+              ["RESPIRATORY", s.respiratory == null ? "—" : `${s.respiratory}/min`],
+            ];
+            const st = s.stages;
+            return (
+              <Card style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                  <CKSecHead>SLEEP · RECOVERY</CKSecHead>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>
+                </div>
+                {s.readiness != null && (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>READINESS</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>/100</span>
+                    {s.readinessLabel && <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: rc }}>{s.readinessLabel}</span>}
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                  {cells.map(([l, v]) => (
+                    <div key={l} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{l}</div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                {st && (
+                  <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", color: "rgba(242,237,228,0.7)" }}>
+                    STAGES · {[st.deep != null ? `Deep ${st.deep}m` : null, st.rem != null ? `REM ${st.rem}m` : null, st.light != null ? `Light ${st.light}m` : null].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                )}
+                {Array.isArray(s.series7) && s.series7.filter((p) => p && p.value != null).length >= 2 && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>7-DAY TREND</div>
+                    <CKTrend vals={s.series7.map((p) => p.value)} color={accent} h={56} />
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
+
           {data.healthProfile && (() => {
             const h = data.healthProfile;
             const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
+            const rxLine = h.rxMeds === "yes" ? (h.medications || "Yes — not listed") : h.rxMeds === "no" ? "None" : (h.medications || null);
+            const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(" · ") : ""), (h.conditions || "")].filter(Boolean).join(" — ") || null;
+            const allergyLine = h.allergies === "yes" ? (h.allergyDetails || "Yes — not listed") : h.allergies === "no" ? "None reported" : null;
+            const pregLine = h.pregnancy === "yes" ? "Yes — pregnant or ≤6 months postpartum" : null;
+            const rows = [
+              ["PRESCRIPTION MEDICATION", rxLine],
+              ["ALLERGIES", allergyLine],
+              ["PREGNANCY / POSTPARTUM", pregLine],
+              ["MEDICAL CONDITIONS", condLine],
+              ["INJURIES & SURGERIES", h.injuries],
+              ["EMERGENCY CONTACT", h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ""} ${h.emergency.phone || ""}`.trim() : null],
+            ].filter(([l, v]) => v);
             return (
               <Card style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                   <CKSecHead>HEALTH PROFILE · SCREENING</CKSecHead>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: h.flagged ? rust : teal, textTransform: "uppercase" }}>{h.flagged ? `PAR-Q · ${yesCount} flagged` : "PAR-Q · all clear"}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: h.flagged ? rust : teal, textTransform: "uppercase" }}>{h.flagged ? `PAR-Q · ${yesCount || "review"} flagged` : "PAR-Q · all clear"}</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                  {[["INJURIES & SURGERIES", h.injuries], ["MEDICATIONS & CONDITIONS", h.medications], ["EMERGENCY CONTACT", h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ""} ${h.emergency.phone || ""}`.trim() : null]].map(([l, v]) => (
+                  {rows.map(([l, v]) => (
                     <div key={l}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
                       <div style={{ marginTop: 4, fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>{v || "— none noted"}</div>

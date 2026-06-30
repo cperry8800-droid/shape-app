@@ -120,11 +120,20 @@ function MomentumEditModal({ momentum, onClose, onSave }) {
   );
 }
 
+// Stable goal ids: DashGrid persists layout/hidden state by widget key, so the key
+// must be tied to the goal's identity (not its array position). Legacy/default goals
+// have no id — assign deterministic ones so existing goals keep their saved layout.
+let goalIdSeq = 0;
+function nextGoalId() { return "g" + Date.now().toString(36) + "_" + (goalIdSeq++).toString(36); }
+function withGoalIds(goals) {
+  return (goals || []).map((g, i) => (g && g.id) ? g : { ...g, id: "goal" + i });
+}
+
 function NutritionistGoalPage() {
-  const [state, setState] = React.useState(DEFAULT_GOALS_STATE);
+  const [state, setState] = React.useState(() => ({ ...DEFAULT_GOALS_STATE, goals: withGoalIds(DEFAULT_GOALS_STATE.goals) }));
   const [signedIn, setSignedIn] = React.useState(false);
   const [toast, setToast] = React.useState(null);
-  const [editGoalIdx, setEditGoalIdx] = React.useState(null);
+  const [editGoalId, setEditGoalId] = React.useState(null); // goal id | 'new' | null
   const [editCalc, setEditCalc] = React.useState(false);
   const [editMomentum, setEditMomentum] = React.useState(false);
 
@@ -136,7 +145,10 @@ function NutritionistGoalPage() {
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("nutritionist");
       if (remote && Object.keys(remote).length > 0) {
-        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) } }));
+        setState(s => ({ ...s, ...remote, calc: { ...s.calc, ...(remote.calc || {}) }, goals: withGoalIds(remote.goals || s.goals) }));
+      } else {
+        // Signed in with no saved goals → a clean empty state, not the demo goals.
+        setState(s => ({ ...s, goals: [], momentum: [], calc: { consult: 0, cpw: 0, subs: 0, subPrice: 0, mealPlans: 0, currentWeekly: 0 } }));
       }
     })();
   }, []);
@@ -154,15 +166,18 @@ function NutritionistGoalPage() {
   }
 
   function saveGoal(g) {
-    const goals = [...state.goals];
-    if (editGoalIdx === "new") goals.push(g);
-    else goals[editGoalIdx] = g;
-    setEditGoalIdx(null);
+    let goals;
+    if (editGoalId === "new") {
+      goals = [...state.goals, { ...g, id: nextGoalId() }];
+    } else {
+      goals = state.goals.map(x => x.id === editGoalId ? { ...g, id: editGoalId } : x);
+    }
+    setEditGoalId(null);
     persist({ ...state, goals });
   }
   function deleteGoal() {
-    const goals = state.goals.filter((_, i) => i !== editGoalIdx);
-    setEditGoalIdx(null);
+    const goals = state.goals.filter(x => x.id !== editGoalId);
+    setEditGoalId(null);
     persist({ ...state, goals });
   }
 
@@ -178,43 +193,32 @@ function NutritionistGoalPage() {
   const currentNet = currentWeekly * (1 - PLATFORM_FEE_RATE);
   const paceDelta = weekly - currentNet;
 
-  return (
-    <DashPage
-      navItems={nutriNavItems("goal")}
-      payoutCard={nutriPayoutCard}
-      eyebrow="YOUR GOALS · Q2 2026"
-      title="Goal"
-      subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
-      actions={<>
-        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
-        <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
-      </>}
-    >
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {goals.map((g, i) => {
-          const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
-          const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
-          const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
-          return (
-            <Card key={i} style={{ padding: 26, position: "relative" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
-                <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
-              </div>
-              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
-                <span>{curF}</span><span>{tgtF}</span>
-              </div>
-              <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
-                <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
-              </div>
-              <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Card style={{ marginTop: 20 }}>
+  // Each card below becomes a draggable/resizable DashGrid widget (role=nutritionist, tab=goal),
+  // mirroring the Score refactor. The DashPage hero (title/actions) stays as the page header;
+  // only the card stack is gridded. Each goal is a half-width widget; calc + momentum are full.
+  const widgets = goals.map((g) => ({ key: "goal-" + g.id, title: g.t || "Goal", size: "half", render: () => {
+    const pct = Math.min((Number(g.cur)||0) / (Number(g.tgt)||1), 1);
+    const curF = g.money ? `$${Number(g.cur).toLocaleString()}` : g.pct ? `${g.cur}%` : g.cur;
+    const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
+    return (
+      <Card style={{ padding: 26, position: "relative" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {Math.round(pct*100)}%</div>
+          <Chip onClick={() => setEditGoalId(g.id)}>EDIT</Chip>
+        </div>
+        <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
+          <span>{curF}</span><span>{tgtF}</span>
+        </div>
+        <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
+          <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
+        </div>
+        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+      </Card>
+    );
+  } })).concat([
+    { key: "calc", title: "Revenue calculator", size: "full", render: () => (
+      <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <SectionTitle right="SET YOUR TARGET">Revenue calculator</SectionTitle>
           <Chip onClick={() => setEditCalc(true)}>EDIT</Chip>
@@ -265,8 +269,9 @@ function NutritionistGoalPage() {
           </div>
         </div>
       </Card>
-
-      <Card style={{ marginTop: 20 }}>
+    ) },
+    { key: "momentum", title: "Momentum", size: "full", render: () => (
+      <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <SectionTitle right="THIS QUARTER">Momentum</SectionTitle>
           <Chip onClick={() => setEditMomentum(true)}>EDIT</Chip>
@@ -281,13 +286,29 @@ function NutritionistGoalPage() {
           ))}
         </div>
       </Card>
+    ) },
+  ]);
 
-      {editGoalIdx != null && (
+  return (
+    <DashPage
+      navItems={nutriNavItems("goal")}
+      payoutCard={nutriPayoutCard}
+      eyebrow="YOUR GOALS · Q2 2026"
+      title="Goal"
+      subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
+      actions={<>
+        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+      </>}
+    >
+      <DashGrid role="nutritionist" tab="goal" widgets={widgets} />
+
+      {editGoalId != null && (
         <GoalEditModal
-          goal={editGoalIdx === "new" ? null : goals[editGoalIdx]}
-          onClose={() => setEditGoalIdx(null)}
+          goal={editGoalId === "new" ? null : goals.find(x => x.id === editGoalId)}
+          onClose={() => setEditGoalId(null)}
           onSave={saveGoal}
-          onDelete={editGoalIdx === "new" ? null : deleteGoal}
+          onDelete={editGoalId === "new" ? null : deleteGoal}
         />
       )}
       {editCalc && (

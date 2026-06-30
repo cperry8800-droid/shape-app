@@ -171,8 +171,9 @@ function ClientHealth({ v, set }) {
         <Field label="Biological sex"><Select value={v.sex || "Prefer not to say"} onChange={e => set({ sex: e.target.value })} options={["Prefer not to say", "Female", "Male"]} /></Field>
       </div>
       <Field label="Injuries or physical limitations"><TextInput placeholder="e.g. lower back sensitivity, recovering from ACL" value={v.injuries || ""} onChange={e => set({ injuries: e.target.value })} /></Field>
-      <Field label="Medical conditions or medications"><TextInput placeholder="Optional" value={v.medical || ""} onChange={e => set({ medical: e.target.value })} /></Field>
-      <Field label="Dietary restrictions or allergies"><TextInput placeholder="Optional" value={v.diet || ""} onChange={e => set({ diet: e.target.value })} /></Field>
+      <Field label="Prescription medications"><TextInput placeholder="List any you take — or 'None'" value={v.medications || ""} onChange={e => set({ medications: e.target.value })} /></Field>
+      <Field label="Other medical conditions"><TextInput placeholder="Optional — e.g. asthma, type 2 diabetes" value={v.medical || ""} onChange={e => set({ medical: e.target.value })} /></Field>
+      <Field label="Allergies (food, medication, other)"><TextInput placeholder="List any — or 'None'" value={v.diet || ""} onChange={e => set({ diet: e.target.value })} /></Field>
       <Field label="Emergency contact (name & phone)"><TextInput value={v.emergency || ""} onChange={e => set({ emergency: e.target.value })} /></Field>
       <Field label="Accountability style">
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -422,12 +423,46 @@ function SignupForm({ role }) {
   const [step, setStep] = React.useState(0);
   const [values, setValues] = React.useState({});
   const [done, setDone] = React.useState(false);
+  const [confirmEmail, setConfirmEmail] = React.useState(false);
   const [error, setError] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const set = (patch) => setValues(v => ({ ...v, ...patch }));
 
   const totalSteps = cfg.steps.length;
   const isLast = step === totalSteps - 1;
+
+  // Cloudflare Turnstile (CAPTCHA) — Auth CAPTCHA is enabled, so a tokenless
+  // signUp is REJECTED. Mirror login.jsx: render a widget on the client signup's
+  // FINAL step, block submit until a token exists, pass it to auth.signUp, and
+  // degrade open if the human-check can't load/connect (so it can't hard-block).
+  const captchaOn = typeof window !== "undefined" && window.ShapeTurnstile && window.ShapeTurnstile.enabled();
+  const [captchaToken, setCaptchaToken] = React.useState("");
+  const [captchaUnavailable, setCaptchaUnavailable] = React.useState(false);
+  const captchaRef = React.useRef(null);
+  const captchaIdRef = React.useRef(null);
+  const captchaTokenRef = React.useRef("");
+  React.useEffect(() => { captchaTokenRef.current = captchaToken; }, [captchaToken]);
+  // Render the widget only on the CLIENT signup's final step (where it's shown).
+  const captchaVisible = captchaOn && role === "client" && isLast;
+  React.useEffect(() => {
+    if (!captchaVisible) {
+      if (captchaIdRef.current != null) { window.ShapeTurnstile.remove(captchaIdRef.current); captchaIdRef.current = null; }
+      setCaptchaToken("");
+      return;
+    }
+    if (!captchaRef.current || captchaIdRef.current != null) return;
+    setCaptchaUnavailable(false);
+    let alive = true;
+    window.ShapeTurnstile.render(captchaRef.current, setCaptchaToken).then((id) => {
+      if (!alive) return;
+      captchaIdRef.current = id;
+      if (id == null) setCaptchaUnavailable(true); // the Turnstile script never loaded
+    });
+    const failTimer = setTimeout(() => { if (alive && !captchaTokenRef.current) setCaptchaUnavailable(true); }, 7000);
+    return () => { alive = false; clearTimeout(failTimer); };
+  }, [captchaVisible]);
+  // Tokens are single-use — clear after a failed attempt so a retry re-solves.
+  const resetCaptcha = () => { setCaptchaToken(""); if (captchaIdRef.current != null) window.ShapeTurnstile.reset(captchaIdRef.current); };
 
   const body = (() => {
     if (role === "client") {
@@ -449,6 +484,22 @@ function SignupForm({ role }) {
     return null;
   })();
 
+  if (confirmEmail) {
+    return (
+      <div style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", background: TEAL, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+          <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect x="3" y="6" width="20" height="15" rx="2" stroke={PAPER} strokeWidth="2.2"/><path d="M4 7l9 6 9-6" stroke={PAPER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <h2 style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.025em", fontWeight: 400, margin: "0 0 12px", lineHeight: 1 }}>Confirm your email.</h2>
+        <p style={{ fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.7)", margin: "0 0 32px", lineHeight: 1.55, maxWidth: 500 }}>We sent a confirmation link to {values.email}. Click it, then sign in to finish — we'll claim @{(values.username || "").trim().replace(/^@/, "").toLowerCase()} for you then, if it's still available.</p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <a href="Login.html" style={{ padding: "14px 24px", borderRadius: 8, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 14, fontWeight: 500, textDecoration: "none", display: "inline-block" }}>Go to sign in</a>
+          <a href="Landing.html" style={{ padding: "14px 24px", borderRadius: 8, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.2)", fontFamily: sans, fontSize: 14, textDecoration: "none", display: "inline-block" }}>Back to landing</a>
+        </div>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div style={{ padding: "60px 48px", textAlign: "left", background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14 }}>
@@ -467,10 +518,102 @@ function SignupForm({ role }) {
 
   async function submitApplication() {
     setError("");
+    // ---- CLIENT path: create a REAL Supabase auth account (mirrors the mobile app) ----
     if (role !== "trainer" && role !== "nutritionist") {
-      setDone(true);
+      // Validate the collected fields.
+      if (!values.firstName || !values.lastName) { setError("First and last name are required."); return; }
+      if (!values.email || !values.email.trim()) { setError("Enter your email."); return; }
+      if (!values.password || values.password.length < 8) { setError("Choose a password with at least 8 characters."); return; }
+      // Normalize the username the same way it'll be submitted, THEN validate, so
+      // a value like " Jane.Doe " / "@jane" can't fail the check on a stray char.
+      const cleanUsername = String(values.username || "").trim().replace(/^@/, "").toLowerCase();
+      if (!cleanUsername || !/^[a-z0-9][a-z0-9._]{2,19}$/.test(cleanUsername)) {
+        setError("Pick a valid username — letters, numbers, . _ (3–20 chars).");
+        return;
+      }
+      // 18+ gate (verbatim from shapeBackend.signUp).
+      const d = values.dob ? new Date(values.dob) : null;
+      if (!d || isNaN(d.getTime())) { setError("Enter a valid date of birth — Shape is for adults 18 and over."); return; }
+      const eighteen = new Date();
+      eighteen.setFullYear(eighteen.getFullYear() - 18);
+      if (d > eighteen) { setError("You must be 18 or older to use Shape."); return; }
+      // Require Terms + Privacy acceptance before creating a real account (the
+      // ClientPrefs step collects values.tos — gate on it like the coach path does).
+      if (!values.tos) { setError("Please accept the Terms of Service and Privacy Policy to continue."); return; }
+      // Captcha gate — Auth CAPTCHA is enabled, so a tokenless signUp is REJECTED by
+      // the server. If the human-check can't load, BLOCK with a retry message rather
+      // than falling open into a confusing server-side rejection.
+      if (captchaOn && !captchaToken) {
+        setError(captchaUnavailable
+          ? "Couldn't load the human-check. Refresh the page or disable any blockers, then try again."
+          : "Just a moment — confirming you're human…");
+        return;
+      }
+      const sb = window.shapeDb && window.shapeDb.client;
+      if (!sb) { setError("Auth is still loading. Try again."); return; }
+
+      setSubmitting(true);
+      try {
+        const { data, error } = await sb.auth.signUp({
+          email: values.email.trim(),
+          password: values.password,
+          options: {
+            emailRedirectTo: window.location.origin + "/newdesign/Login.html",
+            ...(captchaOn && captchaToken ? { captchaToken } : {}),
+            data: {
+              full_name: (values.firstName + " " + values.lastName).trim(),
+              role: "client",
+              roles: ["client"],
+              username: cleanUsername,
+              date_of_birth: values.dob,
+            },
+          },
+        });
+        if (error) {
+          if (captchaOn) resetCaptcha();
+          setError(error.message || "Could not create your account.");
+          return;
+        }
+        // Email confirmation enabled → signUp returns a user but no session until
+        // the emailed link is clicked → show "check your inbox". If a session IS
+        // returned (auto-confirm), the account is already signed in → dashboard.
+        if (data && data.user && !data.session) {
+          setConfirmEmail(true);
+        } else {
+          // Auto-confirm (no email step): a session exists immediately and we go
+          // straight to the dashboard, skipping the login path — so provision the
+          // account HERE (create the profile, persist DOB → the over_18 trigger,
+          // claim the username), mirroring the mobile signUp's post-session steps.
+          // The profiles upsert can return { error } WITHOUT throwing, and the
+          // dashboard NEEDS the row — so on failure send them to sign in (the
+          // account exists; Login.html provisions the profile) rather than into a
+          // broken dashboard. The username claim stays best-effort.
+          const u = data && data.user;
+          if (u && u.id) {
+            let pErr = null;
+            try {
+              const res = await sb.from("profiles").upsert({
+                id: u.id, email: u.email,
+                full_name: (values.firstName + " " + values.lastName).trim(),
+                role: "client", roles: ["client"],
+                date_of_birth: values.dob, updated_at: new Date().toISOString(),
+              }, { onConflict: "id" });
+              pErr = res && res.error;
+            } catch (e) { pErr = e; }
+            if (pErr) { setError("Your account was created — please sign in to finish setting up your profile."); return; }
+            try { await sb.rpc("set_my_username", { p_username: cleanUsername }); } catch (e) {}
+          }
+          window.location.href = "ClientDashboard.html";
+        }
+      } catch (err) {
+        if (captchaOn) resetCaptcha();
+        setError(err?.message || "Could not create your account.");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
+    // ---- COACH path (trainer / nutritionist) — UNCHANGED below ----
     if (!values.firstName || !values.lastName || !values.email) {
       setError("First name, last name, and email are required.");
       return;
@@ -575,6 +718,18 @@ function SignupForm({ role }) {
       <div>{body}</div>
 
       {error && <div style={{ marginTop: 18, color: "#ff7b6e", fontFamily: sans, fontSize: 13 }}>{error}</div>}
+
+      {/* Turnstile bot challenge — client signup's final step only. If it can't
+          load, submit is blocked with a retry notice (Auth CAPTCHA rejects a
+          tokenless signUp, so falling open would only hit a server rejection). */}
+      {captchaVisible ? (
+        <div style={{ marginTop: 18 }}>
+          <div ref={captchaRef} style={{ minHeight: captchaUnavailable ? 0 : 65, display: captchaUnavailable ? "none" : "block" }} />
+          {captchaUnavailable ? (
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>Couldn't load the human-check. Refresh the page or disable any blockers, then try again.</div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 36, display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
         <button

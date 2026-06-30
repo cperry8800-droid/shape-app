@@ -1,7 +1,8 @@
 // Shape — Supabase client (Phase 1: auth + profiles)
-// Loads the Supabase JS v2 client from CDN and exposes it as window.shapeDb.
-// All pages that need auth should include this file *after* the CDN script:
-//   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+// Expects the Supabase JS v2 client (window.supabase) already loaded, and exposes
+// it as window.shapeDb. Self-hosted same-origin; the pinned vendor bundle is SRI-protected.
+// All pages that need auth should include this file *after* the library script:
+//   <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 //   <script src="supabase.js"></script>
 
 // Cloudflare Turnstile (CAPTCHA) SITE key — PUBLIC, safe to commit (it's
@@ -921,6 +922,25 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     // Destroy a widget (e.g. when its container unmounts) so it can be re-rendered
     // fresh and doesn't leak — its issued token is single-use.
     remove: function (id) { try { if (window.turnstile && id != null) window.turnstile.remove(id); } catch (e) {} },
+  };
+
+  // Fire-and-forget product analytics. Consent-gated: never sends when GPC is on
+  // or the visitor opted out of the cookie/analytics banner. Whitelist enforced
+  // server-side too. Never throws.
+  window.ShapeAnalytics = window.ShapeAnalytics || {
+    track: function (event, props) {
+      try {
+        var gpc = (typeof navigator !== 'undefined' && navigator.globalPrivacyControl === true);
+        var c = null;
+        try { c = localStorage.getItem('shape.consent.v1'); } catch (e) {}
+        if (gpc || c === 'reject') return; // respect GPC + explicit opt-out; track otherwise
+        fetch('/api/analytics/track', {
+          method: 'POST', credentials: 'same-origin', keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: event, props: props || {} }),
+        }).catch(function () {});
+      } catch (e) {}
+    },
   };
 
   // Global sign-out helper (used by navbar buttons site-wide).

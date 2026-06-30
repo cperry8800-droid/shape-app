@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code of Conduct — Shape</title>
+<meta name="description" content="Shape Code of Conduct — how members and coaches are expected to treat each other and the platform, and how we enforce it.">
+<link rel="canonical" href="https://theshapecommunity.com/code-of-conduct.html">
+<meta property="og:site_name" content="Shape">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://theshapecommunity.com/code-of-conduct.html">
+<meta property="og:title" content="Code of Conduct — Shape">
+<meta property="og:description" content="Shape Code of Conduct — how members and coaches are expected to treat each other and the platform, and how we enforce it.">
+<meta property="og:image" content="https://theshapecommunity.com/icon-512.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Code of Conduct — Shape">
+<meta name="twitter:description" content="Shape Code of Conduct — how members and coaches are expected to treat each other and the platform, and how we enforce it.">
+<meta name="twitter:image" content="https://theshapecommunity.com/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1612">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --paper:#1a1612;
+    --ink:#f2ede4;
+    --teal:#0ac5a8;
+    --teal-bright:#2ee0c4;
+    --serif:'Fraunces',serif;
+    --sans:'Space Grotesk',sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--teal);color:var(--paper)}
+
+  .nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(11,14,12,0.55);-webkit-backdrop-filter:blur(20px) saturate(1.05);backdrop-filter:blur(20px) saturate(1.05);border-bottom:1px solid rgba(245,239,225,0.06)}
+  .nav::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,#0ac5a8 30%,#d2693f 70%,transparent 100%);opacity:.5}
+  .nav-inner{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:10px 44px;gap:20px}
+  .nav-logo{margin-left:16px;display:inline-flex;align-items:center;line-height:0}
+  .nav-logo svg{width:52px;height:auto}
+  .nav-links{display:flex;gap:16px;align-items:center;justify-content:center;white-space:nowrap}
+  .nav-item{position:relative;display:inline-flex;align-items:center}
+  .nav-item > a{font-size:12px;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.6);display:inline-flex;align-items:center;gap:5px;line-height:1;cursor:pointer;transition:color .15s}
+  .nav-item > a .caret{font-size:9px;opacity:.6}
+  .nav-item:hover > a{color:#f5efe1}
+  .nav-drop{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:10px;min-width:220px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s}
+  .nav-item:hover .nav-drop,.nav-item:focus-within .nav-drop{opacity:1;visibility:visible;pointer-events:auto}
+  .nav-drop-inner{background:rgba(26,22,18,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(242,237,228,0.1);border-radius:8px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,0.5)}
+  .nav-drop-inner a{display:block;padding:10px 14px;font-size:13px;color:rgba(242,237,228,0.85);border-radius:4px;white-space:nowrap;letter-spacing:0;text-transform:none;transition:background .15s,color .15s}
+  .nav-drop-inner a:hover{background:rgba(10,197,168,0.12);color:var(--ink)}
+  .nav-cta{display:flex;align-items:center;gap:13px}
+  .nav-search{width:34px;height:34px;border-radius:999px;border:1px solid rgba(245,239,225,0.25);display:inline-flex;align-items:center;justify-content:center;color:rgba(245,239,225,0.7);flex:none;transition:border-color .15s,color .15s}
+  .nav-search:hover{border-color:rgba(245,239,225,0.5);color:#f5efe1}
+  .nav-radio{display:inline-flex;align-items:center;line-height:0;flex:none}
+  .nav-radio img{width:138px;height:auto;display:block}
+  .nav-cta .login{font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55)}
+  .nav-cta .primary{background:transparent;color:#f5efe1;border:1px solid #f5efe1;padding:8px 15px;border-radius:999px;font-size:11.5px;letter-spacing:.04em;text-transform:lowercase;font-weight:400;transition:background .2s,color .2s}
+  .nav-cta .primary:hover{background:#f5efe1;color:#1a1612}
+  .nav-spacer{height:85px}
+
+  .hero{padding:80px 40px 40px;max-width:1320px;margin:0 auto;text-align:center}
+  .hero .eyebrow{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:24px}
+  .hero h1{font-family:var(--serif);font-size:clamp(52px,7vw,104px);letter-spacing:-.035em;font-weight:400;margin:0 0 20px;line-height:.95}
+  .hero h1 em{font-style:italic;color:var(--teal)}
+  .hero .updated{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:20px}
+
+  .wrap{max-width:1320px;margin:0 auto;padding:60px 40px 100px;display:grid;grid-template-columns:260px 1fr;gap:60px;align-items:start}
+
+  .toc{position:sticky;top:110px;border-left:1px solid rgba(242,237,228,0.12);padding-left:22px}
+  .toc .toc-label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(242,237,228,.45);margin-bottom:16px}
+  .toc a{display:block;font-size:13px;color:rgba(242,237,228,.7);padding:7px 0;line-height:1.35;transition:color .15s,transform .15s}
+  .toc a:hover{color:var(--teal-bright);transform:translateX(2px)}
+  .toc a .num{font-family:var(--mono);font-size:10.5px;color:var(--teal);margin-right:10px}
+
+  .content{max-width:760px}
+  .section{margin-bottom:56px;scroll-margin-top:110px}
+  .section .num{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--teal);margin-bottom:10px;text-transform:uppercase}
+  .section h2{font-family:var(--serif);font-size:34px;letter-spacing:-.02em;font-weight:400;margin:0 0 18px;line-height:1.08}
+  .section p{font-size:15.5px;color:rgba(242,237,228,.78);line-height:1.7;margin:0 0 14px}
+  .section ul{list-style:none;padding:0;margin:0 0 14px}
+  .section ul li{font-size:15.5px;color:rgba(242,237,228,.72);line-height:1.7;padding-left:20px;position:relative;margin-bottom:6px}
+  .section ul li::before{content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:999px;background:var(--teal)}
+  .section a{color:var(--teal-bright);border-bottom:1px solid rgba(46,224,196,.35)}
+  .section a:hover{border-bottom-color:var(--teal-bright)}
+
+  .contact-card{margin-top:40px;background:rgba(10,197,168,.07);border:1px solid rgba(10,197,168,.22);border-radius:12px;padding:32px}
+  .contact-card h3{font-family:var(--serif);font-size:24px;font-weight:400;margin:0 0 8px;letter-spacing:-.01em}
+  .contact-card p{color:rgba(242,237,228,.7);font-size:14.5px;line-height:1.6;margin:0 0 18px}
+  .contact-card .btn{display:inline-block;background:var(--teal);color:var(--paper);padding:12px 20px;border-radius:6px;font-size:13px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;transition:background .2s}
+  .contact-card .btn:hover{background:var(--teal-bright)}
+
+  .footer{padding:100px 40px 60px;background:var(--paper);color:var(--ink);margin-top:60px}
+  .footer-inner{max-width:1320px;margin:0 auto}
+  .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:40px;padding-top:40px;border-top:1px solid rgba(242,237,228,.12)}
+  .footer-logo svg{width:64px;height:auto}
+  .footer-desc{font-size:13px;color:rgba(242,237,228,.55);margin-top:16px;max-width:280px}
+  .footer-col h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin:0 0 16px;font-weight:500}
+  .footer-col a{display:block;font-size:13px;margin-bottom:8px;color:rgba(242,237,228,.72);transition:color .15s ease}
+  .footer-col a:hover{color:var(--teal-bright)}
+  .footer-base{margin-top:60px;padding-top:24px;border-top:1px solid rgba(242,237,228,.08);display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(242,237,228,.5)}
+
+  @media (max-width: 900px){
+    .nav-links,.nav-cta{display:none}
+    .nav-inner{padding:12px 18px}
+    .nav-spacer{height:68px}
+    .hero{padding:60px 22px 30px}
+    .wrap{padding:40px 22px 80px;grid-template-columns:1fr;gap:32px}
+    .toc{position:static;border-left:0;border-top:1px solid rgba(242,237,228,0.12);padding-left:0;padding-top:22px}
+    .section h2{font-size:28px}
+    .footer{padding:60px 22px 40px}
+    .footer-grid{grid-template-columns:1fr 1fr;gap:28px;padding-top:28px}
+    .footer-grid > :first-child{grid-column:1 / -1}
+    .footer-base{flex-direction:column;gap:10px;align-items:flex-start}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="newdesign/index.html" aria-label="Shape">
+      <img src="/shape-logo-new-teal-white.png?v=1" alt="Shape" style="height:60px;width:auto;display:block;object-fit:contain">
+    </a>
+    <div class="nav-links">
+      <div class="nav-item"><a href="newdesign/About.html">About</a></div>
+      <div class="nav-item"><a>Clients<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Client.html">Overview</a><a href="newdesign/ClientDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Trainers<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Coach.html">Overview</a><a href="newdesign/TrainerDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Nutritionists<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Nutritionist.html">Overview</a><a href="newdesign/NutritionistDashboard.html">Dashboard</a><a href="newdesign/Recipes.html">Recipes</a></div></div></div>
+      <div class="nav-item"><a href="newdesign/Marketplace.html">Marketplace</a></div>
+      <div class="nav-item"><a href="newdesign/Community.html">Community</a></div>
+      <div class="nav-item"><a>Rewards<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Score.html">Shape Score</a><a href="newdesign/Store.html">Shape Store</a></div></div></div>
+      <div class="nav-item"><a href="newdesign/GetApp.html">App</a></div>
+      <div class="nav-item"><a href="newdesign/Pricing.html">Pricing</a></div>
+    </div>
+    <div class="nav-cta">
+      <a class="nav-search" href="newdesign/Marketplace.html" aria-label="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></a>
+      <a class="login" href="newdesign/Login.html">Log in</a>
+      <a class="primary" href="newdesign/Landing.html">Get started</a>
+      <a class="nav-radio" href="newdesign/Radio.html" aria-label="Shape Radio"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio"></a>
+    </div>
+  </div>
+</nav>
+<div class="nav-spacer"></div>
+
+<section class="hero">
+  <div class="eyebrow">Legal</div>
+  <h1>Code of <em>conduct.</em></h1>
+  <div class="updated">Last updated — June 22, 2026</div>
+</section>
+
+<div class="wrap">
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-label">Contents</div>
+    <a href="#s1"><span class="num">01</span>Who this applies to</a>
+    <a href="#s2"><span class="num">02</span>Standards for everyone</a>
+    <a href="#s3"><span class="num">03</span>Coaches — professional conduct</a>
+    <a href="#s4"><span class="num">04</span>Clients — conduct</a>
+    <a href="#s5"><span class="num">05</span>Safety</a>
+    <a href="#s6"><span class="num">06</span>Reporting &amp; moderation</a>
+    <a href="#s7"><span class="num">07</span>Enforcement &amp; ban tiers</a>
+    <a href="#s8"><span class="num">08</span>A living document</a>
+  </aside>
+
+  <article class="content">
+    <section class="section" id="intro">
+      <p>Shape is a marketplace and a community — real coaches, real clients, a social feed, messaging, and rewards, all in one place. That only works if everyone can trust it. This Code of Conduct is the short version of how we expect people to treat each other and the platform.</p>
+      <p style="color:rgba(242,237,228,0.55);font-size:0.95em"><em>This is a draft for review by legal and privacy counsel before launch. It is not legal advice and is not final.</em></p>
+    </section>
+
+    <section class="section" id="s1">
+      <div class="num">01</div>
+      <h2>Who this applies to</h2>
+      <p>This Code applies to <strong>everyone on Shape</strong> — clients, trainers, nutritionists, and anyone else who creates an account or uses the platform. It covers everything you do here: the social feed, messaging, profiles and bios, coaching, the marketplace, reviews, Shape Score, and any other Shape feature.</p>
+      <p><strong>It works with the Terms, not instead of them.</strong> This Code is part of, and is incorporated into, our <a href="/terms.html">Terms of Service</a> — including the conduct rules in Section 5 and the grounds for account removal in Section 12. The <a href="/privacy.html">Privacy Policy</a> governs how we handle data. If you've agreed to the Terms, you've agreed to this Code; where this Code and the Terms overlap, read them together. Breaking this Code is a breach of the Terms and can lead to the actions described in Section 7.</p>
+    </section>
+
+    <section class="section" id="s2">
+      <div class="num">02</div>
+      <h2>Community standards for everyone</h2>
+      <p>The baseline is simple: treat people the way you'd want to be treated, and don't make Shape unsafe or dishonest for anyone else. Whoever you are, you agree to:</p>
+      <ul>
+        <li><strong>Be respectful.</strong> No harassment, bullying, threats, intimidation, stalking, hate speech, or content that demeans people based on race, ethnicity, religion, sex, gender identity, sexual orientation, disability, age, or body. No unwelcome sexual advances, sexual content directed at someone who hasn't asked for it, or sexual content involving minors — ever.</li>
+        <li><strong>Be honest.</strong> Don't lie about who you are, your qualifications, or your results. No fake reviews, fabricated credentials, manipulated before/afters, scams, or gaming Shape Score and rewards.</li>
+        <li><strong>Respect other people's privacy.</strong> Don't share someone else's private information, photos, health details, or messages without their consent, and don't post or threaten to post them ("doxxing").</li>
+        <li><strong>Don't spam or poach.</strong> No mass-unsolicited messaging, repetitive promotional posts, or off-platform solicitation that pulls people away from Shape to dodge the platform fee.</li>
+        <li><strong>Keep it legal and safe.</strong> No promotion or sale of controlled substances, prescription medications, or banned performance-enhancing drugs; no dangerous "advice" (extreme fasting, disordered-eating content, unsafe drug or supplement protocols); no illegal content of any kind.</li>
+        <li><strong>Be authentically you.</strong> One real identity per person. Don't impersonate another person, coach, business, or Shape itself, and don't misrepresent your affiliation.</li>
+        <li><strong>Protect the platform.</strong> No malware, hacking, scraping, reverse-engineering, or trying to access accounts, data, or systems you're not authorized to reach.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s3">
+      <div class="num">03</div>
+      <h2>Coaches — professional conduct</h2>
+      <p>Coaches — trainers and nutritionists — are held to a higher bar, because clients trust you with their health, their money, and their data. In addition to everything in Section 2, you agree to:</p>
+      <ul>
+        <li><strong>Be truthful about your credentials.</strong> Only claim licenses and certifications you actually hold and keep current. If you carry a <strong>Verified</strong> badge, your verified information must stay accurate — don't misrepresent what the badge means or display it deceptively.</li>
+        <li><strong>Stay in your scope.</strong> Practice only within what your credential and license allow, in the places they allow it. Don't diagnose, treat, or prescribe outside your scope; refer clients to a qualified professional when something is beyond you.</li>
+        <li><strong>Put client safety and boundaries first.</strong> Program responsibly for the person in front of you — their injuries, conditions, and readiness. Keep relationships professional: no exploiting the coach–client dynamic, no romantic or sexual advances toward clients, no pressure.</li>
+        <li><strong>Deliver what you sell.</strong> Provide the programs, plans, sessions, and communication you advertised, on time. No ghosting, chronic no-shows, or taking payment for work you don't deliver.</li>
+        <li><strong>Don't solicit off-platform to dodge the fee.</strong> Don't push clients you met or serve through Shape to pay you off-platform while still using Shape's tools, messaging, or data to coach them.</li>
+        <li><strong>Protect client data.</strong> Health and screening information is confidential. Use client data only to provide your services, keep it secure, retain it no longer than needed, follow the privacy laws that apply to your practice, and honor clients' privacy requests. Never sell, publish, or repurpose it. See <a href="/terms.html">Terms</a> Section 4 and the <a href="/privacy.html">Privacy Policy</a>.</li>
+        <li><strong>No medical claims.</strong> Don't promise cures, diagnose conditions, or claim to treat disease. Be clear that coaching is not medical care, and don't undercut a client's relationship with their physician or other licensed providers.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s4">
+      <div class="num">04</div>
+      <h2>Clients — conduct</h2>
+      <p>Coaching is a two-way relationship. In addition to everything in Section 2, clients agree to:</p>
+      <ul>
+        <li><strong>Give honest health information.</strong> Share accurate details in screenings and check-ins (injuries, conditions, medications, and similar). Your coach uses it to keep you safe — leaving things out or misrepresenting them puts you at risk.</li>
+        <li><strong>Treat coaches with respect.</strong> Coaches are independent professionals and people. No abuse, harassment, threats, or unwelcome advances. Disagreements are fine; how you handle them matters.</li>
+        <li><strong>Don't commit payment fraud.</strong> No stolen cards, no chargeback abuse on services you received, and no schemes to dodge what you owe. If something went wrong, raise it with the coach or with us first.</li>
+        <li><strong>Follow safety guidance.</strong> Listen to your body, follow the safety instructions in your programs, and stop if something hurts. Get clearance from a physician before starting where that's recommended, and don't push a coach to program something unsafe.</li>
+      </ul>
+    </section>
+
+    <section class="section" id="s5">
+      <div class="num">05</div>
+      <h2>Safety</h2>
+      <p><strong>Shape is not an emergency service.</strong> If you or someone else is in danger, having a medical emergency, or at risk of self-harm, contact your local emergency number or a crisis line right away. Don't rely on Shape, a coach, or a message to reach someone in time.</p>
+      <p><strong>No dangerous or illegal advice.</strong> Nobody — coach or client — may give or seek guidance that's likely to cause serious harm: unsafe drug, supplement, or PED protocols; extreme or disordered-eating practices; or anything illegal. Coaching on Shape is educational and not a substitute for medical, psychological, or other licensed care. See the medical and fitness disclaimers in <a href="/terms.html">Terms</a> Section 8.</p>
+      <p><strong>Shape is 18+.</strong> The platform is for adults only. You must be at least 18 to have an account. We'll close any account we learn belongs to someone under 18, and content sexualizing or endangering minors is reported and removed immediately.</p>
+    </section>
+
+    <section class="section" id="s6">
+      <div class="num">06</div>
+      <h2>Reporting &amp; moderation</h2>
+      <p><strong>How to report.</strong> If you see something that breaks this Code, use the in-app report option where it's available, or email <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a> with what happened, who's involved, and any screenshots, links, or context. The more specific you are, the faster we can act. In an emergency, contact local authorities first, then tell us.</p>
+      <p><strong>How we review.</strong> Our team reviews reports against this Code and the <a href="/terms.html">Terms</a>. We look at the evidence and context, weigh how serious and how repeated the behavior is, and aim to be <strong>fair and proportionate</strong> — most issues are a misunderstanding or a first mistake, not bad faith. We may contact the people involved, ask for more information, and take temporary protective steps (such as limiting a feature) while we look into a serious report. Shape makes the final call on enforcement.</p>
+      <p><strong>Possible outcomes.</strong> Depending on what we find, a review can end with no action, a private warning or request to fix something, content removal, limits on specific features, suspension, or permanent removal. We'll also act on a valid legal order or law-enforcement request. The tiers are described next.</p>
+    </section>
+
+    <section class="section" id="s7">
+      <div class="num">07</div>
+      <h2>Enforcement &amp; ban tiers</h2>
+      <p>We try to match the response to the conduct. Most violations follow a graduated path; the most serious ones don't.</p>
+      <ul>
+        <li><strong>Warning.</strong> For most first-time or minor issues — a private notice explaining what crossed the line and a chance to fix it or take it down.</li>
+        <li><strong>Temporary suspension.</strong> For repeat issues, ignored warnings, or more serious conduct — features or the account are paused for a period while the matter is resolved.</li>
+        <li><strong>Permanent removal.</strong> For severe or repeated violations — the account is removed for good.</li>
+      </ul>
+      <p><strong>Immediate removal — zero tolerance.</strong> Some conduct skips the ladder and can result in immediate suspension or permanent removal without prior warning and without refund: threats or violence; harassment, stalking, or hate speech; sexual misconduct or any content involving minors; fraud or payment abuse; illegal activity, including controlled substances or PEDs; credential fraud or practicing out of scope; endangering another person's safety; or serious security abuse. These mirror the grounds for removal in <a href="/terms.html">Terms</a> Section 12.</p>
+      <p><strong>No ban evasion.</strong> If your account is removed, you may not create a new one or use someone else's to get back on Shape. We treat circumventing a ban — new accounts, fake identities, or working around a restriction — as its own violation that can be acted on immediately.</p>
+      <p><strong>Appeals.</strong> If you believe we got it wrong, email <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a> within <strong>30 days</strong> of the action and we'll review it. Tell us what happened and include anything we should see. This is the same appeal route described in <a href="/terms.html">Terms</a> Section 12.</p>
+    </section>
+
+    <section class="section" id="s8">
+      <div class="num">08</div>
+      <h2>A living document</h2>
+      <p>This Code will change as Shape and its community grow. We may update it from time to time; the "Last updated" date above always reflects the current version, and material changes will be announced as described in our <a href="/terms.html">Terms</a>. This is a draft pending review by legal and privacy counsel before launch — it isn't final and isn't legal advice. Questions or suggestions are welcome at <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a>.</p>
+    </section>
+
+    <div class="contact-card">
+      <h3>See something that crosses a line?</h3>
+      <p>Tell us. Our team reviews every report against this Code and the Terms, and replies within one business day. In an emergency, contact local authorities first.</p>
+      <a class="btn" href="/contact.html">Report or contact support →</a>
+    </div>
+  </article>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div>
+        <a class="footer-logo" href="newdesign/index.html" aria-label="Shape">
+          <img src="/shape-logo-new-white.png?v=4" alt="Shape" style="height:115px;width:auto;display:block">
+        </a>
+        <p class="footer-desc">Real coaches. One marketplace. One platform.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="newdesign/Marketplace.html">Marketplace</a>
+        <a href="newdesign/Score.html">Shape Score</a>
+        <a href="newdesign/Radio.html">Radio</a>
+        <a href="newdesign/ClientDashboard.html">Dashboard</a>
+      </div>
+      <div class="footer-col">
+        <h4>For trainers</h4>
+        <a href="newdesign/SignupTrainer.html">Apply</a>
+        <a href="newdesign/TrainerDashboard.html">Payouts</a>
+        <a href="newdesign/TrainerPrograms.html">Programs</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="newdesign/index.html">About</a>
+        <a href="newdesign/Team.html#press">Press</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/code-of-conduct.html">Code of conduct</a>
+        <a href="/data-compliance.html">Data &amp; compliance</a>
+        <a href="/health-data-privacy.html">Consumer health data</a>
+        <a href="/subprocessors.html">Subprocessors</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="/help.html">Help</a>
+        <a href="/contact.html">Contact</a>
+      </div>
+    </div>
+    <div class="footer-base">
+      <span>© 2026 SHAPE</span>
+      <span>BROOKLYN · LISBON · MELBOURNE</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/newdesign/siteSearch.js?v=20260626a" defer></script>
+<script src="/newdesign/globalChatButton.js?v=20260613" defer></script>
+</body>
+</html>

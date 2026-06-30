@@ -13,12 +13,12 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="/supabase.js"></script>
-<script type="text/babel" src="pageShell.jsx?v=20260616b"></script>
+<script type="text/babel" src="pageShell.jsx?v=20260629a"></script>
 <script type="text/babel" src="chatWidget.jsx?v=20260618a"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
-<script type="text/babel" src="trainerDashboard.jsx?v=20260615b"></script>
+<script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="clientNav.jsx?v=20260614"></script>
 <script type="text/babel">
 const CATEGORIES = [
@@ -112,8 +112,8 @@ function webToSynced(lists) {
 function ClientGroceryPage() {
   const [lists, setLists] = React.useState(loadLists);
   const [activeListId, setActiveListId] = React.useState(() => loadActiveId(loadLists()));
-  const [filter, setFilter] = React.useState("buy");
   const [search, setSearch] = React.useState("");
+  const [shareMsg, setShareMsg] = React.useState("");
   const [newItem, setNewItem] = React.useState("");
   const [newQty, setNewQty] = React.useState("");
   const [newCat, setNewCat] = React.useState("other");
@@ -247,18 +247,14 @@ function ClientGroceryPage() {
     : [];
   const rawItems = isPlanList ? planVisibleForActive : (activeList?.items || []);
   const q = search.trim().toLowerCase();
-  const visible = rawItems.filter(it => {
-    if (filter === "buy" && it.checked) return false;
-    if (filter === "have" && !it.checked) return false;
-    if (q && !it.item.toLowerCase().includes(q)) return false;
-    return true;
-  });
+  // The list itself is the hero — every aisle renders inline (checked items just
+  // dim + strike through), so there's no buy/have view filter; only search narrows it.
+  const visible = rawItems.filter(it => (q ? it.item.toLowerCase().includes(q) : true));
   const grouped = CATEGORIES.map(cat => ({
     ...cat,
     items: visible.filter(it => it.category === cat.key),
   })).filter(g => g.items.length > 0);
 
-  const toBuyCount = rawItems.filter(it => !it.checked).length;
   const haveCount = rawItems.filter(it => it.checked).length;
 
   // ── Active list label for the dropdown trigger ───────────────────────
@@ -269,19 +265,36 @@ function ClientGroceryPage() {
     ? planVisibleForActive.length
     : (activeList?.items?.length || 0);
 
-  const FilterPill = ({ k, label, count }) => {
-    const active = filter === k;
-    return (
-      <button onClick={() => setFilter(k)} style={{
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
-        padding: "7px 14px", borderRadius: 999,
-        background: active ? INK : "rgba(242,237,228,0.04)",
-        color: active ? PAPER : "rgba(242,237,228,0.7)",
-        border: active ? "none" : "1px solid rgba(242,237,228,0.12)",
-        cursor: "pointer",
-      }}>{label}{count != null ? ` · ${count}` : ""}</button>
-    );
+  // Share the current list — native share sheet when available, else clipboard.
+  const shareList = async () => {
+    if (!rawItems.length) { setShareMsg("List is empty"); setTimeout(() => setShareMsg(""), 1800); return; }
+    const byCat = CATEGORIES.map(c => ({ label: c.label, items: rawItems.filter(it => it.category === c.key) })).filter(g => g.items.length);
+    const lines = byCat.map(g => `${g.label.toUpperCase()}\n${g.items.map(it => `  • ${it.qty ? it.qty + " " : ""}${it.item}`).join("\n")}`).join("\n\n");
+    const body = `${activeLabel} — Shop list\n\n${lines}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: `${activeLabel} — Shop list`, text: body }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(body); setShareMsg("Copied to clipboard"); }
+    catch (e) { setShareMsg("Couldn't copy"); }
+    setTimeout(() => setShareMsg(""), 1800);
   };
+  // Save the current list as a new editable list of your own — turns a read-only
+  // nutritionist plan into your own list, or duplicates a custom one.
+  const saveCopy = () => {
+    if (!rawItems.length) return;
+    const base = isPlanList ? (activeLabel === "All from your nutritionist" ? "Nutritionist plan" : activeLabel) : `${activeLabel} (copy)`;
+    const id = "list-" + Date.now();
+    const items = rawItems.map((it, i) => ({ id: "u" + Date.now() + "-" + i, item: it.item, qty: it.qty || "1", category: it.category || "other", checked: false }));
+    setLists(prev => [...prev, { id, name: base, items }]);
+    setActiveListId(id);
+  };
+
+  // Shopping progress for the slim strip (whole list, not the search-narrowed view).
+  const AVG_ITEM_COST = 3.2; // rough per-item $ estimate for the "to go" total
+  const groTotal = rawItems.length;
+  const groDone = haveCount;
+  const groPct = groTotal ? Math.round((groDone / groTotal) * 100) : 0;
+  const groLeft = Math.round((groTotal - groDone) * AVG_ITEM_COST);
 
   return (
     <DashPage
@@ -479,17 +492,29 @@ function ClientGroceryPage() {
         </Card>
       )}
 
-      {/* Filters + search */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 16 }}>
-        <FilterPill k="buy" label="TO BUY" count={toBuyCount} />
-        <FilterPill k="have" label="HAVE" count={haveCount} />
-        <FilterPill k="all" label="ALL" count={rawItems.length} />
+      {/* Slim progress strip — one line + a thin fill (the list below is the hero) */}
+      {rawItems.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.7)" }}>
+              {groDone}/{groTotal} got · <span style={{ color: TEAL_BRIGHT }}>{groDone < groTotal ? `~$${groLeft} to go` : "all set"}</span>
+            </span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, fontWeight: 600, color: TEAL_BRIGHT }}>{groPct}%</span>
+          </div>
+          <div style={{ marginTop: 7, height: 5, borderRadius: 3, background: "rgba(242,237,228,0.08)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${groPct}%`, background: TEAL, borderRadius: 3, transition: "width 0.25s ease" }} />
+          </div>
+        </div>
+      )}
+
+      {/* Search — narrows the list (no buy/have view filter; checked items just dim inline) */}
+      <div style={{ marginBottom: 16 }}>
         <input
           type="search"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search items…"
-          style={{ flex: 1, minWidth: 200, padding: "8px 14px", borderRadius: 999, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none" }}
+          style={{ width: "100%", boxSizing: "border-box", padding: "9px 14px", borderRadius: 999, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none" }}
         />
       </div>
 
@@ -499,8 +524,7 @@ function ClientGroceryPage() {
           <div style={{ padding: "32px 4px", color: "rgba(242,237,228,0.55)", fontSize: 14, textAlign: "center" }}>
             {isPlanList ? "Your nutritionist hasn't pushed any meals yet." :
              rawItems.length === 0 ? "List is empty. Add an item above to get started." :
-             filter === "buy" ? "Nothing to buy in this list." :
-             "Nothing checked off yet."}
+             "No items match your search."}
           </div>
         </Card>
       ) : (
@@ -555,13 +579,17 @@ function ClientGroceryPage() {
         </Card>
       )}
 
-      {/* Send to Instacart — appears for every grocery list */}
+      {/* One action bar — Send to Instacart (primary) + Save a copy + Share */}
       <InstacartSendCard
         activeListId={activeListId}
         activeLabel={activeLabel}
         userLists={lists}
         planGroups={planByMeal}
         allPlanItems={visiblePlanItems}
+        onShare={shareList}
+        onSaveCopy={saveCopy}
+        shareMsg={shareMsg}
+        canAct={rawItems.length > 0}
       />
     </DashPage>
   );
@@ -573,7 +601,7 @@ function ClientGroceryPage() {
 // Instacart search prefilled with the first few item names. The full
 // list is on the clipboard so the user can paste directly into Instacart's
 // search to add each item.
-function InstacartSendCard({ activeListId, activeLabel, userLists, planGroups, allPlanItems }) {
+function InstacartSendCard({ activeListId, activeLabel, userLists, planGroups, allPlanItems, onShare, onSaveCopy, shareMsg, canAct }) {
   // Pre-select the currently active list as the default selection.
   const [selectedIds, setSelectedIds] = React.useState(() => new Set([activeListId]));
   const [pickerOpen, setPickerOpen] = React.useState(false);
@@ -711,6 +739,22 @@ function InstacartSendCard({ activeListId, activeLabel, userLists, planGroups, a
           border: 0, fontFamily: sans, fontSize: 13, fontWeight: 600,
           cursor: count > 0 ? "pointer" : "default", whiteSpace: "nowrap",
         }}>{copied ? "✓ Copied · opening…" : "Send to Instacart"}</button>
+      </div>
+
+      {/* Save a copy + Share — secondary actions in the same bar */}
+      <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+        <button onClick={onSaveCopy} disabled={!canAct} style={{
+          flex: 1, minWidth: 130, padding: "10px 14px", borderRadius: 999, cursor: canAct ? "pointer" : "default",
+          background: "transparent", color: canAct ? TEAL_BRIGHT : "rgba(242,237,228,0.4)",
+          border: `1px solid ${canAct ? "rgba(10,197,168,0.4)" : "rgba(242,237,228,0.12)"}`,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600,
+        }}>+ Save a copy</button>
+        <button onClick={onShare} disabled={!canAct} style={{
+          flex: 1, minWidth: 130, padding: "10px 14px", borderRadius: 999, cursor: canAct ? "pointer" : "default",
+          background: "transparent", color: canAct ? INK : "rgba(242,237,228,0.4)",
+          border: `1px solid ${canAct ? "rgba(242,237,228,0.25)" : "rgba(242,237,228,0.12)"}`,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 600,
+        }}>{shareMsg || "Share"}</button>
       </div>
 
       {pickerOpen && (

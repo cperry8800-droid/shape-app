@@ -287,24 +287,16 @@ function ScoreActivity() {
             <h3 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", fontWeight: 400, margin: "10px 0 20px", color: PAPER }}>Points, by action.</h3>
             <div className="sc-scroll" style={{ maxHeight: 360, overflowY: "auto", margin: "0 -12px", padding: "0 12px" }}>
             {[
-              ["Sessions", "Session kept", "with a coach", "12–18"],
-              ["Sessions", "Intro consult done", "first call with a coach", "8"],
-              ["Sessions", "Coach feedback actioned", "applied their notes", "6"],
-              ["Workouts", "Workout logged", "solo or programmed", "6–10"],
-              ["Workouts", "New PR logged", "any lift or run", "12"],
-              ["Workouts", "Program day completed", "as prescribed", "8"],
-              ["Workouts", "Tough session · RPE 8+", "left it on the floor", "4"],
-              ["Nutrition", "Protein target hit", "daily goal", "5"],
-              ["Nutrition", "Macros on target", "full day", "6"],
-              ["Nutrition", "Meal logged", "any meal", "2"],
-              ["Nutrition", "Hydration goal", "daily water", "2"],
-              ["Habits", "Habit streak", "any logged habit", "2–4"],
-              ["Habits", "Steps ≥ 8,000", "daily", "2"],
-              ["Habits", "Morning mobility", "logged", "3"],
-              ["Recovery", "Sleep ≥ 7 hours", "wearable-verified", "3"],
-              ["Milestones", "Weekly review", "submitted on time", "15"],
-              ["Milestones", "Tier reached", "bonus on arrival", "500–4k"],
-              ["Milestones", "Referral joined", "friend becomes a member", "50"],
+              ["Consistency", "Weekly check-in", "submit your check-in", "15"],
+              ["Consistency", "Workout logged", "any real session", "10"],
+              ["Consistency", "Daily steps", "+3 at your goal", "1 / 5k"],
+              ["Coaching", "Coach session kept", "marked complete", "12"],
+              ["Progress", "New PR", "a personal best", "12"],
+              ["Progress", "Goal milestone", "25 / 50 / 75 / 100%", "50–200"],
+              ["Progress", "New tier reached", "one-time bonus", "500–4k"],
+              ["Community", "Community post", "share to the feed", "5"],
+              ["Momentum", "Momentum bonus", "hold 80+ each week", "25–100"],
+              ["Momentum", "Commitment hit", "your weekly bet", "stake"],
             ].map(([cat, k, sub, p], i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "12px 0", borderTop: i ? "1px solid rgba(26,22,18,0.1)" : "none", alignItems: "baseline" }}>
                 <div>
@@ -312,11 +304,35 @@ function ScoreActivity() {
                     <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#0a7463", background: "rgba(10,116,99,0.12)", borderRadius: 4, padding: "2px 6px" }}>{cat}</span>
                     <span style={{ fontFamily: sans, fontSize: 14, fontWeight: 600 }}>{k}</span>
                   </div>
-                  <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(26,22,18,0.55)", marginTop: 3 }}>{sub}</div>
+                  <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3 }}>{sub}</div>
                 </div>
                 <div style={{ fontFamily: mono, fontSize: 13, color: TEAL }}>+{p}</div>
               </div>
             ))}
+            {/* PROTECT YOUR POINTS — the accountability clawback, framed constructively. */}
+            <div style={{ marginTop: 22 }}>
+              <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "#e8957f" }}>Protect your points</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.6)", margin: "8px 0 4px", lineHeight: 1.5 }}>Stay consistent to keep what you've earned — a coach can waive any of these.</div>
+            </div>
+            {[
+              ["Skip your weekly check-in", "just check in next week", "7"],
+              ["Miss an assigned workout", "logging can lag a day", "5"],
+              ["Break a habit streak", "a 3+ day streak lost", "2"],
+              ["Miss a commitment", "the bet you set", "stake"],
+            ].map(([k, sub, p], i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "12px 0", borderTop: "1px solid rgba(242,237,228,0.1)", alignItems: "baseline" }}>
+                <div>
+                  <div style={{ fontFamily: sans, fontSize: 14, fontWeight: 600 }}>{k}</div>
+                  <div style={{ fontFamily: sans, fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3 }}>{sub}</div>
+                </div>
+                <div style={{ fontFamily: mono, fontSize: 13, color: "#e8957f" }}>−{p}</div>
+              </div>
+            ))}
+            {/* Good to know — the rules */}
+            <div style={{ marginTop: 18, padding: "14px 16px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.14)" }}>
+              <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>Good to know</div>
+              <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.72)", lineHeight: 1.55 }}>You never drop below 0, and lose at most 30 points a week. Your tier never goes down once you reach it, and spending in the Store never lowers your rank.</div>
+            </div>
             </div>
           </div>
         </div>

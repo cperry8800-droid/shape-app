@@ -35,7 +35,7 @@ function ClientCommitmentCard() {
   ].filter(Boolean).join(" · ");
   const btn = (bg, color, border) => ({ background: bg, color, border: border || 0, padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" });
   return (
-    <Card style={{ marginBottom: 20 }}>
+    <Card>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
         <div>
           <span style={{ fontSize: 14, fontWeight: 500 }}>This week's commitment</span>
@@ -188,52 +188,43 @@ function ClientScorePage() {
   // card hidden); a demo value drives the signed-out marketing preview.
   const momentum = live ? (live.momentum || null) : { value: 72, bonusThisWeek: false };
 
-  return (
-    <DashPage
-      navItems={clientNavItems("score")}
-      payoutCard={clientPayoutCard}
-      eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
-      title={myPoints.toLocaleString()}
-      subtitle={atRisk
-        ? `You're in ${currentTier[0]} — but your score has slipped ${(tierFloor - myPoints).toLocaleString()} below the line. Earn it back to stay clear of the cutoff.`
-        : `You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
-      actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
-        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
-      </>}
-    >
-      {/* Momentum meter — consistency carrot; ≥80 banks a weekly +25 */}
-      {momentum && (() => {
-        const mv = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
-        const hit = mv >= 80;
-        return (
-          <Card style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
-              <div>
-                <span style={{ fontSize: 14, fontWeight: 500 }}>Momentum</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>DON'T BREAK THE STREAK</span>
-              </div>
-              <span style={{ fontFamily: serif, fontSize: 28, color: TEAL_BRIGHT, lineHeight: 1 }}>{mv}<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></span>
+  // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=score),
+  // mirroring the client Today rollout. The DashPage hero (title/subtitle/actions) stays as
+  // the page header; only the card stack is gridded.
+  const maxBreakdown = Math.max(...breakdown.map(b => b[1]), 1);
+  const scoreWidgets = [
+    momentum ? { key: "momentum", title: "Momentum", size: "full", render: () => {
+      const mv = Math.max(0, Math.min(100, Math.round(Number(momentum.value) || 0)));
+      const hit = mv >= 80;
+      return (
+        <Card>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+            <div>
+              <span style={{ fontSize: 14, fontWeight: 500 }}>Momentum</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>DON'T BREAK THE STREAK</span>
             </div>
-            <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
-              <div style={{ height: "100%", width: `${mv}%`, background: TEAL, borderRadius: 999 }} />
-            </div>
-            <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>
-              {momentum.bonusThisWeek
-                ? ((momentum.streakWeeks || 1) > 1
-                    ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
-                    : `✓ +${momentum.points || 25} banked this week`)
-                : hit ? "At the line · hold it to bank this week" : "Reach 80 for a weekly bonus — grows to +100"}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
-          </Card>
-        );
-      })()}
+            <span style={{ fontFamily: serif, fontSize: 28, color: TEAL_BRIGHT, lineHeight: 1 }}>{mv}<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></span>
+          </div>
+          <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
+            <div style={{ height: "100%", width: `${mv}%`, background: TEAL, borderRadius: 999 }} />
+          </div>
+          <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>
+            {momentum.bonusThisWeek
+              ? ((momentum.streakWeeks || 1) > 1
+                  ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
+                  : `✓ +${momentum.points || 25} banked this week`)
+              : hit ? "At the line · hold it to bank this week" : "Reach 80 for a weekly bonus — grows to +100"}
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
+        </Card>
+      );
+    } } : null,
 
-      <ClientCommitmentCard />
+    { key: "commitment", title: "This week's commitment", size: "full", render: () => <ClientCommitmentCard /> },
 
-      {/* Reward tiers — 5-tier ladder */}
-      <Card style={{ marginBottom: 20 }}>
+    { key: "tiers", title: "Reward tiers", size: "full", render: () => (
+      <div data-tour="hero-score">
+      <Card>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
           <div>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Reward tiers</span>
@@ -274,47 +265,54 @@ function ClientScorePage() {
           <div style={{ height: "100%", width: `${progressPct}%`, background: TEAL, borderRadius: 999 }} />
         </div>
       </Card>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
-        <Card>
-          <SectionTitle right={`TOTAL ${total.toLocaleString()}`}>Score breakdown</SectionTitle>
-          {breakdown.map(([l, v, sub], i) => {
-            const w = (v / Math.max(...breakdown.map(b => b[1]))) * 100;
-            return (
-              <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
-                </div>
-                <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
-                <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Card>
-            <SectionTitle>This week's gains</SectionTitle>
-            <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>+{live ? live.week_gain : 36}</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{live ? "last 7 days" : "vs 28 last week"}</div>
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community kudos</span><span>+4</span></div>
-            </div>
-          </Card>
-          <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH TO {nextTier ? nextTier[0].toUpperCase() : "—"}</div>
-            <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>{nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.` : "You're at the top tier. Keep the streak alive."}</div>
-          </Card>
-        </div>
       </div>
+    ) },
 
-      {/* Recent points · Ledger */}
-      <Card style={{ marginTop: 20 }}>
+    { key: "breakdown", title: "Score breakdown", size: "full", render: () => (
+      <Card>
+        <SectionTitle right={`TOTAL ${total.toLocaleString()}`}>Score breakdown</SectionTitle>
+        {breakdown.map(([l, v, sub], i) => {
+          const w = (v / maxBreakdown) * 100;
+          return (
+            <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
+              </div>
+              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
+              <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+    ) },
+
+    { key: "gains", title: "This week's gains", size: "half", render: () => (
+      <Card>
+        <SectionTitle>This week's gains</SectionTitle>
+        <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>+{live ? live.week_gain : 36}</div>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{live ? "last 7 days" : "vs 28 last week"}</div>
+        {!live && (
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community kudos</span><span>+4</span></div>
+          </div>
+        )}
+      </Card>
+    ) },
+
+    { key: "path", title: "Shortest path", size: "half", render: () => (
+      <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH TO {nextTier ? nextTier[0].toUpperCase() : "—"}</div>
+        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>{nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.` : "You're at the top tier. Keep the streak alive."}</div>
+      </Card>
+    ) },
+
+    { key: "ledger", title: "Recent points", size: "full", render: () => (
+      <Card>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>Recent points</span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>LEDGER</span>
@@ -333,6 +331,24 @@ function ClientScorePage() {
           <a href="#" style={{ color: TEAL_BRIGHT, textDecoration: "none" }}>VIEW FULL LEDGER →</a>
         </div>
       </Card>
+    ) },
+  ].filter(Boolean);
+
+  return (
+    <DashPage
+      navItems={clientNavItems("score")}
+      payoutCard={clientPayoutCard}
+      eyebrow="SHAPE SCORE · UPDATED NIGHTLY"
+      title={myPoints.toLocaleString()}
+      subtitle={atRisk
+        ? `You're in ${currentTier[0]} — but your score has slipped ${(tierFloor - myPoints).toLocaleString()} below the line. Earn it back to stay clear of the cutoff.`
+        : `You're in ${currentTier[0]}. ${ptsToNext.toLocaleString()} points to ${nextTier ? nextTier[0] : "the top"} — that's about ${nextTier ? Math.ceil(ptsToNext / 36) : 0} weeks at your current pace.`}
+      actions={<>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
+        <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
+      </>}
+    >
+      <DashGrid role="client" tab="score" widgets={scoreWidgets} />
     </DashPage>
   );
 }

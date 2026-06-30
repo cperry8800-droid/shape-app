@@ -15,6 +15,11 @@
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <style>
+  /* Metrics-matched fallback fonts (CLS: the local fallback occupies the web font's
+     space, so the swap doesn't reflow headers/sub-heads/body). @capsizecss metrics. */
+  @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
+  @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
+  @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
   :root {
     --paper: #efe5cd;
     --paper-2: #e6dabe;
@@ -27,9 +32,9 @@
     --orange: #d2693f;
     --hairline: rgba(10,13,12,0.1);
     --hairline-2: rgba(10,13,12,0.06);
-    --serif: 'Fraunces', serif;
-    --sans: 'Space Grotesk', sans-serif;
-    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Fraunces', 'Fraunces Fallback', serif;
+    --sans: 'Space Grotesk', 'Space Grotesk Fallback', sans-serif;
+    --mono: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace;
     --screen: #f4eedf;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -267,7 +272,10 @@
         <a href="/newdesign/Team.html#press">Press</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
+        <a href="/code-of-conduct.html">Code of conduct</a>
         <a href="/data-compliance.html">Data &amp; compliance</a>
+        <a href="/health-data-privacy.html">Consumer health data</a>
+        <a href="/subprocessors.html">Subprocessors</a>
       </div>
       <div>
         <div class="ga-footer-head">Support</div>
@@ -293,7 +301,7 @@
     { kind: "SCORE",    title: "One number that matters.",     body: "A five-tier ladder rewarding consistency across training, nutrition, and recovery. It only moves when you show up.", img: "/newdesign/getapp-score-v2.png?v=20260617", dark: true },
     { kind: "PROFILE",  title: "A profile that's alive.",      body: "Your climb, your Shape Score, PRs and playlists — a living page that grows as you do. Make it public or keep it private; it's yours.", img: "/newdesign/getapp-profile-v1.png?v=20260617", dark: true },
     { kind: "RADIO",    title: "Music built for movement.",    body: "Live mixes curated by your coach. Each track's BPM syncs with your wearable — when the two lock in, your pace becomes the song.", img: "/newdesign/getapp-radio-v2.png?v=20260617", dark: true },
-    { kind: "COMMUNITY", title: "The social side of strong.",   body: "See who's training now, cheer a friend's PR, and post your own. A live feed, member channels, and coach co-signs turn solo workouts into a community — the energy of a gym floor, wherever you train.", img: "/newdesign/getapp-chat-v2.png?v=20260618", dark: false }
+    { kind: "COMMUNITY", title: "The social side of strong.",   body: "See who's training now, cheer a friend's PR, and post your own. A live feed, member channels, and coach co-signs turn solo workouts into a community — the energy of a gym floor, wherever you train.", img: "/newdesign/getapp-community-v1.png?v=20260620b", dark: false }
   ];
 
   var i = 0;

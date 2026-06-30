@@ -256,13 +256,16 @@ function ConnectMusicCard({ playlist }) {
         </div>
       </div>
       <div style={{ fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.5, marginBottom: 14 }}>
-        Connect Spotify to play along, or scroll the tracklist below.
+        Connect Spotify or Apple Music to play along, or scroll the tracklist below.
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button style={{ flex: 1, background: "#1DB954", color: "#fff", border: 0, padding: "11px 14px", borderRadius: 999, fontFamily: cpSans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <button style={{ background: "#1DB954", color: "#fff", border: 0, padding: "11px 14px", borderRadius: 999, fontFamily: cpSans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <SpotifyMark size={14}/> Connect Spotify
         </button>
-        <button style={{ background: "transparent", color: CP_INK, border: "1px solid rgba(242,237,228,0.2)", padding: "11px 14px", borderRadius: 999, fontFamily: cpSans, fontSize: 13, cursor: "pointer" }}>Skip</button>
+        <button style={{ background: "linear-gradient(135deg,#fa233b,#fb5c74)", color: "#fff", border: 0, padding: "11px 14px", borderRadius: 999, fontFamily: cpSans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <AppleMark size={14}/> Connect Apple Music
+        </button>
+        <button style={{ background: "transparent", color: CP_INK, border: "1px solid rgba(242,237,228,0.2)", padding: "9px 14px", borderRadius: 999, fontFamily: cpSans, fontSize: 13, cursor: "pointer" }}>Skip</button>
       </div>
     </div>
   );

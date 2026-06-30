@@ -11,7 +11,7 @@
 
 **Operating entity:** [Shape — legal entity name, e.g., "Shape Community, Inc." / state of formation]
 **Effective date of this version:** [DATE]
-**Contact:** christopher.perry@theshapecommunity.com
+**Contact:** info@theshapecommunity.com
 
 This Coach / Nutritionist Agreement (the "**Agreement**") is between the operating entity
 above ("**Shape**," "we," "us") and the trainer or nutritionist who accepts it (the
@@ -139,7 +139,7 @@ required otherwise by law.
 ## 14. Changes & contact
 Shape may update this Agreement; material changes will be communicated in advance, and
 continued use after the effective date constitutes acceptance. Questions:
-christopher.perry@theshapecommunity.com.
+info@theshapecommunity.com.
 
 ---
 

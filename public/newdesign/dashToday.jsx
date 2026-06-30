@@ -749,11 +749,44 @@ function CoachDashboardPage({ role }) {
       ? pulseRows.map(c => ({ who: c.name, sub: c.sessions + (c.sessions === 1 ? " " + cfg.unit : " " + cfg.unit + "s"), trend: DASH_FLAT_TREND }))
       : [cfg.emptyPulse];
 
+  // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
+  // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).
+  const dashPanelStyle = { background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 };
+  const renderPanel = (title, children) => (
+    <div style={dashPanelStyle}>
+      {title && <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{title}</div>}
+      {children}
+    </div>
+  );
+  const renderKpiStrip = (row) => (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden" }}>
+      {row.map((k, i) => (
+        <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none", minWidth: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+          <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{k.k}</div>
+          {k.sub && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+  const gridWidgets = [
+    { key: "kpis", title: "Overview", size: "full", render: () => renderKpiStrip(kpis) },
+    { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis) },
+    { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
+    { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} />) },
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} />) }] : []),
+    { key: "wins", title: "Client wins", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
+    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
+    { key: "business", title: "Business", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
+  ];
+
   return (
     <React.Fragment>
       {source === "demo" && <DashDemoBand />}
     <DashShell
+      tourHero="hero-today"
       role={role}
+      gridWidgets={gridWidgets}
       userName={firstName}
       date={cfg.date}
       greeting={cfg.greeting(firstName)}

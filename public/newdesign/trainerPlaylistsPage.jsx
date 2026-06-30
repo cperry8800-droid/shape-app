@@ -18,6 +18,23 @@ function soundtrackToWeb(row) {
   };
 }
 
+// Load Apple MusicKit v3 once (injects the CDN script, resolves on 'musickitloaded').
+// Same flow as public/integrations.html.
+function loadMusicKit() {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (window.MusicKit) return Promise.resolve(window.MusicKit);
+  return new Promise((resolve, reject) => {
+    const done = () => (window.MusicKit ? resolve(window.MusicKit) : reject(new Error("MusicKit failed to load.")));
+    if (document.querySelector("script[data-musickit]")) { document.addEventListener("musickitloaded", done, { once: true }); return; }
+    const s = document.createElement("script");
+    s.src = "https://js-cdn.music.apple.com/musickit/v3/musickit.js";
+    s.async = true; s.setAttribute("data-musickit", "1");
+    document.addEventListener("musickitloaded", done, { once: true });
+    s.onerror = () => reject(new Error("Could not load Apple MusicKit."));
+    document.head.appendChild(s);
+  });
+}
+
 function PlaylistPage({ ctx }) {
   const { useState, useEffect } = React;
   const storageKey = `shape.${ctx.role}.playlists.view`;
@@ -26,23 +43,26 @@ function PlaylistPage({ ctx }) {
   });
   const [query, setQuery] = useState("");
   const [serverPlaylists, setServerPlaylists] = useState([]);
+  // null = checking · true = signed-in coach · false = signed-out preview.
+  const [authed, setAuthed] = useState(null);
 
-  // Pull the coach's saved soundtracks (synced with the mobile app).
+  // Pull the coach's saved soundtracks (synced with the mobile app). A 200 means
+  // we're signed in as a coach, so we hide the demo seed and show real data only.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/coach/soundtracks", { credentials: "same-origin" })
-      .then(r => (r.ok ? r.json() : null))
+      .then(r => { if (cancelled) return null; setAuthed(r.ok); return r.ok ? r.json() : null; })
       .then(d => { if (!cancelled && d && Array.isArray(d.soundtracks)) setServerPlaylists(d.soundtracks.map(soundtrackToWeb)); })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setAuthed(false); });
     return () => { cancelled = true; };
   }, []);
 
-  const importSoundtrack = async ({ name, url, note }) => {
-    const provider = /music\.apple|apple\s*music/i.test(url || "") ? "apple" : "spotify";
+  const importSoundtrack = async ({ name, url, note, provider }) => {
+    const prov = provider || (/music\.apple|apple\s*music/i.test(url || "") ? "apple" : "spotify");
     try {
       const res = await fetch("/api/coach/soundtracks", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider, url: url || "", tag: (note || "").trim() }),
+        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider: prov, url: url || "", tag: (note || "").trim() }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && d.soundtrack) setServerPlaylists(list => [soundtrackToWeb(d.soundtrack), ...list]);
@@ -55,7 +75,9 @@ function PlaylistPage({ ctx }) {
     try { localStorage.setItem(storageKey, v); } catch {}
   };
 
-  const playlists = [...serverPlaylists, ...ctx.playlists];
+  // Signed-in coach → only their own saved playlists (zeroed when they have none);
+  // the demo seed is a preview for signed-out visitors only.
+  const playlists = authed === false ? [...serverPlaylists, ...ctx.playlists] : serverPlaylists;
   const mctx = { ...ctx, playlists, importSoundtrack };
   const filtered = playlists.filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase()));
   const totalAttached = playlists.reduce((s, p) => s + p.attachedTo.length, 0);
@@ -152,16 +174,20 @@ function NewPlaylistCard() {
   const [url, setUrl] = React.useState("");
   const [name, setName] = React.useState("");
   const [note, setNote] = React.useState("");
-  // "Pick from your Spotify" — same rule as the mobile app. Needs per-user OAuth,
-  // which is capped to allowlisted accounts until Extended Quota Mode, so failures
-  // degrade gracefully to the paste-a-link path (which works for everyone).
-  const [mode, setMode] = React.useState("form"); // 'form' | 'spotify'
+  const [pickProvider, setPickProvider] = React.useState(null);
+  // Two library sources — Spotify (server OAuth) and Apple Music (in-page MusicKit).
+  // Both degrade gracefully to the paste-a-link path, which works for everyone.
+  const [mode, setMode] = React.useState("form"); // 'form' | 'spotify' | 'apple'
   const [spotItems, setSpotItems] = React.useState(null);
   const [spotBusy, setSpotBusy] = React.useState(false);
   const [spotErr, setSpotErr] = React.useState("");
   const [spotConnected, setSpotConnected] = React.useState(null);
-  const reset = () => { setOpen(false); setUrl(""); setName(""); setNote(""); setMode("form"); setSpotItems(null); setSpotErr(""); };
-  const doImport = () => { if (ctx.importSoundtrack) ctx.importSoundtrack({ name, url, note }); reset(); };
+  const [appleItems, setAppleItems] = React.useState(null);
+  const [appleBusy, setAppleBusy] = React.useState(false);
+  const [appleErr, setAppleErr] = React.useState("");
+  const [appleConnected, setAppleConnected] = React.useState(null);
+  const reset = () => { setOpen(false); setUrl(""); setName(""); setNote(""); setMode("form"); setPickProvider(null); setSpotItems(null); setSpotErr(""); setAppleItems(null); setAppleErr(""); };
+  const doImport = () => { if (ctx.importSoundtrack) ctx.importSoundtrack({ name, url, note, provider: pickProvider }); reset(); };
   const loadSpotify = async () => {
     setSpotBusy(true); setSpotErr("");
     try {
@@ -181,9 +207,54 @@ function NewPlaylistCard() {
       setMode("spotify");
     } finally { setSpotBusy(false); }
   };
-  const pick = (pl) => { setUrl(pl.url || ""); setName(pl.name || ""); setMode("form"); };
+  const loadApple = async () => {
+    setAppleBusy(true); setAppleErr("");
+    try {
+      const tokRes = await fetch("/api/integrations/apple-music/developer-token", { cache: "no-store" });
+      const tok = await tokRes.json().catch(() => ({}));
+      if (!tokRes.ok || !tok.developerToken) { setAppleErr("Apple Music isn't set up yet — paste a link below instead."); setMode("apple"); return; }
+      const MK = await loadMusicKit();
+      try { await MK.configure({ developerToken: tok.developerToken, app: { name: "Shape", build: "1.0.0" } }); } catch (_) { /* may already be configured */ }
+      const music = MK.getInstance();
+      const userToken = await music.authorize();
+      if (!userToken) { setAppleConnected(false); setMode("apple"); return; }
+      setAppleConnected(true);
+      // Persist the connection so it shows as linked on /integrations too.
+      fetch("/api/integrations/apple-music/connect", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ musicUserToken: userToken, storefront: music.storefrontId || null }) }).catch(() => {});
+      // Apple has no server playlists route — list the library client-side via MusicKit.
+      let rows = [];
+      try {
+        if (music.api && music.api.music) {
+          const result = await music.api.music("v1/me/library/playlists", { limit: 100 });
+          rows = (result && result.data && result.data.data) || [];
+        } else if (music.api && music.api.library && music.api.library.playlists) {
+          const r = await music.api.library.playlists();
+          rows = Array.isArray(r) ? r : (r && r.data) || [];
+        }
+      } catch (_) { rows = []; }
+      setAppleItems(rows.map(pl => {
+        const at = pl.attributes || {};
+        const art = at.artwork && at.artwork.url ? at.artwork.url.replace("{w}", "88").replace("{h}", "88") : null;
+        return { id: pl.id, name: at.name || "Playlist", tracks: at.trackCount != null ? at.trackCount : "", url: at.url || ("https://music.apple.com/library/playlist/" + pl.id), image: art };
+      }));
+      setMode("apple");
+    } catch (_) {
+      setAppleErr("Couldn't reach Apple Music — paste a link below instead.");
+      setMode("apple");
+    } finally { setAppleBusy(false); }
+  };
+  const pick = (pl, prov) => { setUrl(pl.url || ""); setName(pl.name || ""); setPickProvider(prov || null); setMode("form"); };
   const connectHref = "/api/integrations/spotify/authorize?return=" + encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search) : "/newdesign/TrainerPlaylists.html");
-  const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1ED760", display: "inline-block" };
+  const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1DB954", display: "inline-block" };
+  const redDot = { width: 8, height: 8, borderRadius: 999, background: "#fa243c", display: "inline-block" };
+  // The picker sub-view (mode !== 'form') is shared by both providers.
+  const isApple = mode === "apple";
+  const pItems = isApple ? appleItems : spotItems;
+  const pConnected = isApple ? appleConnected : spotConnected;
+  const pErr = isApple ? appleErr : spotErr;
+  const pLabel = isApple ? "APPLE MUSIC" : "SPOTIFY";
+  const pName = isApple ? "Apple Music" : "Spotify";
+  const pAccent = isApple ? "#fb5c74" : TEAL_BRIGHT;
   return (
     <React.Fragment>
       <button onClick={() => setOpen(true)}
@@ -195,46 +266,48 @@ function NewPlaylistCard() {
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>New playlist</div>
-          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>Pick from your Spotify<br/>or paste a link</div>
+          <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.5 }}>Pick from Spotify or Apple Music<br/>or paste a link</div>
         </div>
       </button>
 
       {open && (
         <div onClick={reset} style={modalOverlay}>
           <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 520 }}>
-            {mode === "spotify" ? (
+            {mode !== "form" ? (
               <React.Fragment>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>FROM YOUR SPOTIFY</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: pAccent }}>FROM YOUR {pLabel}</div>
                   <button onClick={() => setMode("form")} style={{ all: "unset", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(242,237,228,0.7)" }}>← BACK</button>
                 </div>
-                {spotConnected === false ? (
+                {pConnected === false ? (
                   <React.Fragment>
-                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Connect Spotify</h3>
-                    <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 18px" }}>Connect your Spotify to pick a playlist from your library — rolling out, so it may not be enabled for your account yet. You can always paste a link instead.</p>
-                    <a href={connectHref} style={{ ...pillPrimary, display: "inline-block", textDecoration: "none", textAlign: "center" }}>Connect Spotify →</a>
+                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Connect {pName}</h3>
+                    <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 18px" }}>Connect your {pName} to pick a playlist from your library. You can always paste a link instead.</p>
+                    {isApple
+                      ? <button onClick={loadApple} disabled={appleBusy} style={{ ...pillPrimary, opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? "Connecting…" : "Connect Apple Music →"}</button>
+                      : <a href={connectHref} style={{ ...pillPrimary, display: "inline-block", textDecoration: "none", textAlign: "center" }}>Connect Spotify →</a>}
                   </React.Fragment>
-                ) : spotErr ? (
+                ) : pErr ? (
                   <React.Fragment>
                     <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
-                    <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 18px", fontStyle: "italic" }}>{spotErr}</p>
+                    <p style={{ fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55, margin: "10px 0 18px", fontStyle: "italic" }}>{pErr}</p>
                     <button onClick={() => setMode("form")} style={{ ...pillGhost, width: "100%" }}>Paste a link instead</button>
                   </React.Fragment>
                 ) : (
                   <React.Fragment>
                     <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
-                    <p style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", margin: "8px 0 14px" }}>{(spotItems || []).length} playlist{(spotItems || []).length === 1 ? "" : "s"} · pick one to import</p>
+                    <p style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", margin: "8px 0 14px" }}>{(pItems || []).length} playlist{(pItems || []).length === 1 ? "" : "s"} · pick one to import</p>
                     <div style={{ maxHeight: 320, overflowY: "auto", margin: "0 -4px" }}>
-                      {(spotItems || []).length === 0 ? (
-                        <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)", fontStyle: "italic", padding: "8px 4px" }}>No playlists found in your Spotify library.</div>
-                      ) : (spotItems.map(pl => (
-                        <button key={pl.id} onClick={() => pick(pl)} style={{ all: "unset", cursor: "pointer", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+                      {(pItems || []).length === 0 ? (
+                        <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)", fontStyle: "italic", padding: "8px 4px" }}>No playlists found in your {pName} library.</div>
+                      ) : (pItems.map(pl => (
+                        <button key={pl.id} onClick={() => pick(pl, isApple ? "apple" : "spotify")} style={{ all: "unset", cursor: "pointer", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: "1px solid rgba(242,237,228,0.08)" }}>
                           <div style={{ width: 44, height: 44, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(242,237,228,0.06)" }}>{pl.image ? <img src={pl.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}</div>
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 14.5, fontWeight: 500, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pl.name}</div>
-                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{pl.tracks} tracks{pl.owner ? " · " + pl.owner : ""}</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{pl.tracks !== "" && pl.tracks != null ? pl.tracks + " tracks" : "playlist"}{pl.owner ? " · " + pl.owner : ""}</div>
                           </div>
-                          <span style={{ color: TEAL_BRIGHT, fontSize: 18 }}>+</span>
+                          <span style={{ color: pAccent, fontSize: 18 }}>+</span>
                         </button>
                       )))}
                     </div>
@@ -251,9 +324,15 @@ function NewPlaylistCard() {
                   <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{spotBusy ? "Loading…" : "Pick from your Spotify"}</span>
                   <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
                 </button>
+                <button onClick={loadApple} disabled={appleBusy}
+                  style={{ all: "unset", cursor: appleBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 8, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(250,36,60,0.4)", background: "rgba(250,36,60,0.06)", display: "flex", alignItems: "center", gap: 10, opacity: appleBusy ? 0.6 : 1 }}>
+                  <span style={redDot} />
+                  <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{appleBusy ? "Loading…" : "Pick from your Apple Music"}</span>
+                  <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
+                </button>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.4)", textAlign: "center", margin: "12px 0" }}>OR PASTE A LINK</div>
                 <label style={lbl}>Playlist URL</label>
-                <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://open.spotify.com/playlist/…" style={input} />
+                <input value={url} onChange={e => { setUrl(e.target.value); setPickProvider(null); }} placeholder="Spotify or Apple Music playlist link" style={input} />
                 <label style={lbl}>Name (optional override)</label>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={input} />
                 <label style={lbl}>Note for client</label>

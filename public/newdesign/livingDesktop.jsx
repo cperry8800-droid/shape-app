@@ -601,8 +601,8 @@ function DesktopFooter() {
 function DesktopTabs({ direction, tab, setTab, c }) {
   const coach = direction !== "terrain";
   const tabs = coach
-    ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"], ["reviews", "Reviews"]]
-    : [["activity", "Activity"], ["signals", "Signals"], ["climb", "Climb"]];
+    ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"], ["reviews", "Reviews"], ["music", "Music"]]
+    : [["activity", "Activity"], ["signals", "Signals"], ["climb", "Climb"], ["music", "Music"]];
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 40px 0" }}>
       <div style={{ display: "inline-flex", gap: 6, background: dHexA(LV_INK, 0.05), border: `1px solid ${dHexA(LV_INK, 0.1)}`, borderRadius: 999, padding: 5 }}>
@@ -614,6 +614,65 @@ function DesktopTabs({ direction, tab, setTab, c }) {
         })}
       </div>
     </div>
+  );
+}
+
+// ── Music tab — the profile owner's playlist library (member_playlists via
+// get_member_playlists; own → all, others → public only). Parity with the mobile
+// Music tab. Read display on web; owner manages from the app. ──────────────────
+function MusicBlock({ d }) {
+  const [items, setItems] = React.useState(null);
+  React.useEffect(() => {
+    const c = (typeof window !== "undefined" && window.shapeDb && window.shapeDb.client) || null;
+    if (!c || !c.rpc || !d.uid) { setItems([]); return undefined; }
+    let on = true;
+    c.rpc("get_member_playlists", { p_user_id: d.uid })
+      .then((r) => { if (on) setItems((r && !r.error && Array.isArray(r.data)) ? r.data : []); })
+      .catch(() => { if (on) setItems([]); });
+    return () => { on = false; };
+  }, [d.uid]);
+  const provColor = (p) => p === "apple" ? "#fa243c" : p === "spotify" ? "#1db954" : dHexA(LV_INK, 0.4);
+  const provLabel = (p) => p === "apple" ? "Apple Music" : p === "spotify" ? "Spotify" : "Playlist";
+  // The playlist URL is user-supplied (member_playlists.url) — only allow http(s)
+  // to the music hosts the parser advertises, so a javascript:/data: link can't ride
+  // into the href (stored XSS).
+  const safeMusicUrl = (u) => {
+    try {
+      const x = new URL(String(u || ""));
+      if (x.protocol !== "http:" && x.protocol !== "https:") return null;
+      const h = x.hostname.toLowerCase();
+      return (h === "spotify.com" || h.endsWith(".spotify.com") || h === "apple.com" || h.endsWith(".apple.com")) ? x.toString() : null;
+    } catch (e) { return null; }
+  };
+  return (
+    <section style={{ maxWidth: 1000, margin: "0 auto", padding: "14px 40px 0" }}>
+      <div style={dCard({ padding: "22px 24px" })}>
+        <div style={{ fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginBottom: 16 }}>Music · Playlists</div>
+        {items === null ? (
+          <div style={{ fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div style={{ fontFamily: dSans, fontSize: 14, color: dHexA(LV_INK, 0.55) }}>No public playlists yet.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+            {items.map((p) => {
+              const href = safeMusicUrl(p.url);
+              const inner = (<React.Fragment>
+                <span style={{ width: 42, height: 42, borderRadius: 8, background: dHexA(provColor(p.provider), 0.16), border: `1px solid ${dHexA(provColor(p.provider), 0.4)}`, display: "flex", alignItems: "center", justifyContent: "center", color: provColor(p.provider), fontSize: 18, flexShrink: 0 }}>♪</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: dSerif, fontSize: 16, letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name || "Playlist"}</div>
+                  <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", color: dHexA(LV_INK, 0.45), marginTop: 3 }}>{provLabel(p.provider)}{p.track_count ? ` · ${p.track_count} tracks` : ""}{p.is_public === false ? " · Private" : ""}</div>
+                </div>
+                {href && <span style={{ color: provColor(p.provider), fontFamily: dMono, fontSize: 11 }}>▶</span>}
+              </React.Fragment>);
+              const box = { display: "flex", gap: 12, alignItems: "center", padding: "12px 14px", borderRadius: 12, border: `1px solid ${dHexA(LV_INK, 0.1)}`, background: dHexA(LV_INK, 0.03), textDecoration: "none", color: "inherit" };
+              return href
+                ? <a key={p.id} href={href} target="_blank" rel="noreferrer" style={box}>{inner}</a>
+                : <div key={p.id} style={box}>{inner}</div>;
+            })}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1052,6 +1111,9 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
                 <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} view="reviews" /></div>
               </section>
             )}
+
+            {/* Music — the member/coach's playlist library (parity with the mobile Music tab) */}
+            {tab === "music" && <MusicBlock d={d} owner={owner} />}
           </React.Fragment>
         )}
         {belowContent}

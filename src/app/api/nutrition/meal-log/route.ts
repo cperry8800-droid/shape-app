@@ -19,9 +19,17 @@ import { clientLocalDay } from '@/lib/local-day';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Accept only a real, finite, non-negative JSON number. Number() would coerce null /
+// false / '' to 0 (a fabricated zero-value snapshot), so reject non-numbers outright.
 function asNum(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null;
+  return v;
+}
+
+// 'PGRST202' (function not in schema cache) / '42883' (undefined_function) => the
+// atomic-accumulate migration isn't applied yet; fall back to read-then-write.
+function isMissingFunction(err: { code?: string } | null | undefined): boolean {
+  return err?.code === 'PGRST202' || err?.code === '42883';
 }
 
 export async function POST(request: Request) {
@@ -43,12 +51,25 @@ export async function POST(request: Request) {
   const supabase = await clientForRequest(request);
   const today = clientLocalDay((body as Record<string, unknown>).date);
 
-  const { data: existing } = await supabase
+  // Atomic accumulate via RPC — each macro adds inside one upsert (ON CONFLICT DO
+  // UPDATE under the row lock), so concurrent meal logs / a log racing a hydration
+  // quick-add can't lose an increment. A NULL field is left unchanged (same as before).
+  const { error: rpcErr } = await supabase.rpc('add_meal_macros', {
+    p_kcal: kcal, p_protein: protein, p_carbs: carbs, p_fat: fat, p_hydration: hydrationL, p_date: today,
+  });
+  if (!rpcErr) return NextResponse.json({ ok: true, day: today });
+  if (!isMissingFunction(rpcErr)) return dbError(rpcErr, 'meal log write', 500);
+
+  // ── Fallback (pre-migration): legacy read-then-write. ──
+  const { data: existing, error: readErr } = await supabase
     .from('daily_health_snapshot')
     .select('calories, protein_g, carbs_g, fat_g, hydration_l')
     .eq('user_id', user.id)
     .eq('snapshot_date', today)
     .maybeSingle();
+  // A failed read must not be treated as "no row" and turned into an insert that masks
+  // the error / writes a wrong baseline.
+  if (readErr) return dbError(readErr, 'meal log read', 500);
 
   const add = (cur: unknown, inc: number | null) =>
     inc == null ? (cur == null ? null : Number(cur)) : Number(cur || 0) + inc;

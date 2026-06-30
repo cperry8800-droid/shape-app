@@ -140,23 +140,16 @@ function ClientHabitsPage() {
   const todayPoints = habits.reduce((acc, h) => acc + (h.today ? h.points : 0), 0);
   const weekPoints = habits.reduce((acc, h) => acc + h.history.reduce((a, on) => a + (on ? h.points : 0), 0) + (h.today ? h.points : 0), 0);
 
-  return (
-    <DashPage
-      navItems={clientNavItems("habits")}
-      payoutCard={clientPayoutCard}
-      eyebrow="DAILY · WEEK 16 OF 52"
-      title="Habits"
-      subtitle="Do's earn Shape Score when you complete them. Don'ts earn the same when you successfully avoid them. Tap a circle (do) or square (don't) to log today."
-      actions={<>
-        <a href="ClientScore.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
-        <button onClick={() => addHabit("do")} title="Add habit" style={{ width: 42, height: 42, borderRadius: 999, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 22, fontWeight: 500, cursor: "pointer", lineHeight: 1 }}>+</button>
-      </>}
-    >
-      {/* KPI strip */}
+  // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=habits),
+  // mirroring the client Score rollout. The DashPage hero (title/subtitle/actions) stays as
+  // the page header; only the card stack is gridded. Each render returns ONE card element
+  // with no outer margin — DashGrid handles spacing.
+  const widgets = [
+    { key: "kpis", title: "Habit KPIs", size: "full", render: () => (
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(4,1fr)",
         background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
-        borderRadius: 10, marginBottom: 20, overflow: "hidden",
+        borderRadius: 10, overflow: "hidden",
       }}>
         {[
           { l: "Today",          k: `${todayDone}/${habits.length}`, sub: `${todayPct}% complete` },
@@ -171,8 +164,10 @@ function ClientHabitsPage() {
           </div>
         ))}
       </div>
+    ) },
 
-      <Card style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 18, alignItems: "center", marginBottom: 20 }}>
+    { key: "sharing", title: "Sharing", size: "full", render: () => (
+      <Card style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 18, alignItems: "center" }}>
         <div>
           <SectionTitle right="ACCOUNTABILITY">Sharing</SectionTitle>
           <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.68)", lineHeight: 1.5 }}>
@@ -200,111 +195,135 @@ function ClientHabitsPage() {
           ))}
         </div>
       </Card>
+    ) },
 
-      {/* Do's + Don'ts side by side */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>Do's</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
-                {dos.filter(h => h.today).length}/{dos.length} TODAY
-              </span>
-            </div>
-            <button onClick={() => addHabit("do")}
-              style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "5px 12px", borderRadius: 999, fontFamily: sans, fontSize: 11.5, cursor: "pointer" }}>
-              + Add a do
-            </button>
+    { key: "dos", title: "Do's", size: "half", render: () => (
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Do's</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
+              {dos.filter(h => h.today).length}/{dos.length} TODAY
+            </span>
           </div>
-          <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 4 }}>
-            Check the circle when you've done it today.
-          </div>
-          {dos.length === 0
-            ? <div style={{ padding: "24px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No do's yet.</div>
-            : dos.map((h) => <HabitRow key={h.id} h={h} onToggle={toggleToday} onRemove={removeHabit} />)}
-        </Card>
-
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>Don'ts</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
-                {donts.filter(h => h.today).length}/{donts.length} TODAY
-              </span>
-            </div>
-            <button onClick={() => addHabit("dont")}
-              style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "5px 12px", borderRadius: 999, fontFamily: sans, fontSize: 11.5, cursor: "pointer" }}>
-              + Add a don't
-            </button>
-          </div>
-          <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 4 }}>
-            Check the square when you've successfully avoided it today.
-          </div>
-          {donts.length === 0
-            ? <div style={{ padding: "24px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No don'ts yet.</div>
-            : donts.map((h) => <HabitRow key={h.id} h={h} onToggle={toggleToday} onRemove={removeHabit} />)}
-        </Card>
-      </div>
-
-      {/* 7-day grid + Shape Score impact */}
-      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
-        <Card>
-          <SectionTitle right="LAST 7 DAYS">Grid</SectionTitle>
-          <div style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", marginBottom: 6 }}>
-            <div />
-            {DAY_LABELS.map((d, i) => (
-              <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)", textAlign: "center" }}>{d}</div>
-            ))}
-          </div>
-          {habits.map((h, i) => {
-            const cells = [...h.history, h.today];
-            return (
-              <div key={h.id} style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.85)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.1em", color: h.type === "dont" ? "#ff8a6d" : TEAL_BRIGHT, textTransform: "uppercase" }}>
-                    {h.type === "dont" ? "DON'T" : "DO"}
-                  </span>
-                  <span style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{h.label}</span>
-                </div>
-                {cells.map((on, j) => {
-                  const isToday = j === cells.length - 1;
-                  const square = h.type === "dont";
-                  return (
-                    <div key={j} style={{ height: 22, borderRadius: square ? 4 : 11,
-                      background: on ? (isToday ? TEAL : "rgba(10,197,168,0.45)") : "rgba(242,237,228,0.06)",
-                      border: isToday ? `1px solid ${on ? "transparent" : "rgba(46,224,196,0.4)"}` : "none",
-                    }} />
-                  );
-                })}
-              </div>
-            );
-          })}
-        </Card>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHAPE SCORE · FROM HABITS</div>
-            <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, color: TEAL_BRIGHT }}>+{weekPoints}</div>
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 8, lineHeight: 1.5 }}>
-              Earned from habits this week. Each row's <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>+pts</span> rolls into your Shape Score nightly.
-            </div>
-            <a href="ClientScore.html" style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none" }}>
-              SEE FULL BREAKDOWN <span>→</span>
-            </a>
-          </Card>
-          <Card>
-            <SectionTitle>Two-week trend</SectionTitle>
-            <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{weekPct}%</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Adherence · vs 71% last week</div>
-          </Card>
-          <Card>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · MON</div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>
-              Sleep is the one I want you to defend. If you're under 7 hours twice in a row, deload the next squat session.
-            </div>
-          </Card>
+          <button onClick={() => addHabit("do")}
+            style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "5px 12px", borderRadius: 999, fontFamily: sans, fontSize: 11.5, cursor: "pointer" }}>
+            + Add a do
+          </button>
         </div>
+        <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 4 }}>
+          Check the circle when you've done it today.
+        </div>
+        {dos.length === 0
+          ? <div style={{ padding: "24px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No do's yet.</div>
+          : dos.map((h) => <HabitRow key={h.id} h={h} onToggle={toggleToday} onRemove={removeHabit} />)}
+      </Card>
+    ) },
+
+    { key: "donts", title: "Don'ts", size: "half", render: () => (
+      <Card>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 500 }}>Don'ts</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
+              {donts.filter(h => h.today).length}/{donts.length} TODAY
+            </span>
+          </div>
+          <button onClick={() => addHabit("dont")}
+            style={{ background: "transparent", color: TEAL_BRIGHT, border: `1px solid ${TEAL}`, padding: "5px 12px", borderRadius: 999, fontFamily: sans, fontSize: 11.5, cursor: "pointer" }}>
+            + Add a don't
+          </button>
+        </div>
+        <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 4 }}>
+          Check the square when you've successfully avoided it today.
+        </div>
+        {donts.length === 0
+          ? <div style={{ padding: "24px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No don'ts yet.</div>
+          : donts.map((h) => <HabitRow key={h.id} h={h} onToggle={toggleToday} onRemove={removeHabit} />)}
+      </Card>
+    ) },
+
+    { key: "grid", title: "Grid", size: "full", render: () => (
+      <Card>
+        <SectionTitle right="LAST 7 DAYS">Grid</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", marginBottom: 6 }}>
+          <div />
+          {DAY_LABELS.map((d, i) => (
+            <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)", textAlign: "center" }}>{d}</div>
+          ))}
+        </div>
+        {habits.map((h, i) => {
+          const cells = [...h.history, h.today];
+          return (
+            <div key={h.id} style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ fontSize: 12, color: "rgba(242,237,228,0.85)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.1em", color: h.type === "dont" ? "#ff8a6d" : TEAL_BRIGHT, textTransform: "uppercase" }}>
+                  {h.type === "dont" ? "DON'T" : "DO"}
+                </span>
+                <span style={{ overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{h.label}</span>
+              </div>
+              {cells.map((on, j) => {
+                const isToday = j === cells.length - 1;
+                const square = h.type === "dont";
+                return (
+                  <div key={j} style={{ height: 22, borderRadius: square ? 4 : 11,
+                    background: on ? (isToday ? TEAL : "rgba(10,197,168,0.45)") : "rgba(242,237,228,0.06)",
+                    border: isToday ? `1px solid ${on ? "transparent" : "rgba(46,224,196,0.4)"}` : "none",
+                  }} />
+                );
+              })}
+            </div>
+          );
+        })}
+      </Card>
+    ) },
+
+    { key: "scorecard", title: "Shape Score · from habits", size: "half", render: () => (
+      <div data-tour="hero-habits">
+      <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHAPE SCORE · FROM HABITS</div>
+        <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, color: TEAL_BRIGHT }}>+{weekPoints}</div>
+        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 8, lineHeight: 1.5 }}>
+          Earned from habits this week. Each row's <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>+pts</span> rolls into your Shape Score nightly.
+        </div>
+        <a href="ClientScore.html" style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none" }}>
+          SEE FULL BREAKDOWN <span>→</span>
+        </a>
+      </Card>
       </div>
+    ) },
+
+    { key: "trend", title: "Two-week trend", size: "half", render: () => (
+      <Card>
+        <SectionTitle>Two-week trend</SectionTitle>
+        <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{weekPct}%</div>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Adherence · vs — last week</div>
+      </Card>
+    ) },
+
+    { key: "coachnote", title: "From Maya", size: "full", render: () => (
+      <Card>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · MON</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>
+          Sleep is the one I want you to defend. If you're under 7 hours twice in a row, deload the next squat session.
+        </div>
+      </Card>
+    ) },
+  ];
+
+  return (
+    <DashPage
+      navItems={clientNavItems("habits")}
+      payoutCard={clientPayoutCard}
+      eyebrow="DAILY · WEEK 16 OF 52"
+      title="Habits"
+      subtitle="Do's earn Shape Score when you complete them. Don'ts earn the same when you successfully avoid them. Tap a circle (do) or square (don't) to log today."
+      actions={<>
+        <a href="ClientScore.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
+        <button onClick={() => addHabit("do")} title="Add habit" style={{ width: 42, height: 42, borderRadius: 999, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 22, fontWeight: 500, cursor: "pointer", lineHeight: 1 }}>+</button>
+      </>}
+    >
+      <DashGrid role="client" tab="habits" widgets={widgets} />
     </DashPage>
   );
 }

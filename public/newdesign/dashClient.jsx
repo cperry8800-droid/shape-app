@@ -169,7 +169,7 @@ function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
         {workout.playlist && workout.playlist.name ? (
-          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1ED760", background: "rgba(30,215,96,0.08)", border: "1px solid rgba(30,215,96,0.35)", borderLeft: "3px solid #1ED760", borderRadius: 4, padding: "6px 10px" }}>
+          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1DB954", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
             ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
           </a>
         ) : (
@@ -261,6 +261,213 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
           <div style={{ fontSize: 12.5, color: ink50, padding: "10px 0" }}>No meals assigned today — your nutritionist's next push lands here.</div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Today — the home daily check-in (energy/hunger/sleep/rested) + hydration on ONE
+// instrument plate; web parity with the mobile BSTodayCard. Energy/Hunger/Rested are
+// tap-to-set 1-10 gauges; Sleep is device-first (read-only snapshot when a wearable
+// synced last night, else manual hour chips). Hydration folds in as a dot-progress +
+// quick-add row that STAYS LIVE after the check-in collapses to its one-line summary.
+// Reads today's values from /api/client/progress + /api/client/hydration; writes via
+// /api/client/checkin + /api/client/hydration (cookie session). Demo = signed-out
+// preview (band on top) — taps work locally and nothing persists.
+function DashTodayCard({ live }) {
+  const teal = DCL_TEAL, amber = "#d8a23a", blue = "#7ed4ff";
+  const ink50 = DCL_INK50, mono = DCL_MONO;
+  const sleepHM = (h) => { const m = Math.round(Number(h) * 60); return Math.floor(m / 60) + "h " + (m % 60) + "m"; };
+  const todayISO = dclTodayISO();
+  const localDay = () => new Date().toLocaleDateString("en-CA"); // user's calendar day, matches meal-log
+
+  // ── check-in state (demo seeds a logged example so the preview reads alive) ──
+  const [energy, setEnergy] = React.useState(live ? null : 7);
+  const [hunger, setHunger] = React.useState(live ? null : 4);
+  const [sleepHours, setSleepHours] = React.useState(live ? null : 7.5);
+  const [rested, setRested] = React.useState(live ? null : 8);
+  const [sleepMeta, setSleepMeta] = React.useState(null);
+  const [sleepSynced, setSleepSynced] = React.useState(false);
+  const [logged, setLogged] = React.useState(!live);
+  const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [readiness, setReadiness] = React.useState(null);
+  const [readinessLabel, setReadinessLabel] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!live) return undefined;
+    let on = true;
+    fetch("/api/client/progress", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        if (!on || !p || !p.series) return;
+        if (p.kpis) { if (p.kpis.readiness != null) setReadiness(Number(p.kpis.readiness)); if (p.kpis.readinessLabel) setReadinessLabel(p.kpis.readinessLabel); }
+        const find = (k) => (p.series[k] || []).find((s) => s.date === todayISO);
+        const e = find("energy"), h = find("hunger");
+        if (e) setEnergy(Math.round(Number(e.value)));
+        if (h) setHunger(Math.round(Number(h.value)));
+        const s = find("sleep"), q = find("sleepQuality");
+        const eff = find("sleepEfficiency"), rhr = find("restingHr"), hrv = find("hrv");
+        const meta = { efficiency: eff ? Math.round(Number(eff.value)) : null, rhr: rhr ? Math.round(Number(rhr.value)) : null, hrv: hrv ? Math.round(Number(hrv.value)) : null };
+        const hasDeviceMeta = meta.efficiency != null || meta.rhr != null || meta.hrv != null;
+        // Logged from a MANUAL signal only — energy/hunger, the rested rating, or
+        // manually-entered sleep hours — never a passive device sync alone.
+        if (e || h || q || (s && !hasDeviceMeta)) setLogged(true);
+        if (s) { setSleepHours(Number(s.value)); setSleepSynced(hasDeviceMeta); if (hasDeviceMeta) setSleepMeta(meta); }
+        if (q) setRested(Math.round(Number(q.value)));
+      })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [live]);
+
+  // ── hydration state (always live) ──
+  const [hyd, setHyd] = React.useState(live ? null : 1.5);
+  const [hydTarget, setHydTarget] = React.useState(3.0);
+  const [lastDelta, setLastDelta] = React.useState(0);
+  const [hydBusy, setHydBusy] = React.useState(false);
+  const hydSeq = React.useRef(0);
+  React.useEffect(() => {
+    if (!live) return undefined;
+    let on = true;
+    fetch("/api/client/hydration?date=" + localDay(), { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (on && d && d.ok) { setHyd(Number(d.hydrationL) || 0); setHydTarget(Number(d.targetL) || 3.0); } })
+      .catch(() => {});
+    return () => { on = false; };
+  }, [live]);
+
+  // When the dashboard resolves to a LIVE account (today: null → dash), drop the
+  // demo seeds so a signed-in member with nothing logged today never sees a
+  // fabricated "logged ✓" — the fetch effects above repopulate from real data (or
+  // leave it honestly empty). Runs once on the false→true transition.
+  React.useEffect(() => {
+    if (!live) return;
+    setEnergy(null); setHunger(null); setSleepHours(null); setRested(null);
+    setSleepMeta(null); setSleepSynced(false); setLogged(false); setEditing(false);
+    setHyd(null); setLastDelta(0);
+  }, [live]);
+
+  // Optimistic + rollback + stale-response guard (hydSeq) + in-flight lock (hydBusy).
+  const addWater = (deltaL) => {
+    if (hydBusy) return;
+    const prev = Number(hyd) || 0;
+    const optimistic = Math.max(0, Math.round((prev + deltaL) * 1000) / 1000);
+    setHyd(optimistic); setLastDelta(deltaL);
+    if (!live) return; // preview — local only
+    const seq = ++hydSeq.current;
+    setHydBusy(true);
+    fetch("/api/client/hydration", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deltaL, date: localDay() }) })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((d) => { if (seq === hydSeq.current && d && d.ok) setHyd(Number(d.hydrationL) || 0); })
+      .catch(() => { if (seq === hydSeq.current) { setHyd(prev); setLastDelta(0); } })
+      .then(() => { if (seq === hydSeq.current) setHydBusy(false); });
+  };
+  const undoWater = () => { if (lastDelta && !hydBusy) { addWater(-lastDelta); setLastDelta(0); } };
+
+  const nothingSet = energy == null && hunger == null && sleepHours == null && rested == null;
+  const showForm = !logged || editing;
+  const doLog = () => {
+    if (nothingSet || saving) return;
+    if (!live) { setLogged(true); setEditing(false); return; } // preview — local only
+    setSaving(true);
+    fetch("/api/client/checkin", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ energy, hunger, sleepHours, sleepQuality: rested, date: localDay() }) })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then(() => { setLogged(true); setEditing(false); })
+      .catch(() => {})
+      .then(() => setSaving(false));
+  };
+
+  // ── gauge (tap-to-set 1-10, filled with an end-anchor knob over 10 tap zones) ──
+  const Gauge = ({ label, val, set, c }) => {
+    const pct = Math.max(0, Math.min(1, (val || 0) / 10));
+    return (
+      <div style={{ marginBottom: 11 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+          <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50 }}>{label}</span>
+          <span style={{ fontFamily: serif, fontSize: 18, lineHeight: 1, color: val ? c : ink50 }}>{val || "—"}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> /10</span></span>
+        </div>
+        <div style={{ position: "relative", height: 44 }}>
+          <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: 9, borderRadius: 999, background: "rgba(242,237,228,0.08)", overflow: "hidden" }}>
+            <div style={{ width: (pct * 100) + "%", height: "100%", background: c, transition: "width .16s ease" }} />
+          </div>
+          {[...Array(9)].map((_, i) => (<div key={i} aria-hidden="true" style={{ position: "absolute", left: (((i + 1) / 10) * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 1, height: 9, background: PAPER, opacity: 0.6 }} />))}
+          {val ? <div aria-hidden="true" style={{ position: "absolute", left: (pct * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 13, height: 13, borderRadius: 999, background: c, border: "2px solid " + PAPER, boxShadow: "0 0 6px " + c }} /> : null}
+          <div style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: "repeat(10,1fr)" }}>
+            {[...Array(10)].map((_, i) => { const v = i + 1; return <button key={v} onClick={() => set(v)} aria-pressed={val === v ? "true" : "false"} aria-label={label + " " + v + " of 10"} style={{ height: "100%", minHeight: 44, border: 0, background: "transparent", cursor: "pointer", padding: 0 }} />; })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const cur = Number(hyd) || 0;
+  const hpct = hydTarget > 0 ? Math.min(1, cur / hydTarget) : 0;
+  const Ln = (n) => "" + (Math.round(n * 100) / 100);
+  const dotCount = Math.max(6, Math.min(14, Math.round((hydTarget || 3) / 0.25)));
+  const filledDots = Math.max(0, Math.min(dotCount, Math.round(hpct * dotCount)));
+  const hydDisplay = Ln(cur) + " / " + Ln(hydTarget) + " L";
+  const waterBtn = { fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", border: "1px solid rgba(46,224,196,0.4)", background: "rgba(46,224,196,0.08)", color: INK, borderRadius: 5, padding: "10px", cursor: "pointer", flex: 1 };
+
+  return (
+    <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": teal, paddingLeft: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: showForm ? 10 : 8 }}>
+        <span className="dash-eyebrow">Today · how are you</span>
+        {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "7px 8px", margin: "-7px -8px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: ink50 }}>Edit</button>}
+      </div>
+
+      {showForm ? (
+        <>
+          <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
+          <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
+          {/* SLEEP — device-first hours + an always-on Rested gauge */}
+          <div style={{ marginTop: 2, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
+              <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50 }}>Sleep · last night</span>
+              {sleepHours != null && <span style={{ fontFamily: serif, fontSize: 15, color: blue }}>{sleepHM(sleepHours)}</span>}
+            </div>
+            {sleepSynced ? (
+              <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.04em", textTransform: "uppercase", color: ink50 }}>
+                {[sleepMeta && sleepMeta.efficiency != null ? sleepMeta.efficiency + "% efficient" : null, sleepMeta && sleepMeta.rhr != null ? "RHR " + sleepMeta.rhr : null, sleepMeta && sleepMeta.hrv != null ? "HRV " + sleepMeta.hrv : null].filter(Boolean).join(" · ") || "Synced from your device"}
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
+                  <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={h + " hours of sleep"} aria-pressed={sel ? "true" : "false"} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: "1px solid " + (sel ? blue : "rgba(242,237,228,0.18)"), background: sel ? "rgba(126,212,255,0.14)" : "transparent", color: sel ? blue : INK, cursor: "pointer", padding: "8px 0", fontFamily: mono, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                ); })}
+              </div>
+            )}
+            <div style={{ marginTop: 10 }}><Gauge label="Rested" val={rested} set={setRested} c={blue} /></div>
+          </div>
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(242,237,228,0.12)" : teal, color: (nothingSet || saving) ? ink50 : "#06231f", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
+        </>
+      ) : (
+        <div style={{ fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? "—"}</b> · Hunger <b style={{ color: amber }}>{hunger ?? "—"}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{sleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
+      )}
+
+      {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
+      <div style={{ marginTop: 12, paddingTop: 11, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+          <span className="dash-eyebrow">Hydration</span>
+          <span style={{ fontFamily: serif, fontSize: 16, color: INK }}>{hyd == null ? "—" : <>{hydDisplay}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
+        </div>
+        <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+          {[...Array(dotCount)].map((_, i) => (<div key={i} aria-hidden="true" style={{ flex: "1 1 0", minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : "transparent", border: "1px solid " + (i < filledDots ? teal : "rgba(242,237,228,0.18)") }} />))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => addWater(0.25)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+250 ml</button>
+          <button onClick={() => addWater(0.5)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+500 ml</button>
+          <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 5, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", color: (lastDelta && !hydBusy) ? INK : ink50, cursor: (lastDelta && !hydBusy) ? "pointer" : "default", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>↶</button>
+        </div>
+      </div>
+
+      {/* recovery readiness + the door to the trends page */}
+      {live && (
+        <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: ink50 }}>
+            {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : "Sleep & recovery"}
+          </span>
+          <a href="ClientProgress.html" style={{ display: "inline-block", padding: "7px 8px", margin: "-7px -8px", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: blue, textDecoration: "none" }}>Trends →</a>
+        </div>
+      )}
     </div>
   );
 }
@@ -402,9 +609,9 @@ function ClientDashboardPage() {
         <DashSidebar navItems={clientNavItems("today")} payoutCard={live && score
           ? { label: "SHAPE SCORE", amount: hero.total.toLocaleString(), sub: hero.tier + (hero.next ? " · " + hero.toNext + " to " + hero.next : "") }
           : clientPayoutCard} />
-        <main style={{ padding: "0 44px 80px", minWidth: 0 }}>
+        <main style={{ padding: "24px 44px 80px", minWidth: 0 }}>
           {/* Greeting — real date, not a hardcoded one */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
+          <div data-tour="hero-today" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 18, flexWrap: "wrap", marginBottom: 22 }}>
             <div>
               <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_INK50 }}>{dclRealDate()}</div>
               <h1 style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.025em", fontWeight: 400, margin: "8px 0 0", lineHeight: 1.02 }}>Welcome back, {firstName}.</h1>
@@ -426,10 +633,8 @@ function ClientDashboardPage() {
             </div>
           )}
 
-          <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 16, alignItems: "start" }}>
-            {/* ── Left column ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-              {/* Hero — Shape Score ring + why it moved + streak */}
+          <DashGrid role="client" widgets={[
+            { key: "score", title: "Shape Score", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                   {/* The ring IS the link to the Score deep-dive */}
@@ -453,17 +658,17 @@ function ClientDashboardPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Tonight's workout */}
+            ) },
+            { key: "today", title: "Today", size: "full", render: () => <DashTodayCard live={live} /> },
+            { key: "workout", title: "Tonight's Workout", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#c0533b"), paddingLeft: 24 }}>
 {(() => {
                   const w = workout ? { ...workout, meta: workout.meta } : null;
                   return <DashWorkoutCard workout={w} />;
                 })()}
               </div>
-
-              {/* Today's meals + live macro ledger (shared card — the meal
-                  builder's client preview renders this exact component) */}
+            ) },
+            { key: "meals", title: "Today's Meals", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <DashMealLedgerCard
                   meals={meals} targets={targets} ledger={ledger} logged={logged}
@@ -474,14 +679,8 @@ function ClientDashboardPage() {
                   <a href="ClientNutri.html" style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
                 </div>
               </div>
-            </div>
-
-            {/* ── Right column ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-              {/* Weekly consistency ring — framing rule: consistency reads as
-                  streaks and wins on the client side, never a bare adherence
-                  percentage. The ring fill keeps the visual; the number is
-                  this week's win count. */}
+            ) },
+            { key: "consistency", title: "This week", size: "half", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_GREEN), paddingLeft: 24 }}>
                 <div className="dash-eyebrow" style={{ color: DCL_GREEN }}>This week · consistency</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 12 }}>
@@ -501,9 +700,8 @@ function ClientDashboardPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Milestones — what you earned, what's next */}
-              {(msFeed.recent.length > 0 || msFeed.next.length > 0) && (
+            ) },
+            { key: "milestones", title: "Milestones", size: "half", render: () => ((msFeed.recent.length > 0 || msFeed.next.length > 0) ? (
                 <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#d8a23a"), paddingLeft: 24 }}>
                   <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>Milestones</div>
                   <div className="dash-ledger" style={{ "--dac": "#d8a23a", marginTop: 9 }} />
@@ -533,9 +731,8 @@ function ClientDashboardPage() {
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Messages from your pros */}
+              ) : null) },
+            { key: "team", title: "Your Team", size: "half", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <div className="dash-eyebrow">Your team</div>
                 <div className="dash-ledger" style={{ marginTop: 9 }} />
@@ -561,8 +758,8 @@ function ClientDashboardPage() {
                   );
                 })}
               </div>
-
-              {/* Secondary — grocery / next session / membership */}
+            ) },
+            { key: "secondary", title: "Links", size: "half", render: () => (
               <div className="dash-plate dash-plate--bracket" style={{ ...plate("rgba(242,237,228,0.35)"), paddingLeft: 24 }}>
                 <a href="ClientGrocery.html" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", textDecoration: "none", color: INK }}>
                   <div>
@@ -582,8 +779,8 @@ function ClientDashboardPage() {
                   <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(242,237,228,0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
                 </div>
               </div>
-            </div>
-          </div>
+            ) },
+          ]} />
         </main>
       </div>
       <Footer />
@@ -591,4 +788,4 @@ function ClientDashboardPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage, DashWorkoutCard, DashMealLedgerCard });
+Object.assign(window, { ClientDashboardPage, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });

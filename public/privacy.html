@@ -37,22 +37,29 @@
   a{color:inherit;text-decoration:none}
   ::selection{background:var(--teal);color:var(--paper)}
 
-  .nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(26,22,18,0.45);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(242,237,228,0.08)}
-  .nav-inner{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:16px 48px;gap:40px}
+  .nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(11,14,12,0.55);-webkit-backdrop-filter:blur(20px) saturate(1.05);backdrop-filter:blur(20px) saturate(1.05);border-bottom:1px solid rgba(245,239,225,0.06)}
+  .nav::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,#0ac5a8 30%,#d2693f 70%,transparent 100%);opacity:.5}
+  .nav-inner{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:10px 44px;gap:20px}
+  .nav-logo{margin-left:16px;display:inline-flex;align-items:center;line-height:0}
   .nav-logo svg{width:52px;height:auto}
-  .nav-links{display:flex;gap:30px;align-items:center;justify-content:center;white-space:nowrap}
+  .nav-links{display:flex;gap:16px;align-items:center;justify-content:center;white-space:nowrap}
   .nav-item{position:relative;display:inline-flex;align-items:center}
-  .nav-item > a{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:rgba(242,237,228,0.72);display:inline-flex;align-items:center;gap:5px;line-height:1;padding-bottom:3px;border-bottom:1.5px solid transparent;cursor:pointer;transition:color .15s}
+  .nav-item > a{font-size:12px;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.6);display:inline-flex;align-items:center;gap:5px;line-height:1;cursor:pointer;transition:color .15s}
   .nav-item > a .caret{font-size:9px;opacity:.6}
-  .nav-item:hover > a{color:var(--ink)}
+  .nav-item:hover > a{color:#f5efe1}
   .nav-drop{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:10px;min-width:220px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s}
-  .nav-item:hover .nav-drop{opacity:1;visibility:visible;pointer-events:auto}
+  .nav-item:hover .nav-drop,.nav-item:focus-within .nav-drop{opacity:1;visibility:visible;pointer-events:auto}
   .nav-drop-inner{background:rgba(26,22,18,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(242,237,228,0.1);border-radius:8px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,0.5)}
   .nav-drop-inner a{display:block;padding:10px 14px;font-size:13px;color:rgba(242,237,228,0.85);border-radius:4px;white-space:nowrap;letter-spacing:0;text-transform:none;transition:background .15s,color .15s}
   .nav-drop-inner a:hover{background:rgba(10,197,168,0.12);color:var(--ink)}
-  .nav-cta{display:flex;align-items:center;gap:18px}
-  .nav-cta .login{font-size:13px;letter-spacing:.13em;text-transform:uppercase;color:rgba(242,237,228,0.72)}
-  .nav-cta .primary{background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;font-weight:500}
+  .nav-cta{display:flex;align-items:center;gap:13px}
+  .nav-search{width:34px;height:34px;border-radius:999px;border:1px solid rgba(245,239,225,0.25);display:inline-flex;align-items:center;justify-content:center;color:rgba(245,239,225,0.7);flex:none;transition:border-color .15s,color .15s}
+  .nav-search:hover{border-color:rgba(245,239,225,0.5);color:#f5efe1}
+  .nav-radio{display:inline-flex;align-items:center;line-height:0;flex:none}
+  .nav-radio img{width:138px;height:auto;display:block}
+  .nav-cta .login{font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55)}
+  .nav-cta .primary{background:transparent;color:#f5efe1;border:1px solid #f5efe1;padding:8px 15px;border-radius:999px;font-size:11.5px;letter-spacing:.04em;text-transform:lowercase;font-weight:400;transition:background .2s,color .2s}
+  .nav-cta .primary:hover{background:#f5efe1;color:#1a1612}
   .nav-spacer{height:85px}
 
   .hero{padding:80px 40px 40px;max-width:1320px;margin:0 auto;text-align:center}
@@ -86,14 +93,15 @@
   .contact-card .btn{display:inline-block;background:var(--teal);color:var(--paper);padding:12px 20px;border-radius:6px;font-size:13px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;transition:background .2s}
   .contact-card .btn:hover{background:var(--teal-bright)}
 
-  .footer{padding:100px 40px 60px;background:var(--ink);color:var(--paper);margin-top:60px}
+  .footer{padding:100px 40px 60px;background:var(--paper);color:var(--ink);margin-top:60px}
   .footer-inner{max-width:1320px;margin:0 auto}
-  .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:40px;padding-top:40px;border-top:1px solid rgba(26,22,18,.12)}
+  .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:40px;padding-top:40px;border-top:1px solid rgba(242,237,228,.12)}
   .footer-logo svg{width:64px;height:auto}
-  .footer-desc{font-size:13px;color:rgba(26,22,18,.55);margin-top:16px;max-width:280px}
-  .footer-col h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(26,22,18,.5);margin:0 0 16px;font-weight:500}
-  .footer-col a{display:block;font-size:13px;margin-bottom:8px;color:rgba(26,22,18,.8)}
-  .footer-base{margin-top:60px;padding-top:24px;border-top:1px solid rgba(26,22,18,.08);display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(26,22,18,.5)}
+  .footer-desc{font-size:13px;color:rgba(242,237,228,.55);margin-top:16px;max-width:280px}
+  .footer-col h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin:0 0 16px;font-weight:500}
+  .footer-col a{display:block;font-size:13px;margin-bottom:8px;color:rgba(242,237,228,.72);transition:color .15s ease}
+  .footer-col a:hover{color:var(--teal-bright)}
+  .footer-base{margin-top:60px;padding-top:24px;border-top:1px solid rgba(242,237,228,.08);display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(242,237,228,.5)}
 
   @media (max-width: 900px){
     .nav-links,.nav-cta{display:none}
@@ -115,21 +123,24 @@
 <nav class="nav">
   <div class="nav-inner">
     <a class="nav-logo" href="newdesign/index.html" aria-label="Shape">
-      <img src="/shape-logo-new-white.png?v=3" alt="Shape" style="height:94px;width:auto;display:block">
+      <img src="/shape-logo-new-teal-white.png?v=1" alt="Shape" style="height:60px;width:auto;display:block;object-fit:contain">
     </a>
     <div class="nav-links">
+      <div class="nav-item"><a href="newdesign/About.html">About</a></div>
       <div class="nav-item"><a>Clients<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Client.html">Overview</a><a href="newdesign/ClientDashboard.html">Dashboard</a></div></div></div>
       <div class="nav-item"><a>Trainers<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Coach.html">Overview</a><a href="newdesign/TrainerDashboard.html">Dashboard</a></div></div></div>
-      <div class="nav-item"><a>Nutritionists<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Nutritionist.html">Overview</a><a href="newdesign/NutritionistDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Nutritionists<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Nutritionist.html">Overview</a><a href="newdesign/NutritionistDashboard.html">Dashboard</a><a href="newdesign/Recipes.html">Recipes</a></div></div></div>
       <div class="nav-item"><a href="newdesign/Marketplace.html">Marketplace</a></div>
       <div class="nav-item"><a href="newdesign/Community.html">Community</a></div>
       <div class="nav-item"><a>Rewards<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Score.html">Shape Score</a><a href="newdesign/Store.html">Shape Store</a></div></div></div>
-      <div class="nav-item"><a href="newdesign/Radio.html">Radio</a></div>
+      <div class="nav-item"><a href="newdesign/GetApp.html">App</a></div>
       <div class="nav-item"><a href="newdesign/Pricing.html">Pricing</a></div>
     </div>
     <div class="nav-cta">
+      <a class="nav-search" href="newdesign/Marketplace.html" aria-label="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></a>
       <a class="login" href="newdesign/Login.html">Log in</a>
       <a class="primary" href="newdesign/Landing.html">Get started</a>
+      <a class="nav-radio" href="newdesign/Radio.html" aria-label="Shape Radio"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio"></a>
     </div>
   </div>
 </nav>
@@ -138,7 +149,7 @@
 <section class="hero">
   <div class="eyebrow">Legal</div>
   <h1>Privacy <em>policy.</em></h1>
-  <div class="updated">Last updated — June 15, 2026</div>
+  <div class="updated">Last updated — June 22, 2026</div>
 </section>
 
 <div class="wrap">
@@ -150,12 +161,15 @@
     <a href="#s3"><span class="num">04</span>Information sharing &amp; processors</a>
     <a href="#s4"><span class="num">05</span>Data security</a>
     <a href="#s5"><span class="num">06</span>Your rights</a>
-    <a href="#s6"><span class="num">07</span>Cookies &amp; tracking</a>
-    <a href="#s7"><span class="num">08</span>Data retention</a>
-    <a href="#s8"><span class="num">09</span>Children's privacy</a>
-    <a href="#s9"><span class="num">10</span>International transfers</a>
-    <a href="#s10"><span class="num">11</span>Changes to this policy</a>
-    <a href="#s11"><span class="num">12</span>Contact us</a>
+    <a href="#schoices"><span class="num">07</span>Your privacy choices</a>
+    <a href="#scats"><span class="num">08</span>Categories &amp; retention</a>
+    <a href="#sfi"><span class="num">09</span>Notice of financial incentive</a>
+    <a href="#s6"><span class="num">10</span>Cookies &amp; tracking</a>
+    <a href="#s7"><span class="num">11</span>Data retention</a>
+    <a href="#s8"><span class="num">12</span>Children's privacy</a>
+    <a href="#s9"><span class="num">13</span>International transfers &amp; representatives</a>
+    <a href="#s10"><span class="num">14</span>Changes to this policy</a>
+    <a href="#s11"><span class="num">15</span>Contact us</a>
   </aside>
 
   <article class="content">
@@ -185,10 +199,10 @@
     <section class="section" id="shealth">
       <div class="num">02</div>
       <h2>Health &amp; medical data</h2>
-      <p>Coaching involves sensitive health information. Beyond the fitness data above, Shape may collect, at your choice: a health-and-readiness screening (PAR-Q+ answers, injuries, medical conditions, medications, and an emergency contact), body measurements and girths, weigh-ins and body-fat readings, progress photos, training and nutrition logs, weekly check-ins (sleep, energy, stress, hunger, adherence), and recovery metrics from connected wearables (heart rate, HRV, sleep). We treat all of this as <strong>sensitive personal information</strong> and apply the safeguards in Section 05 (Data security) — including per-user row-level access controls and private, signed-URL storage for photos and voice notes.</p>
+      <p>Coaching involves sensitive health information. Beyond the fitness data above, Shape may collect, at your choice: a health-and-readiness screening (PAR-Q answers, prescription medications, allergies, pregnancy or postpartum status, ongoing medical conditions, injuries, and an emergency contact), body measurements and girths, weigh-ins and body-fat readings, progress photos, training and nutrition logs, weekly check-ins (sleep, energy, stress, hunger, adherence), and recovery metrics from connected wearables (heart rate, HRV, sleep). We treat all of this as <strong>sensitive personal information</strong> and apply the safeguards in Section 05 (Data security) — including per-user row-level access controls and private, signed-URL storage for photos and voice notes. We ask for your <strong>consent before collecting</strong> health data. Because several US laws regulate this specifically, we maintain a separate <a href="/health-data-privacy.html">Consumer Health Data Privacy Policy</a> that governs it in detail.</p>
       <p><strong>Who can see it.</strong> Your health and training data is visible to you and to the specific coach(es) you are linked to — no one else. Most data is share-gated: you choose what your coach sees. Your safety screening (PAR-Q answers, injuries, medications, emergency contact) is made available to a linked coach so they can work with you safely. Cancelling a coaching relationship ends that coach's ongoing access.</p>
       <p><strong>HIPAA.</strong> Shape is a consumer fitness and coaching platform — not a healthcare provider, health plan, or clearinghouse — and the trainers and nutritionists on Shape act as independent fitness professionals, not as your medical providers. Health information you enter here is therefore <strong>consumer health data, not "Protected Health Information (PHI)" under HIPAA</strong>, and HIPAA generally does not apply. We nonetheless treat this information as sensitive and protect it as described in this policy. Shape is not a substitute for professional medical care — see the medical disclaimer in our <a href="/terms.html">Terms</a>.</p>
-      <p><strong>Your control.</strong> You can view, edit, export, or delete your health data from Settings at any time, and adjust what each coach can see.</p>
+      <p><strong>Your control.</strong> You can edit your health data and adjust what each coach can see from Settings, export a copy or delete your account and data yourself from <strong>Settings</strong>, or make a request at any time by emailing <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
     </section>
 
     <section class="section" id="s2">
@@ -212,14 +226,20 @@
       <p>We do not sell your personal information. We share it only in these specific situations:</p>
       <p><strong>With the coach(es) you subscribe to or book.</strong> A trainer you've subscribed to sees the workout data, goals, and messages relevant to coaching you. A nutritionist you hire sees your meal log and targets. You control the relationship: cancel any time and that coach's ongoing access ends.</p>
       <p><strong>Publicly visible information.</strong> Some profile information is visible to other Shape members by design: your name or handle, profile photo, role, Shape Score and tier, and anything you post publicly or set to "Profile" visibility. This information may appear on your public profile, in community feeds, in search, and on leaderboards. You control it in Settings — set your profile to <strong>Public</strong>, <strong>Friends</strong>, or <strong>Private</strong>. Your health, training, and nutrition data is never made public; it is limited to you and the coach(es) you link with.</p>
-      <p><strong>With subprocessors who help us run Shape.</strong> Each is bound by contract to protect your data and use it only to deliver their service to us.</p>
+      <p>The coaches you link with are <strong>independent professionals and third-party recipients</strong> of the data you choose to share with them — not our processors. They agree by contract to keep it confidential, use it only to coach you, and meet their own legal obligations.</p>
+      <p><strong>With subprocessors who help us run Shape.</strong> Each is bound by contract to protect your data and use it only to deliver their service to us. The complete, versioned list — with the data each receives, its region, and the transfer safeguard — is on our <a href="/subprocessors.html">Subprocessors</a> page. In summary:</p>
       <ul>
-        <li><strong>Supabase</strong> — database, authentication, file storage (hosted in United States / EU regions).</li>
+        <li><strong>Supabase</strong> — database, authentication, and file storage (holds the bulk of your data, including health data).</li>
         <li><strong>Stripe</strong> — payments, subscriptions, Connect payouts to coaches. See <a href="https://stripe.com/privacy" rel="noopener">Stripe's privacy policy</a>.</li>
-        <li><strong>Vercel</strong> — web hosting and edge delivery. See <a href="https://vercel.com/legal/privacy-policy" rel="noopener">Vercel's privacy policy</a>.</li>
-        <li><strong>Cloudflare</strong> — DNS and network security.</li>
-        <li><strong>Resend</strong> — transactional email delivery.</li>
+        <li><strong>Vercel</strong> — web hosting, edge delivery, and product analytics. See <a href="https://vercel.com/legal/privacy-policy" rel="noopener">Vercel's privacy policy</a>.</li>
+        <li><strong>Cloudflare</strong> — DNS, network security, and the Turnstile bot check.</li>
+        <li><strong>OpenAI</strong> — the "Nora" assistant, voice transcription, and text-to-speech. Depending on the feature, the text sent <strong>can include health and fitness context</strong>; it is processed only to generate your response.</li>
+        <li><strong>Google Firebase Cloud Messaging</strong> — push notifications.</li>
+        <li><strong>Resend</strong> — transactional (and, where you opt in, marketing) email.</li>
+        <li><strong>Instacart</strong> — only when you choose to send it a grocery list.</li>
+        <li><strong>Wearable &amp; audio services you connect</strong> — Apple Health, Strava, Garmin, Whoop, Oura, Spotify.</li>
       </ul>
+      <p>We <strong>do not sell</strong> your personal information and <strong>do not share</strong> it for cross-context behavioral advertising, and we do not use your fitness or health data to train artificial-intelligence models.</p>
       <p><strong>With law enforcement or legal counterparties</strong> when required by subpoena, court order, or applicable law, or to protect the rights, safety, and property of Shape or others.</p>
       <p><strong>In connection with a business transfer</strong> (merger, acquisition, financing) — recipients are bound by this policy.</p>
     </section>
@@ -244,34 +264,62 @@
       <h2>Your rights</h2>
       <p>Depending on where you live, you may have the right to:</p>
       <ul>
-        <li><strong>Access:</strong> request a copy of the personal information we hold about you.</li>
+        <li><strong>Know / access:</strong> request a copy of the personal information we hold about you, and the categories of recipients we've shared it with.</li>
         <li><strong>Correct:</strong> update inaccurate or incomplete data.</li>
-        <li><strong>Delete:</strong> request we erase your account and associated data (subject to legal retention needs such as tax records).</li>
-        <li><strong>Port:</strong> receive your data in a machine-readable format.</li>
-        <li><strong>Object or restrict:</strong> limit how we process your data.</li>
-        <li><strong>Opt out of marketing:</strong> unsubscribe links in every marketing email; transactional email cannot be disabled.</li>
+        <li><strong>Delete:</strong> request we erase your account and associated data (subject to limited legal-retention needs such as tax records).</li>
+        <li><strong>Port:</strong> receive your data in a portable, machine-readable format.</li>
+        <li><strong>Opt out</strong> of any "sale" or "sharing" of personal information, of targeted advertising, and of profiling — although Shape does none of these.</li>
+        <li><strong>Limit the use of sensitive personal information</strong> to what's needed to provide the service.</li>
+        <li><strong>Withdraw consent</strong> (including for health data), <strong>object to or restrict</strong> processing, and <strong>opt out of marketing</strong> (unsubscribe links in every marketing email; transactional email cannot be disabled).</li>
+        <li><strong>Appeal</strong> a decision we make on your request, and be free from discrimination for exercising any right.</li>
       </ul>
-      <p><strong>California residents (CCPA/CPRA):</strong> you additionally have the right to know the categories of personal information collected and shared, and to opt out of any sharing that qualifies as a "sale" or cross-context behavioral advertising — we do not engage in either.</p>
-      <p><strong>EEA/UK residents (GDPR):</strong> our legal bases for processing are (a) contract performance, (b) legitimate interest (security, product improvement), (c) consent for optional analytics and marketing, and (d) legal obligation. You may lodge a complaint with your national data protection authority.</p>
-      <p>To exercise any right, email <a href="mailto:christopher.perry@theshapecommunity.com">christopher.perry@theshapecommunity.com</a>. We verify identity before acting and respond within 30 days.</p>
+      <p><strong>How to exercise them.</strong> Use our <a href="/privacy-request.html">privacy request form</a>, export or delete your data directly in <strong>Settings</strong>, or email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. You may use an authorized agent. We verify your identity proportionately. We acknowledge California requests within 10 business days and respond within 45 days; GDPR and other state requests within one month (extendable where the law allows). If we deny a request you may appeal by replying to our response; if an appeal is denied you may contact your state attorney general or, in the EEA/UK, lodge a complaint with your data protection authority.</p>
+      <p><strong>EEA/UK lawful bases (GDPR).</strong> We rely on: <em>contract</em> for your account, core coaching, and payments; <em>explicit consent</em> for health/special-category data and for optional analytics and marketing; <em>legitimate interests</em> for security, fraud prevention, and product improvement; and <em>legal obligation</em> for tax and compliance records.</p>
+    </section>
+
+    <section class="section" id="schoices">
+      <div class="num">07</div>
+      <h2>Your privacy choices</h2>
+      <p><strong>Do Not Sell or Share My Personal Information.</strong> Shape does not sell your personal information and does not share it for cross-context behavioral advertising, so there is nothing to opt out of — but if that ever changes we will provide a working opt-out here first.</p>
+      <p><strong>Limit the Use of My Sensitive Personal Information.</strong> We use sensitive information (including health data) only to provide the coaching and features you ask for, to keep the platform secure, and as this policy describes — never to infer characteristics for advertising. To ask us to limit it further, email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
+      <p><strong>Global Privacy Control (GPC).</strong> We recognize the GPC browser/extension signal as a valid opt-out of sale/sharing for the browser that sends it. (GPC honoring is being wired in; until it is fully automated, send opt-outs to the address above.)</p>
+    </section>
+
+    <section class="section" id="scats">
+      <div class="num">08</div>
+      <h2>Categories &amp; retention</h2>
+      <p>For California and other US state laws, the categories of personal information we collect, why, who we disclose them to, and how long we keep them:</p>
+      <ul>
+        <li><strong>Identifiers &amp; account</strong> (name, email, username, profile) — to run your account; disclosed to Supabase, Stripe, Vercel; kept while your account is active.</li>
+        <li><strong>Sensitive / health data</strong> (screening, medications, allergies, pregnancy, measurements, photos, wearable metrics, check-ins) — to deliver coaching, with your consent; disclosed to your chosen coach(es), Supabase, and (for AI features) OpenAI; kept while active, deleted on request.</li>
+        <li><strong>Commercial &amp; financial</strong> (membership, purchases, payout records) — to process payments and meet tax law; disclosed to Stripe; financial records kept 7 years.</li>
+        <li><strong>Internet / device &amp; usage</strong> (IP, device identifiers, analytics) — for security and product improvement; disclosed to Vercel and Cloudflare; kept on a rolling short-term basis.</li>
+        <li><strong>Communications &amp; content</strong> (messages, posts, support requests) — to operate coaching and community; disclosed to Supabase (and Resend for email); support kept 2 years.</li>
+      </ul>
+      <p>We do not sell or share any of these categories. Deleted-account data is removed within 30 days except records we must keep by law; backups expire within 90 days.</p>
+    </section>
+
+    <section class="section" id="sfi">
+      <div class="num">09</div>
+      <h2>Notice of financial incentive</h2>
+      <p>Our <strong>Shape Score</strong> rewards program lets you earn points through qualifying activity and redeem them in the Shape Store. Because points can be earned partly in connection with logging activity, this may be treated as a "financial incentive" under California law, so: participation is <strong>voluntary</strong>, you may withdraw at any time, and declining is <strong>not</strong> a condition of using the paid service and does not degrade it. The program runs to reward engagement, not to purchase your data; any reasonable estimate of the value of data to Shape relates only to the cost of operating the program. To opt out, email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
     </section>
 
     <section class="section" id="s6">
-      <div class="num">07</div>
+      <div class="num">10</div>
       <h2>Cookies &amp; tracking</h2>
-      <p>We use cookies and similar technologies for three purposes:</p>
+      <p>We use cookies and similar technologies for these purposes:</p>
       <ul>
-        <li><strong>Strictly necessary:</strong> session cookies that keep you logged in and protect against CSRF. Cannot be disabled without breaking the site.</li>
+        <li><strong>Strictly necessary:</strong> session cookies that keep you logged in and protect against CSRF, and the Cloudflare Turnstile bot-protection challenge on login/signup forms (which processes your IP to tell humans from bots). Cannot be disabled without breaking the site.</li>
         <li><strong>Functional:</strong> remember your preferences (e.g., dashboard view, active role) across sessions.</li>
-        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, anonymized usage data (page views, referrers) to help us improve the product. It is <strong>cookieless</strong> — no persistent identifier, no cross-site tracking, and no advertising pixels.</li>
+        <li><strong>Analytics:</strong> Vercel Analytics collects aggregate, privacy-friendly usage data (page views, referrers) to help us improve the product — no advertising pixels and no cross-site tracking.</li>
         <li><strong>Fraud prevention:</strong> on pages with payments, our processor Stripe sets its own cookies (e.g., <code>__stripe_mid</code>, <code>__stripe_sid</code>) to detect and prevent fraud.</li>
       </ul>
-      <p>We do not use advertising or cross-site tracking cookies. Because the only cookies we set are strictly necessary or functional and our analytics is cookieless, we do not show a cookie-consent banner.</p>
-      <p>You can block or delete cookies in your browser settings. Doing so may sign you out or disable certain features.</p>
+      <p>We do not use advertising or cross-site tracking cookies. For visitors in the EEA and the UK we present a <strong>consent banner</strong> to control non-essential storage, and we honor the Global Privacy Control signal. You can also block or delete cookies in your browser settings; doing so may sign you out or disable certain features.</p>
     </section>
 
     <section class="section" id="s7">
-      <div class="num">08</div>
+      <div class="num">11</div>
       <h2>Data retention</h2>
       <p>We keep personal data only as long as we need it:</p>
       <ul>
@@ -284,27 +332,28 @@
     </section>
 
     <section class="section" id="s8">
-      <div class="num">09</div>
+      <div class="num">12</div>
       <h2>Children's privacy</h2>
-      <p>Shape is not directed to children under 18. We do not knowingly collect personal information from anyone under 18. If you believe a minor has created an account, email <a href="mailto:christopher.perry@theshapecommunity.com">christopher.perry@theshapecommunity.com</a> and we will delete it promptly.</p>
+      <p>Shape is for adults <strong>18 and older</strong>. We are not directed to children and do not knowingly collect personal information from anyone under 18; we verify age with a neutral date-of-birth check at sign-up (being rolled out), and we delete any account we learn belongs to a minor. If you believe a minor has created an account, email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a> and we will delete it promptly.</p>
     </section>
 
     <section class="section" id="s9">
-      <div class="num">10</div>
-      <h2>International data transfers</h2>
-      <p>Shape is operated from the United States. If you access Shape from outside the U.S., your personal data will be transferred to, stored in, and processed in the U.S. Where required by law (e.g., for EEA/UK users), we rely on Standard Contractual Clauses approved by the European Commission to legitimize the transfer.</p>
+      <div class="num">13</div>
+      <h2>International transfers &amp; representatives</h2>
+      <p>Shape is operated from the United States, so if you access it from outside the U.S. your personal data is transferred to, stored in, and processed in the U.S. For people in the EEA and the UK, we rely on the safeguard appropriate to each recipient — the <strong>EU-US Data Privacy Framework</strong> where the recipient is certified, or European Commission <strong>Standard Contractual Clauses</strong> (with the UK International Data Transfer Addendum) and a transfer impact assessment where it is not. The per-recipient safeguard is listed on our <a href="/subprocessors.html">Subprocessors</a> page.</p>
+      <p><strong>EU &amp; UK representatives.</strong> Where required by Article 27 of the GDPR / UK GDPR, we will appoint and publish here an EU representative and a separate UK representative who can be contacted about this policy. <em>(Appointment in progress.)</em> Until then, reach us at <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
     </section>
 
     <section class="section" id="s10">
-      <div class="num">11</div>
+      <div class="num">14</div>
       <h2>Changes to this policy</h2>
       <p>We may update this privacy policy. Material changes will be announced via email or in-app notice at least 14 days before taking effect. The "Last updated" date at the top of this page always reflects the current version. Continued use after the effective date means you accept the updated terms.</p>
     </section>
 
     <section class="section" id="s11">
-      <div class="num">12</div>
+      <div class="num">15</div>
       <h2>Contact us</h2>
-      <p>Questions about this policy, or how to exercise a right? Reach us at <a href="mailto:christopher.perry@theshapecommunity.com">christopher.perry@theshapecommunity.com</a> or through the <a href="/contact.html">contact page</a>. For security reports, please use the same address.</p>
+      <p>General questions about this policy: <a href="mailto:info@theshapecommunity.com">info@theshapecommunity.com</a> or the <a href="/contact.html">contact page</a>. To exercise a privacy right or report a security issue, email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. See also our <a href="/health-data-privacy.html">Consumer Health Data Privacy Policy</a>, <a href="/subprocessors.html">Subprocessors</a> list, and <a href="/data-compliance.html">Data &amp; compliance</a> page.</p>
     </section>
 
     <div class="contact-card">
@@ -320,7 +369,7 @@
     <div class="footer-grid">
       <div>
         <a class="footer-logo" href="newdesign/index.html" aria-label="Shape">
-          <img src="/shape-logo-new-black.png?v=4" alt="Shape" style="height:115px;width:auto;display:block">
+          <img src="/shape-logo-new-white.png?v=4" alt="Shape" style="height:115px;width:auto;display:block">
         </a>
         <p class="footer-desc">Real coaches. One marketplace. One platform.</p>
       </div>
@@ -343,7 +392,10 @@
         <a href="newdesign/Team.html#press">Press</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
+        <a href="/code-of-conduct.html">Code of conduct</a>
         <a href="/data-compliance.html">Data &amp; compliance</a>
+        <a href="/health-data-privacy.html">Consumer health data</a>
+        <a href="/subprocessors.html">Subprocessors</a>
       </div>
       <div class="footer-col">
         <h4>Support</h4>
@@ -358,6 +410,7 @@
   </div>
 </footer>
 
+<script src="/newdesign/siteSearch.js?v=20260626a" defer></script>
 <script src="/newdesign/globalChatButton.js?v=20260613" defer></script>
 </body>
 </html>

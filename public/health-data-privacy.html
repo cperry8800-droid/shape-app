@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consumer Health Data Privacy Policy — Shape</title>
+<meta name="description" content="How Shape collects, uses, shares, and protects consumer health data — for Washington's My Health My Data Act, Nevada, Connecticut, and everywhere.">
+<link rel="canonical" href="https://theshapecommunity.com/health-data-privacy.html">
+<meta property="og:site_name" content="Shape">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://theshapecommunity.com/health-data-privacy.html">
+<meta property="og:title" content="Consumer Health Data Privacy Policy — Shape">
+<meta property="og:description" content="How Shape collects, uses, shares, and protects consumer health data.">
+<meta property="og:image" content="https://theshapecommunity.com/icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1612">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{--paper:#1a1612;--ink:#f2ede4;--teal:#0ac5a8;--teal-bright:#2ee0c4;--serif:'Fraunces',serif;--sans:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--teal);color:var(--paper)}
+  .nav{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(11,14,12,0.55);-webkit-backdrop-filter:blur(20px) saturate(1.05);backdrop-filter:blur(20px) saturate(1.05);border-bottom:1px solid rgba(245,239,225,0.06)}
+  .nav::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,#0ac5a8 30%,#d2693f 70%,transparent 100%);opacity:.5}
+  .nav-inner{max-width:1480px;margin:0 auto;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:10px 44px;gap:20px}
+  .nav-logo{margin-left:16px;display:inline-flex;align-items:center;line-height:0}
+  .nav-logo svg{width:52px;height:auto}
+  .nav-logo img{display:block}
+  .nav-links{display:flex;gap:16px;align-items:center;justify-content:center;white-space:nowrap}
+  .nav-item{position:relative;display:inline-flex;align-items:center}
+  .nav-item > a{font-size:12px;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.6);display:inline-flex;align-items:center;gap:5px;line-height:1;cursor:pointer;transition:color .15s}
+  .nav-item > a .caret{font-size:9px;opacity:.6}
+  .nav-item:hover > a{color:#f5efe1}
+  .nav-drop{position:absolute;top:100%;left:50%;transform:translateX(-50%);padding-top:10px;min-width:220px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s}
+  .nav-item:hover .nav-drop,.nav-item:focus-within .nav-drop{opacity:1;visibility:visible;pointer-events:auto}
+  .nav-drop-inner{background:rgba(26,22,18,0.98);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(242,237,228,0.1);border-radius:8px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,0.5)}
+  .nav-drop-inner a{display:block;padding:10px 14px;font-size:13px;color:rgba(242,237,228,0.85);border-radius:4px;white-space:nowrap;letter-spacing:0;text-transform:none;transition:background .15s,color .15s}
+  .nav-drop-inner a:hover{background:rgba(10,197,168,0.12);color:var(--ink)}
+  .nav-cta{display:flex;align-items:center;gap:13px}
+  .nav-search{width:34px;height:34px;border-radius:999px;border:1px solid rgba(245,239,225,0.25);display:inline-flex;align-items:center;justify-content:center;color:rgba(245,239,225,0.7);flex:none;transition:border-color .15s,color .15s}
+  .nav-search:hover{border-color:rgba(245,239,225,0.5);color:#f5efe1}
+  .nav-radio{display:inline-flex;align-items:center;line-height:0;flex:none}
+  .nav-radio img{width:138px;height:auto;display:block}
+  .nav-cta .login{font-size:12px;font-weight:300;letter-spacing:.04em;text-transform:lowercase;color:rgba(245,239,225,0.55)}
+  .nav-cta .primary{background:transparent;color:#f5efe1;border:1px solid #f5efe1;padding:8px 15px;border-radius:999px;font-size:11.5px;letter-spacing:.04em;text-transform:lowercase;font-weight:400;transition:background .2s,color .2s}
+  .nav-cta .primary:hover{background:#f5efe1;color:#1a1612}
+  .nav-spacer{height:85px}
+  .hero{padding:80px 40px 40px;max-width:1320px;margin:0 auto;text-align:center}
+  .hero .eyebrow{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:24px}
+  .hero h1{font-family:var(--serif);font-size:clamp(44px,6vw,92px);letter-spacing:-.035em;font-weight:400;margin:0 0 20px;line-height:.97}
+  .hero h1 em{font-style:italic;color:var(--teal)}
+  .hero .updated{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,237,228,.5);margin-top:20px}
+  .wrap{max-width:1320px;margin:0 auto;padding:50px 40px 100px;display:grid;grid-template-columns:260px 1fr;gap:60px;align-items:start}
+  .toc{position:sticky;top:110px;border-left:1px solid rgba(242,237,228,0.12);padding-left:22px}
+  .toc .toc-label{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(242,237,228,.45);margin-bottom:16px}
+  .toc a{display:block;font-size:13px;color:rgba(242,237,228,.7);padding:7px 0;line-height:1.35}
+  .toc a:hover{color:var(--teal-bright)}
+  .toc a .num{font-family:var(--mono);font-size:10.5px;color:var(--teal);margin-right:10px}
+  .content{max-width:760px}
+  .section{margin-bottom:52px;scroll-margin-top:110px}
+  .section .num{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--teal);margin-bottom:10px;text-transform:uppercase}
+  .section h2{font-family:var(--serif);font-size:32px;letter-spacing:-.02em;font-weight:400;margin:0 0 18px;line-height:1.08}
+  .section p{font-size:15.5px;color:rgba(242,237,228,.78);line-height:1.7;margin:0 0 14px}
+  .section ul{list-style:none;padding:0;margin:0 0 14px}
+  .section ul li{font-size:15.5px;color:rgba(242,237,228,.72);line-height:1.7;padding-left:20px;position:relative;margin-bottom:6px}
+  .section ul li::before{content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:999px;background:var(--teal)}
+  .section a{color:var(--teal-bright);border-bottom:1px solid rgba(46,224,196,.35)}
+  .callout{background:rgba(10,197,168,.07);border:1px solid rgba(10,197,168,.22);border-left:3px solid var(--teal);border-radius:10px;padding:18px 20px;margin:0 0 16px}
+  .callout p{margin:0;font-size:14.5px;color:rgba(242,237,228,.82);line-height:1.6}
+  .footer{padding:100px 40px 60px;background:var(--paper);color:var(--ink);margin-top:60px}
+  .footer-inner{max-width:1320px;margin:0 auto}
+  .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:40px;padding-top:40px;border-top:1px solid rgba(242,237,228,.12)}
+  .footer-logo svg{width:64px;height:auto}
+  .footer-desc{font-size:13px;color:rgba(242,237,228,.55);margin-top:16px;max-width:280px}
+  .footer-col h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin:0 0 16px;font-weight:500}
+  .footer-col a{display:block;font-size:13px;margin-bottom:8px;color:rgba(242,237,228,.72);transition:color .15s ease}
+  .footer-col a:hover{color:var(--teal-bright)}
+  .footer-base{margin-top:60px;padding-top:24px;border-top:1px solid rgba(242,237,228,.08);display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:rgba(242,237,228,.5)}
+  @media (max-width:900px){
+    .nav-links,.nav-cta{display:none}
+    .nav-inner{padding:12px 18px}.nav-spacer{height:68px}
+    .hero{padding:60px 22px 30px}
+    .wrap{padding:36px 22px 70px;grid-template-columns:1fr;gap:30px}
+    .toc{position:static;border-left:0;border-top:1px solid rgba(242,237,228,0.12);padding-left:0;padding-top:22px}
+    .section h2{font-size:26px}
+    .footer{padding:60px 22px 40px}
+    .footer-grid{grid-template-columns:1fr 1fr;gap:28px;padding-top:28px}
+    .footer-grid > :first-child{grid-column:1 / -1}
+    .footer-base{flex-direction:column;gap:10px;align-items:flex-start}
+  }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="newdesign/index.html" aria-label="Shape">
+      <img src="/shape-logo-new-teal-white.png?v=1" alt="Shape" style="height:60px;width:auto;display:block;object-fit:contain">
+    </a>
+    <div class="nav-links">
+      <div class="nav-item"><a href="newdesign/About.html">About</a></div>
+      <div class="nav-item"><a>Clients<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Client.html">Overview</a><a href="newdesign/ClientDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Trainers<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Coach.html">Overview</a><a href="newdesign/TrainerDashboard.html">Dashboard</a></div></div></div>
+      <div class="nav-item"><a>Nutritionists<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Nutritionist.html">Overview</a><a href="newdesign/NutritionistDashboard.html">Dashboard</a><a href="newdesign/Recipes.html">Recipes</a></div></div></div>
+      <div class="nav-item"><a href="newdesign/Marketplace.html">Marketplace</a></div>
+      <div class="nav-item"><a href="newdesign/Community.html">Community</a></div>
+      <div class="nav-item"><a>Rewards<span class="caret">▾</span></a><div class="nav-drop"><div class="nav-drop-inner"><a href="newdesign/Score.html">Shape Score</a><a href="newdesign/Store.html">Shape Store</a></div></div></div>
+      <div class="nav-item"><a href="newdesign/GetApp.html">App</a></div>
+      <div class="nav-item"><a href="newdesign/Pricing.html">Pricing</a></div>
+    </div>
+    <div class="nav-cta">
+      <a class="nav-search" href="newdesign/Marketplace.html" aria-label="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></a>
+      <a class="login" href="newdesign/Login.html">Log in</a>
+      <a class="primary" href="newdesign/Landing.html">Get started</a>
+      <a class="nav-radio" href="newdesign/Radio.html" aria-label="Shape Radio"><img src="/shape-radio-logo.png?v=3" alt="Shape Radio"></a>
+    </div>
+  </div>
+</nav>
+<div class="nav-spacer"></div>
+
+<section class="hero">
+  <div class="eyebrow">Legal</div>
+  <h1>Consumer health <em>data.</em></h1>
+  <div class="updated">Last updated — June 22, 2026</div>
+</section>
+
+<div class="wrap">
+  <aside class="toc" aria-label="Table of contents">
+    <div class="toc-label">Contents</div>
+    <a href="#intro"><span class="num">01</span>Scope &amp; who this covers</a>
+    <a href="#collect"><span class="num">02</span>Health data we collect</a>
+    <a href="#sources"><span class="num">03</span>Where it comes from</a>
+    <a href="#use"><span class="num">04</span>How we use it</a>
+    <a href="#share"><span class="num">05</span>Who we share it with</a>
+    <a href="#consent"><span class="num">06</span>Consent</a>
+    <a href="#sale"><span class="num">07</span>No sale of health data</a>
+    <a href="#rights"><span class="num">08</span>Your rights</a>
+    <a href="#security"><span class="num">09</span>Security &amp; access limits</a>
+    <a href="#geofencing"><span class="num">10</span>No geofencing</a>
+    <a href="#changes"><span class="num">11</span>Changes &amp; contact</a>
+  </aside>
+
+  <article class="content">
+    <section class="section" id="lead">
+      <div class="callout"><p>This Consumer Health Data Privacy Policy is required by Washington's <strong>My Health My Data Act</strong> and similar laws (Nevada SB370, Connecticut), and it applies to <strong>everyone</strong> who uses Shape — not just Washington residents. It sits alongside our general <a href="/privacy.html">Privacy Policy</a>; where they overlap, this policy governs consumer health data.</p></div>
+    </section>
+
+    <section class="section" id="intro">
+      <div class="num">01</div>
+      <h2>Scope &amp; who this covers</h2>
+      <p>"Consumer health data" means personal information that identifies your past, present, or future physical or mental health status. Shape is a consumer fitness and coaching platform; the trainers and nutritionists on Shape are independent professionals, not your medical providers. The health information you enter here is therefore <strong>consumer health data — not "Protected Health Information" under HIPAA</strong> — and HIPAA generally does not apply. We nonetheless treat it as sensitive and protect it as described below. Shape ("we," "our") is the entity that determines how this data is processed.</p>
+    </section>
+
+    <section class="section" id="collect">
+      <div class="num">02</div>
+      <h2>Health data we collect</h2>
+      <p>Only what you choose to provide or connect, for coaching and safety:</p>
+      <ul>
+        <li><strong>Health &amp; safety screening:</strong> PAR-Q answers; prescription medications; allergies; pregnancy or postpartum status; ongoing medical conditions; injuries and surgeries; and an emergency contact.</li>
+        <li><strong>Body &amp; progress:</strong> weight, body-fat percentage, girth measurements, and progress photos.</li>
+        <li><strong>Activity &amp; recovery:</strong> heart rate, heart-rate variability, sleep, resting heart rate, recovery, workout minutes, and training logs.</li>
+        <li><strong>Nutrition:</strong> meal logs, calories and macros, recorded voice meal-notes, and grocery lists.</li>
+        <li><strong>Weekly check-ins:</strong> your ratings of sleep, energy, stress, hunger, and adherence.</li>
+        <li><strong>Goals:</strong> body-composition targets and the reasons behind them.</li>
+        <li><strong>Connected sources:</strong> data from any wearable or health app you choose to connect (see Section 03).</li>
+      </ul>
+    </section>
+
+    <section class="section" id="sources">
+      <div class="num">03</div>
+      <h2>Where it comes from</h2>
+      <p>Directly from you (what you type, upload, or record); from devices and apps you choose to connect — Apple Health, Strava, Garmin, Whoop, Oura — pulling only the metrics you authorize at each connection; and generated within Shape as you use it (for example, your Shape Score or a coaching summary).</p>
+    </section>
+
+    <section class="section" id="use">
+      <div class="num">04</div>
+      <h2>How we use it</h2>
+      <ul>
+        <li>To deliver coaching — sharing relevant data with the specific coach(es) you link with so they can program safely and effectively.</li>
+        <li>To run the features you use — logging, progress tracking, check-ins, your Shape Score, and the "Nora" assistant and voice features (which are powered by OpenAI and may receive health and fitness context to generate your response).</li>
+        <li>To keep you safe — surfacing your safety screening to a linked coach.</li>
+        <li>To secure the platform and meet legal obligations.</li>
+      </ul>
+      <p>We do <strong>not</strong> use your consumer health data for advertising, to build advertising profiles, or to train artificial-intelligence models, and we do not sell it.</p>
+    </section>
+
+    <section class="section" id="share">
+      <div class="num">05</div>
+      <h2>Who we share it with</h2>
+      <p>We share consumer health data only in these ways, and only with your consent:</p>
+      <ul>
+        <li><strong>The coach(es) you choose.</strong> Independent trainers and nutritionists you link with are third-party recipients of the data you share with them, for the purpose of coaching you. Ending a coaching relationship ends that coach's ongoing access.</li>
+        <li><strong>Processors that operate Shape on our behalf,</strong> under contract — including Supabase (storage), OpenAI (the "Nora" assistant and voice features), and the wearable services you connect. The full list, with the data each receives, is on our <a href="/subprocessors.html">Subprocessors</a> page.</li>
+        <li><strong>When the law requires it,</strong> or to protect safety, rights, or property.</li>
+      </ul>
+      <p>We do not share consumer health data with advertisers or data brokers.</p>
+    </section>
+
+    <section class="section" id="consent">
+      <div class="num">06</div>
+      <h2>Consent</h2>
+      <p>We ask for your <strong>consent before we collect</strong> consumer health data, and a <strong>separate consent before we share</strong> it beyond what is necessary to provide a feature you have asked for. Each consent is specific, optional, and described in plain language at the point we ask for it, and you can <strong>withdraw any consent at any time</strong> by emailing <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a> (and you can disconnect a connected app or delete your account directly in <strong>Settings</strong>) — withdrawing applies going forward and does not affect processing already carried out.</p>
+    </section>
+
+    <section class="section" id="sale">
+      <div class="num">07</div>
+      <h2>No sale of health data</h2>
+      <p>Shape does <strong>not sell</strong> your consumer health data, and we do not exchange it for anything of value. We would not sell it without first obtaining your <strong>valid, written authorization</strong> that meets the specific requirements of the My Health My Data Act — and we have no plans to do so.</p>
+    </section>
+
+    <section class="section" id="rights">
+      <div class="num">08</div>
+      <h2>Your rights</h2>
+      <p>You have the right to:</p>
+      <ul>
+        <li><strong>Confirm and access</strong> the consumer health data we have about you, <strong>including a list of the third parties and processors with whom we have shared it.</strong></li>
+        <li><strong>Withdraw consent</strong> to our collection or sharing of it.</li>
+        <li><strong>Delete</strong> it. When you ask us to delete your consumer health data, we delete it from our systems and our storage and direct our processors to do the same. Deletion of consumer health data is not subject to the broad legal-retention exceptions that can apply to other records.</li>
+      </ul>
+      <p>To exercise any of these, use our <a href="/privacy-request.html">privacy request form</a>, export or delete your data directly in <strong>Settings</strong>, or email <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>. We verify your identity proportionately and respond within the time the applicable law requires. If we deny a request, you may appeal by replying to our response; if an appeal is denied, you may contact your state attorney general.</p>
+    </section>
+
+    <section class="section" id="security">
+      <div class="num">09</div>
+      <h2>Security &amp; who can access it</h2>
+      <p>Consumer health data is protected with per-user, row-level access controls, encryption in transit and at rest, and private storage served only through short-lived signed URLs. Access is limited to the people and processors who need it to provide the service to you: <strong>the coach(es) you link with, the processors listed on our Subprocessors page, and the minimum number of Shape personnel</strong> required to operate and support the platform — each under confidentiality obligations.</p>
+    </section>
+
+    <section class="section" id="geofencing">
+      <div class="num">10</div>
+      <h2>No geofencing</h2>
+      <p>Shape does <strong>not</strong> use geofences around any healthcare facility, and does not use location to identify or track your visits to such places or to send you related messages.</p>
+    </section>
+
+    <section class="section" id="changes">
+      <div class="num">11</div>
+      <h2>Changes &amp; contact</h2>
+      <p>If we materially change how we handle consumer health data, we will update this page and the "Last updated" date and give notice as described in our <a href="/privacy.html">Privacy Policy</a>. Questions, requests, or security reports: <a href="mailto:privacy@theshapecommunity.com">privacy@theshapecommunity.com</a>.</p>
+    </section>
+  </article>
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div>
+        <a class="footer-logo" href="newdesign/index.html" aria-label="Shape">
+          <img src="/shape-logo-new-white.png?v=4" alt="Shape" style="height:115px;width:auto;display:block">
+        </a>
+        <p class="footer-desc">Real coaches. One marketplace. One platform.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="newdesign/Marketplace.html">Marketplace</a>
+        <a href="newdesign/Score.html">Shape Score</a>
+        <a href="newdesign/Radio.html">Radio</a>
+        <a href="newdesign/ClientDashboard.html">Dashboard</a>
+      </div>
+      <div class="footer-col">
+        <h4>For trainers</h4>
+        <a href="newdesign/SignupTrainer.html">Apply</a>
+        <a href="newdesign/TrainerDashboard.html">Payouts</a>
+        <a href="newdesign/TrainerPrograms.html">Programs</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="newdesign/index.html">About</a>
+        <a href="newdesign/Team.html#press">Press</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="/code-of-conduct.html">Code of conduct</a>
+        <a href="/data-compliance.html">Data &amp; compliance</a>
+        <a href="/health-data-privacy.html">Consumer health data</a>
+        <a href="/subprocessors.html">Subprocessors</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="/help.html">Help</a>
+        <a href="/contact.html">Contact</a>
+      </div>
+    </div>
+    <div class="footer-base">
+      <span>© 2026 SHAPE</span>
+      <span>BROOKLYN · LISBON · MELBOURNE</span>
+    </div>
+  </div>
+</footer>
+<script src="/newdesign/siteSearch.js?v=20260626a" defer></script>
+<script src="/newdesign/globalChatButton.js?v=20260613" defer></script>
+</body>
+</html>
