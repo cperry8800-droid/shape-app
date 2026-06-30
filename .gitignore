@@ -20,6 +20,11 @@
 # production
 /build
 
+# mobile /m/ bundle — built at deploy time from mobile-app/ (scripts/build-m.sh),
+# no longer committed. Local /m/ preview: build it with
+#   cd mobile-app && VITE_BASE=/m/ npm run build && cd .. && rm -rf public/m && cp -r mobile-app/dist public/m
+/public/m
+
 # misc
 .DS_Store
 *.pem
