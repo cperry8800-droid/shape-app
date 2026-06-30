@@ -265,13 +265,6 @@ const BSM_MARKETPLACE_COACHES = {
 // Marketplace screen
 // ═══════════════════════════════════════════════════════════
 // ── Marketplace visual helpers (editorial "discovery" look, matches the app) ──
-const MKT_PALETTE = ['#34d6c5', '#c0533b', '#a07a2e', '#5a86c0', '#5fae7e'];
-function mktHue(seed) {
-  const s = String(seed || 'shape');
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return MKT_PALETTE[h % MKT_PALETTE.length];
-}
 function mktRoleColor(c) {
   return getPublicProfileKind(c) === 'nutritionist' ? '#a07a2e' : '#c0533b';
 }
