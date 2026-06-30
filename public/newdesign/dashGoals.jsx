@@ -244,7 +244,12 @@ function DashGoalsSection({ rec, role }) {
     } catch (e) { setSaveState("error"); }
   };
   const onSave = (g) => {
-    const next = editing === "new" ? goals.concat([g]) : goals.map((x, i) => (i === editing ? g : x));
+    if (editing === "new") { persist(goals.concat([g]).slice(0, DashSignals.MAX_GOALS)); return; }
+    // `editing` indexes the VISIBLE list (same as the editor + onRemove); map the
+    // edit onto the matching goal in the full array by identity so a filtered view
+    // can't save over a different goal.
+    const target = visible[editing];
+    const next = target ? goals.map((x) => ((target.id ? x.id === target.id : x === target) ? g : x)) : goals;
     persist(next.slice(0, DashSignals.MAX_GOALS));
   };
   const onRemove = async () => {
