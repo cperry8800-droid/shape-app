@@ -149,7 +149,19 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-06-29.md`](HANDOFF-2026-06-29.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-06-30.md`](HANDOFF-2026-06-30.md)** —
+> Review + merge session: the **6 open PRs (#1462–#1467) are all squash-merged to `main`**,
+> CI green, branches kept — weekend-split **training dimension** (#1462), atomic sources-merge
+> (#1463), drop race-route fallbacks (#1464), CLS font fallbacks (#1465), dead-`mktHue` removal
+> (#1466), and the long-paused **Shape Radio live player + Nora avatar-DJ** (#1467). Every
+> CodeRabbit finding addressed (CodeRabbit auto-resolved #1467's 7 on re-review; #1464's Critical
+> is intentional service-role-by-design — replied + resolved). **Root-caused + fixed the #1467
+> `public/m` sync failure**: a Windows-built mobile bundle can't byte-match CI's Linux build
+> (Rolldown sourcemaps embed the build path + an `index.html` CRLF/LF drift + 3D-bundle
+> nondeterminism) → `build.sourcemap:false` + an LF-normalizing Vite plugin, and commit **CI's
+> own Linux build** of `public/m` for every bundle PR. #1462/#1463 migrations applied + on `main`.
+>
+> (Prior: [`docs/HANDOFF-2026-06-29.md`](HANDOFF-2026-06-29.md) —
 > Big session, all shipped to `main` + verified live: the consolidated **"Today"** home
 > card (check-in + hydration, mobile + web, #1451), a **Cumulative Layout Shift** sweep
 > (preconnect + metrics-matched fallback fonts + reserved media dims, #1452/#1453), and a
@@ -182,6 +194,56 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-06-30 — Review + merge: 6 open PRs (#1462–#1467) shipped to `main` + the public/m Linux-build fix
+- **Cleared the open-PR backlog.** All six outstanding PRs squash-merged to `main` (CI green;
+  branches kept): **#1462** weekend-split **training dimension**, **#1463** atomic
+  snapshot-sources merge, **#1464** drop the now-dead race-route fallbacks, **#1465** CLS
+  metrics-matched font fallbacks (consultation + ClientPlaylists), **#1466** dead `mktHue()` +
+  `MKT_PALETTE` removal, **#1467** the long-paused **Shape Radio live player + Nora avatar-DJ**.
+- **Every CodeRabbit finding addressed (verified against the code, not just resolved).**
+  - **#1467 (7 Major CodeRabbit + 2 Codex):** clear `nowPlaying` on radio teardown (no stale
+    track after radio is off); **honest `—` empty states** instead of a synthetic "Shape Radio /
+    Live" track — the `/api/radio/now-playing` error payload `{title:null,artist:null}` is a
+    truthy object, so each field is guarded via a new `radioNowPlayingDisplay()`; relabel the
+    station tempo as **Station BPM** (don't present `r.LIVE.bpm` as the current track's BPM);
+    resolve the Nora VRM + avatar via `import.meta.env.BASE_URL` (native build serves from `./`,
+    not a hard-coded `/m/`); **self-scheduling poll with `AbortController`** cancellation in
+    `ShapeRadioLive` (no overlapping fetches; late responses dropped after teardown) +
+    `audio.crossOrigin='anonymous'` as part of the stream contract; plan-doc stream resolver
+    (`getStreamUrl()` behind the provider adapter) + cross-origin notes. CodeRabbit
+    **auto-resolved its 7 threads** on re-review; the 2 Codex threads resolved.
+  - **#1463:** the `merge_snapshot_sources` `case when jsonb_typeof(p_sources)='object'` guard was
+    already in place (replied + resolved); the Codex P1 (same-field provenance-vs-value atomicity
+    under concurrent provider writes) is an accepted narrow, label-only trade-off — the split
+    intentionally fixes the bigger whole-`sources` clobber; folding provenance into every metric
+    write is a broader follow-up.
+  - **#1464 (Critical — deliberately NOT changed):** `league_assign_cohort` is service-role-only
+    **by design** (the 2026-06-29 self-promote fix). The route still authorizes the actor via
+    `currentUser` before the admin client; RLS can't express the privileged cohort write safely.
+    Replied with the rationale + resolved as intended-by-design (reverting re-opens the vuln).
+- **Root-caused the #1467 `public/m` sync failure** (why the branch was stuck for weeks). It was
+  the byte-diff step, NOT `npm ci`. Three stacked causes, each verified via the GitHub Actions API
+  (read logs/artifacts with git's stored PAT): **(1)** Vite-8/Rolldown **sourcemaps embed the
+  absolute build path** (`C:\Users\cperr\…` locally vs CI's `/home/runner/…`) into the `.map`
+  files → never matched; **(2)** `mobile-app/index.html` was **CRLF** in the working tree while the
+  committed blob is **LF** (what CI builds from) → an extra blank line; **(3)** Windows Rolldown
+  builds of the `three`/`@pixiv/three-vrm` 3D bundle don't reproduce CI's Linux output (the JS
+  chunks themselves diverge). **Fix:** `build.sourcemap:false` + a `transformIndexHtml(order:'post')`
+  LF-normalizing plugin in `mobile-app/vite.config.ts`, and for each `public/m`-touching PR, commit
+  **CI's own Linux build** of `public/m` (pulled from a one-shot build workflow's `dist` artifact),
+  never a local Windows build.
+- **Bundle-merge coordination.** Three PRs touch `public/m` (#1462, #1466, #1467). Merged
+  sequentially: each later one had `main` merged into its branch, then `public/m` rebuilt fresh
+  **on Linux** (via the temp `buildm` workflow → artifact) before merging, so `main` stayed green
+  after every merge. #1467's `vite.config` (sourcemap:false + the LF plugin + the three aliases)
+  is the one that lands the sourcemap change on `main`.
+- **Migrations** (both already re-run + applied by the owner this session, now on `main`):
+  `2026-06-30-roster-weekend-split-training.sql` (#1462) + `2026-06-30-atomic-snapshot-sources-merge.sql` (#1463).
+- **Durable lesson (saved to agent memory):** `public/m` for the mobile bundle must be **built on
+  Linux to match CI** — a Windows `npm run build` of the 3D-containing Nora bundle diverges
+  (sourcemap build-path + Rolldown nondeterminism). Take CI's artifact or build on Linux; don't
+  trust a local Windows rebuild for that bundle. (Simpler non-3D mobile PRs happen to match.)
 
 ### 2026-06-29 — Race-condition hardening sweep (#1454–#1459) + apply-time security fix
 - **Audited the async write/read layer for race conditions** (multi-agent fan-out, two
