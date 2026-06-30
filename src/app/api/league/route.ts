@@ -16,34 +16,27 @@ import { NextResponse } from 'next/server';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { readJson, dbError } from '@/lib/request-utils';
+import { readJson } from '@/lib/request-utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const TIERS = ['ember', 'ignite', 'flame', 'blaze', 'inferno'];
-const COHORT_SIZE = 24;
-
-// 'PGRST202'/'42883' => the atomic league_assign_cohort migration isn't applied yet;
-// fall back to the (racy) read-then-write assignCohort path.
-function isMissingFunction(err: { code?: string } | null | undefined): boolean {
-  return err?.code === 'PGRST202' || err?.code === '42883';
-}
 
 // Atomic claim: assign the member to the first open cohort for (week,tier) under a
-// per-(week,tier) advisory lock + write in one transaction. Returns the cohort, or null
-// if the RPC is absent (caller falls back to the legacy assignCohort path).
+// per-(week,tier) advisory lock + write in one transaction. Returns the assigned cohort.
 async function claimCohort(
   client: SupabaseClient, userId: string, week: string, tier: string, settledWeek: string | null,
-): Promise<number | null> {
+): Promise<number> {
   const { data, error } = await client.rpc('league_assign_cohort', {
     p_user_id: userId, p_week: week, p_tier: tier, p_settled_week: settledWeek,
   });
-  if (error) {
-    if (isMissingFunction(error)) return null;
-    throw error;
-  }
-  return Number(data) || 0;
+  if (error) throw error;
+  // Fail closed on a malformed payload: cohort 0 is a VALID cohort, so `Number(data) || 0`
+  // would silently mask a null/NaN result as cohort 0 (piling members into it).
+  const cohort = Number(data);
+  if (!Number.isFinite(cohort)) throw new Error('league_assign_cohort returned an invalid cohort');
+  return cohort;
 }
 
 // ISO-week key 'IYYY-IW' for a date (matches Postgres to_char(...,'IYYY-IW')).
@@ -57,20 +50,6 @@ function isoWeekKey(d = new Date()): string {
 }
 function tierUp(t: string) { return TIERS[Math.min(TIERS.length - 1, TIERS.indexOf(t) + 1)]; }
 function tierDown(t: string) { return TIERS[Math.max(0, TIERS.indexOf(t) - 1)]; }
-
-// Pick the cohort with room for a (week,tier); else open the next one.
-async function assignCohort(admin: SupabaseClient, week: string, tier: string): Promise<number> {
-  const { data } = await admin
-    .from('league_members')
-    .select('cohort')
-    .eq('season_week', week)
-    .eq('tier', tier);
-  const counts = new Map<number, number>();
-  for (const r of (data ?? []) as { cohort: number }[]) counts.set(r.cohort, (counts.get(r.cohort) || 0) + 1);
-  let c = 0;
-  while ((counts.get(c) || 0) >= COHORT_SIZE) c += 1;
-  return c;
-}
 
 export async function GET(request: Request) {
   const user = await currentUser(request);
@@ -106,17 +85,8 @@ export async function GET(request: Request) {
         if (mine.rank <= 5) { tier = tierUp(prevTier); if (tier !== prevTier) promotedFrom = prevTier; }
         else if (mine.rank > n - 5) { tier = tierDown(prevTier); if (tier !== prevTier) relegatedFrom = prevTier; }
       }
-      // Atomic reseed (assign cohort + write the new tier/week in one tx). Falls back
-      // to the legacy assign-then-update if the migration isn't applied yet.
-      const claimed = await claimCohort(admin, user.id, week, tier, seededWeek);
-      if (claimed != null) {
-        cohort = claimed;
-      } else {
-        cohort = await assignCohort(admin, week, tier);
-        await admin.from('league_members')
-          .update({ tier, cohort, season_week: week, settled_week: seededWeek })
-          .eq('user_id', user.id);
-      }
+      // Atomic reseed (assign cohort + write the new tier/week in one tx).
+      cohort = await claimCohort(admin, user.id, week, tier, seededWeek);
       seededWeek = week;
     } catch {
       /* if settle fails, fall through with stale seed; next read retries */
@@ -146,20 +116,11 @@ export async function POST(request: Request) {
   if (action === 'join') {
     const week = isoWeekKey();
     // Atomic claim under the per-(week,tier) advisory lock, so concurrent joins at a
-    // week boundary can't all pile into cohort 0. Falls back to the legacy path until
-    // the migration is applied. The RPC is service-role-only (the tier is server-set,
-    // never client-chosen), so it runs through the admin client; this route already
-    // auth-gated the member via currentUser above.
+    // week boundary can't all pile into cohort 0. The RPC is service-role-only (the tier
+    // is server-set, never client-chosen), so it runs through the admin client; this
+    // route already auth-gated the member via currentUser above.
     const admin = createAdminClient();
-    const claimed = await claimCohort(admin, user.id, week, 'ember', null);
-    if (claimed != null) {
-      return NextResponse.json({ ok: true, joined: true, tier: 'ember', cohort: claimed, week });
-    }
-    const cohort = await assignCohort(admin, week, 'ember');
-    const { error } = await supabase.from('league_members').upsert({
-      user_id: user.id, tier: 'ember', cohort, season_week: week, settled_week: null,
-    }, { onConflict: 'user_id' });
-    if (error) return dbError(error, 'league join', 500);
+    const cohort = await claimCohort(admin, user.id, week, 'ember', null);
     return NextResponse.json({ ok: true, joined: true, tier: 'ember', cohort, week });
   }
   return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
