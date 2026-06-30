@@ -133,6 +133,7 @@ function BSRadioProvider({ children }) {
     if (!radioOn) {
       window.ShapeRadioLive?.pause?.();
       window.ShapeRadioLive?.stopPolling?.();
+      setNowPlaying(null); // honest-data: don't keep presenting the last track after radio is off
       return () => {};
     }
     // Start poll once (covers both paused and playing states so now-playing stays fresh).
@@ -499,6 +500,20 @@ function PromptChoice({ on, onClick, eyebrow, title, meta, icon, accent }) {
   );
 }
 
+// Honest now-playing display. /api/radio/now-playing returns {title:null,
+// artist:null} on a provider error (a TRUTHY object), so `nowPlaying || {...}`
+// never falls back — guard each FIELD and render '—' rather than fabricate a
+// "Shape Radio / Live" track (honest-data principle).
+function radioNowPlayingDisplay(np) {
+  const has = (v) => typeof v === 'string' && v.trim().length > 0;
+  return {
+    title: has(np && np.title) ? np.title : '—',
+    artist: has(np && np.artist) ? np.artist : '—',
+    len: (np && np.len) || null,
+    hasTrack: !!(np && (has(np.title) || has(np.artist))),
+  };
+}
+
 // ═══════════════════════════════════════════════════════════
 // BSNowPlaying — Home page widget
 // ═══════════════════════════════════════════════════════════
@@ -507,8 +522,8 @@ function BSNowPlaying({ onOpen }) {
   const r = useBSRadio();
   if (!r.radioOn) return <BSNowPlayingMuted onTurnOn={() => r.setRadioPreference(true)} onPrompt={r.reopenPrompt} onOpen={onOpen} />;
 
-  const tr = r.nowPlaying || { title: 'Shape Radio', artist: 'Live' };
-  const homeFeedback = r.trackFeedback[makeRadioTrackKey({ a: tr.title, b: tr.artist })] || { vote: null, comments: [] };
+  const tr = radioNowPlayingDisplay(r.nowPlaying);
+  const homeFeedback = (tr.hasTrack && r.trackFeedback[makeRadioTrackKey({ a: tr.title, b: tr.artist })]) || { vote: null, comments: [] };
 
   const _npClip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   return (
@@ -620,7 +635,7 @@ function BSNowPlaying({ onOpen }) {
 function BSNowPlayingMuted({ onTurnOn, onPrompt, onOpen }) {
   const t = useBS();
   const r = useBSRadio();
-  const tr = r.nowPlaying || { title: 'Shape Radio', artist: 'Live' };
+  const tr = radioNowPlayingDisplay(r.nowPlaying);
 
   return (
     <div onClick={onOpen} style={{
@@ -686,16 +701,17 @@ function BSRadioScreen({ onBack }) {
   const r = useBSRadio();
   const onLive = true;
   const playlist = null;
-  const tr = r.nowPlaying || { title: 'Shape Radio', artist: 'Live' };
-  const trackBpmFallback = r.LIVE.bpm;
+  const tr = radioNowPlayingDisplay(r.nowPlaying);
+  // Station tempo — the live now-playing payload carries no per-track BPM, so this
+  // is the STATION's nominal BPM (labeled as such), used as the HR-match target.
+  const stationBpm = r.LIVE.bpm;
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [demoHr, setDemoHr] = useStateBR(114);
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
   const [showSets, setShowSets] = useStateBR(false);
-  const trackBpm = trackBpmFallback;
   const youHr = liveHr != null ? liveHr : demoHr;
-  const signedDelta = youHr - trackBpm;
+  const signedDelta = youHr - stationBpm;
   const syncDelta = Math.abs(signedDelta);
   const isSynced = hrmConnected && syncDelta <= 4;
   // HR sync stage machine: off → free (connected) → matching → synced
@@ -722,10 +738,10 @@ function BSRadioScreen({ onBack }) {
   useEffectBR(() => {
     if (!matching || liveHr != null) return undefined;
     const id = setInterval(() => {
-      setDemoHr(prev => (prev === trackBpm ? prev : prev + (prev < trackBpm ? 1 : -1)));
+      setDemoHr(prev => (prev === stationBpm ? prev : prev + (prev < stationBpm ? 1 : -1)));
     }, 200);
     return () => clearInterval(id);
-  }, [matching, trackBpm, liveHr]);
+  }, [matching, stationBpm, liveHr]);
   const connectMonitor = async () => {
     setMatching(false);
     if (window.ShapeHRM?.available?.()) {
@@ -756,7 +772,7 @@ function BSRadioScreen({ onBack }) {
       try {
         if (!window.WebGLRenderingContext) { setNoraFailed(true); return; }
         const an = window.ShapeRadioLive?.analyser?.();
-        const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: '/m/nora/placeholder.vrm' });
+        const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm` });
         await st.load();
         if (disposed) { st.dispose(); return; }
         st.start();
@@ -856,10 +872,10 @@ function BSRadioScreen({ onBack }) {
             <div style={{ position: 'relative', width: 88, height: 88 }}>
               <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
               <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
-              <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / trackBpm).toFixed(3)}s ease-out infinite` }} />
+              <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / stationBpm).toFixed(3)}s ease-out infinite` }} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{trackBpm}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.24em', color: TEAL, fontWeight: 700, marginTop: 2 }}>BPM</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{stationBpm}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: TEAL, fontWeight: 700, marginTop: 2 }}>Station BPM</div>
               </div>
             </div>
 
@@ -935,8 +951,8 @@ function BSRadioScreen({ onBack }) {
 
             <div style={{ marginTop: 13, display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 14 }}>
               <div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Track</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{trackBpm}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>Station</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{stationBpm}</div>
               </div>
               {hrStage === 'off' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -1016,7 +1032,7 @@ function BSRadioScreen({ onBack }) {
             <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', maxHeight: '56vh', borderRadius: 14, overflow: 'hidden', background: '#0b0d10', marginBottom: 12 }}>
               <canvas ref={noraCanvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
               {noraFailed && (
-                <img src="/m/nora-avatar.png" alt="Nora" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={`${import.meta.env.BASE_URL}nora-avatar.png`} alt="Nora" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
               )}
               <div aria-hidden style={{ position: 'absolute', top: 10, left: 10, fontFamily: t.MONO, fontWeight: 600, fontSize: 11, letterSpacing: '0.12em', color: '#2ee0c4' }}>
                 ● LIVE · NORA <span style={{ opacity: 0.6 }}>(preview)</span>

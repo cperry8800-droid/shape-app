@@ -25,7 +25,7 @@
 - `supabase-migrations/2026-06-19-radio-station.sql` — **create** (Task 1): the `radio_station` singleton config table.
 - `src/app/api/radio/station/route.ts` — **create** (Task 1): public GET → station config.
 - `src/lib/radio/now-playing.mjs` — **create** (Task 2): pure normalizer (raw provider JSON → `{title,artist,isNora}`).
-- `src/lib/radio/provider.ts` — **create** (Task 2): the `RadioProvider` interface + `NowPlaying` type.
+- `src/lib/radio/provider.ts` — **create** (Task 2): the `RadioProvider` interface (`getNowPlaying()` **and** `getStreamUrl()` so stream resolution lives behind the same adapter seam) + `NowPlaying` type.
 - `src/lib/radio/mock.ts` — **create** (Task 2): fixed-data adapter for dev/tests.
 - `src/lib/radio/http.ts` — **create** (Task 2): generic adapter that fetches a now-playing URL + normalizes.
 - `tests/radio-now-playing.test.mjs` — **create** (Task 2): unit tests for the normalizer.
@@ -297,7 +297,7 @@ git commit -m "feat(radio): RadioProvider interface + now-playing normalizer + m
 
 **Interfaces:**
 - Consumes: `radio_station.provider` + `radio_station.now_playing_url` (Task 1); `mockProvider`, `httpProvider`, `NowPlaying` (Task 2); the now-playing field names from `docs/radio-provider.md` (Task 0).
-- Produces: `GET /api/radio/now-playing` → `NowPlaying` JSON (`{title, artist, isNora}`).
+- Produces: `GET /api/radio/now-playing` → `NowPlaying` JSON (`{title, artist, isNora}`). Stream resolution stays behind the same seam — the `/api/radio/station` route resolves `streamUrl` via the provider's `getStreamUrl()` rather than reading `radio_station` directly, so a provider swap is one adapter file.
 
 - [ ] **Step 1: Write the selector.**
 
@@ -474,24 +474,31 @@ git commit -m "feat(radio): web player streams the live licensed station + polls
 ```js
 // ===== Shape Radio (live licensed stream) =====
 (function () {
-  let el = null, pollId = null;
+  let el = null, pollTimer = null, pollAbort = null, pollGen = 0;
   function api(path) {
     // mirror the file's existing API base resolution (native Bearer / web same-origin)
     return (window.__SHAPE_API_BASE__ || '') + path;
   }
   function audio() {
-    if (!el) { el = new Audio(); el.preload = 'none'; }
+    // crossOrigin='anonymous' is part of the STREAM CONTRACT: createMediaElementSource
+    // (analyser + Nora avatar) only works for a cross-origin provider stream when the
+    // element opts into CORS AND the provider sends Access-Control-Allow-Origin. Without
+    // both, the Web Audio graph is blocked/muted for cross-origin stations.
+    if (!el) { el = new Audio(); el.preload = 'none'; el.crossOrigin = 'anonymous'; }
     return el;
   }
   async function station() {
     try { const r = await fetch(api('/api/radio/station'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
     catch { return null; }
   }
-  async function nowPlaying() {
-    try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
+  async function nowPlaying(signal) {
+    try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store', signal }); return r.ok ? r.json() : null; }
     catch { return null; }
   }
   async function play() {
+    // streamUrl is PROVIDER-RESOLVED: the station route resolves it via the provider's
+    // getStreamUrl() (see Task 2) so the stream lives behind the same adapter seam as
+    // now-playing — a provider swap is one file, not cross-layer schema work.
     const cfg = await station();
     if (!cfg || !cfg.configured) return false;
     const a = audio();
@@ -499,8 +506,27 @@ git commit -m "feat(radio): web player streams the live licensed station + polls
     try { await a.play(); return true; } catch { return false; }
   }
   function pause() { if (el) el.pause(); }
-  function startPolling(cb) { stopPolling(); const tick = async () => cb(await nowPlaying()); tick(); pollId = setInterval(tick, 15000); }
-  function stopPolling() { if (pollId) { clearInterval(pollId); pollId = null; } }
+  // Self-scheduling poll + cancellation: each cycle settles (or aborts) before the next
+  // is scheduled, so slow networks can't stack overlapping requests, and stopPolling
+  // aborts the in-flight fetch + drops any late response (no stale UI after teardown).
+  function startPolling(cb) {
+    stopPolling();
+    const gen = ++pollGen;
+    const loop = async () => {
+      if (gen !== pollGen) return;
+      pollAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      const np = await nowPlaying(pollAbort ? pollAbort.signal : undefined);
+      if (gen !== pollGen) return;
+      if (np) cb(np);
+      pollTimer = setTimeout(loop, 15000);
+    };
+    loop();
+  }
+  function stopPolling() {
+    pollGen++;
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    if (pollAbort) { try { pollAbort.abort(); } catch {} pollAbort = null; }
+  }
   window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling };
 })();
 ```
