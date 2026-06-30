@@ -15,13 +15,6 @@ export const dynamic = 'force-dynamic';
 
 const DEFAULT_TARGET_L = 3.0;
 
-// PostgREST 'PGRST202' (function not in the schema cache) / Postgres '42883'
-// (undefined_function) => the atomic-increment migration isn't applied yet; fall back
-// to the legacy read-then-write so the route keeps working before + after deploy.
-function isMissingFunction(err: { code?: string } | null | undefined): boolean {
-  return err?.code === 'PGRST202' || err?.code === '42883';
-}
-
 // Best-effort read of the user's hydration target from user_goals; 3.0 L
 // default. The mobile Settings → Nutrition stores hydration_target_l in
 // user_goals(kind='client_nutrition_prefs').data, keyed by 'hydration_target_l'
@@ -84,32 +77,10 @@ export async function POST(request: Request) {
 
   // Atomic increment via RPC — the ON CONFLICT DO UPDATE adds under the row lock, so
   // two concurrent writers (phone + /m/ web, or a tap racing a retry) can't lose an
-  // increment (no read-then-write window). Falls back below if the migration is absent.
+  // increment (no read-then-write window).
   const { data: rpcVal, error: rpcErr } = await supabase.rpc('add_hydration', { p_delta: deltaL, p_date: today });
-  if (!rpcErr) {
-    const targetL = await readTargetL(supabase, user.id);
-    return NextResponse.json({ ok: true, hydrationL: Number(rpcVal) || 0, targetL, date: today });
-  }
-  if (!isMissingFunction(rpcErr)) return dbError(rpcErr, 'hydration write', 500);
-
-  // ── Fallback (pre-migration): legacy read-then-write. Racy across concurrent
-  //    writers, but functional until add_hydration() is applied. ──
-  const { data: existing, error: readErr } = await supabase
-    .from('daily_health_snapshot')
-    .select('id, hydration_l')
-    .eq('user_id', user.id)
-    .eq('snapshot_date', today)
-    .maybeSingle();
-  if (readErr) return dbError(readErr, 'hydration read', 500);
-
-  const cur = Number((existing as { hydration_l?: number } | null)?.hydration_l ?? 0) || 0;
-  const next = Math.max(0, Math.round((cur + deltaL) * 1000) / 1000); // clamp >=0, mL precision
-
-  const result = (existing && (existing as { id?: string }).id)
-    ? await supabase.from('daily_health_snapshot').update({ hydration_l: next }).eq('id', (existing as { id: string }).id)
-    : await supabase.from('daily_health_snapshot').insert({ user_id: user.id, snapshot_date: today, hydration_l: next });
-  if (result.error) return dbError(result.error, 'hydration write', 500);
+  if (rpcErr) return dbError(rpcErr, 'hydration write', 500);
 
   const targetL = await readTargetL(supabase, user.id);
-  return NextResponse.json({ ok: true, hydrationL: next, targetL, date: today });
+  return NextResponse.json({ ok: true, hydrationL: Number(rpcVal) || 0, targetL, date: today });
 }
