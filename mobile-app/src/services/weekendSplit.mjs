@@ -6,7 +6,7 @@
 
 export const MIN_WEEKENDS = 3;            // weekends of data before leaving 'insufficient'
 export const FLAG_GAP_PP = 15;            // practical floor for a flag (tunable)
-export const MIN_DIM_DAYS = { nutrition: 12, habits: 12 }; // weekend-side denominator floor
+export const MIN_DIM_DAYS = { nutrition: 12, habits: 12, training: 6 }; // weekend-side denominator floor (training is sparser — scheduled-workout days, not every day — so a lower floor; tunable)
 export const SE_Z = 1.65;                 // one-sided ~95%
 export const CONSISTENCY = 0.60;          // gap must be positive in ≥60% of observed weeks
 export const NUTRITION_PROTEIN_FLOOR_G = 10; // a "meaningful" food log (used by the bucket builder)
@@ -55,22 +55,26 @@ export function computeWeekendSplit(input, options = {}) {
   const minDays = { ...MIN_DIM_DAYS, ...(options.minDimDays || {}) };
   const nutrition = dimResult(input.nutrition || [], minDays.nutrition);
   const habits = dimResult(input.habits || [], minDays.habits);
-  const training = null; // v1: no scheduled_date source
+  // Training: scheduled-workout days (denominator) vs trained-on-those-days
+  // (numerator) — the coach roster RPC supplies these buckets. The self bucket
+  // builder doesn't emit training yet, so input.training is absent there and the
+  // dimension renders nothing (never a fabricated 0%).
+  const training = dimResult(input.training || [], minDays.training);
 
   // distinct weeks with any weekend data
   const weekSet = new Set();
-  for (const b of [...(input.nutrition || []), ...(input.habits || [])]) {
+  for (const b of [...(input.nutrition || []), ...(input.habits || []), ...(input.training || [])]) {
     if (b.weekendDen > 0) weekSet.add(b.weekStart);
   }
   const weekends = weekSet.size;
 
-  const present = [nutrition, habits].filter(Boolean);
+  const present = [nutrition, habits, training].filter(Boolean);
   let status = STATUS.OK;
   if (weekends < (options.minWeekends ?? MIN_WEEKENDS)) status = STATUS.INSUFFICIENT;
   else if (!present.length) status = STATUS.BUILDING;
 
   // worstDimension: present, positive-gap, flagged, ranked by lower-CI bound
-  const named = [['nutrition', nutrition], ['habits', habits]]
+  const named = [['nutrition', nutrition], ['habits', habits], ['training', training]]
     .filter(([, d]) => d && d.flagged && d.gapPp > 0)
     .sort((a, b) => b[1].lowerCi - a[1].lowerCi);
   const worstDimension = named.length ? named[0][0] : null;

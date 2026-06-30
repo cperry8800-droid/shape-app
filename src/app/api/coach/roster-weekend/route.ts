@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Row = {
-  client_id: string; dimension: 'nutrition' | 'habits'; week_start: string;
+  client_id: string; dimension: 'nutrition' | 'habits' | 'training'; week_start: string;
   weekday_num: number; weekday_den: number; weekend_num: number; weekend_den: number;
 };
 
@@ -32,9 +32,9 @@ export async function POST(request: Request) {
   const { data, error } = await supabase.rpc('get_roster_weekend_split', { p_client_ids: ids });
   if (error) return NextResponse.json({ ok: true, split: {} }); // degrade quietly; never block the roster
 
-  const byClient = new Map<string, { nutrition: WeeklyBucket[]; habits: WeeklyBucket[] }>();
+  const byClient = new Map<string, { nutrition: WeeklyBucket[]; habits: WeeklyBucket[]; training: WeeklyBucket[] }>();
   for (const r of (data || []) as Row[]) {
-    const e = byClient.get(r.client_id) || { nutrition: [], habits: [] };
+    const e = byClient.get(r.client_id) || { nutrition: [], habits: [], training: [] };
     e[r.dimension].push({
       weekStart: r.week_start,
       weekdayNum: Number(r.weekday_num) || 0, weekdayDen: Number(r.weekday_den) || 0,
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
   const split: Record<string, ReturnType<typeof computeWeekendSplit>> = {};
   for (const id of ids) {
-    const buckets = byClient.get(id) || { nutrition: [], habits: [] };
+    const buckets = byClient.get(id) || { nutrition: [], habits: [], training: [] };
     split[id] = computeWeekendSplit(buckets);
   }
   return NextResponse.json({ ok: true, split });

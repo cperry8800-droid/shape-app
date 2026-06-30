@@ -70,6 +70,30 @@ test('worstDimension ranks by lower-CI bound among flagged dims', () => {
   assert.equal(r.worstDimension, 'nutrition');
 });
 
+test('a clear weekend training drop flags on the training dimension', () => {
+  // 6 weeks: weekday 3/3 scheduled workouts done, weekend 0/2 → 100% vs 0%
+  const training = Array.from({ length: 6 }, (_, i) => wk(i, 3, 3, 0, 2));
+  const r = computeWeekendSplit({ nutrition: [], habits: [], training });
+  assert.equal(r.status, STATUS.OK);
+  assert.equal(r.dimensions.training.present, true);
+  assert.equal(Math.round(r.dimensions.training.gapPp), 100);
+  assert.equal(r.dimensions.training.flagged, true);
+  assert.equal(r.worstDimension, 'training');
+});
+
+test('consistent weekend training does not flag (gap ~0)', () => {
+  const training = Array.from({ length: 6 }, (_, i) => wk(i, 3, 3, 2, 2)); // 100% both sides
+  const r = computeWeekendSplit({ nutrition: [], habits: [], training });
+  assert.equal(r.dimensions.training.flagged, false);
+});
+
+test('training weekend denominator below MIN_DIM_DAYS.training → absent (null), not 0%', () => {
+  // 3 weekends but only 3 weekend scheduled-workout days total (< 6) → training absent
+  const training = [wk(0, 3, 3, 0, 1), wk(1, 3, 3, 0, 1), wk(2, 3, 3, 0, 1)];
+  const r = computeWeekendSplit({ nutrition: [], habits: [], training });
+  assert.equal(r.dimensions.training, null);
+});
+
 test('constants are exported and stable', () => {
   assert.equal(MIN_WEEKENDS, 3);
   assert.equal(FLAG_GAP_PP, 15);
@@ -80,6 +104,7 @@ test('constants are exported and stable', () => {
   // change here surfaces the SQL drift.
   assert.equal(MIN_DIM_DAYS.nutrition, 12);
   assert.equal(MIN_DIM_DAYS.habits, 12);
+  assert.equal(MIN_DIM_DAYS.training, 6);
   assert.equal(NUTRITION_PROTEIN_FLOOR_G, 10);
 });
 
@@ -88,7 +113,7 @@ test('SQL RPC mirrors the nutrition protein floor (drift guard)', () => {
   // (the module can't import a JS constant into Postgres). Read the migration and
   // assert it matches NUTRITION_PROTEIN_FLOOR_G, so changing the constant alone
   // can't silently leave the SQL behind.
-  const sqlPath = fileURLToPath(new URL('../supabase-migrations/2026-06-27-roster-weekend-split.sql', import.meta.url));
+  const sqlPath = fileURLToPath(new URL('../supabase-migrations/2026-06-30-roster-weekend-split-training.sql', import.meta.url));
   const sql = readFileSync(sqlPath, 'utf8');
   // Check EVERY protein-floor predicate (weekday_num + weekend_num), so one filter
   // drifting while the other stays at 10 can't slip through.
