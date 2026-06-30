@@ -301,6 +301,13 @@
       .radio-logo img { width: 84vw; height: auto; }
     }
   </style>
+  <script type="importmap">
+  { "imports": {
+    "three": "https://esm.sh/three@0.169.0",
+    "three/addons/": "https://esm.sh/three@0.169.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://esm.sh/@pixiv/three-vrm@3.1.6?deps=three@0.169.0"
+  } }
+  </script>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -341,6 +348,15 @@
   </div>
 
   <div class="radio-player">
+
+    <!-- Nora avatar watch screen (hidden until toggle is clicked) -->
+    <div id="noraWrap" style="display:none;position:relative;width:100%;aspect-ratio:3/4;max-height:60vh;border-radius:14px;overflow:hidden;background:#0b0d10;margin-bottom:20px;">
+      <canvas id="noraStage" style="width:100%;height:100%;display:block;"></canvas>
+      <div style="position:absolute;top:10px;left:10px;font:600 11px/1 system-ui;letter-spacing:.12em;color:#2ee0c4;text-transform:uppercase;">● LIVE · NORA <span style="opacity:.6">(preview)</span></div>
+      <img id="noraFallback" src="/nora-avatar.png" alt="Nora" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />
+    </div>
+    <button id="noraToggle" type="button" style="margin:0 auto 20px;display:block;background:transparent;border:1px solid rgba(45,212,191,0.35);color:#2DD4BF;font:600 0.78rem/1 'Inter',system-ui;letter-spacing:.08em;text-transform:uppercase;padding:11px 22px;border-radius:8px;cursor:pointer;transition:all 0.3s;">Watch Nora live (preview)</button>
+
     <div class="now-playing paused" id="nowPlaying">
       <canvas id="vizCanvas" class="np-canvas" width="560" height="560" aria-hidden="true"></canvas>
       <div class="np-label">NOW PLAYING</div>
@@ -372,14 +388,14 @@
     </div>
 
     <div class="radio-controls">
-      <button class="radio-btn-prev" id="prevBtn" onclick="prevTrack()" aria-label="Previous track" title="Previous" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+      <button class="radio-btn-prev" id="prevBtn" aria-label="Previous track" title="Previous" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="6,5 6,19 8,19 8,5"/><polygon points="20,5 9,12 20,19"/></svg>
       </button>
       <button class="radio-btn-play" id="playBtn" onclick="togglePlay()">
         <svg id="playIcon" viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
         <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
       </button>
-      <button class="radio-btn-next" id="nextBtn" onclick="nextTrack()" aria-label="Next track" title="Next" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
+      <button class="radio-btn-next" id="nextBtn" aria-label="Next track" title="Next" style="display:none;background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:12px;">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><polygon points="4,5 15,12 4,19"/><polygon points="16,5 16,19 18,19 18,5"/></svg>
       </button>
     </div>
@@ -401,19 +417,48 @@
   </footer>
 
   <script>
-    // ===== Shape Radio playlist =====
-    // Swap these entries with your licensed track URLs (Epidemic Sound,
-    // Artlist, Soundstripe exports, or your own hosted MP3/HLS files).
-    // Each track: { title, artist, src }. Tracks loop from the top.
-    // Placeholder tracks below are free demo MP3s from SoundHelix, meant
-    // only to prove the player works end-to-end.
-    var SHAPE_RADIO_PLAYLIST = [
-      { title: "Actin' Tough",  artist: 'Dean Turnley',  bpm: 96,  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' },
-      { title: 'Tempo Lift',    artist: 'Shape Radio',   bpm: 112, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3' },
-      { title: 'Main Set',      artist: 'Shape Radio',   bpm: 128, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
-      { title: 'Push',          artist: 'Shape Radio',   bpm: 142, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3' },
-      { title: 'Cool Down',     artist: 'Shape Radio',   bpm: 84,  src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3' }
-    ];
+    // ===== Shape Radio — live stream =====
+    // One continuous stream from the licensed provider (config from /api/radio/station).
+    // The provider controls playout; the client just plays the stream + polls now-playing.
+    var STREAM_URL = null;
+    var nowPlayingTimer = null;
+
+    function applyNowPlaying(title, artist) {
+      npTitle.textContent = title || 'Shape Radio';
+      npArtist.textContent = artist || 'Live';
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: title || 'Shape Radio', artist: artist || 'Live', album: 'Shape Radio'
+          });
+        } catch (e) {}
+      }
+    }
+
+    function pollNowPlaying() {
+      fetch('/api/radio/now-playing', { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (np) { if (np) applyNowPlaying(np.title, np.artist); })
+        .catch(function () { /* keep last shown; stream still plays */ });
+    }
+
+    function startNowPlayingPoll() {
+      if (nowPlayingTimer) return;
+      pollNowPlaying();
+      nowPlayingTimer = setInterval(pollNowPlaying, 15000);
+    }
+
+    function loadStation() {
+      return fetch('/api/radio/station', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (cfg) {
+          STREAM_URL = cfg && cfg.configured ? cfg.streamUrl : null;
+          if (STREAM_URL) { audio.src = STREAM_URL; }
+          else { applyNowPlaying('Shape Radio', 'Coming soon'); }
+          return STREAM_URL;
+        })
+        .catch(function () { applyNowPlaying('Shape Radio', 'Off air'); return null; });
+    }
 
     var audio = document.getElementById('radioAudio');
     var nowPlaying = document.getElementById('nowPlaying');
@@ -422,7 +467,6 @@
     var npTitle = document.getElementById('npTitle');
     var npArtist = document.getElementById('npArtist');
     var volumeSlider = document.getElementById('volumeSlider');
-    var trackIndex = 0;
 
     audio.volume = (parseInt(volumeSlider.value, 10) || 75) / 100;
 
@@ -538,7 +582,6 @@
     if (vizCanvas) startViz();
 
     // ===== HR / BPM sync indicator =====
-    var bpmValueEl = document.getElementById('bpmValue');
     var hrValueEl = document.getElementById('hrValue');
     var bpmRing = document.getElementById('bpmRing');
     var hrRing = document.getElementById('hrRing');
@@ -594,26 +637,6 @@
     }
     requestAnimationFrame(tickRings);
 
-    function loadTrack(idx) {
-      if (!SHAPE_RADIO_PLAYLIST.length) return;
-      trackIndex = ((idx % SHAPE_RADIO_PLAYLIST.length) + SHAPE_RADIO_PLAYLIST.length) % SHAPE_RADIO_PLAYLIST.length;
-      var t = SHAPE_RADIO_PLAYLIST[trackIndex];
-      audio.src = t.src;
-      npTitle.textContent = t.title || '—';
-      npArtist.textContent = t.artist || '—';
-      currentBpm = t.bpm || 120;
-      if (bpmValueEl) bpmValueEl.textContent = currentBpm;
-      refreshLock();
-      if ('mediaSession' in navigator) {
-        try {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: t.title || 'Shape Radio',
-            artist: t.artist || 'Shape Radio',
-            album: 'Shape Radio'
-          });
-        } catch (e) {}
-      }
-    }
 
     function syncPlayUI(playing) {
       playIcon.style.display = playing ? 'none' : 'block';
@@ -623,47 +646,27 @@
     }
 
     function togglePlay() {
-      if (!audio.src) loadTrack(trackIndex);
+      if (!STREAM_URL) { loadStation().then(function (u) { if (u) { audio.play().catch(function(){}); startNowPlayingPoll(); } }); return; }
+      if (!audio.src) audio.src = STREAM_URL;
       if (audio.paused) {
         var p = audio.play();
-        if (p && typeof p.catch === 'function') {
-          p.catch(function (err) {
-            console.warn('[shape-radio] play blocked:', err);
-            syncPlayUI(false);
-          });
-        }
+        if (p && p.catch) p.catch(function (err) { console.warn('[shape-radio] play blocked:', err); syncPlayUI(false); });
+        startNowPlayingPoll();
       } else {
         audio.pause();
       }
     }
-
-    function nextTrack() {
-      var wasPlaying = !audio.paused && !audio.ended;
-      loadTrack(trackIndex + 1);
-      if (wasPlaying) audio.play().catch(function () {});
-    }
-
-    function prevTrack() {
-      var wasPlaying = !audio.paused && !audio.ended;
-      // If we're >3s into the current track, restart it instead of going back.
-      if (audio.currentTime > 3) {
-        audio.currentTime = 0;
-        return;
-      }
-      loadTrack(trackIndex - 1);
-      if (wasPlaying) audio.play().catch(function () {});
-    }
+    // A live stream is not seekable/loopable — no loop, no prev/next.
+    audio.loop = false;
 
     audio.addEventListener('play', function () { syncPlayUI(true); });
     audio.addEventListener('playing', function () { syncPlayUI(true); });
     audio.addEventListener('pause', function () { syncPlayUI(false); });
-    // Loop the current track instead of auto-advancing the playlist —
-    // keeps "Now Playing" pinned to whatever the user picked. Manual
-    // prev/next buttons still work to switch tracks deliberately.
-    audio.loop = true;
     audio.addEventListener('error', function () {
-      console.warn('[shape-radio] track failed:', audio.src);
+      console.warn('[shape-radio] stream error');
       syncPlayUI(false);
+      applyNowPlaying('Shape Radio', 'Off air — retrying…');
+      setTimeout(function () { if (STREAM_URL) { audio.src = STREAM_URL; audio.play().catch(function(){}); startNowPlayingPoll(); } }, 5000);
     });
 
     volumeSlider.addEventListener('input', function () {
@@ -674,8 +677,6 @@
       try {
         navigator.mediaSession.setActionHandler('play', function () { audio.play(); });
         navigator.mediaSession.setActionHandler('pause', function () { audio.pause(); });
-        navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
-        navigator.mediaSession.setActionHandler('nexttrack', nextTrack);
       } catch (e) {}
     }
 
@@ -699,12 +700,13 @@
     function openRadio(autoPlay) {
       document.getElementById('radioGate').style.display = 'none';
       document.getElementById('radioContent').classList.add('active');
-      if (!audio.src) loadTrack(0);
+      if (!audio.src) { loadStation().then(function (u) { if (autoPlay && u) { audio.play().catch(function(){}); startNowPlayingPoll(); } }); return; }
       if (autoPlay) {
         var p = audio.play();
         if (p && typeof p.catch === 'function') {
           p.catch(function () { /* autoplay blocked; user will click play */ });
         }
+        startNowPlayingPoll();
       }
     }
 
@@ -770,6 +772,80 @@
       } catch (e) {}
       startPreview();
     })();
+
+    // Expose the audio graph to the ESM Nora module below (option b: classic
+    // script keeps the graph; the module reads it via window accessors so we
+    // never create a second MediaElementSource on the same <audio> element).
+    window.__radioAudioGraph = {
+      ensureAudioGraph: function () { return ensureAudioGraph(); },
+      getAnalyser:      function () { return analyser; },
+      getAudioCtx:      function () { return audioCtx; }
+    };
+  </script>
+  <script type="module">
+    // Nora avatar watch-screen toggle.
+    // Uses option (b): the classic script above owns the audio graph and exposes
+    // it via window.__radioAudioGraph so this ESM module never creates a second
+    // MediaElementSource on the same <audio> element.
+    import { NoraStage } from '/newdesign/noraStage.mjs';
+
+    const noraWrap     = document.getElementById('noraWrap');
+    const noraToggle   = document.getElementById('noraToggle');
+    const noraFallback = document.getElementById('noraFallback');
+    let noraStage = null;
+    let noraBusy = false;
+
+    async function openNora() {
+      if (noraBusy) return;
+      noraBusy = true;
+      try {
+        noraWrap.style.display = 'block';
+        noraToggle.textContent  = 'Hide Nora';
+
+        // Ensure the Phase-1 audio graph is set up (creates audioCtx + analyser
+        // once, guarded internally — safe to call multiple times).
+        const g = window.__radioAudioGraph;
+        if (g) g.ensureAudioGraph();
+        const audioCtx = g ? g.getAudioCtx() : null;
+        if (audioCtx && audioCtx.state === 'suspended') {
+          try { await audioCtx.resume(); } catch (e) {}
+        }
+
+        if (!window.WebGLRenderingContext) {
+          noraFallback.style.display = 'block';
+          return;
+        }
+
+        try {
+          const analyser = g ? g.getAnalyser() : null;
+          noraStage = new NoraStage({
+            canvas:   document.getElementById('noraStage'),
+            analyser,
+            modelUrl: '/nora/placeholder.vrm'
+          });
+          await noraStage.load();
+          noraStage.start();
+        } catch (e) {
+          console.warn('[nora] stage failed, showing fallback', e);
+          if (noraStage) { noraStage.dispose(); noraStage = null; }
+          noraFallback.style.display = 'block';
+        }
+      } finally {
+        noraBusy = false;
+      }
+    }
+
+    function closeNora() {
+      noraToggle.textContent       = 'Watch Nora live (preview)';
+      noraWrap.style.display       = 'none';
+      noraFallback.style.display   = 'none';
+      if (noraStage) { noraStage.dispose(); noraStage = null; }
+    }
+
+    noraToggle.addEventListener('click', () => {
+      const isOpen = noraStage !== null || noraFallback.style.display === 'block';
+      isOpen ? closeNora() : openNora();
+    });
   </script>
   <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
   <script src="supabase.js"></script>

@@ -5253,3 +5253,73 @@ async function postProConsole(role, body) {
 }
 
 window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
+
+// ===== Shape Radio (live licensed stream) =====
+(function () {
+  let el = null, pollTimer = null, pollAbort = null, pollGen = 0;
+  function api(path) {
+    // Use the file's existing apiBaseUrl resolution: VITE_API_BASE_URL wins for
+    // the native app (which has no same origin); the /m/ web build is served from
+    // the same origin, so apiBaseUrl is '' and same-origin requests just work.
+    return (apiBaseUrl || '') + path;
+  }
+  function audio() {
+    // crossOrigin='anonymous' so createMediaElementSource (analyser + Nora avatar)
+    // works for cross-origin provider streams that send ACAO; without it the Web
+    // Audio graph is muted/blocked for cross-origin audio. Part of the stream contract.
+    if (!el) { el = new Audio(); el.preload = 'none'; el.crossOrigin = 'anonymous'; }
+    return el;
+  }
+  async function station() {
+    try { const r = await fetch(api('/api/radio/station'), { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+  async function nowPlaying(signal) {
+    try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store', signal }); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+  async function play() {
+    const cfg = await station();
+    if (!cfg || !cfg.configured) return false;
+    const a = audio();
+    if (a.src !== cfg.streamUrl) a.src = cfg.streamUrl;
+    try { await a.play(); return true; } catch { return false; }
+  }
+  function pause() { if (el) el.pause(); }
+  // Self-scheduling poll with cancellation: each cycle finishes (or aborts) before
+  // the next is scheduled, so a slow mobile network can't stack overlapping requests,
+  // and a teardown (stopPolling) aborts the in-flight fetch + drops any late response
+  // so it can't overwrite fresher UI state after the radio is turned off.
+  function startPolling(cb) {
+    stopPolling();
+    const gen = ++pollGen;
+    const loop = async () => {
+      if (gen !== pollGen) return;
+      pollAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      const np = await nowPlaying(pollAbort ? pollAbort.signal : undefined);
+      if (gen !== pollGen) return;        // superseded/torn down mid-flight → drop the late response
+      if (np) cb(np);
+      pollTimer = setTimeout(loop, 15000); // schedule the NEXT cycle only after this one settled
+    };
+    loop();
+  }
+  function stopPolling() {
+    pollGen++;                            // invalidate any in-flight cycle
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    if (pollAbort) { try { pollAbort.abort(); } catch { /* no-op */ } pollAbort = null; }
+  }
+  // Cached analyser — built ONCE from the radio <audio> element because a second
+  // createMediaElementSource on the same element throws. Cache the AudioContext,
+  // AnalyserNode, and a wired flag so every caller (including NoraStage) shares
+  // the same graph node without risk of duplicate source creation.
+  let _ac = null, _analyser = null, _srcWired = false;
+  function analyser() {
+    const a = audio();                       // the existing cached <audio> element
+    if (!_ac) { const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return null; _ac = new Ctx(); }
+    if (_ac.state === 'suspended') { _ac.resume().catch(() => {}); }
+    if (!_analyser) { _analyser = _ac.createAnalyser(); _analyser.fftSize = 512; }
+    if (!_srcWired) { try { const s = _ac.createMediaElementSource(a); s.connect(_analyser); _analyser.connect(_ac.destination); _srcWired = true; } catch (e) {} }
+    return _analyser;
+  }
+  window.ShapeRadioLive = { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser };
+})();

@@ -56,4 +56,13 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- Background audio prep: FOREGROUND_SERVICE is required to declare a
+         foreground service that keeps the WebView audio stream alive when the
+         app is backgrounded on Android. A foreground service + a background-mode
+         or foreground-service Capacitor plugin (e.g. capacitor-plugin-background-mode
+         or @capawesome-team/capacitor-android-foreground-service) must be wired in
+         the native build for full Android background audio. This permission alone
+         does NOT enable background audio — it is a prerequisite only. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 </manifest>
