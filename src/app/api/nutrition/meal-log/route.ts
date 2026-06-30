@@ -26,12 +26,6 @@ function asNum(v: unknown): number | null {
   return v;
 }
 
-// 'PGRST202' (function not in schema cache) / '42883' (undefined_function) => the
-// atomic-accumulate migration isn't applied yet; fall back to read-then-write.
-function isMissingFunction(err: { code?: string } | null | undefined): boolean {
-  return err?.code === 'PGRST202' || err?.code === '42883';
-}
-
 export async function POST(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
@@ -57,35 +51,6 @@ export async function POST(request: Request) {
   const { error: rpcErr } = await supabase.rpc('add_meal_macros', {
     p_kcal: kcal, p_protein: protein, p_carbs: carbs, p_fat: fat, p_hydration: hydrationL, p_date: today,
   });
-  if (!rpcErr) return NextResponse.json({ ok: true, day: today });
-  if (!isMissingFunction(rpcErr)) return dbError(rpcErr, 'meal log write', 500);
-
-  // ── Fallback (pre-migration): legacy read-then-write. ──
-  const { data: existing, error: readErr } = await supabase
-    .from('daily_health_snapshot')
-    .select('calories, protein_g, carbs_g, fat_g, hydration_l')
-    .eq('user_id', user.id)
-    .eq('snapshot_date', today)
-    .maybeSingle();
-  // A failed read must not be treated as "no row" and turned into an insert that masks
-  // the error / writes a wrong baseline.
-  if (readErr) return dbError(readErr, 'meal log read', 500);
-
-  const add = (cur: unknown, inc: number | null) =>
-    inc == null ? (cur == null ? null : Number(cur)) : Number(cur || 0) + inc;
-  const patch = {
-    calories: add(existing?.calories, kcal),
-    protein_g: add(existing?.protein_g, protein),
-    carbs_g: add(existing?.carbs_g, carbs),
-    fat_g: add(existing?.fat_g, fat),
-    hydration_l: add(existing?.hydration_l, hydrationL),
-  };
-
-  const result = existing
-    ? await supabase.from('daily_health_snapshot').update(patch).eq('user_id', user.id).eq('snapshot_date', today)
-    : await supabase.from('daily_health_snapshot').insert({ user_id: user.id, snapshot_date: today, ...patch });
-  if (result.error) {
-    return dbError(result.error, 'meal log write', 500);
-  }
+  if (rpcErr) return dbError(rpcErr, 'meal log write', 500);
   return NextResponse.json({ ok: true, day: today });
 }

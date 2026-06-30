@@ -3,7 +3,7 @@
 // /api/coach/roster-weekend route over buckets from get_roster_weekend_split.
 export const MIN_WEEKENDS = 3;
 export const FLAG_GAP_PP = 15;
-export const MIN_DIM_DAYS = { nutrition: 12, habits: 12 };
+export const MIN_DIM_DAYS = { nutrition: 12, habits: 12, training: 6 };
 export const SE_Z = 1.65;
 export const CONSISTENCY = 0.60;
 export const STATUS = { OK: 'ok', BUILDING: 'building', INSUFFICIENT: 'insufficient' } as const;
@@ -13,12 +13,13 @@ export type DimResult = {
   present: true; weekdayRate: number; weekendRate: number; gapPp: number; se: number; lowerCi: number;
   flagged: boolean; weeksObserved: number; weekPositiveShare: number; nWeekdayDays: number; nWeekendDays: number;
 };
-export type WeekendSplitInput = { nutrition?: WeeklyBucket[]; habits?: WeeklyBucket[] };
-export type WeekendSplitOptions = { minWeekends?: number; minDimDays?: { nutrition?: number; habits?: number } };
+export type WeekendSplitInput = { nutrition?: WeeklyBucket[]; habits?: WeeklyBucket[]; training?: WeeklyBucket[] };
+export type WeekendSplitOptions = { minWeekends?: number; minDimDays?: { nutrition?: number; habits?: number; training?: number } };
+export type DimKey = 'nutrition' | 'habits' | 'training';
 export type WeekendSplitResult = {
   status: string;
-  dimensions: { nutrition: DimResult | null; habits: DimResult | null; training: null; composite: { present: true; gapPp: number } | null };
-  worstDimension: 'nutrition' | 'habits' | null;
+  dimensions: { nutrition: DimResult | null; habits: DimResult | null; training: DimResult | null; composite: { present: true; gapPp: number } | null };
+  worstDimension: DimKey | null;
   weekends: number;
 };
 
@@ -65,29 +66,34 @@ export function computeWeekendSplit(input: WeekendSplitInput, options: WeekendSp
   const minDays = { ...MIN_DIM_DAYS, ...(options.minDimDays || {}) };
   const nutrition = dimResult(input.nutrition || [], minDays.nutrition);
   const habits = dimResult(input.habits || [], minDays.habits);
-  const training = null; // v1: no scheduled_date source
+  // Training: scheduled-workout days (denominator) vs trained-on-those-days
+  // (numerator) — the coach roster RPC supplies these buckets. The self bucket
+  // builder doesn't emit training yet, so input.training is absent there and the
+  // dimension renders nothing (never a fabricated 0%).
+  const training = dimResult(input.training || [], minDays.training);
 
   // distinct weeks with any weekend data
   const weekSet = new Set<string>();
-  for (const b of [...(input.nutrition || []), ...(input.habits || [])]) {
+  for (const b of [...(input.nutrition || []), ...(input.habits || []), ...(input.training || [])]) {
     if (b.weekendDen > 0) weekSet.add(b.weekStart);
   }
   const weekends = weekSet.size;
 
-  const present = [nutrition, habits].filter(Boolean) as DimResult[];
+  const present = [nutrition, habits, training].filter(Boolean) as DimResult[];
   let status: string = STATUS.OK;
   if (weekends < (options.minWeekends ?? MIN_WEEKENDS)) status = STATUS.INSUFFICIENT;
   else if (!present.length) status = STATUS.BUILDING;
 
   // worstDimension: present, positive-gap, flagged, ranked by lower-CI bound
-  const named = (['nutrition', 'habits'] as const)
-    .map((k) => [k, k === 'nutrition' ? nutrition : habits] as ['nutrition' | 'habits', DimResult | null])
-    .filter((pair): pair is ['nutrition' | 'habits', DimResult] => {
+  const byKey: Record<DimKey, DimResult | null> = { nutrition, habits, training };
+  const named = (['nutrition', 'habits', 'training'] as const)
+    .map((k) => [k, byKey[k]] as [DimKey, DimResult | null])
+    .filter((pair): pair is [DimKey, DimResult] => {
       const d = pair[1];
       return d !== null && d.flagged && d.gapPp > 0;
     })
     .sort((a, b) => b[1].lowerCi - a[1].lowerCi);
-  const worstDimension: 'nutrition' | 'habits' | null = named.length ? named[0][0] : null;
+  const worstDimension: DimKey | null = named.length ? named[0][0] : null;
 
   return {
     status,

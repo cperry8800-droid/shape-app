@@ -49,13 +49,6 @@ export type SnapshotPatch = {
   sleep_end?: string | null;
 };
 
-type SnapshotRow = SnapshotPatch & {
-  user_id: string;
-  snapshot_date: string;
-  sources: Record<string, string>;
-  updated_at?: string;
-};
-
 function isoDate(value: string | Date): string {
   const date = typeof value === 'string' ? new Date(value) : value;
   if (!Number.isFinite(date.getTime())) return new Date().toISOString().slice(0, 10);
@@ -113,36 +106,57 @@ export async function upsertSnapshot(
   }
   if (writtenFields.length === 0) return { written: 0 };
 
-  const { data: existing, error: lookupError } = await client
-    .from('daily_health_snapshot')
-    .select('id, sources')
-    .eq('user_id', params.userId)
-    .eq('snapshot_date', snapshot_date)
-    .maybeSingle();
-
-  if (lookupError && lookupError.code !== 'PGRST116') {
-    return { written: 0, error: lookupError.message };
-  }
-
-  const sources: Record<string, string> = { ...(existing?.sources ?? {}) };
-  for (const field of writtenFields) sources[field] = params.source;
-
-  const row: SnapshotRow = {
+  // Metric columns only — `sources` is omitted here and merged atomically below.
+  // The unique (user_id, snapshot_date) constraint serializes concurrent first-writes
+  // (two provider syncs starting at once): the loser does an UPDATE instead of a
+  // duplicate-key error. Each source includes only its own columns, so a metric VALUE
+  // is never clobbered by another source. `sources` defaults to '{}' on insert and is
+  // left untouched on the conflicting UPDATE (it isn't in `row`).
+  const row: Record<string, unknown> = {
     user_id: params.userId,
     snapshot_date,
     ...effective,
-    sources,
   };
-
-  // Atomic upsert: the unique (user_id, snapshot_date) constraint serializes concurrent
-  // first-writes (two provider syncs starting at once) — the loser does an UPDATE
-  // instead of hitting a duplicate-key error. (The read above is only for the
-  // sources-provenance merge.)
   const result = await client
     .from('daily_health_snapshot')
     .upsert(row, { onConflict: 'user_id,snapshot_date' });
 
   if (result.error) return { written: 0, error: result.error.message };
+
+  // Merge provenance atomically: `sources || patch` under the row's UPDATE lock, so two
+  // concurrent syncs on the same day can't each read the same baseline and clobber the
+  // other's source entries (the previous read-then-write JS merge could).
+  const sourcePatch: Record<string, string> = {};
+  for (const field of writtenFields) sourcePatch[field] = params.source;
+
+  const { error: mergeError } = await client.rpc('merge_snapshot_sources', {
+    p_user_id: params.userId,
+    p_date: snapshot_date,
+    p_sources: sourcePatch,
+  });
+  if (mergeError) {
+    // Deploy-order fallback: until merge_snapshot_sources is applied, fall back to a
+    // read-then-write sources merge (racy across concurrent syncs, but functional).
+    // Once the migration is live, the atomic RPC above is the path; remove this then.
+    if (mergeError.code === 'PGRST202' || mergeError.code === '42883') {
+      const { data: existing, error: lookupError } = await client
+        .from('daily_health_snapshot')
+        .select('sources')
+        .eq('user_id', params.userId)
+        .eq('snapshot_date', snapshot_date)
+        .maybeSingle();
+      if (lookupError) return { written: writtenFields.length, error: lookupError.message };
+      const merged = { ...((existing?.sources as Record<string, string> | undefined) ?? {}), ...sourcePatch };
+      const upd = await client
+        .from('daily_health_snapshot')
+        .update({ sources: merged })
+        .eq('user_id', params.userId)
+        .eq('snapshot_date', snapshot_date);
+      if (upd.error) return { written: writtenFields.length, error: upd.error.message };
+    } else {
+      return { written: writtenFields.length, error: mergeError.message };
+    }
+  }
   return { written: writtenFields.length };
 }
 
