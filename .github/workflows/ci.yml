@@ -1,7 +1,11 @@
-# Main-branch gate: blocks PR merges when the web app or mobile bundle is
-# broken, and catches the classic "edited mobile-app/ but forgot to republish
-# public/m" mistake (the deployed app at /m/ is the committed copy, not a
-# build artifact).
+# Main-branch gate: blocks PR merges when the web app or mobile bundle is broken.
+#
+# public/m is now built at DEPLOY time from mobile-app/ (Vercel buildCommand ->
+# scripts/build-m.sh), so it is NOT committed to git. The mobile job below only
+# verifies the /m/ bundle still BUILDS — there is no committed public/m to sync
+# against anymore. The job NAME is kept ("Mobile (build + public/m sync)") so the
+# existing branch-protection required check keeps matching; rename it + the
+# required check together if you want the honest name.
 #
 # Runs on every PR into main + pushes to main/staging. To make it a hard
 # gate, add a branch protection rule on main requiring the "Web (typecheck
@@ -69,23 +73,12 @@ jobs:
         working-directory: mobile-app
         run: npm ci
 
+      # Verifies the /m/ bundle still builds from source. public/m itself is
+      # generated at deploy time (scripts/build-m.sh), not committed, so there's
+      # no byte-diff against a committed copy anymore — a failed build fails here.
       - name: Build (/m/ bundle)
         working-directory: mobile-app
         run: VITE_BASE=/m/ npm run build
-
-      - name: public/m matches the mobile build
-        run: |
-          if ! diff -qr mobile-app/dist public/m > /tmp/m-diff.txt 2>&1; then
-            echo "::error::public/m is OUT OF SYNC with mobile-app source."
-            echo "Republish it from the repo root:"
-            echo "  cd mobile-app && VITE_BASE=/m/ npm run build && cd .."
-            echo "  rm -rf public/m && cp -r mobile-app/dist public/m"
-            echo
-            echo "Differences:"
-            cat /tmp/m-diff.txt
-            exit 1
-          fi
-          echo "public/m is in sync ✓"
 
   secrets:
     name: Secret scan (gitleaks)
