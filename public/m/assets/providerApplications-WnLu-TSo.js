@@ -1,2 +1,1 @@
 var e=`checkr`,t=`.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp`,n=10*1024*1024,r=[`7-10 years`,`10-15 years`,`15+ years`];function i(e){let t=Number(String(e||``).match(/\d+/)?.[0]||0);return Number.isFinite(t)?t:0}function a(e){return i(e)>=5}export{a,r as i,t as n,n as r,e as t};
-//# sourceMappingURL=providerApplications-WnLu-TSo.js.map

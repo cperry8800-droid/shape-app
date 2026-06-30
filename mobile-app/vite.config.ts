@@ -36,7 +36,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // No sourcemaps in the published /m/ bundle. They embed absolute build paths
+    // (Windows `C:\Users\…` vs CI's Linux `/home/runner/…`) into the .map files,
+    // so a locally-built public/m never byte-matches CI's Linux build and the
+    // "Mobile (build + public/m sync)" check fails. Only this branch is affected —
+    // it's the one that bundles `three`/three-vrm (the Nora avatar) via the
+    // absolute-path resolve.alias above. Dropping prod maps also stops shipping
+    // ~5 MB of source to a public URL. (Dev server keeps its own sourcemaps.)
+    sourcemap: false,
     target: 'esnext',
   },
 });
