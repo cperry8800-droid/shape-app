@@ -4,6 +4,8 @@
 name: buildm
 
 on:
+  push:
+    branches: [claude/destructive-action-confirms]
   workflow_dispatch:
 
 permissions:
