@@ -35,7 +35,12 @@ export async function POST(request: Request) {
   const byClient = new Map<string, { nutrition: WeeklyBucket[]; habits: WeeklyBucket[]; training: WeeklyBucket[] }>();
   for (const r of (data || []) as Row[]) {
     const e = byClient.get(r.client_id) || { nutrition: [], habits: [], training: [] };
-    e[r.dimension].push({
+    // Skip any dimension the route doesn't model rather than throwing — keeps the
+    // route forward-compatible if the RPC ever returns a new dimension before this
+    // code ships (the loop isn't otherwise guarded, so an unknown key would 500).
+    const bucket = (e as Record<string, WeeklyBucket[]>)[r.dimension];
+    if (!bucket) continue;
+    bucket.push({
       weekStart: r.week_start,
       weekdayNum: Number(r.weekday_num) || 0, weekdayDen: Number(r.weekday_den) || 0,
       weekendNum: Number(r.weekend_num) || 0, weekendDen: Number(r.weekend_den) || 0,
