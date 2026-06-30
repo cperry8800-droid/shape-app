@@ -111,7 +111,8 @@ export async function writeOverride(
   coachId: string,
   override: Record<string, unknown> | null,
 ): Promise<{ before: unknown; after: unknown }> {
-  const { data, error: readErr } = await supabase
+  // Read the current directive only to capture the before-value for the audit row.
+  const { data } = await supabase
     .from('client_programs')
     .select('detail')
     .eq('user_id', clientId)
@@ -120,22 +121,9 @@ export async function writeOverride(
   const before = (detail as { directive?: unknown }).directive ?? null;
   // Atomic merge — write ONLY detail.directive (ON CONFLICT DO UPDATE reads the row
   // under its lock), so a concurrent program write can't clobber it via a stale
-  // read-modify-write. Falls back to read-then-write until the migration is applied.
+  // read-modify-write.
   const { error } = await supabase.rpc('merge_program_detail', { p_client_id: clientId, p_patch: { directive: override } });
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') {
-      // The fallback rewrites the whole detail from `detail`; if the baseline read
-      // failed, refuse rather than clobber training/nutrition/goals with {} + directive.
-      if (readErr) throw new Error(`directive override read failed: ${readErr.message}`);
-      const nextDetail = { ...detail, directive: override };
-      const { error: upErr } = await supabase
-        .from('client_programs')
-        .upsert({ user_id: clientId, detail: nextDetail, updated_by: coachId }, { onConflict: 'user_id' });
-      if (upErr) throw new Error(`directive override write failed: ${upErr.message}`);
-    } else {
-      throw new Error(`directive override write failed: ${error.message}`);
-    }
-  }
+  if (error) throw new Error(`directive override write failed: ${error.message}`);
   return { before, after: override };
 }
 
