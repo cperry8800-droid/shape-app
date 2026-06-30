@@ -47,9 +47,12 @@ as $$
            (now() at time zone zone)::date as today_local
     from tz
   ),
-  -- Clamp the window start to the member's FIRST observed activity (any snapshot
-  -- or daily-habit completion) within the 56-day floor — mirrors the client
-  -- bucket builder, so a brand-new account doesn't read empty days as a gap.
+  -- Clamp the window start to the member's FIRST observed activity (any snapshot,
+  -- daily-habit completion, OR scheduled workout) within the 56-day floor — so a
+  -- brand-new account doesn't read empty days as a gap. The scheduled-workout term
+  -- is essential: a TRAINING-ONLY client has no snapshots/habits, so without it the
+  -- least() collapses to today_local and the window covers a single day, hiding the
+  -- training dimension for exactly the members it targets.
   activity as (
     select w.client_id, w.today_local,
       greatest(
@@ -59,7 +62,10 @@ as $$
                     where d.user_id = w.client_id and d.snapshot_date > w.today_local - 56 and d.snapshot_date <= w.today_local), w.today_local),
           coalesce((select min(uhc.done_on) from public.user_habit_completions uhc
                     join public.user_habits uh on uh.id = uhc.habit_id and lower(coalesce(uh.cadence,'daily')) in ('daily','everyday') and uh.archived_at is null
-                    where uh.user_id = w.client_id and uhc.done_on > w.today_local - 56 and uhc.done_on <= w.today_local), w.today_local)
+                    where uh.user_id = w.client_id and uhc.done_on > w.today_local - 56 and uhc.done_on <= w.today_local), w.today_local),
+          coalesce((select min(cw.scheduled_date) from public.client_workouts cw
+                    where cw.client_id = w.client_id and cw.status = 'published'
+                      and cw.scheduled_date > w.today_local - 56 and cw.scheduled_date <= w.today_local), w.today_local)
         )
       ) as start_local
     from win w
