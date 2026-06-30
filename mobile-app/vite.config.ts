@@ -3,7 +3,20 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Force LF in the emitted index.html. The source template has mixed CRLF/LF,
+    // and the build preserves the OS's line endings — so a Windows-built index.html
+    // (CRLF) never byte-matches CI's Linux build (LF), failing the public/m sync
+    // check. Normalizing on emit makes the output identical on every platform.
+    {
+      name: 'normalize-index-html-eol',
+      transformIndexHtml: {
+        order: 'post' as const,
+        handler: (html: string) => html.replace(/\r\n?/g, '\n'),
+      },
+    },
+  ],
   // When the bundle is hosted at /m/ on the Next.js site (browser preview),
   // override with VITE_BASE=/m/ — see scripts in package.json.
   base: process.env.VITE_BASE || './',
