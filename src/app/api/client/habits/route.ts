@@ -100,9 +100,11 @@ export async function POST(req: Request) {
       .update(patch)
       .eq('id', id)
       .eq('user_id', user.id)
+      .is('archived_at', null)
       .select('id, name, type, cadence, visibility, sort_order, created_at, updated_at')
-      .single();
+      .maybeSingle();
     if (error) return dbError(error, 'habits write', 500);
+    if (!data) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
     return NextResponse.json({ habit: data });
   }
 
@@ -172,12 +174,16 @@ export async function POST(req: Request) {
     // a hard cascade delete, so an accidental removal stays recoverable. The GET
     // filters on archived_at IS NULL, so an archived habit disappears from the
     // list exactly like a deleted one.
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('user_habits')
       .update({ archived_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .is('archived_at', null)
+      .select('id')
+      .maybeSingle();
     if (error) return dbError(error, 'habits write', 500);
+    if (!data) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
     return NextResponse.json({ ok: true });
   }
 

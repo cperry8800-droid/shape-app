@@ -122,7 +122,7 @@ function ClientHabitsPage() {
 
   const removeHabit = async (id) => {
     const target = habits.find(h => h.id === id);
-    if (!(await window.ShapeConfirm.open({ title: "Delete this habit?", name: target && target.name, message: "This removes the habit and its full streak history.", confirmLabel: "Delete habit" }))) return;
+    if (!(await window.ShapeConfirm.open({ title: "Delete this habit?", name: target && (target.label || target.name), message: "This removes the habit and its full streak history.", confirmLabel: "Delete habit" }))) return;
     setHabits(hs => hs.filter(h => h.id !== id));
     if (synced) apiPost({ action: 'delete', id });
   };

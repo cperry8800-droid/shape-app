@@ -2311,11 +2311,10 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const apply = async () => {
     if (!plan || !uid || status === 'working' || status === 'done') return;
     if (isNutri) {
-      const who = (clientProp && (clientProp.n || clientProp.name)) || 'this client';
       if (!(await window.bsAskConfirm({
         title: 'Replace active meal plan?',
-        name: who,
-        message: 'This archives this client’s current week menu and installs ' + (plan.name ? '“' + plan.name + '”' : 'the new plan') + ' on their Eat tab.',
+        name: targetName,
+        message: 'This archives ' + first + '’s current week menu and installs ' + (plan.name ? '“' + plan.name + '”' : 'the new plan') + ' on their Eat tab.',
         confirmLabel: 'Replace plan',
       }))) return;
     }

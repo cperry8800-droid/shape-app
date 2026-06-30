@@ -582,7 +582,10 @@ function shapeConfirmOpen(opts) {
     const need = o.requireType ? String(o.requireType) : "";
     let done = false;
     const overlay = document.createElement("div");
-    const onKey = (e) => { if (e.key === "Escape") finish(false); else if (e.key === "Enter" && gateOk()) finish(true); };
+    // Escape cancels. Enter deliberately does NOT confirm — a destructive action
+    // must be an explicit click on the action button (Enter while Cancel/the type
+    // field is focused must never trigger it).
+    const onKey = (e) => { if (e.key === "Escape") finish(false); };
     const finish = (val) => { if (done) return; done = true; try { document.removeEventListener("keydown", onKey); } catch (e) {} overlay.remove(); resolve(val); };
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");

@@ -1196,7 +1196,12 @@ function BSConfirmSheet({ opts, onCancel, onConfirm }) {
 function BSConfirmHost() {
   const [req, setReq] = useStateBS(null);
   useEffectBS(() => {
-    window.__bsConfirm = (opts) => new Promise((resolve) => setReq({ opts: opts || {}, resolve }));
+    // Resolve any still-pending request as cancelled before queuing a new one,
+    // so a second confirm can't orphan the first promise (its caller would hang).
+    window.__bsConfirm = (opts) => new Promise((resolve) => setReq((prev) => {
+      if (prev) { try { prev.resolve(false); } catch (e) {} }
+      return { opts: opts || {}, resolve };
+    }));
     return () => { try { delete window.__bsConfirm; } catch (e) { window.__bsConfirm = undefined; } };
   }, []);
   if (!req) return null;
@@ -1210,8 +1215,16 @@ function BSConfirmHost() {
 function bsAskConfirm(opts) {
   if (typeof window !== 'undefined' && typeof window.__bsConfirm === 'function') return window.__bsConfirm(opts || {});
   const o = opts || {};
+  // No host + no window → fail CLOSED (never auto-approve a destructive action).
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') return Promise.resolve(false);
   const text = [o.title, o.name, o.message].filter(Boolean).join('\n\n');
-  return Promise.resolve(typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm(text || 'Are you sure?') : true);
+  // Preserve the type-to-confirm gate in fallback mode — don't downgrade an
+  // irreversible action (e.g. account deletion) to a one-tap confirm.
+  if (o.requireType) {
+    const typed = typeof window.prompt === 'function' ? window.prompt(`${text}\n\nType ${o.requireType} to confirm.`) : null;
+    return Promise.resolve((typed || '').trim().toUpperCase() === String(o.requireType).toUpperCase());
+  }
+  return Promise.resolve(window.confirm(text || 'Are you sure?'));
 }
 if (typeof window !== 'undefined') window.bsAskConfirm = bsAskConfirm;
 
