@@ -117,7 +117,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // RLS + the discipline trigger still authorize the write.
   const { error } = await supabase.rpc('merge_program_detail', { p_client_id: clientId, p_patch: { goals } });
   if (error) {
-    const denied = /row-level security|not a coach|not authorized/i.test(error.message);
+    // 42501 = insufficient_privilege: both an RLS denial and the discipline-guard
+    // trigger ('Only a coach may set goals.') surface with this code, so map either to
+    // 403 (the message-text backstop covers any driver that drops the code).
+    const denied = error.code === '42501' || /row-level security|not authorized|only a coach/i.test(error.message);
     if (denied) return NextResponse.json({ error: 'Not a coach on this client.' }, { status: 403 });
     return dbError(error, 'client goals write', 500);
   }
