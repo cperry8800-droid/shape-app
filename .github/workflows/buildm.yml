@@ -1,0 +1,41 @@
+# TEMPORARY one-shot workflow: build the mobile /m/ bundle on Linux (to match
+# CI) and upload it as an artifact, so a Windows dev can commit CI's own Linux
+# build of public/m. Delete this file once public/m is committed.
+name: buildm
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  buildm:
+    name: Build /m/ bundle (Linux) + upload dist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: npm ci
+
+      - name: Build (/m/ bundle)
+        working-directory: mobile-app
+        run: VITE_BASE=/m/ npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-m-dist
+          path: mobile-app/dist
+          if-no-files-found: error
