@@ -2582,21 +2582,23 @@ function ProWeekendPlate({ split }) {
   const BSPlate = typeof window !== 'undefined' && window.BSPlate;
   if (!BSPlate || !split || split.status !== 'ok') return null;
   const dims = split.dimensions || {};
-  const present = ['nutrition', 'habits'].map((k) => [k, dims[k]]).filter(([, d]) => d);
+  const present = ['nutrition', 'habits', 'training'].map((k) => [k, dims[k]]).filter(([, d]) => d);
   if (!present.length) return null;
   const worst = split.worstDimension;
   const move = worst === 'nutrition'
     ? 'Set a weekend check-in or a lighter weekend nutrition target.'
-    : worst === 'habits'
-      ? 'Add a weekend-specific habit reminder.'
-      : 'Set one weekend anchor habit.';
+    : worst === 'training'
+      ? 'Move a weekend session earlier in the day, or shift it to a weekday they hit.'
+      : worst === 'habits'
+        ? 'Add a weekend-specific habit reminder.'
+        : 'Set one weekend anchor habit.';
   return (
     <BSPlate c={'#c0533b'} spine={3}>
       <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>WEEKEND PATTERN</div>
       <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
         {present.map(([k, d]) => (
           <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, fontFamily: t.MONO, fontSize: 11, fontVariantNumeric: 'tabular-nums', color: t.INK }}>
-            <span>{k === 'nutrition' ? 'Nutrition' : 'Habits'}</span>
+            <span>{k === 'nutrition' ? 'Nutrition' : k === 'training' ? 'Training' : 'Habits'}</span>
             <span style={{ color: d.flagged ? t.RUST : t.INK70 }}>wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}</span>
           </div>
         ))}
