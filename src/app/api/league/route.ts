@@ -32,7 +32,11 @@ async function claimCohort(
     p_user_id: userId, p_week: week, p_tier: tier, p_settled_week: settledWeek,
   });
   if (error) throw error;
-  return Number(data) || 0;
+  // Fail closed on a malformed payload: cohort 0 is a VALID cohort, so `Number(data) || 0`
+  // would silently mask a null/NaN result as cohort 0 (piling members into it).
+  const cohort = Number(data);
+  if (!Number.isFinite(cohort)) throw new Error('league_assign_cohort returned an invalid cohort');
+  return cohort;
 }
 
 // ISO-week key 'IYYY-IW' for a date (matches Postgres to_char(...,'IYYY-IW')).
