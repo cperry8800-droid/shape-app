@@ -31,8 +31,12 @@ language sql
 security invoker
 set search_path = public
 as $$
+  -- Only merge a JSON OBJECT. `jsonb ||` against a scalar/array would reshape
+  -- `sources` into an array (jsonb_typeof != 'object'), corrupting the provenance
+  -- map for every reader; a non-object (incl. SQL NULL) merges nothing. `sources`
+  -- is NOT NULL default '{}', so the left side needs no coalesce.
   update public.daily_health_snapshot
-     set sources = sources || coalesce(p_sources, '{}'::jsonb)
+     set sources = sources || (case when jsonb_typeof(p_sources) = 'object' then p_sources else '{}'::jsonb end)
    where user_id = p_user_id
      and snapshot_date = p_date;
 $$;
