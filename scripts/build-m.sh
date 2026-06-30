@@ -13,7 +13,10 @@
 set -euo pipefail
 
 echo "→ Installing mobile-app dependencies…"
-( cd mobile-app && npm ci )
+# --include=dev: Vercel builds run with NODE_ENV=production, which would omit
+# devDependencies — but the postinstall (patch-package) and the build tool
+# (vite) are both devDeps, so they must be installed.
+( cd mobile-app && npm ci --include=dev )
 
 echo "→ Building the /m/ bundle (VITE_BASE=/m/)…"
 ( cd mobile-app && VITE_BASE=/m/ npm run build )
