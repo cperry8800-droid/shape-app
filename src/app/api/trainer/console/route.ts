@@ -279,6 +279,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing clientId.' }, { status: 400 });
   }
 
+  // IDOR guard (AUTHZ-P2-console-idor): coaching content may only be written for a
+  // client this coach ACTIVELY coaches. removeItem is owner+item scoped, so it
+  // stays usable even after a subscription lapses. RLS enforces the same on INSERT.
+  if (action !== 'removeItem') {
+    const { data: onClient, error: gateErr } = await supabase.rpc('is_coach_on_client', {
+      p_client_id: clientId,
+    });
+    if (gateErr) {
+      return NextResponse.json({ error: 'Could not verify client access.' }, { status: 500 });
+    }
+    if (onClient !== true) {
+      return NextResponse.json({ error: 'You can only push to your own active clients.' }, { status: 403 });
+    }
+  }
+
   if (action === 'focus') {
     const text = String(body?.text ?? '').trim();
     if (!text) {
