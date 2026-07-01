@@ -679,13 +679,14 @@ function ReminderCard({ signedIn }) {
   const [editing, setEditing] = React.useState(null);     // draft { id?, kind, label, atTime, days, enabled } | null
   const [busy, setBusy] = React.useState(false);
   const [note, setNote] = React.useState("");
+  const [failed, setFailed] = React.useState(false); // load failure — distinct from "no reminders"
 
   const load = React.useCallback(() => {
-    if (!signedIn) { setReminders([]); return; }
+    if (!signedIn) { setFailed(false); setReminders([]); return; }
     fetch("/api/client/reminders", { credentials: "same-origin", cache: "no-store" })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setReminders(Array.isArray(d && d.reminders) ? d.reminders : []))
-      .catch(() => setReminders([]));
+      .then(r => { if (!r.ok) throw new Error("load"); return r.json(); })
+      .then(d => { setReminders(Array.isArray(d && d.reminders) ? d.reminders : []); setFailed(false); })
+      .catch(() => { setReminders([]); setFailed(true); });
   }, [signedIn]);
   React.useEffect(() => { load(); }, [load]);
 
@@ -698,7 +699,7 @@ function ReminderCard({ signedIn }) {
       const res = await fetch("/api/client/reminders", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: d.id, kind: d.kind, label: d.label, atTime: d.atTime, days: d.days, enabled: d.enabled !== false, tz: remTz() }),
+        body: JSON.stringify({ id: d.id, kind: d.kind, label: d.kind === "custom" ? d.label : "", atTime: d.atTime, days: d.days, enabled: d.enabled !== false, tz: remTz() }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) throw new Error(j.error || "Could not save the reminder.");
@@ -715,7 +716,7 @@ function ReminderCard({ signedIn }) {
       await fetch("/api/client/reminders", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, kind: r.kind, label: r.label, atTime: r.at_time, days: r.days, enabled: next, tz: remTz() }),
+        body: JSON.stringify({ id: r.id, kind: r.kind, label: r.kind === "custom" ? r.label : "", atTime: r.at_time, days: r.days, enabled: next, tz: remTz() }),
       });
     } catch (e) {}
     load();
@@ -759,6 +760,8 @@ function ReminderCard({ signedIn }) {
         <div style={muted}>Loading…</div>
       ) : !signedIn ? (
         <div style={muted}>Sign in to set up reminders that nudge you to weigh in, check in, hydrate, or anything else.</div>
+      ) : (failed && !editing) ? (
+        <div style={muted}>Couldn't load your reminders. Refresh to try again.</div>
       ) : (list.length === 0 && !editing) ? (
         <div style={muted}>No reminders yet — add one to nudge yourself.</div>
       ) : (
@@ -841,6 +844,7 @@ const NP_TYPES = [
 function NotificationDashboard({ signedIn }) {
   const [state, setState] = React.useState(null); // null = loading; { settings, matrix, reminders }
   const [uid, setUid] = React.useState(null);
+  const [saveErr, setSaveErr] = React.useState("");
   const empty = { settings: null, matrix: {}, reminders: [] };
 
   const load = React.useCallback(async () => {
@@ -866,23 +870,39 @@ function NotificationDashboard({ signedIn }) {
   const tz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } };
   const cli = () => (window.shapeDb && window.shapeDb.client) || null;
 
+  // A Supabase write RESOLVES with { error } on an RLS/constraint failure and REJECTS on a
+  // network error — surface both: on failure re-sync from the server (reverting the optimistic
+  // UI so it never shows an unsaved change as saved) and flag it, instead of swallowing it.
+  const onWrite = (builder) => {
+    const fail = () => { setSaveErr("Couldn't save that change — reverted. Try again."); load(); };
+    try { builder.then(res => { if (res && res.error) fail(); else setSaveErr(""); }, fail); }
+    catch (e) { fail(); }
+  };
+
   const saveSettings = (patch) => {
     setState(st => (st ? { ...st, settings: { ...st.settings, ...patch } } : st));
     const c = cli(); if (!uid || !c) return;
-    try { c.from("notification_settings").upsert({ user_id: uid, tz: tz(), updated_at: new Date().toISOString(), ...patch }, { onConflict: "user_id" }).then(() => {}, () => {}); } catch (e) {}
+    onWrite(c.from("notification_settings").upsert({ user_id: uid, tz: tz(), updated_at: new Date().toISOString(), ...patch }, { onConflict: "user_id" }));
   };
   const chOn = (type, ch) => { const o = state && state.matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : NP_DEF_CH[ch]; };
   const toggleCh = (type, ch) => {
     const next = !chOn(type, ch);
     setState(st => (st ? { ...st, matrix: { ...st.matrix, [type]: { ...(st.matrix[type] || {}), [ch]: next } } } : st));
     const c = cli(); if (!uid || !c) return;
-    try { c.from("notification_preferences").upsert({ user_id: uid, type, channel: ch, enabled: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,type,channel" }).then(() => {}, () => {}); } catch (e) {}
+    // notification_preferences is override-only (a missing row means "use the default"). When a
+    // channel returns to its default, DELETE the override rather than freezing today's default
+    // value into the user's data.
+    if (next === NP_DEF_CH[ch]) {
+      onWrite(c.from("notification_preferences").delete().eq("user_id", uid).eq("type", type).eq("channel", ch));
+    } else {
+      onWrite(c.from("notification_preferences").upsert({ user_id: uid, type, channel: ch, enabled: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,type,channel" }));
+    }
   };
   const toggleHabit = (r) => {
     const next = !r.enabled;
     setState(st => (st ? { ...st, reminders: st.reminders.map(x => (x.habit_id === r.habit_id ? { ...x, enabled: next } : x)) } : st));
     const c = cli(); if (!uid || !c) return;
-    try { c.from("habit_reminders").update({ enabled: next, updated_at: new Date().toISOString() }).eq("habit_id", r.habit_id).eq("user_id", uid).then(() => {}, () => {}); } catch (e) {}
+    onWrite(c.from("habit_reminders").update({ enabled: next, updated_at: new Date().toISOString() }).eq("habit_id", r.habit_id).eq("user_id", uid));
   };
 
   const mono = "'JetBrains Mono', monospace";
@@ -921,6 +941,8 @@ function NotificationDashboard({ signedIn }) {
             </div>
             <Toggle on={s.settings.muted} onClick={() => saveSettings({ muted: !s.settings.muted })} label={s.settings.muted ? "Unmute all notifications" : "Mute all notifications"} />
           </div>
+
+          {saveErr && <div role="alert" style={{ marginTop: 8, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.04em", color: "#e07856" }}>{saveErr}</div>}
 
           {!s.settings.muted && (
             <div>
