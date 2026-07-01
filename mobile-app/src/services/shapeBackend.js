@@ -172,7 +172,16 @@ async function signIn({ email, password, role, captchaToken }) {
   let loginEmail = String(email || '').trim();
   if (loginEmail && !loginEmail.includes('@')) {
     let resolved = null;
-    try { const { data: r } = await supabase.rpc('get_email_for_username', { p_username: loginEmail.replace(/^@/, '') }); resolved = r || null; } catch (e) { resolved = undefined; }
+    // Resolve via the rate-limited server route (get_email_for_username is
+    // service-role-only now — no anon username->email enumeration).
+    try {
+      const rr = await fetch(`${apiBaseUrl}/api/auth/resolve-username`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginEmail.replace(/^@/, '') }),
+      });
+      resolved = rr.ok ? ((await rr.json().catch(() => ({}))).email ?? null) : undefined;
+    } catch (e) { resolved = undefined; }
     if (resolved === null) throw new Error('No account with that username — check the spelling or sign in with your email.');
     if (resolved) loginEmail = resolved;
   }
