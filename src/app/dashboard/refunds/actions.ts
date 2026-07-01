@@ -79,10 +79,12 @@ async function resolveTarget(
         subscription: data.stripe_subscription_id,
         limit: 100,
       });
-      const chosen =
-        invoices.data
-          .filter((inv) => (inv.created ?? 0) <= requestedAt)
-          .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0] ?? invoices.data[0];
+      const chosen = invoices.data
+        .filter((inv) => (inv.created ?? 0) <= requestedAt)
+        .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0];
+      // Fail closed: with no invoice at/before the request time we can't pick a
+      // target without risking a newer billing cycle's charge.
+      if (!chosen) return { error: 'no_invoice_at_request_time' };
       const chargeId = extractInvoiceChargeId(chosen);
       if (!chargeId) return { error: 'no_charge_on_invoice' };
       return { kind: 'subscription', chargeId, subscriptionId: data.stripe_subscription_id };
@@ -158,7 +160,10 @@ export async function approveRefund(formData: FormData): Promise<void> {
     redirect(`/dashboard/refunds?error=${encodeURIComponent(('stripe: ' + msg).slice(0, 300))}`);
   }
 
-  await admin
+  // The Stripe refund already succeeded; the row must reflect it. If this write
+  // fails the request stays `approved` and the webhook (pending-only) won't fix
+  // it, so surface the mismatch instead of reporting a clean success.
+  const { error: finalErr } = await admin
     .from('refund_requests')
     .update({ status: 'refunded', processed_at: new Date().toISOString() })
     .eq('id', requestId);
@@ -167,6 +172,7 @@ export async function approveRefund(formData: FormData): Promise<void> {
   }
 
   revalidatePath('/dashboard/refunds');
+  if (finalErr) redirect('/dashboard/refunds?error=refunded_but_status_update_failed');
   redirect('/dashboard/refunds?updated=refunded');
 }
 
