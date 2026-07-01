@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { readJson, dbError } from '@/lib/request-utils';
+import { feeSplit } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 
@@ -181,7 +182,11 @@ export async function POST(request: Request) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   const successPath = body.successPath || '/purchase/success';
   const cancelPath = body.cancelPath || '/newdesign/GetApp.html?checkout=cancelled';
-  const applicationFeeCents = Math.round(chargeCents * 0.15);
+  // Shape absorbs redeemed store credit: the coach is paid 85% of the GROSS
+  // price, so the fee is what's left after the coach's cut. If a credit exceeds
+  // Shape's 15%, the charge can't cover the coach's cut — the remainder
+  // (coachTopupCents) is topped up from Shape's balance in the webhook.
+  const { applicationFeeCents, coachTopupCents } = feeSplit(priceCents, chargeCents);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -214,6 +219,7 @@ export async function POST(request: Request) {
         kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
         item_name: String(itemName),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
+        ...(coachTopupCents > 0 ? { coach_topup_cents: String(coachTopupCents) } : {}),
         ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
       },
       ...(isSubscription

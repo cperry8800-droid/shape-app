@@ -9,6 +9,7 @@ import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { coachCutCents } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 
@@ -236,11 +237,43 @@ export async function POST(request: Request) {
             });
             if (creditErr) console.warn('[shape-app] store credit consume failed:', creditErr.message);
           }
-          // 85% of the gross lands with the coach after the 15% platform fee.
+          // Shape-absorbed store credit: when a credit exceeded Shape's 15%, the
+          // discounted charge couldn't cover the coach's full 85%-of-gross cut, so
+          // the checkout left the remainder as `coach_topup_cents`. Pay it now from
+          // Shape's balance as a separate transfer so the coach is made whole.
+          const coachTopupCents = Number(session.metadata?.coach_topup_cents ?? 0);
+          if (coachTopupCents > 0) {
+            try {
+              const provTable = providerRole === 'nutritionist' ? 'nutritionists' : 'trainers';
+              const { data: prov } = await admin
+                .from(provTable)
+                .select('stripe_account_id')
+                .eq('id', Number(providerId))
+                .maybeSingle();
+              const dest = (prov as { stripe_account_id?: string | null } | null)?.stripe_account_id;
+              if (dest) {
+                await stripe.transfers.create(
+                  {
+                    amount: coachTopupCents,
+                    currency: 'usd',
+                    destination: dest,
+                    metadata: { reason: 'store_credit_topup', session_id: session.id, client_id: clientId },
+                  },
+                  { idempotencyKey: `coach-topup-${session.id}` }
+                );
+              } else {
+                console.warn('[shape-app] coach top-up skipped — no connected account for provider', providerId);
+              }
+            } catch (err) {
+              console.warn('[shape-app] coach top-up transfer failed:', err instanceof Error ? err.message : err);
+            }
+          }
+          // The coach is paid 85% of the GROSS price (Shape absorbs any credit).
+          const grossCents = Number(session.metadata?.gross_price_cents ?? priceCents);
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,
             'Payment received',
-            `${usd(Math.round(priceCents * 0.85))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
+            `${usd(coachCutCents(grossCents))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
           );
           break;
         }
