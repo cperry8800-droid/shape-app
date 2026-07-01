@@ -34,10 +34,14 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const expires = new Date(now.getTime() + WAITLIST_INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const { error } = await admin.from('coach_waitlist')
+  const { data: updated, error } = await admin.from('coach_waitlist')
     .update({ status: 'invited', invited_at: now.toISOString(), invite_expires_at: expires.toISOString(), responded_at: null })
-    .eq('id', entryId);
+    .eq('id', entryId)
+    .in('status', ['waiting', 'declined'])
+    .select('id')
+    .maybeSingle();
   if (error) return NextResponse.json({ error: 'Could not send the invite.' }, { status: 500 });
+  if (!updated) return NextResponse.json({ error: 'This client cannot be invited in their current state.' }, { status: 409 });
 
   await createNotification(admin, {
     userId: entry.client_id, type: 'waitlist_invite',
