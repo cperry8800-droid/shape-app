@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { cleanText, readJson, dbError } from '@/lib/request-utils';
+import { unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 
 export const runtime = 'nodejs';
 
@@ -118,6 +119,33 @@ export async function POST(request: Request) {
   }
 
   if (clientAssignments.length > 0) {
+    // IDOR guard (AUTHZ-P2-program-idor): assign only to clients this coach
+    // ACTIVELY coaches in this discipline. Mirrors /api/trainer/workout; the
+    // 2026-06-30 INSERT RLS policy enforces the same at the DB for the direct path.
+    const { data: subs, error: subsError } = await supabase
+      .from('subscriptions')
+      .select('client_id')
+      .eq('provider_id', providerId)
+      .eq('provider_role', providerRole)
+      .in('status', ['active', 'trialing']);
+    if (subsError) {
+      return NextResponse.json(
+        { error: 'Could not verify client assignment scope. Please retry.' },
+        { status: 500 },
+      );
+    }
+    const activeClientIds = (subs ?? []).map((s) => String((s as { client_id: unknown }).client_id));
+    const rejected = unauthorizedAssignTargets(
+      clientAssignments.map((a) => a.client_id),
+      activeClientIds,
+    );
+    if (rejected.length) {
+      return NextResponse.json(
+        { error: 'You can only assign programs to your own active clients.' },
+        { status: 403 },
+      );
+    }
+
     const { error: assignmentError } = await supabase.from('coach_program_assignments').insert(
       clientAssignments.map((assignment) => ({
         program_template_id: data.id,
