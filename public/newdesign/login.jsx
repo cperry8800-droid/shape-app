@@ -209,7 +209,12 @@ function LoginCard() {
       const unameCandidate = loginEmail.charAt(0) === "@" ? loginEmail.slice(1) : (loginEmail.indexOf("@") === -1 ? loginEmail : null);
       if (unameCandidate) {
         let resolved;
-        try { const r = await sb.rpc("get_email_for_username", { p_username: unameCandidate }); resolved = r && r.data; } catch (err2) { resolved = undefined; }
+        // Resolve via the rate-limited server route (get_email_for_username is
+        // service-role-only now — no anon username->email enumeration).
+        try {
+          const rr = await fetch("/api/auth/resolve-username", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: unameCandidate }) });
+          resolved = rr.ok ? ((await rr.json().catch(() => ({}))).email ?? null) : undefined;
+        } catch (err2) { resolved = undefined; }
         if (resolved === null) { setErrMsg("No account with that username — check the spelling or sign in with your email."); setSubmitting(false); return; }
         if (resolved) loginEmail = resolved;
       }
