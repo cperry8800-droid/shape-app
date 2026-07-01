@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { readJson, dbError } from '@/lib/request-utils';
+import { feeSplit, maxCreditCents } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 
@@ -170,7 +171,12 @@ export async function POST(request: Request) {
       const { data: wallet } = await admin.rpc('get_store_credit_for', { p_user_id: user.id });
       const available = Number((wallet as Record<string, unknown> | null)?.[storeCreditKind] ?? 0);
       if (Number.isFinite(available) && available > 0) {
-        storeCreditApplied = Math.max(0, Math.min(Math.floor(available), priceCents - 50));
+        // Cap redemption at Shape's 15% cut so the charge always covers the
+        // coach's 85%-of-gross payout. Shape absorbs the credit out of its own
+        // fee (never out of pocket), and any excess credit stays in the wallet
+        // for next time — keeps the coach whole with no separate top-up transfer.
+        const maxRedeemable = Math.min(priceCents - 50, maxCreditCents(priceCents));
+        storeCreditApplied = Math.max(0, Math.min(Math.floor(available), maxRedeemable));
         chargeCents = priceCents - storeCreditApplied;
       }
     } catch {
@@ -181,7 +187,11 @@ export async function POST(request: Request) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
   const successPath = body.successPath || '/purchase/success';
   const cancelPath = body.cancelPath || '/newdesign/GetApp.html?checkout=cancelled';
-  const applicationFeeCents = Math.round(chargeCents * 0.15);
+  // Shape absorbs redeemed store credit: the coach is paid 85% of the GROSS
+  // price, so the fee is what's left of the (credit-capped) charge after the
+  // coach's cut. Because credit is capped at Shape's 15% above, the charge
+  // always covers the coach's cut — no out-of-pocket top-up is ever needed.
+  const { applicationFeeCents } = feeSplit(priceCents, chargeCents);
 
   try {
     const session = await stripe.checkout.sessions.create({

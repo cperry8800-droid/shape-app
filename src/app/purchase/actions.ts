@@ -10,11 +10,10 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
+import { feeSplit } from '@/lib/platform-fee';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
-
-const APPLICATION_FEE_BASIS_POINTS = 1500; // 15.00%
 
 export async function startOneTimeCheckout(formData: FormData): Promise<void> {
   const providerRole = String(formData.get('provider_role') ?? '') as ProviderRole;
@@ -114,7 +113,9 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     : `${provider.name} — ${label}`;
 
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-  const applicationFeeCents = Math.floor((priceCents * APPLICATION_FEE_BASIS_POINTS) / 10000);
+  // No store credit on this path, so the charge equals the gross price — Shape
+  // keeps 15%, the coach gets 85% (shared fee helper; see src/lib/platform-fee).
+  const { applicationFeeCents } = feeSplit(priceCents);
 
   let session;
   try {

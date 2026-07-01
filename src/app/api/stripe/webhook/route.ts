@@ -9,6 +9,7 @@ import type Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
+import { coachCutCents } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 
@@ -236,11 +237,13 @@ export async function POST(request: Request) {
             });
             if (creditErr) console.warn('[shape-app] store credit consume failed:', creditErr.message);
           }
-          // 85% of the gross lands with the coach after the 15% platform fee.
+          // The coach is paid 85% of the GROSS price (Shape absorbs any credit,
+          // capped at its 15% cut so the charge always covers the coach's cut).
+          const grossCents = Number(session.metadata?.gross_price_cents ?? priceCents);
           await notifyProviderOwner(
             admin, Number(providerId), providerRole,
             'Payment received',
-            `${usd(Math.round(priceCents * 0.85))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
+            `${usd(coachCutCents(grossCents))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
           );
           break;
         }
