@@ -569,7 +569,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'P1 store credit-minting (#1475): redeem_store_item/order trusted client cost/credit; new store_catalogue table makes pricing server-authoritative. Migration APPLIED + verified (19 rows)', status: 'done' },
         { label: 'P1 fulfillment-PII + 4x P2 (#1474): revoked admin_list_store_fulfillment / admin_mark_store_fulfilled / consume_store_credit from anon+authenticated; anon-reject on set_metric_source / set_program_detail. APPLIED + verified (anon=f/authd=f/svc=t)', status: 'done' },
         { label: 'P2 OAuth open-redirect + console/program write-IDOR + claim-jack (#1471/#1472/#1473/#1476): safeReturnPath guard; route gates + RLS splits (is_discipline_coach_on_client INSERT); claim_provider_row -> service-role. Merged; migrations APPLIED + verified', status: 'done' },
-        { label: 'P2 email-enumeration (#1481, in PR): get_email_for_username revoked to service_role; username login -> rate-limited POST /api/auth/resolve-username. Login-path: staging test + apply migration WITH the deploy', status: 'pending' },
+        { label: 'P2 email-enumeration (#1481): get_email_for_username revoked to service_role; username login -> rate-limited POST /api/auth/resolve-username (login.jsx + shapeBackend.js). Merged; migration APPLIED + verified live (anon=f/authd=f/svc=t)', status: 'done' },
         { label: 'Dependabot swept: #1477/#1478 (Actions) + #1479 (mobile deps) merged; #1480 (web deps: stripe 22.3, @supabase/ssr 0.12) tsc-compat fixed + merged', status: 'done' },
       ],
     },
