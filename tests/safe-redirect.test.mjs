@@ -17,6 +17,9 @@ test('rejects open-redirect vectors -> fallback', () => {
     'http://evil.com',
     '//evil.com',
     '/\\evil.com',
+    '/\n/evil.com', // control chars: URL parser strips them -> off-origin
+    '/\r/evil.com',
+    '/\t/evil.com',
     'javascript:alert(1)',
     'evil.com',
     '',

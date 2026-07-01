@@ -16,8 +16,9 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_RETURN_TO = '/newdesign/GetApp.html';
 
 function redirectBack(origin: string, returnTo: string, status: 'ok' | 'error', provider: string, message?: string) {
-  // Defense-in-depth: never redirect off-origin even if a stale/crafted cookie slips through.
-  const url = new URL(safeReturnPath(returnTo), origin);
+  // Defense-in-depth: never redirect off-origin even if a stale/crafted cookie
+  // slips through; a bad value falls back to the documented default, not "/".
+  const url = new URL(safeReturnPath(returnTo, DEFAULT_RETURN_TO), origin);
   url.searchParams.set('integration', provider);
   url.searchParams.set('status', status);
   if (message) url.searchParams.set('message', message);
