@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { readJson, dbError } from '@/lib/request-utils';
-import { feeSplit } from '@/lib/platform-fee';
+import { feeSplit, maxCreditCents } from '@/lib/platform-fee';
 
 export const runtime = 'nodejs';
 
@@ -175,7 +175,7 @@ export async function POST(request: Request) {
         // coach's 85%-of-gross payout. Shape absorbs the credit out of its own
         // fee (never out of pocket), and any excess credit stays in the wallet
         // for next time — keeps the coach whole with no separate top-up transfer.
-        const maxRedeemable = Math.min(priceCents - 50, Math.floor(priceCents * 0.15));
+        const maxRedeemable = Math.min(priceCents - 50, maxCreditCents(priceCents));
         storeCreditApplied = Math.max(0, Math.min(Math.floor(available), maxRedeemable));
         chargeCents = priceCents - storeCreditApplied;
       }

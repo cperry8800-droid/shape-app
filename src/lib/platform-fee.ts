@@ -26,6 +26,18 @@ export function coachCutCents(grossCents: number): number {
 }
 
 /**
+ * The most store credit that can be applied to a coach purchase while still
+ * leaving the charge ≥ the coach's cut — i.e. Shape's fee fully absorbs the
+ * credit and no out-of-pocket top-up is ever needed. Derived from the same
+ * `coachCutCents` as the split, so it tracks `PLATFORM_FEE_RATE` and can't drift
+ * from a hardcoded percentage.
+ */
+export function maxCreditCents(grossCents: number): number {
+  const gross = assertCents(grossCents, 'grossCents');
+  return gross - coachCutCents(gross);
+}
+
+/**
  * Split a charge into Shape's application fee and any coach top-up.
  *
  * @param grossCents  the full list price (what the coach is paid 85% of)
