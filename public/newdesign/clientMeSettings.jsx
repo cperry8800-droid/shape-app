@@ -431,18 +431,20 @@ function ClientMeSettings() {
         </Card>
 
         <Card>
-          <SectionTitle>Privacy &amp; notifications</SectionTitle>
+          <SectionTitle>Privacy</SectionTitle>
           <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
           <Row label="Show when I'm online" value={onlineVisible ? "On" : "Off"} action="TOGGLE" onAction={toggleOnlineVisible} />
           <Row label="Share data with coaches" value={p.shareDataWithCoaches || "—"} action="CHANGE" onAction={() => openField("shareDataWithCoaches", "Share data with coaches")} />
           <Row label="Community posts" value={p.communityPosts ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("communityPosts")} />
-          <Row label="Coach messages" value={p.coachMessages || "—"} action="CHANGE" onAction={() => openField("coachMessages", "Coach messages")} />
-          <Row label="Weekly digest" value={p.weeklyDigest || "—"} action="CHANGE" onAction={() => openField("weeklyDigest", "Weekly digest")} />
           <Row label="Marketing emails" value={p.marketingEmails ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("marketingEmails")} />
         </Card>
       </div>
 
       <HealthProfileCard />
+
+      <ReminderCard signedIn={signedIn} />
+
+      <NotificationDashboard signedIn={signedIn} />
 
       <Card style={{ marginTop: 20 }}>
         <SectionTitle>Social &amp; links</SectionTitle>
@@ -657,6 +659,324 @@ function HealthProfileCard() {
         <button onClick={save} disabled={!screenComplete || busy} style={{ background: screenComplete ? "#0ac5a8" : "rgba(242,237,228,0.12)", color: screenComplete ? "#1a1612" : "rgba(242,237,228,0.45)", border: 0, padding: "12px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: screenComplete ? "pointer" : "default" }}>{busy ? "Saving…" : "Save health profile"}</button>
       </div>
       {note && <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</div>}
+    </Card>
+  );
+}
+// ── REMINDERS — website parity with the mobile BSReminderManager. Members set
+// their own nudges (weigh-in / check-in / water / photo / custom) with a time +
+// days-of-week; the hourly tz-aware cron fires them via the notifications→push
+// spine. CRUD hits /api/client/reminders (cookie session — no ShapeReminders
+// helper on web). Signed-out shows an honest empty state (never fake reminders).
+const REM_KINDS = [["weigh_in", "Weigh-in"], ["checkin", "Weekly check-in"], ["water", "Water"], ["photo", "Progress photo"], ["custom", "Custom"]];
+const REM_DOW = [["Sun", 0], ["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6]];
+function remKindLabel(k) { const f = REM_KINDS.find(x => x[0] === k); return f ? f[1] : "Reminder"; }
+function remDaysLabel(days) { if (days && days.length === 7) return "Every day"; return (days || []).slice().sort((a, b) => a - b).map(d => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(" "); }
+function remFmt12(hhmm) { const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || ""); if (!m) return hhmm || ""; let h = parseInt(m[1], 10); const ap = h < 12 ? "AM" : "PM"; h = h % 12; if (h === 0) h = 12; return h + ":" + m[2] + " " + ap; }
+function remTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } }
+
+function ReminderCard({ signedIn }) {
+  const [reminders, setReminders] = React.useState(null); // null = loading
+  const [editing, setEditing] = React.useState(null);     // draft { id?, kind, label, atTime, days, enabled } | null
+  const [busy, setBusy] = React.useState(false);
+  const [note, setNote] = React.useState("");
+
+  const load = React.useCallback(() => {
+    if (!signedIn) { setReminders([]); return; }
+    fetch("/api/client/reminders", { credentials: "same-origin", cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setReminders(Array.isArray(d && d.reminders) ? d.reminders : []))
+      .catch(() => setReminders([]));
+  }, [signedIn]);
+  React.useEffect(() => { load(); }, [load]);
+
+  const saveDraft = async () => {
+    const d = editing;
+    if (!d || !(d.days || []).length || busy) return;
+    setBusy(true); setNote("");
+    try {
+      // POST body uses camelCase atTime (GET/rows return at_time). id absent → insert.
+      const res = await fetch("/api/client/reminders", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: d.id, kind: d.kind, label: d.label, atTime: d.atTime, days: d.days, enabled: d.enabled !== false, tz: remTz() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || "Could not save the reminder.");
+      setEditing(null); setNote("Saved."); load();
+    } catch (e) { setNote(e.message || "Could not save the reminder."); }
+    finally { setBusy(false); }
+  };
+
+  const toggleEnabled = async (r) => {
+    const next = !r.enabled;
+    setReminders(list => (list || []).map(x => (x.id === r.id ? { ...x, enabled: next } : x)));
+    try {
+      // re-save the row with the flipped flag (map the row's at_time → atTime for the write path).
+      await fetch("/api/client/reminders", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, kind: r.kind, label: r.label, atTime: r.at_time, days: r.days, enabled: next, tz: remTz() }),
+      });
+    } catch (e) {}
+    load();
+  };
+
+  const del = async (r) => {
+    let ok;
+    const opts = { title: "Delete this reminder?", name: r.label || remKindLabel(r.kind), message: "This removes the scheduled nudge.", confirmLabel: "Delete reminder" };
+    if (window.ShapeConfirm && window.ShapeConfirm.open) ok = await window.ShapeConfirm.open(opts);
+    else ok = window.confirm("Delete this reminder?");
+    if (!ok) return;
+    setReminders(list => (list || []).filter(x => x.id !== r.id));
+    try { await fetch("/api/client/reminders?id=" + encodeURIComponent(r.id), { method: "DELETE", credentials: "same-origin" }); } catch (e) {}
+    load();
+  };
+
+  const startAdd = () => setEditing({ kind: "weigh_in", label: "", atTime: "09:00", days: [1, 2, 3, 4, 5], enabled: true });
+  const startEdit = (r) => setEditing({ id: r.id, kind: r.kind, label: r.label || "", atTime: r.at_time, days: r.days || [], enabled: r.enabled });
+
+  const mono = "'JetBrains Mono', monospace";
+  const chip = (on, square) => ({ padding: square ? "8px 0" : "6px 12px", borderRadius: square ? 8 : 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? TEAL_BRIGHT + "22" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
+  const fieldStyle = { width: "100%", boxSizing: "border-box", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5, outline: "none" };
+  const eyebrow = { fontFamily: mono, fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
+  const actionChip = { fontSize: 11.5, color: TEAL_BRIGHT, fontFamily: mono, letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 6px", borderRadius: 6 };
+  const muted = { fontSize: 13, color: "rgba(242,237,228,0.5)", padding: "8px 0" };
+
+  const list = reminders;
+  return (
+    <Card style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <SectionTitle>Your reminders</SectionTitle>
+        {signedIn && !editing && (
+          <button onClick={startAdd} style={actionChip} onMouseOver={e => e.currentTarget.style.background = "rgba(46,224,196,0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>＋ ADD</button>
+        )}
+      </div>
+      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.6, margin: "6px 0 14px" }}>
+        Nudges to weigh in, check in, hydrate, or anything else — delivered at your set time on the days you choose.
+      </div>
+
+      {list === null ? (
+        <div style={muted}>Loading…</div>
+      ) : !signedIn ? (
+        <div style={muted}>Sign in to set up reminders that nudge you to weigh in, check in, hydrate, or anything else.</div>
+      ) : (list.length === 0 && !editing) ? (
+        <div style={muted}>No reminders yet — add one to nudge yourself.</div>
+      ) : (
+        <div>
+          {list.map(r => (
+            <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(242,237,228,0.06)", opacity: r.enabled ? 1 : 0.5 }}>
+              <div>
+                <div style={{ fontSize: 13.5, color: INK }}>{r.label || remKindLabel(r.kind)}</div>
+                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{remFmt12(r.at_time)} · {remDaysLabel(r.days)}</div>
+              </div>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <button type="button" onClick={() => toggleEnabled(r)} aria-label={(r.enabled ? "Disable" : "Enable") + " reminder"} style={{ ...chip(r.enabled), padding: "5px 10px" }}>{r.enabled ? "On" : "Off"}</button>
+                <button type="button" onClick={() => startEdit(r)} style={actionChip}>EDIT</button>
+                <button type="button" onClick={() => del(r)} aria-label="Delete reminder" style={{ ...actionChip, color: "#e07856" }}>DELETE</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing && (
+        <div style={{ marginTop: 14, padding: 16, borderRadius: 12, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.03)" }}>
+          <div style={eyebrow}>{editing.id ? "Edit · reminder" : "New · reminder"}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+            {REM_KINDS.map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setEditing(d => ({ ...d, kind: k }))} style={chip(editing.kind === k)}>{l}</button>
+            ))}
+          </div>
+          {editing.kind === "custom" && (
+            <input value={editing.label || ""} maxLength={80} onChange={e => setEditing(d => ({ ...d, label: e.target.value }))} placeholder="What should we remind you?" aria-label="Custom reminder label" style={{ ...fieldStyle, marginBottom: 12 }} />
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 14, alignItems: "start" }}>
+            <div>
+              <div style={eyebrow}>Time</div>
+              <input type="time" value={editing.atTime} onChange={e => setEditing(d => ({ ...d, atTime: e.target.value }))} aria-label="Reminder time" style={{ ...fieldStyle, colorScheme: "dark" }} />
+            </div>
+            <div>
+              <div style={eyebrow}>Days</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
+                {REM_DOW.map(([l, idx]) => {
+                  const on = (editing.days || []).includes(idx);
+                  return <button key={idx} type="button" aria-label={["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][idx] + (on ? " (on)" : " (off)")} onClick={() => setEditing(d => { const set = new Set(d.days || []); if (set.has(idx)) set.delete(idx); else set.add(idx); return { ...d, days: Array.from(set).sort((a, b) => a - b) }; })} style={chip(on, true)}>{l}</button>;
+                })}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+            <button onClick={() => setEditing(null)} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button disabled={!(editing.days || []).length || busy} onClick={saveDraft} style={{ background: INK, color: PAPER, border: 0, padding: "9px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: (!(editing.days || []).length || busy) ? "default" : "pointer", opacity: (!(editing.days || []).length || busy) ? 0.5 : 1 }}>{busy ? "Saving…" : "Save reminder"}</button>
+          </div>
+        </div>
+      )}
+
+      {note && <div style={{ marginTop: 10, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</div>}
+    </Card>
+  );
+}
+// ── NOTIFICATIONS DASHBOARD — website parity with the mobile BSNotifyPrefs.
+// Wires to the REAL notification-center backend (notification_settings +
+// notification_preferences + habit_reminders) via the get_notification_center()
+// RPC + RLS-scoped upserts through window.shapeDb.client — the SAME tables
+// src/lib/ai/notify-core.ts reads to decide what/when/how to notify. No new API
+// route or migration (those tables are already live). notification_preferences
+// stores only OVERRIDES; a missing (type,channel) row uses NP_DEF_CH.
+const NP_HOURS = Array.from({ length: 24 }, (_, h) => ({ v: h, l: (h === 0 ? "12 AM" : h < 12 ? h + " AM" : h === 12 ? "12 PM" : (h - 12) + " PM") }));
+const NP_DEF_CH = { inapp: true, push: true, email: false };
+const NP_CHANNELS = [["inapp", "App"], ["push", "Push"], ["email", "Email"]];
+const NP_CAPS = [2, 3, 4, 6, 8];
+const NP_TYPES = [
+  ["directive", "Your move", "The one thing to do today"],
+  ["coach_message", "Coach messages", "When your coach writes"],
+  ["checkin_due", "Check-in reminders", "Your weekly check-in is ready"],
+  ["goal_slip", "Goal pace", "When your projected date slips"],
+  ["score_drop", "Score dips", "When your Shape Score drops"],
+  ["coach_cosign", "Co-signs", "When a coach co-signs your work"],
+  ["streak_broken", "Streak restarts", "A gentle nudge — never shaming"],
+  ["habit_reminder", "Habit reminders", "Set per-habit on the app's Habits page"],
+];
+
+function NotificationDashboard({ signedIn }) {
+  const [state, setState] = React.useState(null); // null = loading; { settings, matrix, reminders }
+  const [uid, setUid] = React.useState(null);
+  const empty = { settings: null, matrix: {}, reminders: [] };
+
+  const load = React.useCallback(async () => {
+    if (!signedIn || !(window.shapeDb && window.shapeDb.client)) { setState(empty); return; }
+    try {
+      const c = window.shapeDb.client;
+      const u = await c.auth.getUser();
+      setUid((u && u.data && u.data.user && u.data.user.id) || null);
+      const { data, error } = await c.rpc("get_notification_center");
+      if (error || !data) { setState(empty); return; }
+      const m = {};
+      (Array.isArray(data.prefs) ? data.prefs : []).forEach(p => { (m[p.type] = m[p.type] || {})[p.channel] = p.enabled; });
+      const s = data.settings || {};
+      setState({
+        settings: { muted: s.muted === true, quiet_start: Number.isFinite(s.quiet_start) ? s.quiet_start : 22, quiet_end: Number.isFinite(s.quiet_end) ? s.quiet_end : 7, daily_cap: Number.isFinite(s.daily_cap) ? s.daily_cap : 4 },
+        matrix: m,
+        reminders: Array.isArray(data.reminders) ? data.reminders : [],
+      });
+    } catch (e) { setState(empty); }
+  }, [signedIn]);
+  React.useEffect(() => { load(); }, [load]);
+
+  const tz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } };
+  const cli = () => (window.shapeDb && window.shapeDb.client) || null;
+
+  const saveSettings = (patch) => {
+    setState(st => (st ? { ...st, settings: { ...st.settings, ...patch } } : st));
+    const c = cli(); if (!uid || !c) return;
+    try { c.from("notification_settings").upsert({ user_id: uid, tz: tz(), updated_at: new Date().toISOString(), ...patch }, { onConflict: "user_id" }).then(() => {}, () => {}); } catch (e) {}
+  };
+  const chOn = (type, ch) => { const o = state && state.matrix[type]; return (o && o[ch] !== undefined) ? o[ch] : NP_DEF_CH[ch]; };
+  const toggleCh = (type, ch) => {
+    const next = !chOn(type, ch);
+    setState(st => (st ? { ...st, matrix: { ...st.matrix, [type]: { ...(st.matrix[type] || {}), [ch]: next } } } : st));
+    const c = cli(); if (!uid || !c) return;
+    try { c.from("notification_preferences").upsert({ user_id: uid, type, channel: ch, enabled: next, updated_at: new Date().toISOString() }, { onConflict: "user_id,type,channel" }).then(() => {}, () => {}); } catch (e) {}
+  };
+  const toggleHabit = (r) => {
+    const next = !r.enabled;
+    setState(st => (st ? { ...st, reminders: st.reminders.map(x => (x.habit_id === r.habit_id ? { ...x, enabled: next } : x)) } : st));
+    const c = cli(); if (!uid || !c) return;
+    try { c.from("habit_reminders").update({ enabled: next, updated_at: new Date().toISOString() }).eq("habit_id", r.habit_id).eq("user_id", uid).then(() => {}, () => {}); } catch (e) {}
+  };
+
+  const mono = "'JetBrains Mono', monospace";
+  const muted = { fontSize: 13, color: "rgba(242,237,228,0.5)", padding: "8px 0" };
+  const head = { marginTop: 18, marginBottom: 4, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
+  const rowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 0", borderTop: "1px solid rgba(242,237,228,0.06)" };
+  const lblStyle = { fontSize: 13.5, color: INK };
+  const subStyle = { fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 };
+  const sel = { background: "transparent", color: TEAL_BRIGHT, border: "1px solid rgba(242,237,228,0.25)", borderRadius: 999, padding: "6px 10px", fontFamily: mono, fontSize: 11, fontWeight: 700, cursor: "pointer" };
+  const chip = (on) => ({ width: 52, padding: "6px 0", borderRadius: 8, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? TEAL_BRIGHT + "22" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
+  const Toggle = ({ on, onClick, label }) => (
+    <button type="button" onClick={onClick} aria-label={label} style={{ width: 46, height: 27, borderRadius: 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.25)"), background: on ? TEAL_BRIGHT : "transparent", position: "relative", cursor: "pointer", flexShrink: 0 }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? "#100d0a" : "rgba(242,237,228,0.5)" }} />
+    </button>
+  );
+
+  const s = state;
+  return (
+    <Card style={{ marginTop: 20 }}>
+      <SectionTitle>Notifications</SectionTitle>
+      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.6, margin: "6px 0 8px" }}>
+        What reaches you, when, and how. Shape only notifies on a real event — never a guilt-trip.
+      </div>
+      {s === null ? (
+        <div style={muted}>Loading…</div>
+      ) : !signedIn ? (
+        <div style={muted}>Sign in to manage your notifications.</div>
+      ) : !s.settings ? (
+        <div style={muted}>Couldn't load your notification settings. Refresh to try again.</div>
+      ) : (
+        <div>
+          <div style={{ ...rowStyle, borderTop: 0 }}>
+            <div>
+              <div style={lblStyle}>Mute everything</div>
+              <div style={subStyle}>{s.settings.muted ? "All notifications paused" : "Real events only — never spam"}</div>
+            </div>
+            <Toggle on={s.settings.muted} onClick={() => saveSettings({ muted: !s.settings.muted })} label={s.settings.muted ? "Unmute all notifications" : "Mute all notifications"} />
+          </div>
+
+          {!s.settings.muted && (
+            <div>
+              <div style={head}>Quiet hours</div>
+              <div style={rowStyle}>
+                <div><div style={lblStyle}>From</div><div style={subStyle}>Held for a daily digest</div></div>
+                <select value={s.settings.quiet_start} onChange={e => saveSettings({ quiet_start: Number(e.target.value) })} aria-label="Quiet hours start" style={sel}>{NP_HOURS.map(h => <option key={h.v} value={h.v} style={{ color: "#000" }}>{h.l}</option>)}</select>
+              </div>
+              <div style={rowStyle}>
+                <div><div style={lblStyle}>To</div><div style={subStyle}>Uses your time zone</div></div>
+                <select value={s.settings.quiet_end} onChange={e => saveSettings({ quiet_end: Number(e.target.value) })} aria-label="Quiet hours end" style={sel}>{NP_HOURS.map(h => <option key={h.v} value={h.v} style={{ color: "#000" }}>{h.l}</option>)}</select>
+              </div>
+              <div style={rowStyle}>
+                <div><div style={lblStyle}>Daily limit</div><div style={subStyle}>Extra items batch into a digest</div></div>
+                <select value={s.settings.daily_cap} onChange={e => saveSettings({ daily_cap: Number(e.target.value) })} aria-label="Daily notification limit" style={sel}>{NP_CAPS.map(n => <option key={n} value={n} style={{ color: "#000" }}>{n}/day</option>)}</select>
+              </div>
+
+              <div style={head}>What you hear about · per channel</div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "0 0 6px" }}>
+                {NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 52, textAlign: "center", fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{l}</span>)}
+              </div>
+              {NP_TYPES.map(([type, label, sub]) => (
+                <div key={type} style={rowStyle}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={lblStyle}>{label}</div>
+                    <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 1 }}>{sub}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {NP_CHANNELS.map(([k, l]) => <button key={k} type="button" onClick={() => toggleCh(type, k)} aria-label={label + " · " + l + " · " + (chOn(type, k) ? "on" : "off")} style={chip(chOn(type, k))}>{l}</button>)}
+                  </div>
+                </div>
+              ))}
+
+              {s.reminders.length > 0 && (
+                <div>
+                  <div style={head}>Habit reminders</div>
+                  {s.reminders.map(r => (
+                    <div key={r.habit_id} style={{ ...rowStyle, opacity: r.enabled ? 1 : 0.5 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={lblStyle}>{r.label || "Habit"}</div>
+                        <div style={subStyle}>{remFmt12(r.at_time)} · {remDaysLabel(r.days)}</div>
+                      </div>
+                      <Toggle on={r.enabled} onClick={() => toggleHabit(r)} label={(r.enabled ? "Disable" : "Enable") + " habit reminder"} />
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 8, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.04em", color: "rgba(242,237,228,0.45)" }}>Set the time + days on each habit in the app's Habits page.</div>
+                </div>
+              )}
+
+              <div style={{ marginTop: 14, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.6 }}>
+                Push also needs your device's system permission. Each notification deep-links you in — nothing changes your data.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
