@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const providerRole = (String(parsed.data.providerRole ?? '').toLowerCase() === 'nutritionist'
     ? 'nutritionist' : 'trainer') as ProviderRole;
   const note = String(parsed.data.note ?? '').trim().slice(0, 500) || null;
-  if (!providerId || !Number.isFinite(providerId)) {
+  if (!Number.isInteger(providerId) || providerId <= 0) {
     return NextResponse.json({ error: 'Invalid coach.' }, { status: 400 });
   }
 
