@@ -62,6 +62,74 @@ function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
   return typeof ref === 'string' ? ref : ref.id ?? null;
 }
 
+// Safety-net for refunds issued directly in the Stripe dashboard: a refund on a
+// Connect destination charge only makes the platform whole if reverse_transfer +
+// refund_application_fee were set. When they weren't, Shape eats the coach's 85%.
+// This reconciles a refunded destination charge to the "both flags" outcome by
+// topping up the transfer reversal + application-fee refund to the amount
+// proportional to what was refunded. Idempotent (a refund already issued with the
+// flags leaves nothing to top up); platform ($5) charges have no transfer/fee and
+// are skipped. Best-effort — never throws.
+async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
+  const chargeAmount = charge.amount ?? 0;
+  const refundedAmount = charge.amount_refunded ?? 0;
+  if (chargeAmount <= 0 || refundedAmount <= 0) return;
+
+  const ref = charge as unknown as {
+    transfer?: string | { id?: string } | null;
+    application_fee?: string | { id?: string } | null;
+  };
+  const transferId = typeof ref.transfer === 'string' ? ref.transfer : ref.transfer?.id ?? null;
+  const feeId = typeof ref.application_fee === 'string' ? ref.application_fee : ref.application_fee?.id ?? null;
+
+  // Reverse the coach transfer, proportional to the refunded amount.
+  if (transferId) {
+    try {
+      const transfer = await stripe.transfers.retrieve(transferId);
+      const target = Math.round((transfer.amount * refundedAmount) / chargeAmount);
+      const toReverse = target - (transfer.amount_reversed ?? 0);
+      if (toReverse > 0) {
+        await stripe.transfers.createReversal(
+          transferId,
+          {
+            amount: toReverse,
+            description: `Auto-reversal reconciling refund on charge ${charge.id}`,
+          },
+          // Keyed on the cumulative refunded amount so retried/concurrent
+          // deliveries dedupe, while a later additional refund gets a new key.
+          { idempotencyKey: `refund-reversal-${charge.id}-${refundedAmount}` }
+        );
+      }
+    } catch (err) {
+      console.warn(
+        '[shape-app] transfer reversal reconcile failed:',
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+
+  // Return the application fee to the coach, proportional to the refunded amount.
+  if (feeId) {
+    try {
+      const fee = await stripe.applicationFees.retrieve(feeId);
+      const target = Math.round((fee.amount * refundedAmount) / chargeAmount);
+      const toRefund = target - (fee.amount_refunded ?? 0);
+      if (toRefund > 0) {
+        await stripe.applicationFees.createRefund(
+          feeId,
+          { amount: toRefund },
+          { idempotencyKey: `refund-appfee-${charge.id}-${refundedAmount}` }
+        );
+      }
+    } catch (err) {
+      console.warn(
+        '[shape-app] application fee refund reconcile failed:',
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+}
+
 async function upsertPlatformSubscription(
   admin: ReturnType<typeof createAdminClient>,
   row: {
@@ -273,6 +341,10 @@ export async function POST(request: Request) {
         // Flip the matching one_time_purchase row and any pending refund
         // request to 'refunded'.
         const charge = event.data.object as Stripe.Charge;
+        // Ensure the coach transfer + platform fee are unwound even if the refund
+        // was issued in the Stripe dashboard without reverse_transfer /
+        // refund_application_fee (idempotent; no-op for the in-app refund path).
+        await reconcileConnectRefund(charge);
         const pi = typeof charge.payment_intent === 'string'
           ? charge.payment_intent
           : charge.payment_intent?.id ?? null;
