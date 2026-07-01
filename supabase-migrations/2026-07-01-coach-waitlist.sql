@@ -51,9 +51,11 @@ create policy "clients read own waitlist" on public.coach_waitlist
   using (auth.uid() = client_id);
 
 -- INSERT: a client may only enqueue THEMSELVES, only as 'waiting', and only
--- into a REAL coach room — the EXISTS check stops a direct Supabase write from
--- inserting into an arbitrary or nonexistent provider_id (RLS is authoritative,
--- so it verifies the target coach row rather than trusting the API route).
+-- into a REAL coach room that is ACTUALLY at capacity — the EXISTS check mirrors
+-- isEffectivelyAtCapacity (at_capacity true AND no/future resume date), so a
+-- direct Supabase write can't insert into an arbitrary/nonexistent provider_id
+-- OR queue for a coach who is currently accepting clients (RLS is authoritative,
+-- enforcing the same gate the API route applies rather than trusting the route).
 drop policy if exists "clients join own waitlist" on public.coach_waitlist;
 create policy "clients join own waitlist" on public.coach_waitlist
   for insert
@@ -62,9 +64,13 @@ create policy "clients join own waitlist" on public.coach_waitlist
     auth.uid() = client_id and status = 'waiting'
     and (
       (provider_role = 'trainer' and exists (
-        select 1 from public.trainers t where t.id = provider_id))
+        select 1 from public.trainers t
+        where t.id = provider_id and t.at_capacity is true
+          and (t.capacity_resume_at is null or t.capacity_resume_at > now())))
       or (provider_role = 'nutritionist' and exists (
-        select 1 from public.nutritionists n where n.id = provider_id))
+        select 1 from public.nutritionists n
+        where n.id = provider_id and n.at_capacity is true
+          and (n.capacity_resume_at is null or n.capacity_resume_at > now())))
     )
   );
 
