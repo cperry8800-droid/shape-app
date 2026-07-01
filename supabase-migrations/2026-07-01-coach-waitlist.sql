@@ -50,26 +50,44 @@ create policy "clients read own waitlist" on public.coach_waitlist
   to authenticated
   using (auth.uid() = client_id);
 
--- INSERT: a client may only enqueue THEMSELVES, and only as 'waiting'.
+-- INSERT: a client may only enqueue THEMSELVES, only as 'waiting', and only
+-- into a REAL coach room — the EXISTS check stops a direct Supabase write from
+-- inserting into an arbitrary or nonexistent provider_id (RLS is authoritative,
+-- so it verifies the target coach row rather than trusting the API route).
 drop policy if exists "clients join own waitlist" on public.coach_waitlist;
 create policy "clients join own waitlist" on public.coach_waitlist
   for insert
   to authenticated
-  with check (auth.uid() = client_id and status = 'waiting');
+  with check (
+    auth.uid() = client_id and status = 'waiting'
+    and (
+      (provider_role = 'trainer' and exists (
+        select 1 from public.trainers t where t.id = provider_id))
+      or (provider_role = 'nutritionist' and exists (
+        select 1 from public.nutritionists n where n.id = provider_id))
+    )
+  );
 
 -- UPDATE: a client may move only their OWN row, and only FROM an active state
--- (waiting|invited) TO a state they're allowed to reach (withdraw → left/declined;
--- re-activate an expired invite → waiting). The USING clause pins the OLD status
--- to the active set so a terminal/booked row can NEVER be flipped back to
--- 'waiting' (which would re-queue at the frozen created_at or un-book a paid
--- spot); WITH CHECK blocks self-granting 'invited'/'booked'; the trigger below
--- freezes the position/identity columns so this can't be used to jump the queue.
+-- (waiting|invited). The USING clause pins the OLD status to the active set so a
+-- terminal/booked row can NEVER be flipped back to 'waiting'. WITH CHECK bounds
+-- the NEW state: withdraw → left/declined; 'waiting' is allowed ONLY for a fresh
+-- row (invite_expires_at null) or the re-activation of an EXPIRED invite — a LIVE
+-- invite can't be reverted to 'waiting' (which would hold the slot without
+-- accepting/declining and block the next member). WITH CHECK sees the trigger-
+-- preserved invite_expires_at, and the trigger freezes the identity/position
+-- columns so this can't jump the queue or self-grant 'invited'/'booked'.
 drop policy if exists "clients update own waitlist" on public.coach_waitlist;
 create policy "clients update own waitlist" on public.coach_waitlist
   for update
   to authenticated
   using (auth.uid() = client_id and status in ('waiting','invited'))
-  with check (auth.uid() = client_id and status in ('waiting','left','declined'));
+  with check (
+    auth.uid() = client_id and (
+      status in ('left','declined')
+      or (status = 'waiting' and (invite_expires_at is null or invite_expires_at <= now()))
+    )
+  );
 
 -- Guard immutable/position-defining columns. RLS WITH CHECK cannot reference the
 -- OLD row, so the client UPDATE policy alone can't stop a client from rewriting
@@ -134,7 +152,7 @@ as $$
       w.invited_at, w.invite_expires_at, w.created_at, w.client_id,
       row_number() over (
         partition by w.provider_role, w.provider_id
-        order by w.created_at asc
+        order by w.created_at asc, w.id asc
       )::integer as queue_position
     from public.coach_waitlist w
     where w.status = 'waiting'
@@ -144,7 +162,7 @@ as $$
          invited_at, invite_expires_at, created_at, queue_position
   from active_ranked
   where client_id = auth.uid()
-  order by created_at asc;
+  order by created_at asc, id asc;
 $$;
 
 -- ── RPC: coach room roster (ownership-checked) ───────────────────────────────
@@ -190,7 +208,7 @@ begin
   return query
   with active_ranked as (
     select w.id,
-      row_number() over (order by w.created_at asc)::integer as queue_position
+      row_number() over (order by w.created_at asc, w.id asc)::integer as queue_position
     from public.coach_waitlist w
     where w.provider_role = p_role and w.provider_id = p_provider_id
       and (w.status = 'waiting' or (w.status = 'invited' and w.invite_expires_at > now()))
@@ -202,7 +220,7 @@ begin
   left join public.profiles p on p.id = w.client_id
   left join active_ranked ar on ar.id = w.id
   where w.provider_role = p_role and w.provider_id = p_provider_id
-  order by w.created_at asc;
+  order by w.created_at asc, w.id asc;
 end;
 $$;
 

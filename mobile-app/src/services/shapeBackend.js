@@ -3516,7 +3516,10 @@ async function waitlistWithdraw(entryId) {
 }
 async function waitlistRoom({ providerId, providerRole } = {}) {
   if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
-  const q = new URLSearchParams({ providerId: String(providerId), providerRole }).toString();
+  // Normalize to the physical provider discipline so the query never sends
+  // `providerRole=undefined` (dietitian → nutritionist; unknown → server 400).
+  const role = providerDiscipline(normalizeRole(providerRole));
+  const q = new URLSearchParams({ providerId: String(providerId), providerRole: role }).toString();
   try {
     const res = await fetch(`${apiBaseUrl}/api/waitlist/room?${q}`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
     if (!res.ok) return { entries: [] };

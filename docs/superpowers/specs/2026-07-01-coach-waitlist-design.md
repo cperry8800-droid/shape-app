@@ -38,10 +38,17 @@ capacity" to the general public.
 ## Architecture (Approach A)
 
 One new table + a small set of Next.js API routes reused by both the mobile
-broadsheet (via the `shapeBackend` bridge) and the website. Reads/writes go
-through the API (service role, explicit auth checks); RLS on the table is
-restrictive as defense-in-depth. This matches the existing Stripe-route /
-`createNotification` / `isEffectivelyAtCapacity` patterns.
+broadsheet (via the `shapeBackend` bridge) and the website. **RLS is the
+authoritative gate** (per the repo policy): user-initiated actions run on the
+**caller-scoped** Supabase client under own-row policies (SELECT/INSERT/UPDATE,
+plus a `guard_cols` trigger that freezes the identity/position columns), and
+cross-user reads/writes (FIFO position, the coach room roster, invites) go
+through **`SECURITY DEFINER` RPCs** (`get_my_waitlists`, `get_coach_waitroom`,
+`invite_from_waitlist`) that verify `auth.uid()` ownership internally — the same
+pattern as `get_roster_weekend_split` / `get_client_stats`. The service-role /
+admin client is reserved for **system-only writes** (the coach/invite
+notifications and the Stripe-webhook `booked` flip), matching the existing
+`createNotification` / webhook patterns.
 
 ### 1. Data model — `public.coach_waitlist` (new migration)
 

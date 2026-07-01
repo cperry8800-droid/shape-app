@@ -68,12 +68,13 @@ export async function POST(request: Request) {
       // expiry in the UPDATE so a coach who just re-invited (fresh future expiry)
       // in a concurrent request isn't clobbered back to 'waiting'; only count it
       // as new/notify when a row actually changed.
-      const { data: reactivated } = await supabase
+      const { data: reactivated, error: reErr } = await supabase
         .from('coach_waitlist')
         .update({ status: 'waiting', note })
         .eq('id', existing.id).eq('client_id', user.id)
         .eq('status', 'invited').lt('invite_expires_at', new Date().toISOString())
         .select('id').maybeSingle();
+      if (reErr) return NextResponse.json({ error: 'Could not join the waitlist.' }, { status: 500 });
       isNew = Boolean(reactivated);
     }
     // else: already waiting or holding a live invite — dedup, no change.
@@ -107,7 +108,8 @@ export async function POST(request: Request) {
 
   // Position + entry id from the auth.uid()-scoped RPC (a client can't read peer
   // rows under RLS, so FIFO position is computed there).
-  const { data: mineRows } = await supabase.rpc('get_my_waitlists');
+  const { data: mineRows, error: mineErr } = await supabase.rpc('get_my_waitlists');
+  if (mineErr) return NextResponse.json({ error: 'Could not confirm your waitlist spot.' }, { status: 500 });
   const mine = ((mineRows as MyEntry[] | null) ?? []).find(
     (r) => r.provider_role === providerRole && Number(r.provider_id) === providerId
   );

@@ -19,6 +19,10 @@ export {
 export type WaitlistStatus = 'waiting' | 'invited' | 'booked' | 'declined' | 'left';
 export type ProviderRole = 'trainer' | 'nutritionist';
 
+// Canonical UUID (8-4-4-4-12) — reject malformed entry ids before querying.
+export const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type RequestUser = { id: string; email: string | null };
 
 // Resolve the caller AND a caller-scoped (RLS-enforced) Supabase client from a

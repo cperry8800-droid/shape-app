@@ -397,7 +397,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // Jump to the marketplace from anywhere (e.g. the Pricing page's "Browse all
   // coaches"). Settings is a full-screen takeover, so close it first.
   React.useEffect(() => {
-    const open = () => { setShowSettings(false); setSettingsStart(''); goMarket(); };
+    // Honor the dispatcher's detail.role (e.g. a waitlist-invite notification, or
+    // the Pricing "browse coaches" link) so the marketplace opens pre-filtered.
+    const open = (e) => { setShowSettings(false); setSettingsStart(''); goMarket(e?.detail?.role); };
     window.addEventListener('shape:openMarket', open);
     return () => window.removeEventListener('shape:openMarket', open);
   }, []);

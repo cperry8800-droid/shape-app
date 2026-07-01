@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson } from '@/lib/request-utils';
-import { resolveRequestClient } from '@/lib/waitlist';
+import { resolveRequestClient, UUID_RE } from '@/lib/waitlist';
 
 export const runtime = 'nodejs';
 
@@ -22,8 +22,8 @@ export async function POST(request: Request) {
   const parsed = await readJson<{ entryId?: string }>(request, { allowEmpty: false });
   if (!parsed.ok) return parsed.response;
   const entryId = String(parsed.data.entryId ?? '');
-  if (!/^[0-9a-f-]{36}$/i.test(entryId)) {
-    return NextResponse.json({ error: 'Missing entry.' }, { status: 400 });
+  if (!UUID_RE.test(entryId)) {
+    return NextResponse.json({ error: 'Invalid entry.' }, { status: 400 });
   }
 
   // Ownership check, invitability check, and the atomic flip all run inside the
@@ -43,14 +43,21 @@ export async function POST(request: Request) {
   const result = ((data as InviteResult[] | null) ?? [])[0];
   if (!result) return NextResponse.json({ error: 'Could not send the invite.' }, { status: 500 });
 
-  // Notify the invited client (write targets another user → system client).
-  const admin = createAdminClient();
-  await createNotification(admin, {
-    userId: result.client_id, type: 'waitlist_invite',
-    title: `${result.provider_name ?? 'Your coach'} has room for you`,
-    body: 'Tap to book before this coach reopens to everyone.',
-    route: `coach:${result.provider_role}:${result.provider_id}`,
-    data: { providerRole: result.provider_role, providerId: result.provider_id, entryId },
-  });
+  // Notify the invited client (write targets another user → system client). The
+  // invite IS already committed by the RPC, so a notification failure is
+  // best-effort (logged, non-fatal) — matching the rest of the notify pipeline —
+  // rather than 500-ing after the state change.
+  try {
+    const admin = createAdminClient();
+    await createNotification(admin, {
+      userId: result.client_id, type: 'waitlist_invite',
+      title: `${result.provider_name ?? 'Your coach'} has room for you`,
+      body: 'Tap to book before this coach reopens to everyone.',
+      route: `coach:${result.provider_role}:${result.provider_id}`,
+      data: { providerRole: result.provider_role, providerId: result.provider_id, entryId },
+    });
+  } catch (e) {
+    console.error('[waitlist invite] notification failed', { entryId, error: e instanceof Error ? e.message : String(e) });
+  }
   return NextResponse.json({ ok: true, invite_expires_at: result.invite_expires_at });
 }
