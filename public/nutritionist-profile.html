@@ -374,6 +374,7 @@
         <button id="tpCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
         <button id="tpCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
       </div>
+      <div id="tpWaitroom" style="margin-top:14px;"></div>
     </div>
     <style>
       #tpCapacityToggle::before {
@@ -419,6 +420,49 @@
             renderWaitlistCTA(providerId, providerRole);
           };
         }
+      }
+    </script>
+    <script>
+      function tpEscapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      async function renderWaitroom(providerId, providerRole) {
+        var el = document.getElementById('tpWaitroom');
+        if (!el) return;
+        var session = await window.shapeDb.getSession();
+        var token = session && session.access_token;
+        if (!token) return;
+        function authFetch(url, opts) {
+          opts = opts || {}; opts.headers = Object.assign({ Authorization: 'Bearer ' + token }, opts.headers || {});
+          return fetch(url, opts);
+        }
+        var q = 'providerId=' + encodeURIComponent(providerId) + '&providerRole=' + encodeURIComponent(providerRole);
+        var data = await authFetch('/api/waitlist/room?' + q).then(function (r) { return r.json(); }).catch(function () { return { entries: [] }; });
+        var active = (data.entries || []).filter(function (e) { return e.position; });
+        var html = '<div style="font-weight:600;margin-bottom:6px;">Waiting room (' + active.length + ')</div>';
+        if (!active.length) {
+          html += '<div style="font-size:0.86rem;color:var(--text-muted);">No one waiting yet. When you\'re at capacity, clients can join here.</div>';
+          el.innerHTML = html; return;
+        }
+        (data.entries || []).forEach(function (e) {
+          if (!e.position && e.status !== 'invited') return;
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid rgba(255,255,255,0.08);">'
+            + '<div><div>' + (e.position ? '#' + e.position + ' &middot; ' : '') + tpEscapeHtml(e.clientName || 'Member') + '</div>'
+            + (e.note ? '<div style="font-size:0.8rem;color:var(--text-muted);">' + tpEscapeHtml(e.note) + '</div>' : '')
+            + '<div style="font-size:0.75rem;color:var(--text-muted);">' + (e.status === 'invited' ? 'Invited' : 'Waiting') + '</div></div>'
+            + (e.status === 'waiting' ? '<button class="btn btn-secondary" data-invite="' + tpEscapeHtml(e.id) + '">Invite</button>' : '')
+            + '</div>';
+        });
+        el.innerHTML = html;
+        Array.prototype.forEach.call(el.querySelectorAll('[data-invite]'), function (btn) {
+          btn.onclick = async function () {
+            var r = await authFetch('/api/waitlist/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entryId: btn.getAttribute('data-invite') }) }).then(function (x) { return x.json(); });
+            if (r.error) { alert(r.error); return; }
+            renderWaitroom(providerId, providerRole);
+          };
+        });
       }
     </script>
     <script>
@@ -472,6 +516,7 @@
             if (notice) notice.style.display = 'none';
             if (ctas) ctas.style.display = 'none';
             setupOwnerToggle(id, row.at_capacity, resume);
+            renderWaitroom(id, 'nutritionist');
           } catch (e) { /* leave CTAs visible on error */ }
         });
 
