@@ -89,10 +89,16 @@ async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
       const target = Math.round((transfer.amount * refundedAmount) / chargeAmount);
       const toReverse = target - (transfer.amount_reversed ?? 0);
       if (toReverse > 0) {
-        await stripe.transfers.createReversal(transferId, {
-          amount: toReverse,
-          description: `Auto-reversal reconciling refund on charge ${charge.id}`,
-        });
+        await stripe.transfers.createReversal(
+          transferId,
+          {
+            amount: toReverse,
+            description: `Auto-reversal reconciling refund on charge ${charge.id}`,
+          },
+          // Keyed on the cumulative refunded amount so retried/concurrent
+          // deliveries dedupe, while a later additional refund gets a new key.
+          { idempotencyKey: `refund-reversal-${charge.id}-${refundedAmount}` }
+        );
       }
     } catch (err) {
       console.warn(
@@ -109,7 +115,11 @@ async function reconcileConnectRefund(charge: Stripe.Charge): Promise<void> {
       const target = Math.round((fee.amount * refundedAmount) / chargeAmount);
       const toRefund = target - (fee.amount_refunded ?? 0);
       if (toRefund > 0) {
-        await stripe.applicationFees.createRefund(feeId, { amount: toRefund });
+        await stripe.applicationFees.createRefund(
+          feeId,
+          { amount: toRefund },
+          { idempotencyKey: `refund-appfee-${charge.id}-${refundedAmount}` }
+        );
       }
     } catch (err) {
       console.warn(

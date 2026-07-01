@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getAdminEmails, requireAdminUser } from '@/lib/admin-access';
+import { requireAdminUser } from '@/lib/admin-access';
 import { approveRefund, denyRefund } from './actions';
 
 export const metadata = { title: 'Refunds - Shape' };
@@ -162,7 +162,6 @@ export default async function RefundsPage({
               Coach subscriptions are also canceled on refund.
             </p>
           </div>
-          <div className="text-xs text-neutral-500 max-w-sm">Admin emails: {getAdminEmails().join(', ')}</div>
         </div>
       </section>
 
@@ -249,7 +248,7 @@ function RefundCard({ row, target, email }: { row: RefundRow; target: TargetInfo
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
           <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500">Coach transfer reversed</div>
-          <div className="text-neutral-200 mt-1 tabular-nums">−{usd(transferCents)}</div>
+          <div className="text-neutral-200 mt-1 tabular-nums">{transferCents != null ? `−${usd(transferCents)}` : '—'}</div>
         </div>
         <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 p-3">
           <div className="text-[11px] uppercase tracking-[0.14em] text-neutral-500">15% fee returned to coach</div>
@@ -288,12 +287,14 @@ function RefundCard({ row, target, email }: { row: RefundRow; target: TargetInfo
           </label>
           <div className="flex gap-2 flex-wrap">
             <button
+              type="submit"
               formAction={approveRefund}
               className="rounded-full border border-teal-400 bg-teal-400 text-neutral-950 px-4 py-2 text-sm hover:bg-teal-300 transition-colors"
             >
               Approve + refund (reverse payout)
             </button>
             <button
+              type="submit"
               formAction={denyRefund}
               className="rounded-full border border-red-400/60 text-red-200 px-4 py-2 text-sm hover:bg-red-400 hover:text-neutral-950 transition-colors"
             >
