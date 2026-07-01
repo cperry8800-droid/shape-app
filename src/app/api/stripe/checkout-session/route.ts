@@ -171,7 +171,12 @@ export async function POST(request: Request) {
       const { data: wallet } = await admin.rpc('get_store_credit_for', { p_user_id: user.id });
       const available = Number((wallet as Record<string, unknown> | null)?.[storeCreditKind] ?? 0);
       if (Number.isFinite(available) && available > 0) {
-        storeCreditApplied = Math.max(0, Math.min(Math.floor(available), priceCents - 50));
+        // Cap redemption at Shape's 15% cut so the charge always covers the
+        // coach's 85%-of-gross payout. Shape absorbs the credit out of its own
+        // fee (never out of pocket), and any excess credit stays in the wallet
+        // for next time — keeps the coach whole with no separate top-up transfer.
+        const maxRedeemable = Math.min(priceCents - 50, Math.floor(priceCents * 0.15));
+        storeCreditApplied = Math.max(0, Math.min(Math.floor(available), maxRedeemable));
         chargeCents = priceCents - storeCreditApplied;
       }
     } catch {
@@ -183,10 +188,10 @@ export async function POST(request: Request) {
   const successPath = body.successPath || '/purchase/success';
   const cancelPath = body.cancelPath || '/newdesign/GetApp.html?checkout=cancelled';
   // Shape absorbs redeemed store credit: the coach is paid 85% of the GROSS
-  // price, so the fee is what's left after the coach's cut. If a credit exceeds
-  // Shape's 15%, the charge can't cover the coach's cut — the remainder
-  // (coachTopupCents) is topped up from Shape's balance in the webhook.
-  const { applicationFeeCents, coachTopupCents } = feeSplit(priceCents, chargeCents);
+  // price, so the fee is what's left of the (credit-capped) charge after the
+  // coach's cut. Because credit is capped at Shape's 15% above, the charge
+  // always covers the coach's cut — no out-of-pocket top-up is ever needed.
+  const { applicationFeeCents } = feeSplit(priceCents, chargeCents);
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -219,7 +224,6 @@ export async function POST(request: Request) {
         kind: isSubscription ? 'subscription' : providerRole === 'nutritionist' ? 'meal_plan' : 'booking',
         item_name: String(itemName),
         ...(storeCreditApplied > 0 ? { store_credit_kind: String(storeCreditKind), store_credit_cents: String(storeCreditApplied) } : {}),
-        ...(coachTopupCents > 0 ? { coach_topup_cents: String(coachTopupCents) } : {}),
         ...(body.item && (body.item as { planId?: unknown }).planId ? { plan_id: String((body.item as { planId?: unknown }).planId) } : {}),
       },
       ...(isSubscription
