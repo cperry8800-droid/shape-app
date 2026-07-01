@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const providerId = Number(url.searchParams.get('providerId') ?? 0);
   const providerRole = (String(url.searchParams.get('providerRole') ?? '').toLowerCase() === 'nutritionist'
     ? 'nutritionist' : 'trainer') as ProviderRole;
-  if (!providerId) return NextResponse.json({ error: 'Invalid coach.' }, { status: 400 });
+  if (!Number.isInteger(providerId) || providerId <= 0) return NextResponse.json({ error: 'Invalid coach.' }, { status: 400 });
 
   const admin = createAdminClient();
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
@@ -21,11 +21,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Not your waiting room.' }, { status: 403 });
   }
 
-  const { data: rows } = await admin
+  const { data: rows, error: roomErr } = await admin
     .from('coach_waitlist')
     .select('id, client_id, note, status, created_at, invited_at, invite_expires_at')
     .eq('provider_role', providerRole).eq('provider_id', providerId)
     .order('created_at', { ascending: true });
+  if (roomErr) return NextResponse.json({ error: 'Could not load the waiting room.' }, { status: 500 });
   const positions = computePositions(rows ?? []);
 
   // Resolve client display names (best-effort).
