@@ -3481,6 +3481,59 @@ window.ShapeBookings = {
   setCapacity: setProviderCapacity,
 };
 
+// ─── Coach waiting list (join / mine / withdraw / room / invite) ─────────────
+async function waitlistJoin({ providerId, providerRole, note } = {}) {
+  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in to join the waiting list.');
+  const res = await fetch(`${apiBaseUrl}/api/waitlist/join`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ providerId, providerRole, note: note || undefined }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Could not join the waiting list.');
+  return json; // { position, status }
+}
+async function waitlistMine() {
+  if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
+  const res = await fetch(`${apiBaseUrl}/api/waitlist/mine`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+  return res.ok ? res.json() : { entries: [] };
+}
+async function waitlistWithdraw(entryId) {
+  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in first.');
+  const res = await fetch(`${apiBaseUrl}/api/waitlist/withdraw`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entryId }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Could not update the waiting list.');
+  return json;
+}
+async function waitlistRoom({ providerId, providerRole } = {}) {
+  if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
+  const q = new URLSearchParams({ providerId: String(providerId), providerRole }).toString();
+  const res = await fetch(`${apiBaseUrl}/api/waitlist/room?${q}`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+  return res.ok ? res.json() : { entries: [] };
+}
+async function waitlistInvite(entryId) {
+  if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in first.');
+  const res = await fetch(`${apiBaseUrl}/api/waitlist/invite`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${state.session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entryId }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || 'Could not send the invite.');
+  return json;
+}
+window.ShapeWaitlist = {
+  join: waitlistJoin,
+  mine: waitlistMine,
+  withdraw: waitlistWithdraw,
+  room: waitlistRoom,
+  invite: waitlistInvite,
+};
+
 window.ShapeSessions = {
   createSessionRequest,
   listSessions,
