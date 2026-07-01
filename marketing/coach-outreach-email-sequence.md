@@ -30,7 +30,7 @@
 >
 > Quick one. You're capped by the hours you can stand on the gym floor — and you probably lose clients the moment they travel or move.
 >
-> Shape is a marketplace of vetted trainers where **you set your own rates and get paid directly** — we don't take a cut of your coaching fees. The app loads each client's plan the night before (sets, tempo, cues), so your in-person clients keep training with you between sessions, and new ones can find you in the marketplace.
+> Shape is a marketplace of vetted trainers where **you set your own rates and keep 85%** — Shape's commission is a flat 15%, and only when a client pays you (no monthly software fee). The app loads each client's plan the night before (sets, tempo, cues), so your in-person clients keep training with you between sessions, and new ones can find you in the marketplace.
 >
 > No spreadsheets to rebuild. No bundles or seat math. Just your coaching, in one place.
 >
@@ -54,7 +54,7 @@
 > - **A real human in the loop — you.** Not a chatbot. The data comes to you; you rewrite the plan weekly.
 > - **You're vetted and listed** alongside real pros, not buried in an open directory.
 >
-> Clients cover the $5/mo platform fee themselves, so bringing your current roster over costs you nothing.
+> Members cover their own $5/mo, and there's no software or setup fee to bring your current roster over — Shape's flat 15% applies only when you get paid.
 >
 > **→ Apply to coach on Shape**
 >
@@ -108,7 +108,7 @@
 >
 > Quick one. Your meal plans probably live in PDFs and email — and you never really see whether clients stick to them.
 >
-> Shape is a marketplace of vetted nutritionists where **you set your own rates and get paid directly** — no cut of your fees. You build the macro plan, and the client's ledger **ticks live as they log** — today's deficit moves as they eat, with travel and rest-day swaps already built in.
+> Shape is a marketplace of vetted nutritionists where **you set your own rates and keep 85%** — Shape's commission is a flat 15%, only when a client pays you. You build the macro plan, and the client's ledger **ticks live as they log** — today's deficit moves as they eat, with travel and rest-day swaps already built in.
 >
 > So you coach off real adherence data instead of guessing.
 >
@@ -129,8 +129,8 @@
 >
 > - **Macro plans you set, logged live.** The deficit updates as the client eats; swaps for travel and rest days are built in.
 > - **One weekly number.** Shape Score (sleep, stress, training) sits next to nutrition, so you adjust before progress stalls.
-> - **You're vetted and listed** as a real pro, paid directly at your own rate.
-> - **Clients cover the $5/mo platform fee** — bringing your current clients over costs you nothing.
+> - **You're vetted and listed** as a real pro, at your own rate — you keep 85%.
+> - **Members cover their own $5/mo** — no software or setup fee to bring your current clients over; Shape's flat 15% applies only when you get paid.
 >
 > **→ Apply to coach on Shape**
 >
