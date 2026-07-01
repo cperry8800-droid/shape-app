@@ -47,7 +47,7 @@ const DASH_TODAY_ROLES = {
     expandSchedule: true,   // expandable schedule rows w/ context + actions (step 4.1)
     programmingQueue: true, // who needs next week's plan (step 4.2)
     mockName: "Maya",
-    date: dashTodayDate(), // real current date (was a hardcoded roadmap-1.2 placeholder)
+    date: dashTodayDate, // lazy (called per render like greeting) so it stays fresh across a long-lived tab; was a hardcoded roadmap-1.2 placeholder
     greeting: (n) => "Good morning, " + n + ".",
     primaryCta: ["+ Program", "TrainerPrograms.html"],
     secondaryCta: ["New session", "TrainerClients.html"],
@@ -117,7 +117,7 @@ const DASH_TODAY_ROLES = {
     programmingQueue: true, // plan drops due (feeds the "Plans due" stat)
     derivedKpis: true,      // true-Today stat bar from the data layer (step 5)
     mockName: "Rae",
-    date: dashTodayDate(),
+    date: dashTodayDate,
     greeting: (n) => "Good morning, " + n + ".",
     primaryCta: ["+ Meal plan", "NutritionistPlans.html"],
     secondaryCta: ["New consult", "NutritionistClients.html"],
@@ -798,7 +798,7 @@ function CoachDashboardPage({ role }) {
       role={role}
       gridWidgets={gridWidgets}
       userName={firstName}
-      date={cfg.date}
+      date={cfg.date()}
       greeting={cfg.greeting(firstName)}
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
