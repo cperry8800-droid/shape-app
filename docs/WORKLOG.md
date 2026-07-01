@@ -204,6 +204,25 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-01 — Profile activity feed shares the community dataset (#1490)
+- **Profile "Personal activities" now match the chat/community feed (#1490).** The mobile
+  profile feed was showing a different, hardcoded demo persona than the community/chat activity
+  feed. Hoisted `COMMUNITY_ACTIVITIES` from inside `BSClientFeed` to module scope so **one
+  shared dataset** backs both surfaces — every profile now renders ITS OWN owner's rich
+  `BSActivityCard`s (same stats/zones/trace/session-details as the community feed), never a
+  single frozen persona. Added rich per-owner entries (e.g. Quinn Harper PR/run/workout).
+- **Honest-data gating.** Signed-in profiles show only real published posts + the owner's own
+  logged activities; a real public profile (`feedAuthorId`/`sigFeedAuthorId` set) shows only
+  its real posts; only a signed-out demo/preview persona shows activities pulled from the
+  shared set (member → `role==='Client'`; coach → `Trainer`/`Nutritionist`, with the Tip/Win
+  field-notes as fallback when a coach has no shared entry).
+- **Tighter profile date gutter.** Reduced the oversized empty space between the date column
+  and the activity card (`gap 3→2`, `flex 30px→24px`, `paddingTop 12→10`, `fontSize 9→8.5`) on
+  both the member + coach profile feed rows.
+- Squash-merged to `main` (branch kept); CI green. CodeRabbit's 2 Major (demo leaking to real
+  profiles · coach not wired to the shared set) addressed in `16c2e6ac`; the re-review's
+  re-flags were stale anchors against the pre-fix diff (verified resolved in current source).
+
 ### 2026-07-01 — Coach Today real date (#1487) · War Room #1481 → done (#1488)
 - **Coach Today masthead shows the real date (#1487).** `dashToday.jsx` hardcoded the
   eyebrow to "WEDNESDAY APR 18" (a roadmap-1.2 placeholder), so every signed-in coach saw a
