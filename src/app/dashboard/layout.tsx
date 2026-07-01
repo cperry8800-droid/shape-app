@@ -44,6 +44,7 @@ export default async function DashboardLayout({
   // /dashboard, so the nav is just those.
   const tabs: { href: string; label: string; show: boolean }[] = [
     { href: '/dashboard/applications', label: 'Applications', show: isAdmin },
+    { href: '/dashboard/refunds', label: 'Refunds', show: isAdmin },
     { href: '/dashboard/claim', label: 'Claim profile', show: isAdmin },
   ];
 
