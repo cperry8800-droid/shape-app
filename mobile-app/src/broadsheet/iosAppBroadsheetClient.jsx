@@ -8661,7 +8661,11 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       return [...cards, ...realFeed.map((it, i) => itToCard({ ...it, _k: `it-${i}` }))];
     }
     if (signedIn) return cards;
-    const demo = COMMUNITY_ACTIVITIES.filter((x) => x.who === name).map((x, i) => ({ ...x, real: false, key: `demo-act-${i}` }));
+    // Signed-out: a REAL public profile (feedAuthorId set) shows only its real posts;
+    // only a demo/preview persona (no backing account) shows this persona's demo
+    // activities from the shared community set (restricted to member-role entries).
+    if (feedAuthorId) return cards;
+    const demo = COMMUNITY_ACTIVITIES.filter((x) => x.who === name && x.role === 'Client').map((x, i) => ({ ...x, real: false, key: `demo-act-${i}` }));
     return [...cards, ...demo];
   })();
   // Profile reaction handler — optimistic toggle + best-effort backend like via
@@ -9418,9 +9422,17 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   // member profile's `signedIn ? [] : feed` gating). Demo tuples are the signed-out
   // preview only. (The illustrative sub-data — disciplines/certs/offerings — stays
   // on `ownZero` own-profile zeroing; only this activity feed is fully gated.)
-  const coachDemoFeed = signedIn ? [] : feed;
+  // Signed-out preview: a REAL public coach profile (sigFeedAuthorId set) shows only
+  // its real posts; a demo/preview persona shows this coach's activities from the
+  // shared community set (same rich cards as the community feed), falling back to the
+  // Tip/Win field-notes only when the coach has no entry there. Signed-in → only real.
+  const coachShared = (!signedIn && !sigFeedAuthorId)
+    ? COMMUNITY_ACTIVITIES.filter((x) => x.who === name && (x.role === 'Trainer' || x.role === 'Nutritionist')).map((x, i) => ({ ...x, real: false, key: `demo-act-${i}` }))
+    : [];
+  const coachDemoFeed = (signedIn || sigFeedAuthorId || coachShared.length) ? [] : feed;
   const coachFeedEff = [
     ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
+    ...coachShared,
     ...coachDemoFeed.map(([k, t2, b, time], i) => tupleToCard(k, t2, b, time, i)),
   ];
   // Profile reaction handler — optimistic toggle + best-effort backend like via
