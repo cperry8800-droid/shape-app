@@ -13,7 +13,7 @@ type MyEntry = {
   provider_role: string;
   provider_id: number;
   status: string;
-  position: number | null;
+  queue_position: number | null;
 };
 
 export async function POST(request: Request) {
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   );
   return NextResponse.json({
     entryId: mine?.id ?? null,
-    position: mine?.position ?? 0,
+    position: mine?.queue_position ?? 0,
     status: mine?.status ?? 'waiting',
   });
 }

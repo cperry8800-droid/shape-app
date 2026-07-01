@@ -12,7 +12,7 @@ type MyEntry = {
   invited_at: string | null;
   invite_expires_at: string | null;
   created_at: string;
-  position: number | null;
+  queue_position: number | null;
 };
 
 export async function GET(request: Request) {
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     note: r.note,
     invited_at: r.invited_at,
     invite_expires_at: r.invite_expires_at,
-    position: r.position,
+    position: r.queue_position,
   }));
   return NextResponse.json({ entries });
 }

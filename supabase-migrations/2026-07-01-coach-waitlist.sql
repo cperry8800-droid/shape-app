@@ -122,7 +122,7 @@ returns table (
   invited_at timestamptz,
   invite_expires_at timestamptz,
   created_at timestamptz,
-  position integer
+  queue_position integer  -- "position" is a reserved word; aliased in the routes
 )
 language sql
 security definer
@@ -135,13 +135,13 @@ as $$
       row_number() over (
         partition by w.provider_role, w.provider_id
         order by w.created_at asc
-      )::integer as position
+      )::integer as queue_position
     from public.coach_waitlist w
     where w.status = 'waiting'
        or (w.status = 'invited' and w.invite_expires_at > now())
   )
   select id, provider_role, provider_id, status, note,
-         invited_at, invite_expires_at, created_at, position
+         invited_at, invite_expires_at, created_at, queue_position
   from active_ranked
   where client_id = auth.uid()
   order by created_at asc;
@@ -161,12 +161,13 @@ returns table (
   created_at timestamptz,
   invited_at timestamptz,
   invite_expires_at timestamptz,
-  position integer
+  queue_position integer  -- "position" is a reserved word; aliased in the routes
 )
 language plpgsql
 security definer
 set search_path = public
 as $$
+#variable_conflict use_column
 declare
   v_owns boolean := false;
 begin
@@ -189,14 +190,14 @@ begin
   return query
   with active_ranked as (
     select w.id,
-      row_number() over (order by w.created_at asc)::integer as position
+      row_number() over (order by w.created_at asc)::integer as queue_position
     from public.coach_waitlist w
     where w.provider_role = p_role and w.provider_id = p_provider_id
       and (w.status = 'waiting' or (w.status = 'invited' and w.invite_expires_at > now()))
   )
   select
     w.id, w.client_id, p.full_name, w.note, w.status,
-    w.created_at, w.invited_at, w.invite_expires_at, ar.position
+    w.created_at, w.invited_at, w.invite_expires_at, ar.queue_position
   from public.coach_waitlist w
   left join public.profiles p on p.id = w.client_id
   left join active_ranked ar on ar.id = w.id
@@ -222,6 +223,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+#variable_conflict use_column
 declare
   v_role text;
   v_pid bigint;

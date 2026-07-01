@@ -12,7 +12,7 @@ type RoomRow = {
   created_at: string;
   invited_at: string | null;
   invite_expires_at: string | null;
-  position: number | null;
+  queue_position: number | null;
 };
 
 export async function GET(request: Request) {
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     clientName: r.client_name,
     note: r.note,
     status: r.status,
-    position: r.position,
+    position: r.queue_position,
     created_at: r.created_at,
     invited_at: r.invited_at,
     invite_expires_at: r.invite_expires_at,
