@@ -19,12 +19,14 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
+import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 
 async function getProviderConnectInfo(
   providerRole: ProviderRole,
-  providerId: number
+  providerId: number,
+  allowAtCapacity = false
 ): Promise<
   | { priceId: string; priceCents: number; stripeAccountId: string }
   | { error: string }
@@ -43,7 +45,7 @@ async function getProviderConnectInfo(
 
   if (error) return { error: `db_${error.code ?? 'error'}: ${error.message}` };
   if (!provider) return { error: 'provider_not_found' };
-  if (isEffectivelyAtCapacity(provider)) return { error: 'provider_at_capacity' };
+  if (!allowAtCapacity && isEffectivelyAtCapacity(provider)) return { error: 'provider_at_capacity' };
   if (!provider.price || provider.price <= 0) return { error: 'price_not_set' };
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     return { error: 'stripe_not_onboarded' };
@@ -98,9 +100,19 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
   }
 
+  // First-dibs: a live waitlist invite lets an at-capacity coach be subscribed
+  // to. Invite lookup runs on the caller's RLS-scoped client, inside a try so a
+  // lookup/env failure fails the same retryable way as the rest of setup.
+  let allowAtCapacity = false;
+  try {
+    allowAtCapacity = await hasActiveWaitlistInvite(supabase, user.id, providerRole, providerId);
+  } catch {
+    redirect(`${backHref}&error=waitlist_check_failed`);
+  }
+
   let priceResult;
   try {
-    priceResult = await getProviderConnectInfo(providerRole, providerId);
+    priceResult = await getProviderConnectInfo(providerRole, providerId, allowAtCapacity);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     redirect(`${backHref}&error=${encodeURIComponent(`stripe_setup: ${msg}`.slice(0, 300))}`);

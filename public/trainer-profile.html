@@ -296,7 +296,8 @@
     </div>
     <!-- Shown instead of the CTAs when this trainer is at capacity -->
     <div id="tpAtCapacityNotice" style="display:none;margin:0 0 24px;padding:14px 16px;border:1px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.08);font-size:0.86rem;color:rgba(255,255,255,0.85);">
-      <strong style="color:#fca5a5;">Currently at capacity.</strong> This trainer isn't accepting new clients right now. Check back soon.
+      <span id="tpAtCapacityMsg"><strong style="color:#fca5a5;">Currently at capacity.</strong> This trainer isn't accepting new clients right now. Check back soon.</span>
+      <div id="tpWaitlist" style="margin-top:12px;"></div>
     </div>
 
     <!-- Owner-only: at-capacity / out-of-office toggle (hidden for visitors) -->
@@ -317,6 +318,7 @@
         <button id="tpCapacityResumeSave" type="button" class="btn btn-secondary" style="padding:8px 14px;font-size:0.78rem;">Save date</button>
         <button id="tpCapacityResumeClear" type="button" style="padding:8px 14px;font-size:0.78rem;background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.62);cursor:pointer;">Clear</button>
       </div>
+      <div id="tpWaitroom" style="margin-top:14px;"></div>
     </div>
     <style>
       #tpCapacityToggle::before {
@@ -327,6 +329,86 @@
       #tpCapacityToggle:checked { background: #ef4444 !important; }
       #tpCapacityToggle:checked::before { transform: translateX(18px); }
     </style>
+    <script>
+      async function renderWaitlistCTA(providerId, providerRole) {
+        var el = document.getElementById('tpWaitlist');
+        if (!el) return;
+        var session = await window.shapeDb.getSession();
+        var token = session && session.access_token;
+        if (!token) { el.innerHTML = '<a href="/login">Sign in to join the waiting list &rarr;</a>'; return; }
+        function authFetch(url, opts) {
+          opts = opts || {}; opts.headers = Object.assign({ Authorization: 'Bearer ' + token }, opts.headers || {});
+          return fetch(url, opts);
+        }
+        var mine = await authFetch('/api/waitlist/mine').then(function (r) { return r.json(); }).catch(function () { return { entries: [] }; });
+        var entry = (mine.entries || []).find(function (e) { return String(e.providerId) === String(providerId) && e.providerRole === providerRole; });
+        if (!entry) {
+          el.innerHTML = '<button id="wlJoin" class="btn btn-secondary">Join the waiting list</button>';
+          document.getElementById('wlJoin').onclick = async function () {
+            var r = await authFetch('/api/waitlist/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerId: providerId, providerRole: providerRole }) }).then(function (x) { return x.json(); });
+            if (r.error) { alert(r.error); return; }
+            renderWaitlistCTA(providerId, providerRole);
+          };
+        } else if (entry.status === 'invited') {
+          el.innerHTML = "<strong style='color:#86efac;'>You're invited &mdash; book before this coach reopens to everyone.</strong><div style='margin-top:8px;'><button id='wlBook' class='btn btn-primary'>Book now</button> <button id='wlDecline' class='btn btn-secondary'>Decline</button></div>";
+          // Reveal/enable the page's normal Subscribe/Book CTAs for this invited client:
+          document.getElementById('wlBook').onclick = function () { document.getElementById('tpSubscribeLink') && document.getElementById('tpSubscribeLink').click(); };
+          document.getElementById('wlDecline').onclick = async function () {
+            await authFetch('/api/waitlist/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entryId: entry.id }) });
+            renderWaitlistCTA(providerId, providerRole);
+          };
+        } else {
+          el.innerHTML = "<div>You're #" + entry.position + " in line.</div><button id='wlLeave' class='btn btn-secondary' style='margin-top:8px;'>Leave the list</button>";
+          document.getElementById('wlLeave').onclick = async function () {
+            await authFetch('/api/waitlist/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entryId: entry.id }) });
+            renderWaitlistCTA(providerId, providerRole);
+          };
+        }
+      }
+    </script>
+    <script>
+      function tpEscapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      async function renderWaitroom(providerId, providerRole) {
+        var el = document.getElementById('tpWaitroom');
+        if (!el) return;
+        var session = await window.shapeDb.getSession();
+        var token = session && session.access_token;
+        if (!token) return;
+        function authFetch(url, opts) {
+          opts = opts || {}; opts.headers = Object.assign({ Authorization: 'Bearer ' + token }, opts.headers || {});
+          return fetch(url, opts);
+        }
+        var q = 'providerId=' + encodeURIComponent(providerId) + '&providerRole=' + encodeURIComponent(providerRole);
+        var data = await authFetch('/api/waitlist/room?' + q).then(function (r) { return r.json(); }).catch(function () { return { entries: [] }; });
+        var active = (data.entries || []).filter(function (e) { return e.position; });
+        var html = '<div style="font-weight:600;margin-bottom:6px;">Waiting room (' + active.length + ')</div>';
+        if (!active.length) {
+          html += '<div style="font-size:0.86rem;color:var(--text-muted);">No one waiting yet. When you\'re at capacity, clients can join here.</div>';
+          el.innerHTML = html; return;
+        }
+        (data.entries || []).forEach(function (e) {
+          if (!e.position && e.status !== 'invited') return;
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid rgba(255,255,255,0.08);">'
+            + '<div><div>' + (e.position ? '#' + e.position + ' &middot; ' : '') + tpEscapeHtml(e.clientName || 'Member') + '</div>'
+            + (e.note ? '<div style="font-size:0.8rem;color:var(--text-muted);">' + tpEscapeHtml(e.note) + '</div>' : '')
+            + '<div style="font-size:0.75rem;color:var(--text-muted);">' + (e.status === 'invited' ? 'Invited' : 'Waiting') + '</div></div>'
+            + (e.status === 'waiting' ? '<button class="btn btn-secondary" data-invite="' + tpEscapeHtml(e.id) + '">Invite</button>' : '')
+            + '</div>';
+        });
+        el.innerHTML = html;
+        Array.prototype.forEach.call(el.querySelectorAll('[data-invite]'), function (btn) {
+          btn.onclick = async function () {
+            var r = await authFetch('/api/waitlist/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entryId: btn.getAttribute('data-invite') }) }).then(function (x) { return x.json(); });
+            if (r.error) { alert(r.error); return; }
+            renderWaitroom(providerId, providerRole);
+          };
+        });
+      }
+    </script>
     <script>
       (function () {
         var params = new URLSearchParams(window.location.search);
@@ -358,25 +440,31 @@
             var resume = row.capacity_resume_at;
             // Lazy cleanup: if resume date is past, treat as off everywhere.
             var effective = row.at_capacity && (!resume || new Date(resume).getTime() > Date.now());
-            if (effective) {
+            // Fetch session once up front so it can gate both the public
+            // notice/waitlist CTA (non-owner) and the owner toggle below.
+            var session = await window.shapeDb.getSession();
+            var isOwner = !!(session && session.user.id === row.owner_id);
+            if (effective && !isOwner) {
               if (ctas) ctas.style.display = 'none';
               if (notice) {
-                if (resume) {
+                var msgEl = document.getElementById('tpAtCapacityMsg');
+                if (resume && msgEl) {
                   var nice = new Date(resume).toLocaleDateString();
-                  notice.innerHTML = '<strong style="color:#fca5a5;">Currently at capacity.</strong> This trainer is accepting new clients again on ' + nice + '.';
+                  msgEl.innerHTML = '<strong style="color:#fca5a5;">Currently at capacity.</strong> This trainer is accepting new clients again on ' + nice + '.';
                 }
                 notice.style.display = 'block';
               }
+              renderWaitlistCTA(id, 'trainer');
             }
 
             // Show owner-only toggle if signed-in user owns this trainer row.
-            var session = await window.shapeDb.getSession();
-            if (!session || session.user.id !== row.owner_id) return;
+            if (!isOwner) return;
             // Owner should never see the public "at capacity" notice; they
             // see the editable toggle card instead.
             if (notice) notice.style.display = 'none';
             if (ctas) ctas.style.display = 'none';
             setupOwnerToggle(id, row.at_capacity, resume);
+            renderWaitroom(id, 'trainer');
           } catch (e) { /* leave CTAs visible on error */ }
         });
 
