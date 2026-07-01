@@ -8,6 +8,7 @@ import { cookies } from 'next/headers';
 import { getProvider, getClientCredentials, type ProviderId } from '@/lib/integrations/providers';
 import { callbackUrl } from '@/lib/integrations/oauth';
 import { storeTokens } from '@/lib/integrations/tokens';
+import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,9 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_RETURN_TO = '/newdesign/GetApp.html';
 
 function redirectBack(origin: string, returnTo: string, status: 'ok' | 'error', provider: string, message?: string) {
-  const url = new URL(returnTo, origin);
+  // Defense-in-depth: never redirect off-origin even if a stale/crafted cookie
+  // slips through; a bad value falls back to the documented default, not "/".
+  const url = new URL(safeReturnPath(returnTo, DEFAULT_RETURN_TO), origin);
   url.searchParams.set('integration', provider);
   url.searchParams.set('status', status);
   if (message) url.searchParams.set('message', message);

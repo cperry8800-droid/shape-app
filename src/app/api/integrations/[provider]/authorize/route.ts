@@ -13,6 +13,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { getProvider, getClientCredentials, type ProviderId } from '@/lib/integrations/providers';
 import { pkcePair, randomToken } from '@/lib/integrations/oauth';
+import { safeReturnPath } from '@/lib/safe-redirect.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ export async function GET(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
+    const returnTo = safeReturnPath(new URL(request.url).searchParams.get('return'), DEFAULT_RETURN_TO);
     const loginUrl = new URL(DEFAULT_LOGIN_ROUTE, new URL(request.url).origin);
     loginUrl.searchParams.set('return', returnTo);
     loginUrl.searchParams.set('integration', cfg.id);
@@ -51,7 +52,7 @@ export async function GET(
   }
 
   const state = randomToken(24);
-  const returnTo = new URL(request.url).searchParams.get('return') ?? DEFAULT_RETURN_TO;
+  const returnTo = safeReturnPath(new URL(request.url).searchParams.get('return'), DEFAULT_RETURN_TO);
   const redirectUri = `${new URL(request.url).origin}/api/integrations/${cfg.id}/callback`;
 
   const params = new URLSearchParams({
