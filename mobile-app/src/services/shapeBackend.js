@@ -3495,8 +3495,13 @@ async function waitlistJoin({ providerId, providerRole, note } = {}) {
 }
 async function waitlistMine() {
   if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
-  const res = await fetch(`${apiBaseUrl}/api/waitlist/mine`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
-  return res.ok ? res.json() : { entries: [] };
+  // Reads degrade to a soft empty state on ANY failure (offline/CORS/malformed
+  // JSON), not just non-OK HTTP — callers render "no waitlists" instead of throwing.
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/waitlist/mine`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+    if (!res.ok) return { entries: [] };
+    return await res.json().catch(() => ({ entries: [] }));
+  } catch { return { entries: [] }; }
 }
 async function waitlistWithdraw(entryId) {
   if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in first.');
@@ -3512,8 +3517,11 @@ async function waitlistWithdraw(entryId) {
 async function waitlistRoom({ providerId, providerRole } = {}) {
   if (!apiBaseUrl || !state.session?.access_token) return { entries: [] };
   const q = new URLSearchParams({ providerId: String(providerId), providerRole }).toString();
-  const res = await fetch(`${apiBaseUrl}/api/waitlist/room?${q}`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
-  return res.ok ? res.json() : { entries: [] };
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/waitlist/room?${q}`, { headers: { Authorization: `Bearer ${state.session.access_token}` } });
+    if (!res.ok) return { entries: [] };
+    return await res.json().catch(() => ({ entries: [] }));
+  } catch { return { entries: [] }; }
 }
 async function waitlistInvite(entryId) {
   if (!apiBaseUrl || !state.session?.access_token) throw new Error('Sign in first.');

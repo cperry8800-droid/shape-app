@@ -19917,7 +19917,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSSessionsScreen onBack={() => setShowSessions(false)} />;
   }
   if (showNotifications) {
-    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => { if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); } }} />;
+    return <BSNotifications onBack={() => setShowNotifications(false)} onRoute={(route) => {
+      if (route === 'sessions') { setShowNotifications(false); setShowSessions(true); return; }
+      // Waitlist invite ("coach:<role>:<id>") → open the marketplace on that role
+      // so the invited client can find the coach and book (first-dibs applies).
+      if (typeof route === 'string' && route.startsWith('coach:')) {
+        setShowNotifications(false);
+        const parts = route.split(':');
+        try { window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: parts[1] || null } })); } catch (e) {}
+      }
+    }} />;
   }
   if (showNotifyPrefs) {
     return <BSNotifyPrefs onBack={() => setShowNotifyPrefs(false)} role={tweaks.role} />;

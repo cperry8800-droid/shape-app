@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
-import { hasActiveWaitlistInvite } from '@/lib/waitlist';
+import { hasActiveWaitlistInvite, resolveRequestClient } from '@/lib/waitlist';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents } from '@/lib/platform-fee';
 
@@ -44,26 +42,6 @@ type ProviderRow = {
   capacity_resume_at: string | null;
 };
 
-async function resolveUser(request: Request): Promise<{ id: string; email: string | null } | null> {
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (bearerMatch) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
-    if (!url || !anonKey) return null;
-    const token = bearerMatch[1];
-    const client = createSupabaseClient(url, anonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data } = await client.auth.getUser(token);
-    return data.user ? { id: data.user.id, email: data.user.email ?? null } : null;
-  }
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user ? { id: data.user.id, email: data.user.email ?? null } : null;
-}
-
 function providerRoleFrom(input?: string): ProviderRole | null {
   const clean = String(input || '').toLowerCase();
   if (clean.includes('nutrition')) return 'nutritionist';
@@ -84,8 +62,9 @@ function priceCentsFrom(value: unknown): number {
 }
 
 export async function POST(request: Request) {
-  const user = await resolveUser(request);
-  if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const auth = await resolveRequestClient(request);
+  if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const { user, supabase: caller } = auth;
 
   let body: CheckoutBody = {};
   const bodyResult = await readJson<CheckoutBody>(request, { allowEmpty: true });
@@ -115,11 +94,22 @@ export async function POST(request: Request) {
 
   if (error) return dbError(error, 'checkout credit lookup', 500);
   if (!provider) return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
-  if (
-    isEffectivelyAtCapacity(provider) &&
-    !(await hasActiveWaitlistInvite(admin, user.id, providerRole, providerId))
-  ) {
-    return NextResponse.json({ error: 'Provider is currently at capacity.' }, { status: 409 });
+  // First-dibs: at-capacity coaches are only purchasable with a live waitlist
+  // invite. The invite lookup runs through the caller's RLS-scoped client; a
+  // lookup failure surfaces as retryable rather than silently denying the bypass.
+  if (isEffectivelyAtCapacity(provider)) {
+    let invited = false;
+    try {
+      invited = await hasActiveWaitlistInvite(caller, user.id, providerRole, providerId);
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not verify your waitlist status. Please try again.' },
+        { status: 503 }
+      );
+    }
+    if (!invited) {
+      return NextResponse.json({ error: 'Provider is currently at capacity.' }, { status: 409 });
+    }
   }
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     return NextResponse.json({ error: 'Provider has not completed Stripe onboarding.' }, { status: 409 });

@@ -3,31 +3,44 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { createNotification } from '@/lib/notify';
 import { readJson } from '@/lib/request-utils';
-import { resolveRequestUser, computePositions, type ProviderRole } from '@/lib/waitlist';
+import { resolveRequestClient, type ProviderRole } from '@/lib/waitlist';
 
 export const runtime = 'nodejs';
 
 type Body = { providerId?: number | string; providerRole?: string; note?: string };
+type MyEntry = {
+  id: string;
+  provider_role: string;
+  provider_id: number;
+  status: string;
+  position: number | null;
+};
 
 export async function POST(request: Request) {
-  const user = await resolveRequestUser(request);
-  if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const auth = await resolveRequestClient(request);
+  if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const { user, supabase } = auth;
 
   const parsed = await readJson<Body>(request, { allowEmpty: false });
   if (!parsed.ok) return parsed.response;
   const providerId = Number(parsed.data.providerId ?? 0);
-  const providerRole = (String(parsed.data.providerRole ?? '').toLowerCase() === 'nutritionist'
-    ? 'nutritionist' : 'trainer') as ProviderRole;
+  const roleRaw = String(parsed.data.providerRole ?? '').toLowerCase();
+  const providerRole: ProviderRole | null =
+    roleRaw === 'trainer' || roleRaw === 'nutritionist' ? roleRaw : null;
   const note = String(parsed.data.note ?? '').trim().slice(0, 500) || null;
+  if (!providerRole) {
+    return NextResponse.json({ error: 'Invalid coach role.' }, { status: 400 });
+  }
   if (!Number.isInteger(providerId) || providerId <= 0) {
     return NextResponse.json({ error: 'Invalid coach.' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data: provider } = await admin
+  // Provider visibility via the caller-scoped client (trainers/nutritionists are
+  // public-read). Capacity gate: you only join a coach who's actually paused.
+  const { data: provider } = await supabase
     .from(table)
-    .select('id, name, owner_id, at_capacity, capacity_resume_at')
+    .select('id, at_capacity, capacity_resume_at')
     .eq('id', providerId)
     .maybeSingle();
   if (!provider) return NextResponse.json({ error: 'Coach not found.' }, { status: 404 });
@@ -35,24 +48,56 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'This coach is accepting clients — no waitlist needed.' }, { status: 409 });
   }
 
-  // Dedup: return the existing active entry if present.
-  const { data: existing } = await admin
+  // Own-row dedup read (RLS: clients read own waitlist).
+  const { data: existing } = await supabase
     .from('coach_waitlist')
-    .select('id, status')
+    .select('id, status, invite_expires_at')
     .eq('provider_role', providerRole).eq('provider_id', providerId)
     .eq('client_id', user.id).in('status', ['waiting', 'invited'])
     .maybeSingle();
-  if (!existing) {
-    const { error: insErr } = await admin.from('coach_waitlist').insert({
+
+  let isNew = false;
+  if (existing) {
+    const expiredInvite =
+      existing.status === 'invited' &&
+      existing.invite_expires_at != null &&
+      new Date(existing.invite_expires_at).getTime() <= Date.now();
+    if (expiredInvite) {
+      // Their invite lapsed — re-activate the SAME row to 'waiting' (created_at
+      // is frozen by the DB trigger, so they keep their place in line). Re-check
+      // expiry in the UPDATE so a coach who just re-invited (fresh future expiry)
+      // in a concurrent request isn't clobbered back to 'waiting'; only count it
+      // as new/notify when a row actually changed.
+      const { data: reactivated } = await supabase
+        .from('coach_waitlist')
+        .update({ status: 'waiting', note })
+        .eq('id', existing.id).eq('client_id', user.id)
+        .eq('status', 'invited').lt('invite_expires_at', new Date().toISOString())
+        .select('id').maybeSingle();
+      isNew = Boolean(reactivated);
+    }
+    // else: already waiting or holding a live invite — dedup, no change.
+  } else {
+    const { error: insErr } = await supabase.from('coach_waitlist').insert({
       provider_role: providerRole, provider_id: providerId, client_id: user.id, note, status: 'waiting',
     });
     // 23505 = someone raced us to the unique index; treat as already-joined.
     if (insErr && insErr.code !== '23505') {
       return NextResponse.json({ error: 'Could not join the waitlist.' }, { status: 500 });
     }
-    if (!insErr && provider.owner_id) {
+    if (!insErr) isNew = true;
+  }
+
+  // Notify the coach on a genuinely new / renewed entry. The notification write
+  // targets another user, so it goes through the service-role client (the
+  // documented system-write exception); the owner_id is resolved there too.
+  if (isNew) {
+    const admin = createAdminClient();
+    const { data: ownerRow } = await admin.from(table).select('owner_id').eq('id', providerId).maybeSingle();
+    const ownerId = (ownerRow as { owner_id?: string } | null)?.owner_id;
+    if (ownerId) {
       await createNotification(admin, {
-        userId: provider.owner_id, type: 'waitlist_join',
+        userId: ownerId, type: 'waitlist_join',
         title: 'New waiting-list request',
         body: 'Someone joined your waiting list.', route: 'waitlist',
         data: { providerRole, providerId },
@@ -60,13 +105,15 @@ export async function POST(request: Request) {
     }
   }
 
-  // Compute this client's position among active rows.
-  const { data: rows } = await admin
-    .from('coach_waitlist')
-    .select('id, client_id, status, created_at')
-    .eq('provider_role', providerRole).eq('provider_id', providerId)
-    .in('status', ['waiting', 'invited']);
-  const mineRow = (rows ?? []).find((r) => r.client_id === user.id);
-  const position = mineRow ? (computePositions(rows ?? []).get(mineRow.id) ?? 0) : 0;
-  return NextResponse.json({ entryId: mineRow?.id ?? null, position, status: mineRow?.status ?? 'waiting' });
+  // Position + entry id from the auth.uid()-scoped RPC (a client can't read peer
+  // rows under RLS, so FIFO position is computed there).
+  const { data: mineRows } = await supabase.rpc('get_my_waitlists');
+  const mine = ((mineRows as MyEntry[] | null) ?? []).find(
+    (r) => r.provider_role === providerRole && Number(r.provider_id) === providerId
+  );
+  return NextResponse.json({
+    entryId: mine?.id ?? null,
+    position: mine?.position ?? 0,
+    status: mine?.status ?? 'waiting',
+  });
 }

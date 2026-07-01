@@ -2,53 +2,55 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson } from '@/lib/request-utils';
-import { resolveRequestUser, WAITLIST_INVITE_TTL_DAYS } from '@/lib/waitlist';
+import { resolveRequestClient } from '@/lib/waitlist';
 
 export const runtime = 'nodejs';
 
+type InviteResult = {
+  client_id: string;
+  provider_role: string;
+  provider_id: number;
+  provider_name: string | null;
+  invite_expires_at: string;
+};
+
 export async function POST(request: Request) {
-  const user = await resolveRequestUser(request);
-  if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const auth = await resolveRequestClient(request);
+  if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const { supabase } = auth;
+
   const parsed = await readJson<{ entryId?: string }>(request, { allowEmpty: false });
   if (!parsed.ok) return parsed.response;
   const entryId = String(parsed.data.entryId ?? '');
-  if (!entryId) return NextResponse.json({ error: 'Missing entry.' }, { status: 400 });
+  if (!/^[0-9a-f-]{36}$/i.test(entryId)) {
+    return NextResponse.json({ error: 'Missing entry.' }, { status: 400 });
+  }
 
+  // Ownership check, invitability check, and the atomic flip all run inside the
+  // definer RPC (coach discretion: waiting / previously-declined / expired-invite
+  // entries are all invitable). It returns the target client + provider name.
+  const { data, error } = await supabase.rpc('invite_from_waitlist', { p_entry_id: entryId });
+  if (error) {
+    if (error.code === '42501') return NextResponse.json({ error: 'Not your waiting room.' }, { status: 403 });
+    if (error.code === 'P0002') return NextResponse.json({ error: 'Entry not found.' }, { status: 404 });
+    // P0001 = not invitable / client already active; 23505 = a concurrent
+    // re-join won the race to the active-row unique index. Both are 409.
+    if (error.code === 'P0001' || error.code === '23505') {
+      return NextResponse.json({ error: 'This client cannot be invited in their current state.' }, { status: 409 });
+    }
+    return NextResponse.json({ error: 'Could not send the invite.' }, { status: 500 });
+  }
+  const result = ((data as InviteResult[] | null) ?? [])[0];
+  if (!result) return NextResponse.json({ error: 'Could not send the invite.' }, { status: 500 });
+
+  // Notify the invited client (write targets another user → system client).
   const admin = createAdminClient();
-  const { data: entry } = await admin
-    .from('coach_waitlist')
-    .select('id, client_id, provider_role, provider_id, status')
-    .eq('id', entryId).maybeSingle();
-  if (!entry) return NextResponse.json({ error: 'Entry not found.' }, { status: 404 });
-
-  // Ownership: caller must own the provider on this entry.
-  const table = entry.provider_role === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data: provider } = await admin
-    .from(table).select('id, name, owner_id').eq('id', entry.provider_id).maybeSingle();
-  if (!provider || provider.owner_id !== user.id) {
-    return NextResponse.json({ error: 'Not your waiting room.' }, { status: 403 });
-  }
-  if (!['waiting', 'declined'].includes(entry.status)) {
-    return NextResponse.json({ error: 'This client cannot be invited in their current state.' }, { status: 409 });
-  }
-
-  const now = new Date();
-  const expires = new Date(now.getTime() + WAITLIST_INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const { data: updated, error } = await admin.from('coach_waitlist')
-    .update({ status: 'invited', invited_at: now.toISOString(), invite_expires_at: expires.toISOString(), responded_at: null })
-    .eq('id', entryId)
-    .in('status', ['waiting', 'declined'])
-    .select('id')
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: 'Could not send the invite.' }, { status: 500 });
-  if (!updated) return NextResponse.json({ error: 'This client cannot be invited in their current state.' }, { status: 409 });
-
   await createNotification(admin, {
-    userId: entry.client_id, type: 'waitlist_invite',
-    title: `${provider.name} has room for you`,
+    userId: result.client_id, type: 'waitlist_invite',
+    title: `${result.provider_name ?? 'Your coach'} has room for you`,
     body: 'Tap to book before this coach reopens to everyone.',
-    route: `coach:${entry.provider_role}:${entry.provider_id}`,
-    data: { providerRole: entry.provider_role, providerId: entry.provider_id, entryId },
+    route: `coach:${result.provider_role}:${result.provider_id}`,
+    data: { providerRole: result.provider_role, providerId: result.provider_id, entryId },
   });
-  return NextResponse.json({ ok: true, invite_expires_at: expires.toISOString() });
+  return NextResponse.json({ ok: true, invite_expires_at: result.invite_expires_at });
 }

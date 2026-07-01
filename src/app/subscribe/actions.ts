@@ -100,8 +100,15 @@ export async function startCheckout(formData: FormData): Promise<void> {
     redirect(`/login?next=${encodeURIComponent(backHref)}`);
   }
 
-  const admin = createAdminClient();
-  const allowAtCapacity = await hasActiveWaitlistInvite(admin, user.id, providerRole, providerId);
+  // First-dibs: a live waitlist invite lets an at-capacity coach be subscribed
+  // to. Invite lookup runs on the caller's RLS-scoped client, inside a try so a
+  // lookup/env failure fails the same retryable way as the rest of setup.
+  let allowAtCapacity = false;
+  try {
+    allowAtCapacity = await hasActiveWaitlistInvite(supabase, user.id, providerRole, providerId);
+  } catch {
+    redirect(`${backHref}&error=waitlist_check_failed`);
+  }
 
   let priceResult;
   try {

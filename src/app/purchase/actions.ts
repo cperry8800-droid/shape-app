@@ -65,11 +65,17 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=${encodeURIComponent(`db_${providerError.code ?? 'error'}: ${providerError.message}`)}`);
   }
   if (!provider) redirect(`${backHref}&error=provider_not_found`);
-  if (
-    isEffectivelyAtCapacity(provider) &&
-    !(await hasActiveWaitlistInvite(admin, user.id, providerRole, providerId))
-  ) {
-    redirect(`${backHref}&error=provider_at_capacity`);
+  // First-dibs: an at-capacity coach is only purchasable with a live waitlist
+  // invite. Invite lookup runs on the caller's RLS-scoped client; a lookup
+  // failure is a distinct retryable state, not a silent "at capacity".
+  if (isEffectivelyAtCapacity(provider)) {
+    let invited = false;
+    try {
+      invited = await hasActiveWaitlistInvite(supabase, user.id, providerRole, providerId);
+    } catch {
+      redirect(`${backHref}&error=waitlist_check_failed`);
+    }
+    if (!invited) redirect(`${backHref}&error=provider_at_capacity`);
   }
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     redirect(`${backHref}&error=provider_not_onboarded`);

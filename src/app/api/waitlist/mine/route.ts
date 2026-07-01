@@ -1,32 +1,39 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { resolveRequestUser, computePositions } from '@/lib/waitlist';
+import { resolveRequestClient } from '@/lib/waitlist';
 
 export const runtime = 'nodejs';
 
+type MyEntry = {
+  id: string;
+  provider_role: string;
+  provider_id: number;
+  status: string;
+  note: string | null;
+  invited_at: string | null;
+  invite_expires_at: string | null;
+  created_at: string;
+  position: number | null;
+};
+
 export async function GET(request: Request) {
-  const user = await resolveRequestUser(request);
-  if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
-  const admin = createAdminClient();
+  const auth = await resolveRequestClient(request);
+  if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  const { supabase } = auth;
 
-  const { data: mine } = await admin
-    .from('coach_waitlist')
-    .select('id, provider_role, provider_id, status, note, invited_at, created_at')
-    .eq('client_id', user.id).in('status', ['waiting', 'invited']);
+  // auth.uid()-scoped RPC: the caller's active entries with FIFO position
+  // (a client can't read peer rows under RLS, so position is computed there).
+  const { data, error } = await supabase.rpc('get_my_waitlists');
+  if (error) return NextResponse.json({ error: 'Could not load your waitlists.' }, { status: 500 });
 
-  // Positions need every active row for each coach the client is queued on.
-  const entries = [];
-  for (const row of mine ?? []) {
-    const { data: peers } = await admin
-      .from('coach_waitlist')
-      .select('id, status, created_at')
-      .eq('provider_role', row.provider_role).eq('provider_id', row.provider_id)
-      .in('status', ['waiting', 'invited']);
-    const position = computePositions(peers ?? []).get(row.id) ?? 0;
-    entries.push({
-      id: row.id, providerRole: row.provider_role, providerId: row.provider_id,
-      status: row.status, note: row.note, invited_at: row.invited_at, position,
-    });
-  }
+  const entries = ((data as MyEntry[] | null) ?? []).map((r) => ({
+    id: r.id,
+    providerRole: r.provider_role,
+    providerId: r.provider_id,
+    status: r.status,
+    note: r.note,
+    invited_at: r.invited_at,
+    invite_expires_at: r.invite_expires_at,
+    position: r.position,
+  }));
   return NextResponse.json({ entries });
 }

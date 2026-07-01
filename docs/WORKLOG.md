@@ -204,6 +204,54 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-01 — Per-coach waiting room (#1495) + RLS-authoritative rework
+- **New feature: per-coach waiting list.** When a coach is **at capacity**, signed-in
+  members join a **waiting room** (`coach_waitlist` table, migration
+  `2026-07-01-coach-waitlist.sql`) to be first in line; the coach invites a client back
+  with a **7-day first-dibs** window (a live invite is the ONLY thing that lets an
+  at-capacity coach be purchased/subscribed — checked in checkout-session + purchase +
+  subscribe via `hasActiveWaitlistInvite`); a completed Stripe payment/subscription flips
+  the row to `booked` (webhook). Clients can **withdraw** (waiting→left / invited→declined);
+  **coach discretion** on who to invite (positions are shown but not a locked FIFO — per the
+  owner's call). Surfaced in the mobile client CTA + coach room panel
+  (`iosAppBroadsheetClient.jsx`, `ShapeWaitlist` bridge) and both website profiles.
+- **RLS-authoritative rework (CodeRabbit's blocking security policy).** The first cut routed
+  every user action through the service-role admin client; `.coderabbit.yaml` treats a
+  service-role write for a USER action as a blocking security regression (admin is for
+  system writes only). Reworked so:
+  - **Client actions** (join / withdraw) run on the **caller-scoped** Supabase client
+    (`resolveRequestClient`, cookie-or-Bearer) under RLS: `coach_waitlist` now has client
+    **SELECT/INSERT/UPDATE own-row policies**. A **`coach_waitlist_guard_cols` BEFORE
+    INSERT/UPDATE trigger** freezes `created_at` + `provider_role`/`provider_id`/`client_id`
+    (and the invite timestamps unless transitioning to `invited`) so a client-scoped write
+    can't jump the queue, move a spot to another coach, or spoof invite timing. The UPDATE
+    policy's **USING pins the old status to `waiting|invited`** so a terminal/`booked` row
+    can't be flipped back to `waiting` (re-queue / un-book).
+  - **Cross-user reads/writes** (FIFO position, coach room roster + client names, invite)
+    go through **`SECURITY DEFINER` RPCs** that verify `auth.uid()` ownership internally —
+    the same pattern as `get_roster_weekend_split` / `get_client_stats`: `get_my_waitlists()`,
+    `get_coach_waitroom(role,id)` (raises `42501` for a non-owner), `invite_from_waitlist(id)`
+    (ownership-checked, atomic, raises `42501`/`P0002`/`P0001`; guards against a second active
+    row → clean 409 instead of a 23505). Admin client is used ONLY for the coach/invite
+    **notifications** and the webhook booked-flip (the documented system-write exception).
+- **CodeRabbit findings addressed** (24 inline + 2 Codex): `entryId` UUID validation, reject
+  unknown provider roles (no coerce-to-trainer), caller-scoped reads/writes, atomic withdraw
+  (transition only the read status + confirm a row changed), webhook booked-flip result check,
+  purchase/subscribe/checkout **surface waitlist-lookup failures as retryable** (not a silent
+  "at capacity" — `hasActiveWaitlistInvite` now throws on error), **expired invites no longer
+  occupy a FIFO slot / block re-join** (SQL + the `computePositions` twin mirror
+  `status='invited' AND invite_expires_at > now()`), coach re-invite of an expired/declined
+  entry, invite notification tap now opens the marketplace, mobile reads degrade to `{entries:[]}`
+  on any failure, batched room name lookups (one definer join, no N+1), exact-set assertion test.
+- **Adversarial review** (4-dimension workflow — security/RLS · CodeRabbit-resolution ·
+  correctness/races · migration SQL — each finding independently refuted) + the automated
+  security-review pass caught and fixed **two real MAJORs before commit**: the UPDATE-USING
+  queue-jump/un-book, and a join↔invite reactivation race (reactivation now re-checks expiry +
+  its rowcount so a concurrent coach invite isn't clobbered).
+- Verified: `tsc --noEmit` clean · **363/363** tests · JSX/JS parse · LF/no-BOM. **⚠ OWNER:
+  re-run the updated `supabase-migrations/2026-07-01-coach-waitlist.sql`** (adds the client
+  RLS policies, the guard trigger, and the 3 RPCs) before deploy — idempotent, safe to re-run.
+
 ### 2026-07-01 — Profile activity feed shares the community dataset (#1490)
 - **Profile "Personal activities" now match the chat/community feed (#1490).** The mobile
   profile feed was showing a different, hardcoded demo persona than the community/chat activity
