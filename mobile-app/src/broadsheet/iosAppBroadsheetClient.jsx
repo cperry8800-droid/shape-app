@@ -9345,7 +9345,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     return () => { live = false; };
   }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole]);
   const wlWithdraw = async () => {
-    if (wlBusy.current || !wl?.entryId) return;
+    if (wlBusy.current) return;
+    if (!wl?.entryId) { window.__bsToast?.('Refreshing your spot — try again in a moment.'); return; }
     wlBusy.current = true;
     try { await window.ShapeWaitlist.withdraw(wl.entryId); setWl(null); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not update the waiting list.', 'err'); }

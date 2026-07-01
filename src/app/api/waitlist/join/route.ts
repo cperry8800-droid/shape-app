@@ -68,5 +68,5 @@ export async function POST(request: Request) {
     .in('status', ['waiting', 'invited']);
   const mineRow = (rows ?? []).find((r) => r.client_id === user.id);
   const position = mineRow ? (computePositions(rows ?? []).get(mineRow.id) ?? 0) : 0;
-  return NextResponse.json({ position, status: mineRow?.status ?? 'waiting' });
+  return NextResponse.json({ entryId: mineRow?.id ?? null, position, status: mineRow?.status ?? 'waiting' });
 }
