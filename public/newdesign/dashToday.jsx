@@ -27,6 +27,16 @@ function dashMoney(cents) {
   try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
   catch (e) { return "$0"; }
 }
+// The coach Today masthead eyebrow — the real current date (replaces the old
+// hardcoded "WEDNESDAY APR 18" placeholder). Local browser day = the coach's day.
+function dashTodayDate(d) {
+  try {
+    d = d || new Date();
+    var wd = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][d.getDay()];
+    var mo = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][d.getMonth()];
+    return wd + " " + mo + " " + d.getDate();
+  } catch (e) { return ""; }
+}
 const DASH_FLAT_TREND = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
 
 // ── Role config — labels, CTAs, and the verbatim demo data per role ─────────
@@ -37,7 +47,7 @@ const DASH_TODAY_ROLES = {
     expandSchedule: true,   // expandable schedule rows w/ context + actions (step 4.1)
     programmingQueue: true, // who needs next week's plan (step 4.2)
     mockName: "Maya",
-    date: "WEDNESDAY APR 18", // parity with the old page; real dates land with roadmap 1.2
+    date: dashTodayDate, // lazy (called per render like greeting) so it stays fresh across a long-lived tab; was a hardcoded roadmap-1.2 placeholder
     greeting: (n) => "Good morning, " + n + ".",
     primaryCta: ["+ Program", "TrainerPrograms.html"],
     secondaryCta: ["New session", "TrainerClients.html"],
@@ -107,7 +117,7 @@ const DASH_TODAY_ROLES = {
     programmingQueue: true, // plan drops due (feeds the "Plans due" stat)
     derivedKpis: true,      // true-Today stat bar from the data layer (step 5)
     mockName: "Rae",
-    date: "WEDNESDAY APR 18",
+    date: dashTodayDate,
     greeting: (n) => "Good morning, " + n + ".",
     primaryCta: ["+ Meal plan", "NutritionistPlans.html"],
     secondaryCta: ["New consult", "NutritionistClients.html"],
@@ -788,7 +798,7 @@ function CoachDashboardPage({ role }) {
       role={role}
       gridWidgets={gridWidgets}
       userName={firstName}
-      date={cfg.date}
+      date={cfg.date()}
       greeting={cfg.greeting(firstName)}
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
