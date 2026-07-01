@@ -205,6 +205,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/credential-expiry', 'GET,POST'],
   ['/api/cron/reminders', 'GET,POST'],
   ['/api/analytics/track', 'POST'],
+  ['/api/auth/resolve-username', 'POST'],
   ['/api/cron/analytics-purge', 'GET'],
   ['/api/client/reminders', 'GET,POST,DELETE'],
   ['/api/ai/proposals', 'POST'],
@@ -559,6 +560,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Supabase Auth rate limits — DONE (owner set the dashboard values 2026-06-25: otp 60 / verify 100 / email_sent 30 / anonymous_users 5; token_refresh ~1800). The app /api/* limiter (check_rate_limit + rate_limits table) covers our own routes; these Auth dashboard limits are the real brute-force gate for the native credential endpoints the SDK calls directly', status: 'done' },
         { label: 'Auth CAPTCHA (Cloudflare Turnstile) — DONE (owner enabled it in Auth → Settings with the secret, 2026-06-25). Wired on every surface: consultation + login/signup across web (login.jsx), mobile (turnstile.js + BSLogin), and Next (Turnstile.tsx + login actions). The old "login/signup wiring is a follow-up" note was stale — that client wiring shipped in #1347-#1352', status: 'done' },
         { label: 'Secret scan (gitleaks) — DONE. Now a REQUIRED check on main (classic branch protection enabled 2026-06-25, enforce_admins on), alongside Web + Mobile, so merging on red is impossible. Runs on every PR via ci.yml + .gitleaks.toml (0 leaks)', status: 'done' },
+      ],
+    },
+    {
+      section: 'Security audit & remediation (2026-07-01)',
+      items: [
+        { label: 'Full read-only audit (docs/SECURITY-AUDIT-2026-06-30.md): API authz (141 routes), RLS + SECURITY DEFINER RPCs (deployed-state cross-checked), secrets, payments/integrations, dead code, deps. Strong posture; 2 P1s + P2/P3. No exposed secrets, no XSS, npm audit clean', status: 'done' },
+        { label: 'P1 store credit-minting (#1475): redeem_store_item/order trusted client cost/credit; new store_catalogue table makes pricing server-authoritative. Migration APPLIED + verified (19 rows)', status: 'done' },
+        { label: 'P1 fulfillment-PII + 4x P2 (#1474): revoked admin_list_store_fulfillment / admin_mark_store_fulfilled / consume_store_credit from anon+authenticated; anon-reject on set_metric_source / set_program_detail. APPLIED + verified (anon=f/authd=f/svc=t)', status: 'done' },
+        { label: 'P2 OAuth open-redirect + console/program write-IDOR + claim-jack (#1471/#1472/#1473/#1476): safeReturnPath guard; route gates + RLS splits (is_discipline_coach_on_client INSERT); claim_provider_row -> service-role. Merged; migrations APPLIED + verified', status: 'done' },
+        { label: 'P2 email-enumeration (#1481, in PR): get_email_for_username revoked to service_role; username login -> rate-limited POST /api/auth/resolve-username. Login-path: staging test + apply migration WITH the deploy', status: 'pending' },
+        { label: 'Dependabot swept: #1477/#1478 (Actions) + #1479 (mobile deps) merged; #1480 (web deps: stripe 22.3, @supabase/ssr 0.12) tsc-compat fixed + merged', status: 'done' },
       ],
     },
     {

@@ -149,7 +149,14 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-06-30.md`](HANDOFF-2026-06-30.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-07-01.md`](HANDOFF-2026-07-01.md)** —
+> Security & code-health audit + full remediation: every **P1 + P2 fixed**. **10 PRs merged**
+> (#1471–#1476 authz + #1477–#1480 Dependabot); the last P2 (`get_email_for_username`
+> email-enumeration) is in **PR #1481** (open — login-path, staging test first). All 6 audit
+> migrations APPLIED + verified live. Reports: `docs/SECURITY-AUDIT-2026-06-30.md` +
+> `docs/REMEDIATION-2026-06-30.md`.
+>
+> (Prior: [`docs/HANDOFF-2026-06-30.md`](HANDOFF-2026-06-30.md) —
 > Review + merge session: the **6 open PRs (#1462–#1467) are all squash-merged to `main`**,
 > CI green, branches kept — weekend-split **training dimension** (#1462), atomic sources-merge
 > (#1463), drop race-route fallbacks (#1464), CLS font fallbacks (#1465), dead-`mktHue` removal
@@ -194,6 +201,37 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-01 — Security & code-health audit + full P1/P2 remediation (11 PRs)
+- **Read-only audit** (`docs/SECURITY-AUDIT-2026-06-30.md`): whole repo — API authz (141 routes),
+  RLS + SECURITY DEFINER RPCs (deployed-state cross-checked via `pg_proc`/`pg_policies`/
+  `has_function_privilege`), secrets, payments/integrations, dead code, inefficiencies,
+  consolidation, deps. **Strong posture; 2 P1s** + P2/P3s. Root cause of the security findings:
+  Supabase default-grants `EXECUTE` on public functions to anon+authenticated, and the admin/cron/
+  catalogue SECDEF RPCs were never revoked (several used `auth.uid() IS NULL` as a service-role
+  proxy that `anon` also satisfies). **No exposed secrets, no XSS, npm audit clean.**
+- **Remediation** (`docs/REMEDIATION-2026-06-30.md`) — one PR per finding, all merged unless noted:
+  - **#1475 (P1)** store credit-minting: `redeem_store_item`/`redeem_store_order` trusted client
+    `p_cost`/`p_credit_cents` (mint spendable credit via a direct RPC call) → new `store_catalogue`
+    table; functions now look up cost/credit/kind/locked and ignore the client money args.
+  - **#1474 (P1 + 4×P2)**: `admin_list_store_fulfillment` was anon-readable (exposed `ship_to` PII) →
+    REVOKE the admin/service RPCs (`admin_list`/`admin_mark`/`consume_store_credit`) from anon/
+    authenticated (+ re-grant service_role); anon-reject prepended to `set_metric_source`/
+    `set_program_detail` (the NULL-logic bypass).
+  - **#1471** OAuth open-redirect (`safeReturnPath` guard + control-char case from CodeRabbit + test)
+    · **#1472** console write-IDOR · **#1473** program-assign write-IDOR (both: route gate +
+    RLS split, mirroring `2026-06-17-coach-write-scope.sql`) · **#1476** `claim_provider_row` →
+    3-arg service-role-only + route via `createAdminClient`.
+  - **#1481 (OPEN)** last P2 — `get_email_for_username` (anon username→email enumeration) revoked to
+    service_role; username login now resolves via the rate-limited `POST /api/auth/resolve-username`
+    (mobile `shapeBackend.js` + web `login.jsx`, `Login.html ?v` bumped). Login-path — staging test
+    before merge; apply its migration WITH the deploy.
+  - All 6 applied migrations **verified live** (grants → anon=f/authd=f/svc=t; RLS split policies;
+    `store_catalogue`=19 rows; function bodies via `pg_get_functiondef`).
+- **Dependabot swept**: #1477/#1478 (Actions bumps) + #1479 (mobile-deps group) merged clean;
+  **#1480** (web-deps: `stripe 22.0→22.3`, `@supabase/ssr 0.10→0.12`, react patch) broke `tsc` →
+  fixed the two compat errors (Stripe `apiVersion` → `2026-06-24.dahlia`; `basePayload:
+  Record<string, unknown>` for `@supabase/ssr`'s tightened insert typing) + merged.
 
 ### 2026-06-30 — Review + merge: 6 open PRs (#1462–#1467) shipped to `main` + the public/m Linux-build fix
 - **Cleared the open-PR backlog.** All six outstanding PRs squash-merged to `main` (CI green;
