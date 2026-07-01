@@ -9228,6 +9228,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const BSPlate = window.BSPlate;
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [offerTab, setOfferTab] = useStateBSC('All');
@@ -9319,6 +9320,46 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
     try { await window.ShapeBookings?.submitConsultationBooking?.({ coach: commerceCoach, role: commerceCoach.provider_role, topic: 'Free intro call' }); window.__bsToast?.(`Intro requested — ${first} will follow up.`, 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || 'Could not book.', 'err'); }
+  };
+  // ── Waiting list — only relevant when this coach is effectively at capacity.
+  // The marketplace's commerce.coach carries the real DB row (at_capacity /
+  // capacity_resume_at / provider_id); mirrors src/lib/capacity.ts isEffectivelyAtCapacity.
+  const capacityProviderId = commerceCoach.provider_id || commerceCoach.db_id || null;
+  const capacityProviderRole = commerceCoach.provider_role || (isNutri ? 'nutritionist' : 'trainer');
+  const atCapacity = !!(commerceCoach.at_capacity && (!commerceCoach.capacity_resume_at || new Date(commerceCoach.capacity_resume_at).getTime() > Date.now()));
+  const [wl, setWl] = useStateBSC(null); // { status, position, entryId } | null
+  const wlBusy = React.useRef(false);
+  React.useEffect(() => {
+    if (isSelf || !atCapacity || !capacityProviderId) { setWl(null); return undefined; }
+    let live = true;
+    (async () => {
+      try {
+        const r = await window.ShapeWaitlist?.mine?.();
+        if (!live) return;
+        const mineEntry = (r?.entries || []).find(
+          (e) => String(e.providerId) === String(capacityProviderId) && e.providerRole === capacityProviderRole
+        );
+        setWl(mineEntry ? { status: mineEntry.status, position: mineEntry.position, entryId: mineEntry.id } : null);
+      } catch (e) { /* leave null */ }
+    })();
+    return () => { live = false; };
+  }, [isSelf, atCapacity, capacityProviderId, capacityProviderRole]);
+  const wlWithdraw = async () => {
+    if (wlBusy.current || !wl?.entryId) return;
+    wlBusy.current = true;
+    try { await window.ShapeWaitlist.withdraw(wl.entryId); setWl(null); }
+    catch (e) { window.__bsToast?.(e?.message || 'Could not update the waiting list.', 'err'); }
+    finally { wlBusy.current = false; }
+  };
+  const wlJoin = async () => {
+    if (window.bsRequireAccount && !window.bsRequireAccount('join the waiting list')) return;
+    if (wlBusy.current) return;
+    wlBusy.current = true;
+    try {
+      const r = await window.ShapeWaitlist.join({ providerId: capacityProviderId, providerRole: capacityProviderRole });
+      setWl({ status: r.status, position: r.position, entryId: r.entryId || null });
+    } catch (e) { window.__bsToast?.(e?.message || 'Could not join the waiting list.', 'err'); }
+    finally { wlBusy.current = false; }
   };
   // Live reviews (shared with the website + marketplace via /api/coaches/reviews).
   const [liveReviews, setLiveReviews] = useStateBSC(null);
@@ -9630,8 +9671,35 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
           </>)}
 
           {tab === 'coaching' && (<>
-          {/* Work with {first} — the storefront CTA (subscribe + book) */}
-          {!isSelf && (
+          {/* Work with {first} — the storefront CTA (subscribe + book), or —
+              when {first} is effectively at capacity — the waiting-list CTA.
+              INVITED is the live/actionable state (a BSPlate instrument);
+              join/waiting are quiet rounded cards, matching the surrounding chrome. */}
+          {!isSelf && atCapacity && wl?.status === 'invited' && (
+            <BSPlate c={tTheme.GREEN} tick style={{ marginTop: 24 }}>
+              <Kick col={tTheme.GREEN}>You're invited</Kick>
+              <div style={{ fontFamily: tTheme.DISPLAY, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.3, margin: '7px 0 11px' }}>{first} has room for you.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <button onClick={doSubscribe} style={{ minHeight: 44, borderRadius: 999, border: 0, background: tTheme.GREEN, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Book now</button>
+                <button onClick={wlWithdraw} style={{ minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Decline</button>
+              </div>
+            </BSPlate>
+          )}
+          {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
+            <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
+              <Kick col={tTheme.RUST}>On the waiting list</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>You're #{wl.position} in line. {first} will invite you when a spot opens.</div>
+              <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Leave the list</button>
+            </div>
+          )}
+          {!isSelf && atCapacity && !wl && (
+            <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
+              <Kick col={tTheme.RUST}>At capacity</Kick>
+              <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{first} isn't taking new clients right now. Join the waiting list to be first in line.</div>
+              <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Join the waiting list</button>
+            </div>
+          )}
+          {!isSelf && !atCapacity && (
             <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
               <Kick col={c}>Work with {first}</Kick>
               <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: c }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
