@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin-access';
 
 /**
@@ -38,9 +39,15 @@ export async function claimProviderRow(formData: FormData): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Not signed in.');
 
-  const { error } = await supabase.rpc('claim_provider_row', {
+  // Provider assignment is admin-managed (requireAdminUser above) and runs under
+  // the SERVICE ROLE so claim_provider_row can be revoked from authenticated —
+  // closing the direct-PostgREST bypass (AUTHZ-P2-claim-jack). The target owner
+  // is passed explicitly since auth.uid() is null under the service role.
+  const admin = createAdminClient();
+  const { error } = await admin.rpc('claim_provider_row', {
     p_role: role,
     p_provider_id: providerId,
+    p_owner_id: user.id,
   });
   if (error) {
     console.error('[shape-app] claimProviderRow error', error);
