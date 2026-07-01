@@ -189,7 +189,10 @@ async function publishProviderRow(
         ? details.credentials.slice(0, 120)
         : 'Verified by Shape';
 
-  const basePayload = {
+  // Typed as a plain record: the conditional spread below makes this a union
+  // (trainer- vs nutritionist-shaped), which @supabase/ssr's insert types reject
+  // as excess properties. The runtime shape matches `table`, so a record is safe.
+  const basePayload: Record<string, unknown> = {
     owner_id: ownerId,
     name: fullName,
     specialty,
