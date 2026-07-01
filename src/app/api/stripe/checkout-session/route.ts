@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
+import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 import { readJson, dbError } from '@/lib/request-utils';
 import { feeSplit, maxCreditCents } from '@/lib/platform-fee';
 
@@ -114,7 +115,10 @@ export async function POST(request: Request) {
 
   if (error) return dbError(error, 'checkout credit lookup', 500);
   if (!provider) return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
-  if (isEffectivelyAtCapacity(provider)) {
+  if (
+    isEffectivelyAtCapacity(provider) &&
+    !(await hasActiveWaitlistInvite(admin, user.id, providerRole, providerId))
+  ) {
     return NextResponse.json({ error: 'Provider is currently at capacity.' }, { status: 409 });
   }
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {

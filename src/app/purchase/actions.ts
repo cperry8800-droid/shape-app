@@ -11,6 +11,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { stripe } from '@/lib/stripe';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
 import { feeSplit } from '@/lib/platform-fee';
+import { hasActiveWaitlistInvite } from '@/lib/waitlist';
 
 type ProviderRole = 'trainer' | 'nutritionist';
 type Kind = 'booking' | 'meal_plan';
@@ -64,7 +65,12 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     redirect(`${backHref}&error=${encodeURIComponent(`db_${providerError.code ?? 'error'}: ${providerError.message}`)}`);
   }
   if (!provider) redirect(`${backHref}&error=provider_not_found`);
-  if (isEffectivelyAtCapacity(provider)) redirect(`${backHref}&error=provider_at_capacity`);
+  if (
+    isEffectivelyAtCapacity(provider) &&
+    !(await hasActiveWaitlistInvite(admin, user.id, providerRole, providerId))
+  ) {
+    redirect(`${backHref}&error=provider_at_capacity`);
+  }
   if (!provider.stripe_account_id || provider.stripe_account_status !== 'active') {
     redirect(`${backHref}&error=provider_not_onboarded`);
   }

@@ -245,6 +245,14 @@ export async function POST(request: Request) {
             'Payment received',
             `${usd(coachCutCents(grossCents))} from a client${kind === 'meal_plan' ? ' for a meal plan' : kind === 'booking' ? ' for a booking' : ''}.`
           );
+          // First-dibs: a completed purchase against an invited waitlist slot
+          // is the client taking their spot — flip it to booked.
+          if (providerId && providerRole && clientId) {
+            await admin.from('coach_waitlist')
+              .update({ status: 'booked', responded_at: new Date().toISOString() })
+              .eq('client_id', clientId).eq('provider_role', providerRole).eq('provider_id', Number(providerId))
+              .in('status', ['waiting', 'invited']);
+          }
           break;
         }
 
@@ -299,6 +307,14 @@ export async function POST(request: Request) {
             'New subscriber',
             `A new client just subscribed${priceCents ? ` · ${usd(Math.round(priceCents * 0.85))}/mo to you` : ''}.`
           );
+        }
+        // First-dibs: a completed subscription against an invited waitlist
+        // slot is the client taking their spot — flip it to booked.
+        if (providerId && providerRole && clientId) {
+          await admin.from('coach_waitlist')
+            .update({ status: 'booked', responded_at: new Date().toISOString() })
+            .eq('client_id', clientId).eq('provider_role', providerRole).eq('provider_id', Number(providerId))
+            .in('status', ['waiting', 'invited']);
         }
         break;
       }
