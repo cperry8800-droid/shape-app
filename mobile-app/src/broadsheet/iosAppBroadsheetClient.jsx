@@ -19620,6 +19620,33 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
+  // Coach-only — the waiting room roster for this provider (Task 11). Loads
+  // once we know the coach's providerId/role from `capacity` above; reloads
+  // after an Invite so the list + position numbers stay current.
+  const [waitRoom, setWaitRoom] = useStateBSC({ entries: [] });
+  const reloadWaitRoom = React.useCallback(async () => {
+    if (!capacity?.providerId) return;
+    try {
+      const room = await window.ShapeWaitlist?.room?.({ providerId: capacity.providerId, providerRole: capacity.role });
+      setWaitRoom(room && Array.isArray(room.entries) ? room : { entries: [] });
+    } catch (e) { /* keep the last-known room; the panel just won't refresh */ }
+  }, [capacity?.providerId, capacity?.role]);
+  React.useEffect(() => { reloadWaitRoom(); }, [reloadWaitRoom]);
+  const [waitInviteBusy, setWaitInviteBusy] = useStateBSC('');
+  const inviteWaitEntry = async (entryId) => {
+    if (waitInviteBusy) return;
+    setWaitInviteBusy(entryId);
+    try {
+      await window.ShapeWaitlist.invite(entryId);
+      await reloadWaitRoom();
+      window.__bsToast?.('Invited — they have a window to book.', 'ok');
+    } catch (e) {
+      window.__bsToast?.(e?.message || 'Could not send the invite', 'err');
+    } finally {
+      setWaitInviteBusy('');
+    }
+  };
+
   // Live Shape Score tier for the profile header (user-scoped — reflects the
   // signed-in client / trainer / nutritionist's current tier).
   const settingsScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
@@ -20169,6 +20196,45 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </div>
       )}
+
+      {/* Coach-only — the waiting room roster (Task 11). A quiet management
+          list (not a live instrument plate) under the capacity toggle. */}
+      {capacity && isCoachRole && (() => {
+        const activeEntries = (waitRoom.entries || []).filter(e => e.position);
+        return (
+          <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+            <BSEyebrow color={t.INK50}>Waiting room ({activeEntries.length})</BSEyebrow>
+            {activeEntries.length === 0 ? (
+              <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>No one waiting yet — when you're at capacity, clients can join here.</div>
+            ) : (
+              <div style={{ marginTop: 4 }}>
+                {activeEntries.map((e) => (
+                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: `1px solid ${t.HAIR}` }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>
+                        {`#${e.position} · ${e.clientName || 'Member'}`}
+                      </div>
+                      {e.note ? <div style={{ marginTop: 1, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{e.note}</div> : null}
+                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                        {e.status === 'invited' ? 'Invited' : e.status === 'waiting' ? 'Waiting' : e.status}
+                      </div>
+                    </div>
+                    {e.status === 'waiting' && (
+                      <button
+                        onClick={() => inviteWaitEntry(e.id)}
+                        disabled={waitInviteBusy === e.id}
+                        style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+                      >
+                        {waitInviteBusy === e.id ? 'Inviting…' : 'Invite'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Identity card — the avatar/name/tier/follows header now lives on the
           profile (Me/Signal); Settings keeps the quick shortcuts + edit form. */}
