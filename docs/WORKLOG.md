@@ -204,6 +204,22 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-01 — Coach Today real date (#1487) · War Room #1481 → done (#1488)
+- **Coach Today masthead shows the real date (#1487).** `dashToday.jsx` hardcoded the
+  eyebrow to "WEDNESDAY APR 18" (a roadmap-1.2 placeholder), so every signed-in coach saw a
+  frozen, fake date (honesty-rule violation). New `dashTodayDate()` formatter, computed **per
+  render** — `date` is now a function called at `DashShell` like `cfg.greeting` (CodeRabbit's
+  fix, so a tab left open past midnight stays fresh) — applied to both trainer + nutritionist
+  role configs; display-only (untouched demo `mockCalendar`). `dashToday.jsx?v=20260701d`
+  across all 18 consumer pages. CI green; CodeRabbit's one correctness nit addressed.
+- **War Room: #1481 email-enum flipped pending → done (#1488).** Confirmed live via
+  `has_function_privilege` — `get_email_for_username` is revoked to service_role
+  (anon=f / authd=f / svc=t) and both login clients (`login.jsx` + `shapeBackend.js`) call
+  the rate-limited `/api/auth/resolve-username`; dropped the stale "(in PR)" label. (The
+  `REMEDIATION-2026-06-30.md` ledger still reads NEEDS-OWNER only because it's a pre-merge
+  snapshot — all 6 hardening migrations are in fact applied + verified live.)
+- Both squash-merged to `main` (branches kept); docs/config-only WORKLOG follow-up.
+
 ### 2026-07-01 — Web notifications dashboard + reminders parity · iOS push-entitlement prep · coach-marketing docs (PRs #1483–#1485)
 - **Desktop-website reminders parity (#1483).** Ported the mobile `BSReminderManager` to the client
   Settings page as **`ReminderCard`** (`public/newdesign/clientMeSettings.jsx`): weigh-in / weekly
