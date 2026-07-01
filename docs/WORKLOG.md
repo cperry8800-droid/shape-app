@@ -150,11 +150,13 @@ changelog whenever something ships.
 ## Changelog
 
 > **Latest session handoff: [`docs/HANDOFF-2026-07-01.md`](HANDOFF-2026-07-01.md)** —
-> Security & code-health audit + full remediation: every **P1 + P2 fixed**. **10 PRs merged**
-> (#1471–#1476 authz + #1477–#1480 Dependabot); the last P2 (`get_email_for_username`
-> email-enumeration) is in **PR #1481** (open — login-path, staging test first). All 6 audit
-> migrations APPLIED + verified live. Reports: `docs/SECURITY-AUDIT-2026-06-30.md` +
-> `docs/REMEDIATION-2026-06-30.md`.
+> Two 2026-07-01 sessions. **Latest:** web **notifications dashboard + reminders parity** in the
+> client Settings page (#1483 — mobile `BSNotifyPrefs`/`BSReminderManager` ported, wired to the
+> live notification-center tables via `get_notification_center()`; no new route/migration),
+> **iOS push-entitlement prep** + Mac-side build checklist (#1484), and the **coach-marketing
+> funnel docs** (#1485). All 3 squash-merged, CI green, branches kept. **Earlier same day:** the
+> full **security audit + P1/P2 remediation** (#1471–#1481 + docs #1482) — reports
+> `docs/SECURITY-AUDIT-2026-06-30.md` + `docs/REMEDIATION-2026-06-30.md`; all 6+1 migrations applied.
 >
 > (Prior: [`docs/HANDOFF-2026-06-30.md`](HANDOFF-2026-06-30.md) —
 > Review + merge session: the **6 open PRs (#1462–#1467) are all squash-merged to `main`**,
@@ -201,6 +203,50 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-01 — Web notifications dashboard + reminders parity · iOS push-entitlement prep · coach-marketing docs (PRs #1483–#1485)
+- **Desktop-website reminders parity (#1483).** Ported the mobile `BSReminderManager` to the client
+  Settings page as **`ReminderCard`** (`public/newdesign/clientMeSettings.jsx`): weigh-in / weekly
+  check-in / water / progress-photo / custom nudges with a time + days, over the existing
+  `/api/client/reminders` (`user_scheduled_reminders`, cookie auth). Closes the long-standing
+  "desktop-website Settings parity" reminders follow-up.
+- **Notifications dashboard (#1483).** New **`NotificationDashboard`** porting the mobile
+  `BSNotifyPrefs`: master **mute**, **quiet hours** (from/to), **daily cap**, and the per-type ×
+  per-channel **matrix** (8 client types × App/Push/Email; defaults App on / Push on / Email off) +
+  **habit reminders** surfaced from `habit_reminders` with enable toggles. Wired to the REAL
+  notification-center backend (`notification_settings` / `notification_preferences` /
+  `habit_reminders`) via the **`get_notification_center()` RPC** + RLS-scoped upserts through
+  `window.shapeDb.client` — the same tables `src/lib/ai/notify-core.ts` reads. **No new API route or
+  migration** (those tables were already live from the 2026-06-17 notification-center batch).
+  `notification_preferences` stays override-only: toggling a channel back to its default DELETEs the
+  row. Renamed the "Privacy & notifications" card → **"Privacy"** (dropped the two decorative
+  profile-doc rows now covered by the real matrix). `clientMeSettings.jsx?v=20260701b` on
+  ClientApp.html + ClientMe.html.
+- **CodeRabbit (#1483) — 4 findings, all fixed + resolved:** load-failure-vs-empty on both cards (a
+  401/500/network load no longer reads as "No reminders yet"), stale custom-label clearing (`label`
+  posted only when the kind is `custom`), write-error surfacing (a Supabase write that resolves
+  `{error}` [RLS] or rejects [network] now re-syncs from the server + shows an inline alert instead of
+  silently lying), and the override-only delete-on-default.
+- **iOS native push prep (#1484).** Added the **`aps-environment`** (Push/APNs) entitlement to
+  `mobile-app/ios/App/App/App.entitlements` — the last repo-side gap for the **system-push P1**
+  (`UIBackgroundModes` left `[audio]` on purpose: user-facing pushes, not silent → avoids an
+  unused-background-mode App Store review flag). New **`docs/native-ios-build-checklist.md`** documents
+  the Mac-side owner sequence (cap sync, Apple App-ID capabilities, APNs `.p8` → Firebase,
+  `GoogleService-Info.plist`, signing / production-entitlement nuance, submit) + the Stripe Connect /
+  IAP caveat.
+- **War Room cleanup (#1484).** Flipped 3 stale `pending` items to `done` — Shape Steps → points
+  (#1439), accurate Shape Score legend (#1438), onboarding score explainer (#1440) — all shipped 06-27.
+- **Coach-marketing funnel docs (#1485).** Updated the June-1 assets
+  (`coach-acquisition-campaign-plan`, `coach-outreach-email-sequence`) to the **flat-15%-commission /
+  members-pay-their-own-$5** messaging, and added 3 new campaign docs — `coach-marketing-campaign-plan`
+  (top-of-funnel awareness), `coach-nurture-email-sequence` (opt-in → applicant),
+  `coach-recruiting-campaign-plan` (bottom-of-funnel). Docs only.
+- **All 3 squash-merged to `main`** (branches kept), CI green. #1483 CodeRabbit-reviewed clean after
+  the fixes; **#1484/#1485 CI-green but CodeRabbit was cap-blocked** (org spending cap posted a
+  rate-limit notice, NOT a review) → merged on green per the owner's "merge when green" call
+  (low-risk chore + docs). *Detection lesson:* read CodeRabbit's **edited-in-place summary comment** +
+  resolved-thread state to tell "reviewed" from "rate-limited/processing" — don't poll for the literal
+  "Actionable comments posted:" string (misses in-place edits + clean 0-issue reviews).
 
 ### 2026-07-01 — Security & code-health audit + full P1/P2 remediation (11 PRs)
 - **Read-only audit** (`docs/SECURITY-AUDIT-2026-06-30.md`): whole repo — API authz (141 routes),
