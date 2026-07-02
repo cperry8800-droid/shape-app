@@ -223,6 +223,64 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — Session Details v2 (#1518) · living-instrument sweep (#1519) · tier 1 goes SAGE (#1520) · chip/boost fixes (#1517)
+- **Chip formatting + boost reachability (#1517).** The #1515 name-row chips wrapped
+  under a long member name — the actions now pin top-right (`flex: 0 0 auto`, no wrap)
+  while the serif name word-wraps beside them (27px, `overflowWrap`), correct for ANY
+  name length. And the presence-rail boost sheet was unreachable for the demo rail
+  people (the no-real-member fallback) — they now open `BSLiveBoostSheet` too, honestly
+  labeled "Preview · demo member — boosts land in a real member's chat while they train."
+- **Session Details v2 — the "living instrument" replay (#1518).** The activity detail
+  page (all activity types) boots instead of rendering: the page's accent is
+  **intensity-reactive** (`bsSdHeatColor` over time-in-zone — recovery reads cool teal,
+  max effort reads ember/red; neutral accent when no zones), the hero number **counts
+  up** (`BSSdCountUp` — times/non-numerics stay static, no fabricated mid-count values),
+  a heat pulse-rule draws under the title, summary tiles stagger in with **ghost
+  sparklines** (HR/pace series behind their scalar), every chart is a **`BSSdTrace`**
+  (line draws itself in-view, zone-gradient HR stroke, live HTML end-dot, ▲ peak flag,
+  **touch-scrub** scan line + readout), time-in-zone renders as **charging fuel cells**
+  (`BSSdZoneCells`, sequential fills + shimmer + counting %), and splits land as
+  **`BSSdBars`** (staggered rise, PR bar bursts then breathes, RPE mini-dials). One-shot
+  IntersectionObserver triggers; `prefers-reduced-motion` renders the finished state.
+  Old `AreaChart`/`ZC` removed. **Review round (3 CodeRabbit, all fixed):** per-mount
+  SVG gradient ids (`React.useId` suffix — duplicate ids resolve to the first in DOM),
+  CSS injection moved from the render body into `React.useInsertionEffect`, and the HR
+  section requires a drawable trace (>1 point) or zones (no empty section head).
+- **Living-instrument sweep — four more surfaces (#1519, from owner screenshots).**
+  (1) The **post comments/reactions page** (same `BSActivityDetail`, comments focus):
+  heat section ticks, count-up Reactions/Comments numbers, the un-reacted pill
+  **breathes** an invite glow and its count **pops** on every new reaction, the
+  who-reacted facepile staggers in, comments **cascade** (a `commentsAtOpen` ref scopes
+  the cascade to what existed at open — fresh replies appear instantly), and the coach
+  **co-sign chip stamps in** (`bsSdStamp`) after the hero lands. (2) Home's **Progress
+  door → `BSProgressDoor`**: clipped instrument door (notch/spine/bracket,
+  press-compress) with one colored tick per section (streak teal · trends blue ·
+  training `t.RUST` · nutrition `t.AMBER` — tokens per CodeRabbit). (3) The **Boost
+  sheet** boots: rises on open, the live dot breathes, an accent pulse-rule draws,
+  phrase pills become clipped spine chips that stagger in. (4) The **Today check-in
+  page is UN-BOXED** — the single plate becomes individually laid-out slim plates
+  (Energy teal · Hunger amber · Sleep + Rested blue · clipped Log CTA · Hydration ·
+  recovery footer), staggered; `plate()` is a plain function so DOM nodes stay stable
+  and entrances never replay on a gauge tap; data flow, honest gating, and the
+  optimistic hydration writes untouched. CodeRabbit nits fixed: stable keys on the
+  animated facepile/comment rows (id/ts, index-only fallback).
+- **First tier is now SAGE GREEN `#5fa96e` (#1520).** Owner picked sage over violet /
+  bronze / slate (violet reads *premium* — an entry rank fancier than the gold above it
+  inverts the climb). Client **Base/Raw** + coach **Certified** change in ONE sweep:
+  mobile `BS_TIER_COLORS` (avatars, score cards, climb, chat tints, and the Shape-steps
+  rings all flow from `bsTierColor`/`bsMyTierColor`), the canonical website
+  `tierColors.jsx`, the 7 page-local maps (chatWidget · livingDesktop ·
+  livingProfilePage · marketplace · memberProfile · pageShell · siteSearch · score),
+  and the legacy static `shape-score*.html` labels — with `?v=` bumps across 77 pages.
+  The two `#8a93a0` **elevation-chart** strokes are terrain slate, not tier colors —
+  deliberately kept. Replacements were byte-safe (a first `sed` pass silently normalized
+  CRLF on mixed-ending files and was reverted — line endings preserved in the shipped diff).
+- All three squash-merged (`5962e999` #1518 · `cfa545d6` #1519 · `270c22a6` #1520 —
+  #1517 earlier as `5f36a960`), CI green, every CodeRabbit thread resolved (#1520
+  APPROVED clean); branches kept. Verified per PR: JSX parse · PowerShell mobile build ·
+  363/363 tests · LF normalized. **On-device pass recommended** for the animation-heavy
+  pages (session details, comments page, boost sheet, Today page).
+
 ### 2026-07-02 — LIVE BOOST (#1514) · Today nudge leads Home (#1513) · Follow/Message instrument chips beside the name (#1515)
 - **LIVE BOOST — cheer someone on WHILE they're mid-workout/mid-cook (#1514).** Tapping
   a mid-activity member on the chat presence rail (teal/amber corner dot) now opens
