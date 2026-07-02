@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isEffectivelyAtCapacity } from '@/lib/capacity';
-import { createNotification } from '@/lib/notify';
+import { createPreferredNotification } from '@/lib/notify';
 import { readJson } from '@/lib/request-utils';
 import { resolveRequestClient, type ProviderRole } from '@/lib/waitlist';
 
@@ -97,7 +97,9 @@ export async function POST(request: Request) {
     const { data: ownerRow } = await admin.from(table).select('owner_id').eq('id', providerId).maybeSingle();
     const ownerId = (ownerRow as { owner_id?: string } | null)?.owner_id;
     if (ownerId) {
-      await createNotification(admin, {
+      // Preference-aware: waitlist_join is registered in the notification-center
+      // matrix, so the coach's per-channel toggles (and master mute) are honored.
+      await createPreferredNotification(admin, {
         userId: ownerId, type: 'waitlist_join',
         title: 'New waiting-list request',
         body: 'Someone joined your waiting list.', route: 'waitlist',

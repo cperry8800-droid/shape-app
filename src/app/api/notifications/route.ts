@@ -24,11 +24,19 @@ export async function GET(request: Request) {
     .from('notifications')
     .select('id, type, title, body, route, data, read_at, created_at')
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(200);
   if (error) return NextResponse.json({ notifications: [], unread: 0 });
 
   const rows = (data ?? []) as Row[];
-  const notifications = rows.map(r => ({
+  // Honor the preference center's in-app channel: a row written for push/email
+  // only (data.channels.inapp === false) never shows in the bell. Rows with no
+  // channels metadata predate the preference stamping — default visible. The
+  // query over-fetches (200 newest) BEFORE the 50-item cap so a run of hidden
+  // push/email-only rows can't starve the feed of older visible ones.
+  const visible = rows.filter(r =>
+    ((r.data as { channels?: { inapp?: boolean } } | null)?.channels?.inapp) !== false
+  ).slice(0, 50);
+  const notifications = visible.map(r => ({
     id: r.id,
     type: r.type,
     title: r.title,
