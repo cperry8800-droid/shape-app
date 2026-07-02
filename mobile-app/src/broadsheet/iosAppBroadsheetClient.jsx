@@ -1142,15 +1142,14 @@ function BSCoachAdjustBanner({ detail, kind }) {
     ? [d.calories != null ? `${d.calories} kcal` : null, d.protein != null ? `${d.protein}P` : null, d.carbs != null ? `${d.carbs}C` : null, d.fat != null ? `${d.fat}F` : null, d.meals != null ? `${d.meals} meals` : null]
     : [d.intensity ? ({ deload: 'Deload', maintain: 'Maintain', progress: 'Progress' }[d.intensity] || cap(d.intensity)) : null, d.sessions != null ? `${d.sessions}×/week` : null, ...(Array.isArray(d.focus) ? d.focus.slice(0, 2).map(cap) : [])]
   ).filter(Boolean);
-  const BSPlateRef = window.BSPlate;
   return (
-    <BSPlateRef c={accent} notch={10} pad="12px 14px 12px 18px" style={{ margin: `12px ${t.padX}px 0` }}>
+    <BSPlate c={accent} notch={10} pad="12px 14px 12px 18px" style={{ margin: `12px ${t.padX}px 0` }}>
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', color: accent, textTransform: 'uppercase' }}>From your coach{when ? ` · ${when}` : ''}</span>
       <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {chips.map((c, i) => <span key={i} style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '4px 9px' }}>{c}</span>)}
       </div>
       {d.note ? <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{d.note}”</div> : null}
-    </BSPlateRef>
+    </BSPlate>
   );
 }
 
@@ -8427,7 +8426,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // light paper makes the profile light). TEAL accent is constant.
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
-  const BSPlate = window.BSPlate;
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
@@ -9294,7 +9292,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
-  const BSPlate = window.BSPlate;
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [offerTab, setOfferTab] = useStateBSC('All');
@@ -15356,7 +15353,6 @@ function BSTodayNudge({ onOpen }) {
     }).catch(() => {});
     return () => { on = false; };
   }, [signedIn]);
-  const BSPlate = window.BSPlate;
   return (
     <BSPlate c={teal} tick={!logged} bracket pad="12px 16px 12px 22px" role="button" tabIndex={0} ariaLabel="Open today's check-in" onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
@@ -15392,7 +15388,6 @@ function BSTodayPage({ onBack }) {
 
 function BSTodayCard() {
   const t = useBS();
-  const BSPlate = window.BSPlate;
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const amber = t.isLight ? '#b9802a' : '#e8b14a';
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
@@ -15637,7 +15632,6 @@ function BSTodayCard() {
 function BSStepsCard() {
   const t = useBS();
   const accent = t.isLight ? '#0a8f87' : '#34d6c5';
-  const BSPlate = window.BSPlate;
   const TARGET = useBSStepGoal();
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [steps, setSteps] = useStateBSC(null);
@@ -16173,7 +16167,6 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
-  const BSPlate = window.BSPlate;
   return (
     <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel="Open your goal" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
@@ -21268,7 +21261,6 @@ function BSClientNextPlate() {
 // Signed-out / !isSelf → render nothing (no fabricated numbers).
 function BSWeekendsCard({ isSelf }) {
   const t = useBS();
-  const BSPlate = window.BSPlate;
   const [data, setData] = React.useState(null);
   React.useEffect(() => {
     if (!isSelf || !window.ShapeProgress?.weekendSplit) return;
