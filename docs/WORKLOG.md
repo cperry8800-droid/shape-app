@@ -223,6 +223,26 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — Today check-in box → a Home notification nudge + its own page (#1511)
+- **The "Today · how are you" check-in + hydration plate leaves the Home flow.** Home
+  now carries **`BSTodayNudge`** — a compact notification-style door in its slot
+  (weekly-check-in nudge chrome): **status-aware** — "Quick check-in." with a live
+  tick while today is unlogged, flipping to "Logged for today ✓ · tap to review · add
+  water" once a MANUAL signal exists for today (same rule as the card: energy/hunger/
+  rested/manually-entered sleep — a wearable syncing sleep alone never reads as
+  logged). Keyboard-activatable.
+- **Tapping it opens `BSTodayPage`** — the full box (energy · hunger · sleep-last-night
+  chips · rested · Log today · hydration quick-adds + undo) on its own page under the
+  standard `BSDetailHeader` masthead, via Home's early-return overlay pattern.
+  `BSTodayCard` itself is UNCHANGED — data flow, honest gating, and the optimistic
+  hydration writes carry over as-is.
+- **CodeRabbit Critical addressed:** the new nudge (and 6 pre-existing components +
+  one `BSPlateRef`) locally aliased `const BSPlate = window.BSPlate` even though
+  `BSPlate` is already destructured from `window` at module scope — the shadowing
+  aliases are all removed; every site uses the module binding directly.
+- Squash-merged `f8c943f7` (#1511), CI green, thread resolved; branch kept. Verified:
+  JSX parse · PowerShell mobile build · 363/363 tests · LF normalized.
+
 ### 2026-07-02 — Goal · Shape steps · Progress move from the profile to HOME (#1509)
 - **The three private utility cards leave the profile page** (now a public-facing,
   full-bleed identity surface) and land on **Home**, the daily surface: the compact
