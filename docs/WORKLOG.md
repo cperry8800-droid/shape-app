@@ -232,10 +232,14 @@ changelog whenever something ships.
   (imported from `notifications.mjs` — one source of truth): muted or
   all-channels-off **skips the write**; otherwise the row carries `data.channels`
   (the push webhook already gates on `channels.push === false`) and email goes out
-  when opted in (mirrors `notify-core.ts deliver()`). Both waitlist routes send
-  through it. **`GET /api/notifications` now filters `data.channels.inapp === false`
-  rows** — the bell gate notify-core documented but never implemented (rows without
-  channels metadata stay visible). Types registered in the web `NotificationDashboard`
+  when opted in (mirrors `notify-core.ts deliver()`) — capped at **one email per
+  recipient per type per hour** (checked against the notifications ledger BEFORE the
+  row insert) so an event loop (e.g. scripted join→withdraw→join) can't amplify into
+  outbound email spam. Both waitlist routes send through it.
+  **`GET /api/notifications` now filters `data.channels.inapp === false` rows** —
+  the bell gate notify-core documented but never implemented (rows without channels
+  metadata stay visible; the query over-fetches 200 before the 50-item cap so hidden
+  rows can't starve the feed — Codex P2). Types registered in the web `NotificationDashboard`
   (`clientMeSettings.jsx` NP_TYPES, `?v=20260702a` on ClientApp + ClientMe — note this
   file is tracked **CRLF**, the repo's only one) and mobile `BSNotifyPrefs`
   (`waitlist_join` on the coach list, `waitlist_invite` on the client list). Defaults
@@ -246,8 +250,11 @@ changelog whenever something ships.
   (`/purchase?role=trainer&kind=booking`), nutritionist `tpBuyMealPlanLink`
   (`/purchase?role=nutritionist&kind=meal_plan`). Safe both sides:
   `hasActiveWaitlistInvite` allows purchase AND subscribe, and the Stripe webhook
-  booked-flip covers both `payment` + `subscription` modes. Subscribe stays available
-  on the page.
+  booked-flip covers both `payment` + `subscription` modes. The invited state carries
+  BOTH paths (Book now · Subscribe monthly · Decline — Codex P2: the normal CTA block
+  is hidden at capacity, so the invited block must offer the subscription too).
+  **Follow-up (War Room):** the MOBILE invited "Book now" still starts the monthly
+  subscription (`doSubscribe`) — bring it to parity with the website first-dibs path.
 - **WORKLOG consolidation.** The stale early-June root `WORKLOG.md` (Cycles 2–5,
   PRs #712–#807, frozen at #808 — dead branch name, pre-PR-flow merge rule, pre-#1470
   publish steps) is archived to `docs/WORKLOG-ARCHIVE-2026-06-cycles-2-5.md`; the
