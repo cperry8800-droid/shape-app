@@ -10501,6 +10501,8 @@ function bsInjectSessionDetailCss() {
       @keyframes bsSdPrBreath { 0%, 100% { box-shadow: 0 0 0 0 var(--sd-glow); } 55% { box-shadow: 0 0 10px 2px var(--sd-glow); } }
       @keyframes bsSdShimmer { 0% { transform: translateX(-110%); } 100% { transform: translateX(240%); } }
       @keyframes bsSdDrawX { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+      @keyframes bsSdStamp { 0% { opacity: 0; transform: scale(1.55) rotate(-3deg); } 62% { transform: scale(0.96) rotate(0.6deg); } 100% { opacity: 1; transform: none; } }
+      @keyframes bsSdPop { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
     }
   `;
   document.head.appendChild(el);
@@ -10747,6 +10749,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const isComments = d.focus === 'comments';
   const composerRef = React.useRef(null);
   const bodyRef = React.useRef(null);
+  // Comments present when the page OPENED cascade in; ones sent while it's open
+  // (yours, or a live append) show instantly — no boot delay on fresh replies.
+  const commentsAtOpen = React.useRef(comments.length);
   React.useEffect(() => {
     if (isComments) { setTimeout(() => { try { composerRef.current && composerRef.current.focus(); } catch (e) {} }, 320); }
   }, []);
@@ -10910,7 +10915,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         </div>
         {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
         {d.coSign && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 560ms both' }) }}>
             <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>✓</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800 }}>{d.coSign.name}</span>
@@ -11005,19 +11010,27 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             thread. No workout stats here; those live on Session details. */}
         {isComments && (
           <>
-            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />Reactions · {count}</div>
+            <div style={{ ...eyebrow, marginTop: 22, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>Reactions · <BSSdCountUp text={String(count)} duration={620} delay={140} /></span></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : `${accent}14`, color: liked ? '#fff' : accent, border: `1px solid ${accent}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · {count}</span></button>
+              <button onClick={onReact} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 16px', borderRadius: 999, cursor: 'pointer', background: liked ? accent : `${accent}14`, color: liked ? '#fff' : accent, border: `1px solid ${accent}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', ...(sdReduced || liked ? null : { '--sd-glow': bsTHexA(accent, 0.38), animation: 'bsSdPrBreath 2600ms ease-in-out 900ms infinite' }) }}>{bsFeedIcon('react', 13)}<span>{myExpr || d.verb} · <span key={count} style={{ display: 'inline-block', ...(sdReduced ? null : { animation: 'bsSdPop 340ms cubic-bezier(.2,1.4,.4,1)' }) }}>{count}</span></span></button>
               {facepile.length > 0 && (
                 <button onClick={onOpenLikers} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-                  <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => <BSFacetAvatar key={i} size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />)}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>Who reacted ›</span>
+                  <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => (
+                    <span key={i} style={sdReduced ? null : { display: 'inline-flex', animation: `bsSdFadeUp 380ms ease ${240 + i * 70}ms both` }}>
+                      <BSFacetAvatar size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
+                    </span>
+                  ))}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, ...(sdReduced ? null : { animation: `bsSdFadeUp 380ms ease ${240 + facepile.length * 70}ms both` }) }}>Who reacted ›</span>
                 </button>
               )}
             </div>
-            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: bsTHexA(t.INK, 0.55), borderRadius: 2 }} />Comments · {comments.length}</div>
-            {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6 }}>No comments yet — be the first.</div>}
-            {comments.map((c, i) => <BSFeedComment key={i} c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />)}
+            <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>Comments · <BSSdCountUp text={String(comments.length)} duration={620} delay={220} /></span></div>
+            {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 180ms both' }) }}>No comments yet — be the first.</div>}
+            {comments.map((c, i) => (
+              <div key={i} style={(sdReduced || i >= commentsAtOpen.current) ? null : { animation: `bsSdFadeUp 420ms ease ${180 + Math.min(i, 9) * 80}ms both` }}>
+                <BSFeedComment c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />
+              </div>
+            ))}
           </>
         )}
       </div>
