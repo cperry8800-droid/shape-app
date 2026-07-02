@@ -2836,7 +2836,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           <div data-tour="hero-habits" style={{ margin: `0 ${t.padX}px 9px` }}>
             <BSPlate c={t.GREEN} notch={11} spine={3} bracket pad="12px 15px 12px 20px"
               onClick={() => setHabitsPage(true)} role="button" tabIndex={0} ariaLabel="Open daily habits"
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHabitsPage(true); } }}
+              onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHabitsPage(true); } }}
               style={{ textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits{selDayHabits.length > 0 ? ` · ${done}/${selDayHabits.length} done` : ''}</span>
