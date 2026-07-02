@@ -2611,6 +2611,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       </div>
 
+      {/* TODAY — the daily check-in + hydration box lives on its OWN page; this
+          notification-style door (due vs logged-aware) leads the card list,
+          right under the week calendar. */}
+      <BSTodayNudge onOpen={() => setTodayPage(true)} />
+
       {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
       {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
       {coachFeed.items.length > 0 && (
@@ -2900,10 +2905,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           </div>
         );
       })()}
-
-      {/* TODAY — the daily check-in + hydration box now lives on its OWN page;
-          Home carries a compact notification-style door (due vs logged-aware). */}
-      <BSTodayNudge onOpen={() => setTodayPage(true)} />
 
       {/* SHAPE STEPS — the daily steps instrument (moved off the profile; it
           belongs with the day's living metrics). Taps into the steps history. */}
