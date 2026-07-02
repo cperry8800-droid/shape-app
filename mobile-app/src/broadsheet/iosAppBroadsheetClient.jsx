@@ -6812,7 +6812,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -6889,7 +6889,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: center ? 14 : 14, marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 14, rowGap: 8, flexWrap: 'wrap', marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
       {statBtn(stats.followers, 'Followers', () => openList('followers'))}
       {statBtn(stats.following, 'Following', () => openList('following'))}
       {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
@@ -6912,6 +6912,16 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
         );
       })()}
+      {/* Message → the profile host's handler (it dismisses the profile overlay
+          BEFORE opening the real 1:1 — same handoff as the profiles' big
+          Message CTA). Rendered only where a live handler + real account exist. */}
+      {!isSelf && uid && typeof onMessage === 'function' && (
+        <button onClick={() => onMessage()} style={{
+          flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
+          fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+          background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.3)}`,
+        }}>Message</button>
+      )}
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
     </div>
   );
@@ -6922,7 +6932,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // the hero's climb as the you-are-here marker); just the type column, full
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
-function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts }) {
+function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   return (
     <div style={{ paddingBottom: 13, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
@@ -6932,7 +6942,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
       </div>
       <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
       <div style={{ marginTop: 8 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} />
+        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage} />
       </div>
     </div>
   );
@@ -7251,27 +7261,6 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
 function bsIsDirectVideoUrl(url) { return /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(String(url || '')) || /coach-media/.test(String(url || '')); }
 function bsLinkHost(url) { try { return new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch (e) { return String(url || '').replace(/^https?:\/\//i, '').split('/')[0]; } }
 function bsAgoShort(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const m = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000)); if (m < 60) return `${m || 1}m`; const h = Math.round(m / 60); if (h < 24) return `${h}h`; const days = Math.round(h / 24); if (days < 7) return `${days}d`; return d.toLocaleDateString([], { month: 'short', day: 'numeric' }); }
-// Physical date of an activity as MM/DD — for the profile feed's date gutter.
-// Prefers a real timestamp; else derives the date from the relative `ago`
-// string (bsAgoShort's "2h"/"3d"/"Jun 24" output, incl. demo cards).
-function bsAgoToDate(ago) {
-  if (!ago) return null;
-  const s = String(ago).trim();
-  let m;
-  if ((m = s.match(/^(\d+)\s*m$/i))) return new Date(Date.now() - (+m[1]) * 60000);
-  if ((m = s.match(/^(\d+)\s*h$/i))) return new Date(Date.now() - (+m[1]) * 3600000);
-  if ((m = s.match(/^(\d+)\s*d$/i))) return new Date(Date.now() - (+m[1]) * 86400000);
-  if ((m = s.match(/^(\d+)\s*w$/i))) return new Date(Date.now() - (+m[1]) * 604800000);
-  const dt = new Date(`${s} ${new Date().getFullYear()}`); // "Jun 24" → this year
-  return isNaN(dt.getTime()) ? null : dt;
-}
-function bsCardDateLabel(a) {
-  if (!a) return '';
-  let d = a.created_at ? new Date(a.created_at) : null;
-  if (!d || isNaN(d.getTime())) d = bsAgoToDate(a.ago || a.time);
-  if (!d || isNaN(d.getTime())) return '';
-  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-}
 // Map ShapeCommunity rows → profile activity items (note/photo/video/workout/link),
 // shared by the member (Terrain) and coach (Signal) profile feeds so both render
 // the same rich types.
@@ -8340,7 +8329,11 @@ function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
   );
 }
 
-function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {}, onOpenScore = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {}, onOpenScore = () => {} }) {
+  // Only render Message affordances where the HOST actually wired a handler
+  // (it dismisses this profile before opening the thread) — no dead buttons.
+  const hasMessage = typeof onMessage === 'function';
+  const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). TEAL accent is constant.
@@ -8838,7 +8831,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       <div style={{ margin: '16px 18px 0', paddingTop: meMode ? 4 : 14, borderTop: meMode ? 'none' : `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
           photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts} />
+          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
+          onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
@@ -9128,14 +9122,12 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
                   <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
                 {feedEff.map((a, i) => (
-                  <div key={a.key || i} style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
-                    {/* The activity's date in a tight left gutter — replaces the timeline diamond. */}
-                    <div style={{ flex: '0 0 24px', paddingTop: 10, textAlign: 'right', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, fontVariantNumeric: 'tabular-nums', color: (a.hot || a.delta) ? TEAL : bsTHexA(INK, 0.45) }}>{bsCardDateLabel(a) || '—'}</div>
-                    {/* The SAME rich card the community chat feed renders, with the
-                        author header hidden (the profile owns the identity). */}
-                    <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
-                      <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
-                    </div>
+                  /* Full-width card — the date gutter is gone; the card's own
+                     age chip carries the timing. Same rich card the community
+                     chat feed renders, author header hidden (the profile owns
+                     the identity). */
+                  <div key={a.key || i} style={{ marginBottom: 12, ...card, overflow: 'hidden' }}>
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                   </div>
                 ))}
               </div>
@@ -9155,7 +9147,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {/* dock — Message others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
         <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
-          <button onClick={() => onMessage(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
+          <button onClick={() => onMsg(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
         </div>
       )}
     </div>
@@ -9226,7 +9218,11 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
   );
 }
 
-function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+  // Only render Message affordances where the HOST actually wired a handler
+  // (it dismisses this profile before opening the thread) — no dead buttons.
+  const hasMessage = typeof onMessage === 'function';
+  const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
@@ -9567,7 +9563,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ marginTop: 18 }}>
           <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
             ownerPhoto={photo || (live && live.avatar) || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts} />
+            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts}
+            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
         </div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
@@ -9782,13 +9779,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
                 <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
               )}
               {coachFeedEff.map((a, i) => (
-                <div key={a.key || i} style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
-                  {/* The activity's date in a tight left gutter — replaces the timeline dot. */}
-                  <div style={{ flex: '0 0 24px', paddingTop: 10, textAlign: 'right', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.25, fontVariantNumeric: 'tabular-nums', color: bsTHexA(c, 0.6) }}>{bsCardDateLabel(a) || '—'}</div>
-                  {/* The SAME rich card the community chat feed renders, author header hidden. */}
-                  <div style={{ flex: 1, minWidth: 0, ...card, overflow: 'hidden' }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
-                  </div>
+                /* Full-width card — date gutter removed; the card's own age chip
+                   carries the timing. Same rich card the chat feed renders. */
+                <div key={a.key || i} style={{ marginBottom: 12, ...card, overflow: 'hidden' }}>
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                 </div>
               ))}
             </div>
@@ -9807,7 +9801,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       {!isSelf && (
         <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
+            <button onClick={() => onMsg(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
             <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>Work with {first} →</button>
           </div>
         </div>
