@@ -329,6 +329,11 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/trainer/messages', 'GET,POST'],
   ['/api/trainer/programs', 'GET'],
   ['/api/trainer/workout', 'POST'],
+  ['/api/waitlist/join', 'POST'],
+  ['/api/waitlist/mine', 'GET'],
+  ['/api/waitlist/withdraw', 'POST'],
+  ['/api/waitlist/room', 'GET'],
+  ['/api/waitlist/invite', 'POST'],
   ['/api/warroom', 'GET'],
 ];
 
@@ -340,6 +345,7 @@ function groupOf(p: string): string {
   if (p.startsWith('/api/trainer')) return 'Trainer';
   if (p.startsWith('/api/nutritionist')) return 'Nutritionist';
   if (p.startsWith('/api/nutrition')) return 'Nutrition & meals';
+  if (p.startsWith('/api/waitlist')) return 'Coach waiting room';
   if (p.startsWith('/api/coach')) return 'Coach';
   if (p.startsWith('/api/push') || p === '/api/notifications' || p === '/api/notify-app') return 'Push & notifications';
   if (p.startsWith('/api/community') || p.startsWith('/api/messages') || p.startsWith('/api/conversations') ||
@@ -978,6 +984,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Dead-code sweep re-audited (2026-06-19): nothing safe to remove — BSCoachDetailPublic is still the mobile marketplace coach-detail page, the BSM_MARKETPLACE_* constants are each referenced, ListingRow was already removed, and publicProfile.jsx is actively loaded by TrainerPublic/NutritionistPublic.html + coachDirectory.js. No action.', status: 'done' },
         { label: 'Stored-XSS fix (2026-06-19): the profile Music tab rendered the user-supplied member_playlists.url into an anchor href — a javascript:/data: URL would execute on click. Fixed in livingDesktop.jsx (safeMusicUrl: http(s) + Spotify/Apple hosts only) + a NOT VALID CHECK on member_playlists.url (2026-06-19-member-playlists-url-guard.sql APPLIED) as DB-level defense-in-depth covering the mobile open path', status: 'done' },
         { label: 'Coach credential verification (web) — coach uploads COI + certs + submits (coach dashboard profile card); admin verifies at /dashboard/credentials; ✓ Verified badge on marketplace + living profile; weekly expiry-reminder cron. Migration APPLIED (2026-06-19-coach-credential-verification.sql: private coach-credentials bucket + review columns + public verified flag). Mobile badge is a follow-up', status: 'done' },
+      ],
+    },
+    {
+      section: 'Coach waiting room',
+      items: [
+        { label: 'Per-coach waiting list (#1495): when a coach is at capacity, signed-in members join to be first in line; the coach invites with a 7-day first-dibs window; a paid checkout/subscription flips the spot to booked (Stripe webhook); clients can withdraw (waiting→left / invited→declined). Coach discretion on who to invite (positions shown, not a locked FIFO). Surfaced in the mobile client CTA + coach room panel (ShapeWaitlist bridge) + both website profiles. Squash-merged 4f1805fa', status: 'done' },
+        { label: 'First-dibs enforcement: an at-capacity coach is only purchasable/subscribable with a LIVE invite (hasActiveWaitlistInvite, 7-day expiry) — checked in checkout-session + purchase + subscribe; a lookup failure surfaces as a retryable state, never a silent "at capacity"', status: 'done' },
+        { label: 'RLS-authoritative backend: client join/withdraw run on the caller-scoped client under own-row RLS policies + a guard_cols trigger (freezes created_at / provider ids / client_id + invite timestamps); INSERT gated on room-EXISTS AND at-capacity; UPDATE can\'t revert a live invite. FIFO position, coach room roster (+ names), and invites go through SECURITY DEFINER RPCs (get_my_waitlists / get_coach_waitroom / invite_from_waitlist, auth.uid()-ownership-checked). Admin only for notifications + the webhook booked-flip. Migration 2026-07-01-coach-waitlist.sql APPLIED', status: 'done' },
+        { label: 'Register waitlist_join / waitlist_invite in the notification-center matrix for per-channel toggles (they deliver in-app + push today, no per-channel prefs)', status: 'pending' },
+        { label: 'Website invited "Book now" currently routes to the subscribe link — wire to the per-role one-time purchase where that is the intended path', status: 'pending' },
       ],
     },
     {
