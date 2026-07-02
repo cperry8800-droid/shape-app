@@ -6812,7 +6812,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -6881,21 +6881,6 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     finally { setBusy(false); }
   };
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
-  // Message → the real 1:1 (same path as the search rows): create/find the
-  // conversation, then jump straight to the thread. Real accounts only —
-  // demo/community people have no account behind them to message.
-  const [busyMsg, setBusyMsg] = useStateBSC(false);
-  const onMessage = async () => {
-    if (busyMsg || !uid) return;
-    setBusyMsg(true);
-    try {
-      const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid });
-      const cid = (r && r.data) || null;
-      if (cid) { try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name } })); } catch (e) {} }
-      else { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
-    } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
-    setBusyMsg(false);
-  };
   if (!uid && !name) return null;
   const statBtn = (n, label, onTap) => (
     <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
@@ -6927,11 +6912,14 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
         );
       })()}
-      {!isSelf && uid && (
-        <button onClick={onMessage} disabled={busyMsg} style={{
-          flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: busyMsg ? 'default' : 'pointer', lineHeight: 1,
+      {/* Message → the profile host's handler (it dismisses the profile overlay
+          BEFORE opening the real 1:1 — same handoff as the profiles' big
+          Message CTA). Rendered only where a live handler + real account exist. */}
+      {!isSelf && uid && typeof onMessage === 'function' && (
+        <button onClick={() => onMessage()} style={{
+          flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
           fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-          background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.3)}`, opacity: busyMsg ? 0.6 : 1,
+          background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.3)}`,
         }}>Message</button>
       )}
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
@@ -6944,7 +6932,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // the hero's climb as the you-are-here marker); just the type column, full
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
-function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts }) {
+function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   return (
     <div style={{ paddingBottom: 13, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
@@ -6954,7 +6942,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
       </div>
       <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
       <div style={{ marginTop: 8 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} />
+        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage} />
       </div>
     </div>
   );
@@ -8341,7 +8329,11 @@ function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
   );
 }
 
-function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {}, onOpenScore = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {}, onOpenScore = () => {} }) {
+  // Only render Message affordances where the HOST actually wired a handler
+  // (it dismisses this profile before opening the thread) — no dead buttons.
+  const hasMessage = typeof onMessage === 'function';
+  const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
   // light paper makes the profile light). TEAL accent is constant.
@@ -8839,7 +8831,8 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       <div style={{ margin: '16px 18px 0', paddingTop: meMode ? 4 : 14, borderTop: meMode ? 'none' : `1px solid ${bsTHexA(INK, 0.12)}` }}>
         <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
           photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts} />
+          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
+          onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
       </div>
       {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
       <div style={{ padding: '10px 18px 0' }}>
@@ -9154,7 +9147,7 @@ function BSTerrainProfile({ person, onBack, onMessage = () => {}, isSelf = false
       {/* dock — Message others (edit + privacy live in the header / settings now) */}
       {!isSelf && (
         <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
-          <button onClick={() => onMessage(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
+          <button onClick={() => onMsg(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
         </div>
       )}
     </div>
@@ -9225,7 +9218,11 @@ function BSSignalSigil({ week, disciplines, rings, progress = null, c, teal, ink
   );
 }
 
-function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+  // Only render Message affordances where the HOST actually wired a handler
+  // (it dismisses this profile before opening the thread) — no dead buttons.
+  const hasMessage = typeof onMessage === 'function';
+  const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
   const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
@@ -9566,7 +9563,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
         <div style={{ marginTop: 18 }}>
           <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
             ownerPhoto={photo || (live && live.avatar) || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts} />
+            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts}
+            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
         </div>
 
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
@@ -9803,7 +9801,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage = () => {}, isSelf = f
       {!isSelf && (
         <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => onMessage(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
+            <button onClick={() => onMsg(person)} style={{ flex: 1, minHeight: 48, borderRadius: 999, background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.4)}`, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message</button>
             <button onClick={() => setTab('coaching')} style={{ flex: 1.4, minHeight: 48, borderRadius: 999, background: c, color: '#0c0a08', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 800 }}>Work with {first} →</button>
           </div>
         </div>
