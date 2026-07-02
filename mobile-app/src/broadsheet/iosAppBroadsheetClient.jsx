@@ -2833,52 +2833,55 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
         const openHabits = selDayHabits.filter(h => !h.done); // completed habits leave the card
         return (
-          <div data-tour="hero-habits" role="button" aria-label="Open daily habits" onClick={() => setHabitsPage(true)} style={{ margin: `0 ${t.padX}px 9px`, textAlign: 'left', borderRadius: 16, border: `1px solid ${t.HAIR}`, background: `${t.INK}07`, padding: '15px 16px', cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, lineHeight: 1.1, letterSpacing: '-0.02em', color: t.INK }}>Daily habits</div>
-                <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 3 }}>{selDayHabits.length === 0 ? 'Nothing tracked yet' : `${done} of ${selDayHabits.length} done today`}</div>
-              </div>
+          <div data-tour="hero-habits" style={{ margin: `0 ${t.padX}px 9px` }}>
+            <BSPlate c={t.GREEN} notch={11} spine={3} bracket pad="12px 15px 12px 20px"
+              onClick={() => setHabitsPage(true)} role="button" tabIndex={0} ariaLabel="Open daily habits"
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHabitsPage(true); } }}
+              style={{ textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits{selDayHabits.length > 0 ? ` · ${done}/${selDayHabits.length} done` : ''}</span>
               {possible > 0 && (
-                <span style={{ flexShrink: 0, padding: '5px 11px', borderRadius: 999, background: `${t.GREEN}1f`, color: t.GREEN, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>+{pts} / {possible} pts</span>
+                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts} / {possible} pts</span>
               )}
             </div>
+            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.1, letterSpacing: '-0.02em', color: t.INK }}>Daily habits<span style={{ color: t.GREEN }}>.</span></div>
             {/* Transient credit after checking a habit — the points land, the row leaves */}
             {habitFlash && (
-              <div style={{ marginTop: 11, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: `${t.ACCENT}1f`, color: t.ACCENT, fontFamily: t.BODY, fontSize: 12, fontWeight: 700 }}>✓ +{habitFlash.pts} pts added to your Shape Score</div>
+              <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>✓ +{habitFlash.pts} pts → Shape Score</div>
             )}
             {selDayHabits.length === 0 ? (
-              <div style={{ marginTop: 11, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
+              <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
                 Tap to add your first habit.
               </div>
             ) : openHabits.length === 0 ? (
-              <div style={{ marginTop: 12, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
+              <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
                 All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today.
               </div>
             ) : (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 8 }}>
                 {/* First 3 open habits — check off inline; the full list lives in Habits via "View all". */}
                 {openHabits.slice(0, 3).map((h, i, arr) => {
                   const avoid = h.type === 'avoid';
                   const pillC = avoid ? t.RUST : t.GREEN;
                   const last = i === arr.length - 1 && openHabits.length <= 3;
                   return (
-                    <div key={`${h.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
-                      <span style={{ flexShrink: 0, fontFamily: t.BODY, fontSize: 11, fontWeight: 700, color: pillC, background: `${pillC}1f`, padding: '3px 9px', borderRadius: 999 }}>{avoid ? 'Avoid' : 'Do'}</span>
+                    <div key={`${h.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
+                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: pillC, background: `${pillC}1a`, borderLeft: `2px solid ${pillC}`, padding: '3px 7px' }}>{avoid ? 'Avoid' : 'Do'}</span>
                       <div style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                      <span style={{ flexShrink: 0, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
+                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
+                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
                     </div>
                   );
                 })}
                 {openHabits.length > 3 && (
-                  <div style={{ padding: '9px 0 1px', fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, fontWeight: 600 }}>+{openHabits.length - 3} more</div>
+                  <div style={{ padding: '8px 0 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>+{openHabits.length - 3} more</div>
                 )}
               </div>
             )}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <span style={{ flexShrink: 0, padding: '8px 15px', borderRadius: 10, background: `${t.GREEN}1a`, color: t.GREEN, fontFamily: t.BODY, fontSize: 12.5, fontWeight: 700 }}>View all →</span>
+            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.GREEN }}>View all →</span>
             </div>
+            </BSPlate>
           </div>
         );
       })()}
@@ -9122,11 +9125,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
                 {feedEff.map((a, i) => (
-                  /* Full-width card — the date gutter is gone; the card's own
-                     age chip carries the timing. Same rich card the community
-                     chat feed renders, author header hidden (the profile owns
-                     the identity). */
-                  <div key={a.key || i} style={{ marginBottom: 12, ...card, overflow: 'hidden' }}>
+                  /* Full-BLEED card — breaks out of the tab body's 20px side
+                     padding to span the whole screen (side borders + radius
+                     dropped at the edges). The card's own age chip carries the
+                     timing; author header hidden (the profile owns the identity). */
+                  <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                   </div>
                 ))}
@@ -9779,9 +9782,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
               )}
               {coachFeedEff.map((a, i) => (
-                /* Full-width card — date gutter removed; the card's own age chip
-                   carries the timing. Same rich card the chat feed renders. */
-                <div key={a.key || i} style={{ marginBottom: 12, ...card, overflow: 'hidden' }}>
+                /* Full-BLEED card — breaks out of the coach body's 22px side
+                   padding to span the whole screen (side borders + radius
+                   dropped at the edges). The card's own age chip carries the timing. */
+                <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -22px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
                   <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
                 </div>
               ))}
@@ -15378,13 +15382,14 @@ function BSTodayCard() {
   const Gauge = ({ label, val, set, c }) => {
     const pct = Math.max(0, Math.min(1, (val || 0) / 10));
     return (
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 17, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1, color: val ? c : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{val || '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> /10</span></span>
         </div>
-        {/* gauge track (fill + segment ticks + end-anchor) inside a 44px tap row (track stays centered) */}
-        <div style={{ position: 'relative', height: 44 }}>
+        {/* gauge track (fill + segment ticks + end-anchor) inside a 34px tap row
+            (track stays centered; still comfortably over the 24px tap floor) */}
+        <div style={{ position: 'relative', height: 34 }}>
           <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 9, borderRadius: 999, background: t.HAIR, border: `1px solid ${t.RULE}`, overflow: 'hidden' }}>
             <div style={{ width: `${pct * 100}%`, height: '100%', background: c, transition: 'width .16s ease' }} />
           </div>
@@ -15394,7 +15399,7 @@ function BSTodayCard() {
           {val ? <div aria-hidden style={{ position: 'absolute', left: `${pct * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: 999, background: c, border: `2px solid ${t.PAPER}`, boxShadow: `0 0 6px ${c}99` }} /> : null}
           <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)' }}>
             {Array.from({ length: 10 }).map((_, i) => { const v = i + 1; return (
-              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 44, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
+              <button key={v} onClick={() => set(v)} aria-pressed={val === v ? 'true' : 'false'} aria-label={`${label} ${v} of 10`} style={{ height: '100%', minHeight: 34, border: 0, background: 'transparent', cursor: 'pointer', padding: 0 }} />
             ); })}
           </div>
         </div>
@@ -15415,9 +15420,9 @@ function BSTodayCard() {
 
   return (
     <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
-      <BSPlate c={teal} notch={11} spine={3} tick={signedIn} bracket pad="12px 15px 12px 20px">
+      <BSPlate c={teal} notch={11} spine={3} tick={signedIn} bracket pad="10px 15px 10px 20px">
         {/* header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: showForm ? 9 : 7 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: showForm ? 7 : 6 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</span>
           {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>Edit</button>}
         </div>
@@ -15427,8 +15432,8 @@ function BSTodayCard() {
             <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
             <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
             {/* SLEEP — device-first hours + an always-on Rested gauge */}
-            <div style={{ marginTop: 3, paddingTop: 9, borderTop: `1px solid ${t.HAIR}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+            <div style={{ marginTop: 2, paddingTop: 7, borderTop: `1px solid ${t.HAIR}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
                 {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
               </div>
@@ -15445,28 +15450,28 @@ function BSTodayCard() {
                 // not synced → manual hours chips: stay visible, selectable, tap-again to clear
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={`${h} hours of sleep`} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                    <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={`${h} hours of sleep`} aria-pressed={sel ? 'true' : 'false'} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: `1px solid ${sel ? blue : t.RULE}`, background: sel ? `${blue}1f` : 'transparent', color: sel ? blue : t.INK, cursor: 'pointer', padding: '6px 0', fontFamily: t.MONO, fontSize: 10, fontWeight: 700 }}>{h}</button>
                   ); })}
                 </div>
               )}
-              <div style={{ marginTop: 9 }}>
+              <div style={{ marginTop: 6 }}>
                 <Gauge label="Rested" val={rested} set={setRested} c={blue} />
               </div>
             </div>
-            <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 4, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}>{saving ? 'Saving…' : 'Log today'}</button>
+            <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 4, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}>{saving ? 'Saving…' : 'Log today'}</button>
           </>
         ) : (
           <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
         )}
 
         {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
-        <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Hydration</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
           </div>
           {/* dot progress — one dot ≈ one quick-add glass */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 9 }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
             {Array.from({ length: dotCount }).map((_, i) => (
               <div key={i} aria-hidden style={{ flex: '1 1 0', minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : 'transparent', border: `1px solid ${i < filledDots ? teal : t.RULE}` }} />
             ))}
@@ -15474,7 +15479,7 @@ function BSTodayCard() {
           {/* quick-add row */}
           <div style={{ display: 'flex', gap: 8 }}>
             {chips.map(([lab, d]) => (
-              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 6, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
+              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 6, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
             ))}
             <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
           </div>
@@ -15482,7 +15487,7 @@ function BSTodayCard() {
 
         {/* recovery readiness + the door to the full sleep detail page */}
         {signedIn && (
-          <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
               {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
             </span>
