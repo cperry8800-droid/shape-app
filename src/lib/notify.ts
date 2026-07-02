@@ -75,8 +75,22 @@ export async function createPreferredNotification(
     }
     const channels = channelsForType({ matrix: { [n.type]: overrides } }, n.type);
     if (!channels.inapp && !channels.push && !channels.email) return;
+    // Email cooldown: one email per (recipient, type) per hour, checked BEFORE
+    // the insert below (which would otherwise count itself). Event loops (e.g.
+    // scripted waitlist join→withdraw→join) can fire the bell/push row per
+    // event, but must not amplify into outbound email spam. On a failed lookup
+    // err toward skipping the email — the in-app/push row still lands.
+    let allowEmail = channels.email;
+    if (allowEmail) {
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count, error } = await admin
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', n.userId).eq('type', n.type).gte('created_at', since);
+      if (error || (count ?? 1) > 0) allowEmail = false;
+    }
     await createNotification(admin, { ...n, data: { ...(n.data ?? {}), channels } });
-    if (channels.email) {
+    if (allowEmail) {
       const { data } = await admin.auth.admin.getUserById(n.userId);
       const email = data?.user?.email || '';
       if (email) {
