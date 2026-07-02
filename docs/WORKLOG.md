@@ -223,6 +223,29 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — Profile polish: full-width activity cards + Message beside Follow (#1500)
+- **Full-width activity cards.** The profile "Personal activities" feed's MM/DD **date
+  gutter is removed** on BOTH profiles (member Terrain + coach Signal) so the rich
+  activity cards span the full screen width — the card's own age chip ("6m"/"2d")
+  already carries the timing. `bsCardDateLabel` + `bsAgoToDate` lost their only
+  callers and were removed (dead-code discipline).
+- **Message pill beside Follow.** `BSFollowBlock` (the shared followers/following/
+  posts row on both profiles) gains a **Message** pill next to Follow — outline style
+  matching the non-solid Follow states; the stats row now wraps (`flexWrap` +
+  `rowGap`) so narrow screens can't overflow. **Codex P2 fixed before merge:** the
+  pill routes through the profile HOST's `onMessage(person)` handoff (threaded
+  `BSTerrainProfile`/`BSSignalCoachProfile` → `BSProfileIdentityHead` →
+  `BSFollowBlock`) — the host dismisses the profile overlay BEFORE opening the real
+  1:1 (`getOrCreateMemberConversation`), exactly like the profiles' big Message CTA;
+  a direct `shape:openConversation` dispatch would have left the overlay rendered
+  over the thread in child-hosted contexts (e.g. `BSClientFeed`). Rendered only
+  where a live handler + a real account exist — hosts that never wired messaging
+  (search/list overlays) get no dead button; hidden on your own profile.
+- Squash-merged `055a588d` (#1500), CI green, CodeRabbit clean, Codex thread
+  resolved; branch kept. Verified: JSX parse · mobile Vite build (PowerShell; the
+  local `three`/`@pixiv/three-vrm` deps had gone missing from `node_modules` and
+  were restored via `npm install` — environmental, not a repo change) · 363/363.
+
 ### 2026-07-02 — Waitlist follow-ups (#1497 notification matrix · #1498 Book-now one-time) + WORKLOG consolidation
 - **Waitlist notification types registered + preference-enforced (#1497).** The #1495
   follow-up: `waitlist_join` / `waitlist_invite` delivered in-app + push with no
