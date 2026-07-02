@@ -223,6 +223,46 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — Profile round 3: Message beside Follow · FULL-BLEED profiles · the masthead opens EVERY page (#1505 · #1506 · #1507)
+- **Message pill rides the Follow row (#1505).** `BSFollowBlock` groups Follow + Message
+  into ONE flex item so they always share a row (the pair wraps together, never apart);
+  the stats gap tightened 14→11 so the whole line fits a phone width.
+- **Both living profiles run FULL-BLEED (#1505)** — the #1502 activity-card treatment
+  extended to every boxed surface. Rule: **boxes go edge-to-edge (side borders + radius
+  dropped at the screen edges); typographic content keeps the page gutter.** Member
+  (Terrain): the ascent hero card spans the screen — its ridge SVG gets
+  `preserveAspectRatio="none"` so the %-positioned HTML overlays (you-are-here badge,
+  level pills) stay aligned with the drawn geometry at any width (they drifted under the
+  default letterboxing); the tab bar, signals cards, trajectory, lift tiles, Why card,
+  extras, playlists, and empty/private states all bleed. Coach (Signal): same at its
+  22px gutter (hero stat card, discipline grid, track record, certifications,
+  waitlist/storefront cards, offerings, reviews). The shared pieces (`BSLivingTabs`,
+  `BSProfileExtras`, `BSProfilePlaylists`) take `pad`/`bleed` props, so nothing else moves.
+- **The standing masthead (SHAPE logo + Vol. 1 · No. 1 + search/avatar corners) now
+  opens EVERY page (#1506 + the pushed profiles in #1505).** New shared
+  **`window.BSMastRow`** (`iosAppBroadsheet.jsx`, exposed with the chrome); applied to
+  every screen that still opened with a bare custom header: **`BSDetailHeader`** (the
+  shared sticky detail header — 26 consumer pages incl. Habits; the corners move up
+  beside the logo, top pad 64→46 so the sticky height holds), the client one-offs
+  (Library, Library detail, workout Preview, meal preview, the chat-thread header), and
+  the pros customs via **`bsProMastRow()`** (Adjust/Schedule action head, client full
+  profile, Soundtracks; `BSProMe` + the draft editor take the logo-only variant — their
+  headers already own the right corner). Pages on `BSMasthead`/`BSPageHeader` already
+  carried the row.
+- **Activity feed decluttered (#1507).** The "PERSONAL ACTIVITIES" label is gone on both
+  profiles (the Activity tab already names the feed); the owner's ＋ Log activity CTA
+  stays via a shared `BSActivityLogCta` (CodeRabbit's dedupe suggestion, applied); the
+  profile tab strip compacted (bar margin 14→9, strip pad 6→5, control inset 4→3,
+  buttons 8→6px vertical).
+- **Process lesson (cost ~20 min): don't stack PRs.** A PR based on another feature
+  branch gets NO CodeRabbit review (skips non-main/staging bases) AND no `ci.yml` run
+  (its `pull_request` filter targets main) — and retargeting the base to main later
+  does NOT retrigger workflows (needed an empty commit to fire the required checks).
+  Open every PR against `main` directly.
+- All three squash-merged (`b99f6047` #1505 · `e9f51407` #1506 · `7bce400c` #1507), CI
+  green, the one CodeRabbit finding addressed + resolved; branches kept. Verified per
+  PR: JSX parse · PowerShell mobile build · 363/363 tests · LF normalized.
+
 ### 2026-07-02 — Home + profile polish round 2 (#1502) · Message pill everywhere messageable (#1503)
 - **Home "Daily habits" card → instrument plate (#1502).** It had drifted to a soft
   rounded card while the rest of the home page speaks BSPlate: now a green plate
