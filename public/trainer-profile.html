@@ -351,8 +351,10 @@
           };
         } else if (entry.status === 'invited') {
           el.innerHTML = "<strong style='color:#86efac;'>You're invited &mdash; book before this coach reopens to everyone.</strong><div style='margin-top:8px;'><button id='wlBook' class='btn btn-primary'>Book now</button> <button id='wlDecline' class='btn btn-secondary'>Decline</button></div>";
-          // Reveal/enable the page's normal Subscribe/Book CTAs for this invited client:
-          document.getElementById('wlBook').onclick = function () { document.getElementById('tpSubscribeLink') && document.getElementById('tpSubscribeLink').click(); };
+          // First-dibs booking is the per-role ONE-TIME purchase (book a session), not the
+          // monthly subscription — the invite gate (hasActiveWaitlistInvite) allows both,
+          // and the Stripe webhook flips the waitlist row to booked for either mode.
+          document.getElementById('wlBook').onclick = function () { document.getElementById('tpBookLink') && document.getElementById('tpBookLink').click(); };
           document.getElementById('wlDecline').onclick = async function () {
             await authFetch('/api/waitlist/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entryId: entry.id }) });
             renderWaitlistCTA(providerId, providerRole);
