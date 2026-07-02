@@ -10481,6 +10481,256 @@ function BSFeedComment({ c, t, cardInk, muted, feedAvatars = {}, real = false, s
 // Full-screen activity detail — the post + every stat/breakdown + who reacted +
 // the whole comments thread + a sticky composer. Opened from "Session details"
 // (stats focus) or the comment icon (comments focus → autofocus the composer).
+// ── Session Details v2 — "living instrument" primitives ──────────────────────
+// The page BOOTS: numbers count up, traces draw themselves, zone cells charge,
+// set bars land with an overshoot and the PR bursts — one-shot, staggered, each
+// section firing as it scrolls into view. The page's accent is INTENSITY-
+// REACTIVE (a recovery session reads cool teal, a max effort reads ember).
+// All CSS/SVG (no deps); prefers-reduced-motion renders the finished state.
+const bsSdReduced = () => { try { return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+let _bsSdCssInjected = false;
+function bsInjectSessionDetailCss() {
+  if (_bsSdCssInjected || typeof document === 'undefined') return;
+  _bsSdCssInjected = true;
+  const el = document.createElement('style');
+  el.textContent = `
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes bsSdRise { 0% { transform: scaleY(0); } 72% { transform: scaleY(1.07); } 100% { transform: scaleY(1); } }
+      @keyframes bsSdFadeUp { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: none; } }
+      @keyframes bsSdBurst { 0% { box-shadow: 0 0 0 0 var(--sd-burst); opacity: 1; } 100% { box-shadow: 0 0 0 16px transparent; opacity: 0; } }
+      @keyframes bsSdPrBreath { 0%, 100% { box-shadow: 0 0 0 0 var(--sd-glow); } 55% { box-shadow: 0 0 10px 2px var(--sd-glow); } }
+      @keyframes bsSdShimmer { 0% { transform: translateX(-110%); } 100% { transform: translateX(240%); } }
+      @keyframes bsSdDrawX { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+    }
+  `;
+  document.head.appendChild(el);
+}
+// Count-up number: rolls 0 → the value's numeric part (prefix/suffix kept, e.g.
+// "8,150 lb" · "3.2 mi"). Times ("42:15"), ranges, and non-numeric values render
+// static — a fabricated mid-count time would read as a different duration.
+function BSSdCountUp({ text, run = true, duration = 750, delay = 0, style = null }) {
+  const s = String(text == null ? '' : text);
+  const m = s.match(/^([^\d-]*)(\d{1,3}(?:,\d{3})*(?:\.\d+)?)([^\d]*)$/);
+  const target = m ? parseFloat(m[2].replace(/,/g, '')) : null;
+  const decimals = m && m[2].includes('.') ? (m[2].split('.')[1] || '').length : 0;
+  const hasCommas = !!(m && m[2].includes(','));
+  const animatable = run && target != null && !bsSdReduced();
+  const [val, setVal] = useStateBSC(animatable ? 0 : target);
+  React.useEffect(() => {
+    if (!animatable) { setVal(target); return undefined; }
+    let raf = null, t0 = null, dead = false;
+    const tick = (ts) => {
+      if (dead) return;
+      if (t0 == null) t0 = ts;
+      const p = Math.min(1, (ts - t0) / duration);
+      const e = 1 - Math.pow(1 - p, 3);
+      setVal(target * e);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    const start = setTimeout(() => { raf = requestAnimationFrame(tick); }, delay);
+    return () => { dead = true; clearTimeout(start); if (raf) cancelAnimationFrame(raf); };
+  }, [animatable, target, duration, delay]);
+  if (target == null) return <span style={style}>{s}</span>;
+  const shown = decimals ? (val || 0).toFixed(decimals) : (hasCommas ? Math.round(val || 0).toLocaleString() : String(Math.round(val || 0)));
+  return <span style={{ fontVariantNumeric: 'tabular-nums', ...style }}>{m[1]}{shown}{m[3]}</span>;
+}
+// One-shot in-view trigger — each section boots the first time it scrolls into
+// view (reduced motion: treated as already seen → final state, no animation).
+function useBSSdInView() {
+  const ref = React.useRef(null);
+  const [seen, setSeen] = useStateBSC(bsSdReduced());
+  React.useEffect(() => {
+    if (seen) return undefined;
+    if (!ref.current || typeof IntersectionObserver === 'undefined') { setSeen(true); return undefined; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setSeen(true); }, { threshold: 0.2 });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [seen]);
+  return [ref, seen];
+}
+const BS_SD_ZONES = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
+// Session intensity (0..4-ish) from the time-in-zone split — drives the page's
+// accent temperature. null when there's no zone data (neutral page).
+function bsSdIntensity(zones) {
+  if (!Array.isArray(zones) || !zones.length) return null;
+  let sum = 0, tot = 0;
+  zones.forEach(([, pct], i) => { const p = Number(pct) || 0; sum += i * p; tot += p; });
+  return tot > 0 ? sum / tot : null;
+}
+function bsSdHeatColor(intensity, fallback) {
+  if (intensity == null) return fallback;
+  if (intensity < 1.1) return '#34d6c5';
+  if (intensity < 1.9) return '#d8b25a';
+  if (intensity < 2.7) return '#e8843c';
+  return '#e0463c';
+}
+// The LIVING TRACE — the metric-over-distance chart, alive: the line draws
+// itself in when scrolled into view, the fill fades up after it, the trace's
+// END carries a live dot (HTML, so it never distorts under the stretched
+// viewBox), an optional MAX flag marks the peak, and touch-scrubbing anywhere
+// shows a scan line + mono readout. HR mode (zoneGrad) colors the line by
+// intensity — cool blue at the session's floor up to red at its ceiling.
+function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, muted, distanceMi = null, zoneGrad = false, markMax = false, unit = '' }) {
+  const [ref, seen] = useBSSdInView();
+  const [scrub, setScrub] = useStateBSC(null); // { frac, i }
+  if (!Array.isArray(vals) || vals.length < 2) return null;
+  const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1, W = 100, top = 5, bot = 95, span = bot - top;
+  const yOf = (v) => invert ? (top + ((v - lo) / rng) * span) : (bot - ((v - lo) / rng) * span);
+  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(2)} ${yOf(v).toFixed(2)}`).join(' ');
+  const gid = `sd-${idKey}`;
+  const fmtv = fmt || ((v) => `${Math.round(v)}`);
+  const yTicks = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
+  const step = distanceMi && distanceMi > 0 ? Math.max(1, Math.round(distanceMi / 5)) : 0;
+  const xTicks = [];
+  if (step) for (let m = step; m < distanceMi - 0.15; m += step) xTicks.push(m);
+  const reduced = bsSdReduced();
+  // Peak marker (max value; for inverted charts the "peak" is the FASTEST = min).
+  const peakVal = invert ? lo : hi;
+  const peakIdx = vals.indexOf(peakVal);
+  const peakX = (peakIdx / (vals.length - 1)) * 100, peakY = yOf(peakVal);
+  const endY = yOf(vals[vals.length - 1]);
+  const onScrub = (e) => {
+    const el = e.currentTarget, r = el.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / (r.width || 1)));
+    setScrub({ frac, i: Math.round(frac * (vals.length - 1)) });
+  };
+  return (
+    <div ref={ref} style={{ paddingLeft: 34 }}>
+      <div style={{ position: 'relative', touchAction: 'pan-y' }}
+        onPointerDown={onScrub}
+        onPointerMove={(e) => { if (e.buttons || e.pointerType === 'touch') onScrub(e); }}
+        onPointerUp={() => setScrub(null)} onPointerLeave={() => setScrub(null)} onPointerCancel={() => setScrub(null)}>
+        {yTicks.map((tk, i) => (
+          <span key={i} style={{ position: 'absolute', left: -34, width: 30, textAlign: 'right', top: `calc(${tk.y}% - 5px)`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: muted, fontVariantNumeric: 'tabular-nums' }}>{fmtv(tk.v)}</span>
+        ))}
+        <svg viewBox={`0 0 ${W} 100`} preserveAspectRatio="none" style={{ width: '100%', height, display: 'block' }} aria-hidden>
+          <defs>
+            <linearGradient id={`${gid}-a`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.22" /><stop offset="100%" stopColor={color} stopOpacity="0.015" /></linearGradient>
+            {zoneGrad && (
+              <linearGradient id={`${gid}-z`} x1="0" y1="100" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor={BS_SD_ZONES[0]} /><stop offset="30%" stopColor={BS_SD_ZONES[1]} /><stop offset="55%" stopColor={BS_SD_ZONES[2]} /><stop offset="78%" stopColor={BS_SD_ZONES[3]} /><stop offset="100%" stopColor={BS_SD_ZONES[4]} />
+              </linearGradient>
+            )}
+          </defs>
+          {yTicks.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke={bsTHexA(t.INK, 0.08)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
+          {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke={bsTHexA(t.INK, 0.06)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
+          <path d={`${line} L${W} 100 L0 100 Z`} fill={`url(#${gid}-a)`} style={{ opacity: seen ? 1 : 0, transition: 'opacity 700ms ease 650ms' }} />
+          <path d={line} fill="none" stroke={zoneGrad ? `url(#${gid}-z)` : color} strokeWidth={zoneGrad ? 1.4 : 1} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round"
+            pathLength={1} strokeDasharray={reduced ? 'none' : 1} strokeDashoffset={reduced ? 0 : (seen ? 0 : 1)} style={{ transition: 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 120ms' }} />
+          {scrub && <line x1={scrub.frac * 100} y1="0" x2={scrub.frac * 100} y2="100" stroke={bsTHexA(t.INK, 0.55)} strokeWidth="1" vectorEffect="non-scaling-stroke" />}
+        </svg>
+        {/* live end-point — an HTML dot (never distorted by the stretched viewBox) */}
+        {seen && !scrub && (
+          <span aria-hidden style={{ position: 'absolute', left: 'calc(100% - 3px)', top: `calc(${endY}% - 3px)`, width: 6, height: 6, borderRadius: 999, background: zoneGrad ? bsSdHeatColor(3.2, color) : color, boxShadow: `0 0 0 3px ${bsTHexA(zoneGrad ? '#e0463c' : color, 0.18)}`, opacity: 0.9 }} />
+        )}
+        {markMax && seen && !scrub && (
+          <span aria-hidden style={{ position: 'absolute', left: `min(max(${peakX}% - 24px, 0px), calc(100% - 58px))`, top: `max(calc(${peakY}% - 16px), 0px)`, fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.08em', color: t.INK, background: bsTHexA(t.INK, 0.1), padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap' }}>▲ {fmtv(peakVal)}{unit ? ` ${unit}` : ''}</span>
+        )}
+        {scrub && (
+          <span style={{ position: 'absolute', top: -4, left: `min(max(${scrub.frac * 100}% - 30px, 0px), calc(100% - 74px))`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: t.PAPER, background: bsTHexA(t.INK, 0.9), padding: '3px 7px', borderRadius: 4, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' }}>
+            {fmtv(vals[scrub.i])}{unit ? ` ${unit}` : ''}{distanceMi ? ` · ${(scrub.frac * distanceMi).toFixed(1)} mi` : ''}
+          </span>
+        )}
+      </div>
+      {xTicks.length > 0 && (
+        <div style={{ position: 'relative', height: 13, marginTop: 4 }}>
+          {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <span key={i} style={{ position: 'absolute', left: `${xp}%`, top: 0, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: muted }}>{m} mi</span>; })}
+        </div>
+      )}
+    </div>
+  );
+}
+// Time-in-zone as CHARGING FUEL CELLS — each zone row fills sequentially with a
+// one-shot shimmer, cut into segments; the % counts up alongside.
+function BSSdZoneCells({ zones, t, muted }) {
+  const [ref, seen] = useBSSdInView();
+  return (
+    <div ref={ref} style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {zones.map(([zl, pct], i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: BS_SD_ZONES[i % 5], flexShrink: 0 }} />
+          <span style={{ width: 18, flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: t.INK }}>{zl}</span>
+          <div style={{ flex: 1, height: 10, borderRadius: 2, background: bsTHexA(t.INK, 0.07), overflow: 'hidden', position: 'relative' }}>
+            <div style={{ width: seen ? `${Math.max(pct, 1.5)}%` : '0%', height: '100%', background: BS_SD_ZONES[i % 5], transition: `width 750ms cubic-bezier(.3,.6,.2,1) ${140 * i}ms`, position: 'relative', overflow: 'hidden' }}>
+              {seen && !bsSdReduced() && <span aria-hidden style={{ position: 'absolute', top: 0, bottom: 0, width: '45%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)', animation: `bsSdShimmer 850ms ease-out ${140 * i + 350}ms both` }} />}
+            </div>
+            {/* segment cuts — the fill reads as charge cells, not a spreadsheet bar */}
+            <div aria-hidden style={{ position: 'absolute', inset: 0, background: `repeating-linear-gradient(90deg, transparent 0 9px, ${t.PAPER} 9px 11px)` }} />
+          </div>
+          <span style={{ width: 30, flexShrink: 0, textAlign: 'right', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: pct >= 30 ? t.INK : muted }}>
+            <BSSdCountUp text={`${pct}%`} run={seen} duration={650} delay={140 * i} />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+// Splits / working sets as LANDING BARS — each bar rises with a slight
+// overshoot, staggered; the best/PR bar lands last in the session's heat color
+// with a burst ring + a soft breathing halo. "RPE n" subs render as mini dials.
+function BSSdBars({ rows, perf, bestIdx, heat, t, muted }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  const pmax = Math.max(...perf, 1);
+  const lastDelay = rows.length * 110 + 260;
+  const rpeOf = (sub) => { const m = String(sub || '').match(/rpe\s*([\d.]+)/i); return m ? parseFloat(m[1]) : null; };
+  const rpeColor = (r) => (r >= 9 ? '#e0463c' : r >= 8 ? '#d8b25a' : '#34d6c5');
+  return (
+    <div ref={ref}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 132 }}>
+        {rows.map((r, i) => {
+          const barH = 24 + (perf[i] / pmax) * 88;
+          const best = i === bestIdx && rows.length > 1;
+          return (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap', opacity: seen ? 1 : 0, transition: `opacity 400ms ease ${i * 110 + 300}ms` }}>{r[1]}</span>
+              <div style={{ width: '100%', maxWidth: 38, height: barH, position: 'relative' }}>
+                <div style={{
+                  position: 'absolute', inset: 0, borderRadius: '3px 3px 0 0',
+                  background: best ? heat : bsTHexA(t.INK, 0.18),
+                  transformOrigin: 'bottom', transform: (seen || reduced) ? undefined : 'scaleY(0)',
+                  '--sd-glow': bsTHexA(heat, 0.5),
+                  animation: (seen && !reduced)
+                    ? (best
+                      ? `bsSdRise 560ms cubic-bezier(.25,.75,.35,1.12) ${i * 110}ms both, bsSdPrBreath 2.8s ease-in-out ${lastDelay + 700}ms infinite`
+                      : `bsSdRise 560ms cubic-bezier(.25,.75,.35,1.12) ${i * 110}ms both`)
+                    : 'none',
+                }} />
+                {best && seen && !reduced && (
+                  <span aria-hidden style={{ position: 'absolute', inset: 0, borderRadius: '3px 3px 0 0', '--sd-burst': bsTHexA(heat, 0.55), animation: `bsSdBurst 750ms ease-out ${lastDelay}ms both` }} />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 9 }}>
+        {rows.map((r, i) => {
+          const rpe = rpeOf(r[2]);
+          const rest = String(r[2] || '').replace(/rpe\s*[\d.]+/i, '').replace(/^\s*·\s*|\s*·\s*$/g, '').trim();
+          return (
+            <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
+              {rpe != null ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 3 }}>
+                  <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden>
+                    <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
+                    <circle cx="10" cy="10" r="7.5" fill="none" stroke={rpeColor(rpe)} strokeWidth="3" strokeLinecap="round" pathLength={100}
+                      strokeDasharray={`${Math.max(4, Math.min(100, (rpe / 10) * 100))} 100`} transform="rotate(-90 10 10)" />
+                  </svg>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? bsTHexA(t.INK, 0.75) : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>{rpe}{rest ? ` · ${rest}` : ''}</span>
+                </div>
+              ) : (
+                r[2] && <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? bsTHexA(t.INK, 0.7) : bsTHexA(t.INK, 0.4), marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[2]}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onClose, onReact, onProfile, onOpenLikers, draft, setDraft, onSend }) {
   const t = useBS();
   const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1), card = bsTHexA(t.INK, 0.03);
@@ -10503,6 +10753,12 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // Off-tier accent for the activity views (hero readout + reaction pill): the
   // app's teal, the same for everyone (tier color stays on avatars/badge only).
   const accent = t.ACCENT;
+  // v2 "living instrument": the page's TEMPERATURE follows the session's
+  // time-in-zone intensity — a recovery session reads cool teal, a max effort
+  // reads ember/red. Falls back to the neutral accent when no zone data.
+  bsInjectSessionDetailCss();
+  const sdReduced = bsSdReduced();
+  const heat = bsSdHeatColor(bsSdIntensity(d.zones), accent);
   // ── Instrument-plate helpers (stats view) ──────────────────────────────────
   // Clipped top-right notch (matches the shared BSPlate language).
   const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
@@ -10511,23 +10767,43 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // its own clearly-divided section.
   const secHead = (label, trailing) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.62), marginTop: 24, paddingTop: 17, marginBottom: 13, borderTop: `1px solid ${hair}` }}>
-      <span aria-hidden style={{ width: 14, height: 1.5, background: neu, borderRadius: 2 }} />
+      <span aria-hidden style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} />
       <span>{label}</span>{trailing}
     </div>
   );
   // Squared instrument stat tile — accent spine + mono label + serif tabular
   // number, on a clipped two-layer plate (crisp notch with a hairline edge).
-  const statTile = (k, v, i) => (
-    <div key={i} style={{ position: 'relative', minWidth: 0 }}>
-      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.08) }} />
-      <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: bsTHexA(t.INK, 0.015) }} />
-      <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: bsTHexA(t.INK, 0.4) }} />
-      <div style={{ position: 'relative', padding: '11px 12px 12px 14px' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 5, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
+  // Ghost sparkline behind a stat that HAS a series (HR/pace) — the tile hints
+  // at the shape of the data behind its number.
+  const ghostFor = (k) => {
+    const key = String(k).toLowerCase();
+    const series = (/\bhr\b|heart|bpm/.test(key) && Array.isArray(d.trace) && d.trace.length > 1) ? d.trace
+      : (/pace|speed/.test(key) && Array.isArray(d.paceTrace) && d.paceTrace.length > 1) ? d.paceTrace : null;
+    if (!series) return null;
+    const lo = Math.min(...series), hi = Math.max(...series), rng = (hi - lo) || 1;
+    return series.map((v, i) => `${i ? 'L' : 'M'}${((i / (series.length - 1)) * 100).toFixed(1)} ${(88 - ((v - lo) / rng) * 76).toFixed(1)}`).join(' ');
+  };
+  const statTile = (k, v, i) => {
+    const ghost = ghostFor(k);
+    return (
+      <div key={i} style={{ position: 'relative', minWidth: 0, ...(sdReduced ? null : { animation: `bsSdFadeUp 460ms ease ${140 + i * 90}ms both` }) }}>
+        <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.08) }} />
+        <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: bsTHexA(t.INK, 0.015) }} />
+        <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: bsTHexA(heat, 0.6) }} />
+        {ghost && (
+          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 1, width: 'calc(100% - 2px)', height: 'calc(100% - 2px)', clipPath: clip(9), opacity: 0.14 }}>
+            <path d={ghost} fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+          </svg>
+        )}
+        <div style={{ position: 'relative', padding: '11px 12px 12px 14px' }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 5, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <BSSdCountUp text={v} duration={800} delay={180 + i * 90} />
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
   // Reusable section chip (right-aligned stat on a chart head).
   const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em', color: muted, background: bsTHexA(t.INK, 0.06), border: accent ? `1px solid ${bsTHexA(t.INK, 0.18)}` : 0, borderRadius: 999, padding: '2px 8px' }}>{label}</span>;
   // Categorize the device stats so the page reads as a few clear SECTIONS, not
@@ -10552,7 +10828,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const summaryStats = allStats.filter((s) => s !== bestPaceStat && !isChartedScalar(s[0]));
   const outputStats = [];
   const sumCols = summaryStats.length <= 3 ? (summaryStats.length || 1) : 2;
-  const ZC = ['#5b8def', '#34d6c5', '#d8b25a', '#e8843c', '#e0463c'];
   // Total distance (for the x-axis mile markers) — only when the distance stat
   // is in miles (runs/rides); swims/others report metres, so skip the markers.
   const distStat = (d.heroStat && /dist/i.test(d.heroStat[0])) ? d.heroStat : allStats.find(([k]) => /dist/i.test(k));
@@ -10572,42 +10847,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     : { label: 'Pace', invert: true, fmt: fmtPaceSec, chip: 'Fastest', chipRe: null };
   const paceChipStat = paceCfg.chipRe ? allStats.find(([k]) => paceCfg.chipRe.test(k)) : bestPaceStat;
   const powerStat = allStats.find(([k]) => /power|watt/i.test(k)) || null;
-  // Strava-style area chart: a filled metric-over-distance plot with a y-axis
-  // (3 ticks) + x-axis mile markers + faint gridlines. `invert` puts the LOW
-  // value on top (pace — faster reads higher). Pure (no hooks) — called inline.
-  const AreaChart = ({ vals, color, invert, fmt, idKey, height = 104 }) => {
-    if (!Array.isArray(vals) || vals.length < 2) return null;
-    const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1, W = 100, top = 5, bot = 95, span = bot - top;
-    const yOf = (v) => invert ? (top + ((v - lo) / rng) * span) : (bot - ((v - lo) / rng) * span);
-    const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(2)} ${yOf(v).toFixed(2)}`).join(' ');
-    const gid = `ac-${idKey}-${String(color).replace(/[^a-z0-9]/gi, '')}`;
-    const fmtv = fmt || ((v) => `${Math.round(v)}`);
-    const yTicks = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
-    const step = distanceMi && distanceMi > 0 ? Math.max(1, Math.round(distanceMi / 5)) : 0;
-    const xTicks = [];
-    if (step) for (let m = step; m < distanceMi - 0.15; m += step) xTicks.push(m);
-    return (
-      <div style={{ paddingLeft: 34 }}>
-        <div style={{ position: 'relative' }}>
-          {yTicks.map((tk, i) => (
-            <span key={i} style={{ position: 'absolute', left: -34, width: 30, textAlign: 'right', top: `calc(${tk.y}% - 5px)`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, color: muted, fontVariantNumeric: 'tabular-nums' }}>{fmtv(tk.v)}</span>
-          ))}
-          <svg viewBox={`0 0 ${W} 100`} preserveAspectRatio="none" style={{ width: '100%', height, display: 'block' }} aria-hidden>
-            <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.2" /><stop offset="100%" stopColor={color} stopOpacity="0.015" /></linearGradient></defs>
-            {yTicks.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke={bsTHexA(t.INK, 0.08)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
-            {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke={bsTHexA(t.INK, 0.06)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
-            <path d={`${line} L${W} 100 L0 100 Z`} fill={`url(#${gid})`} />
-            <path d={line} fill="none" stroke={color} strokeWidth="1" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-          </svg>
-        </div>
-        {xTicks.length > 0 && (
-          <div style={{ position: 'relative', height: 13, marginTop: 4 }}>
-            {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <span key={i} style={{ position: 'absolute', left: `${xp}%`, top: 0, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: muted }}>{m} mi</span>; })}
-          </div>
-        )}
-      </div>
-    );
-  };
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
     <div style={{ position: 'absolute', inset: 0, zIndex: 99990, background: t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column' }}>
@@ -10640,23 +10879,30 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{d.ago} ago{d.city ? ` · ${d.city}` : ''} · {d.role || 'Client'}</div>
           </div>
         </div>
-        {/* hero */}
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 15 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: accent }}>.</span>}</div>
-        {d.heroStat && (
-          <div style={{ position: 'relative', marginTop: 13 }}>
-            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(14), background: `${accent}77` }} />
-            <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(13), background: `linear-gradient(165deg, ${accent}24, ${accent}07 46%, ${t.PAPER2} 92%), ${t.PAPER}` }} />
-            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: accent }} />
-            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${accent}`, borderBottom: `1.5px solid ${accent}`, opacity: 0.6 }} />
-            <div style={{ position: 'relative', padding: '14px 16px 15px' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 7 }}>{d.heroStat[0]}</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 12px' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{d.heroStat[1]}</span>
-                {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, background: `${accent}22`, border: `1px solid ${accent}`, padding: '4px 9px', borderRadius: 999 }}>↑ {d.prDelta}</span>}
+        {/* hero — boots on entry: the intensity heat-wash sits behind it, the
+            title's pulse rule draws in, and the headline number counts up. */}
+        <div style={{ position: 'relative' }}>
+          <div aria-hidden style={{ position: 'absolute', inset: '-18px -16px -14px', background: `radial-gradient(120% 95% at 18% 0%, ${bsTHexA(heat, 0.13)}, transparent 62%)`, pointerEvents: 'none' }} />
+          <div style={{ position: 'relative', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 15 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
+          <div aria-hidden style={{ position: 'relative', height: 2, marginTop: 9, background: `linear-gradient(90deg, ${heat}, ${bsTHexA(heat, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 80ms both' }) }} />
+          {d.heroStat && (
+            <div style={{ position: 'relative', marginTop: 13 }}>
+              <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(14), background: `${heat}77` }} />
+              <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(13), background: `linear-gradient(165deg, ${heat}24, ${heat}07 46%, ${t.PAPER2} 92%), ${t.PAPER}` }} />
+              <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: heat }} />
+              <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${heat}`, borderBottom: `1.5px solid ${heat}`, opacity: 0.6 }} />
+              <div style={{ position: 'relative', padding: '14px 16px 15px' }}>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 7 }}>{d.heroStat[0]}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 12px' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
+                    <BSSdCountUp text={d.heroStat[1]} duration={780} delay={120} />
+                  </span>
+                  {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: heat, background: `${heat}22`, border: `1px solid ${heat}`, padding: '4px 9px', borderRadius: 999, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 720ms both' }) }}>↑ {d.prDelta}</span>}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
         {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
         {d.coSign && (
           <div style={{ marginTop: 12 }}>
@@ -10687,14 +10933,14 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
           <>
             {secHead(paceCfg.label, paceChipStat ? headChip(`${paceCfg.chip} ${paceChipStat[1]}`, true) : null)}
-            {AreaChart({ vals: d.paceTrace, color: neu, invert: paceCfg.invert, fmt: paceCfg.fmt, idKey: 'pace', height: 116 })}
+            <BSSdTrace vals={d.paceTrace} color={neu} invert={paceCfg.invert} fmt={paceCfg.fmt} idKey="pace" height={116} t={t} muted={muted} distanceMi={distanceMi} markMax />
           </>
         )}
         {/* POWER — watts over distance (rides, when a power meter is present). */}
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
             {secHead('Power')}
-            {AreaChart({ vals: d.powerTrace, color: '#d8b25a', fmt: (v) => `${Math.round(v)}`, idKey: 'pwr', height: 96 })}
+            <BSSdTrace vals={d.powerTrace} color="#d8b25a" fmt={(v) => `${Math.round(v)}`} idKey="pwr" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="w" />
           </>
         )}
         {/* HEART RATE — a bpm-over-distance area chart (y-axis bpm + x-axis miles),
@@ -10702,21 +10948,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
             {secHead('Heart rate')}
-            {Array.isArray(d.trace) && d.trace.length > 1 && AreaChart({ vals: d.trace, color: neu, fmt: (v) => `${Math.round(v)}`, idKey: 'hr', height: 116 })}
-            {Array.isArray(d.zones) && d.zones.length > 0 && (
-              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 9 }}>
-                {d.zones.map(([zl, pct], i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: ZC[i % 5], flexShrink: 0 }} />
-                    <span style={{ width: 18, flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: t.INK }}>{zl}</span>
-                    <div style={{ flex: 1, height: 9, borderRadius: 999, background: bsTHexA(t.INK, 0.07), overflow: 'hidden' }}>
-                      <div style={{ width: `${Math.max(pct, 1.5)}%`, height: '100%', borderRadius: 999, background: ZC[i % 5] }} />
-                    </div>
-                    <span style={{ width: 30, flexShrink: 0, textAlign: 'right', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: pct >= 30 ? t.INK : muted, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {Array.isArray(d.trace) && d.trace.length > 1 && <BSSdTrace vals={d.trace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="hr" height={116} t={t} muted={muted} distanceMi={distanceMi} zoneGrad markMax unit="bpm" />}
+            {Array.isArray(d.zones) && d.zones.length > 0 && <BSSdZoneCells zones={d.zones} t={t} muted={muted} />}
           </>
         )}
         {/* SPLITS — a real COLUMN chart so the trend reads at a glance: each
@@ -10734,26 +10967,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           return (
             <>
               {secHead(d.breakdown.label || 'Splits', bestPaceStat ? headChip(`Best ${bestPaceStat[1]}`, true) : null)}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 132 }}>
-                {rows.map((r, i) => {
-                  const barH = 24 + (perf[i] / pmax) * 88;
-                  const best = i === bestIdx && rows.length > 1;
-                  return (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap' }}>{r[1]}</span>
-                      <div style={{ width: '100%', maxWidth: 38, height: barH, borderRadius: '3px 3px 0 0', background: best ? bsTHexA(t.INK, 0.72) : bsTHexA(t.INK, 0.18), boxShadow: best ? `0 0 0 1px ${bsTHexA(t.INK, 0.5)}` : 'none' }} />
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 9 }}>
-                {rows.map((r, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
-                    {r[2] && <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? bsTHexA(t.INK, 0.7) : bsTHexA(t.INK, 0.4), marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[2]}</div>}
-                  </div>
-                ))}
-              </div>
+              <BSSdBars rows={rows} perf={perf} bestIdx={bestIdx} heat={heat} t={t} muted={muted} />
             </>
           );
         })()}
@@ -10761,7 +10975,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && hasCadGraph && (
           <>
             {secHead('Cadence', cadStat ? headChip(`avg ${cadStat[1]}`) : null)}
-            {AreaChart({ vals: d.cadenceTrace, color: neu, fmt: (v) => `${Math.round(v)}`, idKey: 'cad', height: 92 })}
+            <BSSdTrace vals={d.cadenceTrace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="cad" height={92} t={t} muted={muted} distanceMi={distanceMi} />
           </>
         )}
         {/* ELEVATION — altitude profile over distance (y-axis ft + x-axis miles),
@@ -10769,7 +10983,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && hasElevGraph && (
           <>
             {secHead('Elevation', elevStat ? headChip(`+${elevStat[1]} gain`) : null)}
-            {AreaChart({ vals: d.elevTrace, color: '#8a93a0', fmt: (v) => `${Math.round(v)}`, idKey: 'elev', height: 96 })}
+            <BSSdTrace vals={d.elevTrace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="ft" />
           </>
         )}
         {/* OUTPUT — the remaining device metrics (stride, ground, training, …) in
