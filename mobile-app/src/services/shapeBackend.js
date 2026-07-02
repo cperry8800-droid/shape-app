@@ -1501,6 +1501,7 @@ function conversationToThread(conversation, messages = []) {
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
+      boost: (message.metadata && message.metadata.kind === 'live_boost') ? (message.metadata.activity === 'cooking' ? 'cooking' : 'workout') : null,
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -1537,6 +1538,7 @@ function memberThreadFromRow(row, messages = []) {
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
+      boost: (message.metadata && message.metadata.kind === 'live_boost') ? (message.metadata.activity === 'cooking' ? 'cooking' : 'workout') : null,
     })),
     updatedAt: row.last_message_at,
   };
@@ -4863,6 +4865,18 @@ window.ShapePresence = {
   setVisible: setPresenceVisible,
   setActivity: setActivity,
   activityOf: (uid) => (uid ? (_activity.map.get(String(uid)) || null) : null),
+  // What a member is doing right now + since when (user_activity is
+  // authenticated-read) — powers the live-boost sheet's "N min in" line.
+  // null when they're not mid-activity (or the row already expired).
+  activityDetail: async (uid) => {
+    if (!supabase || !uid) return null;
+    try {
+      const { data } = await supabase.from('user_activity').select('kind, started_at, expires_at').eq('user_id', uid).maybeSingle();
+      if (!data || !data.kind) return null;
+      if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) return null;
+      return { kind: data.kind, startedAt: data.started_at || null };
+    } catch (e) { return null; }
+  },
   // Real "active now" roster (name · role · points → tier · avatar) for the
   // presence rail. Empty array when signed out / nobody active → demo fallback.
   activeNow: async (limit = 24) => {

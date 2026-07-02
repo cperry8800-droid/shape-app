@@ -6574,6 +6574,86 @@ async function bsOpenMemberConversation(person, closeOverlay) {
   } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
 }
 
+// ── Live boost — cheer someone on WHILE they're mid-workout / mid-cook ───────
+// Opened from the presence rail when a member carries a live activity dot.
+// Sends a real 1:1 DM stamped metadata {kind:'live_boost', activity} — it lands
+// in their chat right now (the thread renders a "Live boost" eyebrow), instead
+// of waiting for the completed activity to post. Quick phrases are one-tap sends.
+const BS_BOOST_PHRASES = {
+  workout: ['Finish strong →', 'One more rep.', 'Strong — keep going.', 'Respect the work.'],
+  cooking: ['Chef mode — respect.', 'Fuel the work.', 'Plate it clean.', 'Meal prep counts.'],
+};
+function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const kind = person.activity === 'cooking' ? 'cooking' : 'workout';
+  const accent = kind === 'cooking' ? t.AMBER : teal;
+  const first = String(person.name || person.who || 'Member').split(' ')[0];
+  const [custom, setCustom] = useStateBSC('');
+  const [busy, setBusy] = useStateBSC(false);
+  const [sent, setSent] = useStateBSC(false);
+  const [mins, setMins] = useStateBSC(null);   // "N min in" — honest: only when started_at is readable
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  React.useEffect(() => {
+    if (!person.userId || !window.ShapePresence?.activityDetail) return undefined;
+    let on = true;
+    window.ShapePresence.activityDetail(person.userId).then((d) => {
+      if (!on || !d || !d.startedAt) return;
+      const m = Math.round((Date.now() - new Date(d.startedAt).getTime()) / 60000);
+      if (Number.isFinite(m) && m >= 0 && m < 6 * 60) setMins(Math.max(1, m));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [person.userId]);
+  const sendBoost = async (body) => {
+    const msg = String(body || '').trim();
+    if (!msg || busy || sent) return;
+    if (!signedIn) { window.__bsToast?.('Join Shape to send live boosts', 'info'); return; }
+    if (!person.userId) { window.__bsToast?.("Demo member — boosts reach real members when they're live.", 'info'); return; }
+    setBusy(true);
+    try {
+      const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
+      const cid = (r && r.data) || null;
+      if (!cid) throw new Error('no conversation');
+      await window.ShapeMessages.sendMessage({ conversationId: cid, body: msg, metadata: { kind: 'live_boost', activity: kind } });
+      setSent(true);
+      window.__bsToast?.(`Boost sent → ${first}`, 'ok');
+      setTimeout(() => { onClose && onClose(); }, 650);
+    } catch (e) {
+      window.__bsToast?.('Could not send — try again', 'err');
+    } finally { setBusy(false); }
+  };
+  const surface = (typeof document !== 'undefined' && (document.getElementById('bs-phone-surface') || document.body)) || null;
+  if (!surface) return null;
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BSFacetAvatar size={44} c={bsTierColor(person.tier)} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
+            </div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Boost {first}<span style={{ color: accent }}>.</span></div>
+          </div>
+          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
+        </div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</div>
+        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph) => (
+            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ padding: '9px 13px', borderRadius: 999, border: `1px solid ${accent}55`, background: `${accent}12`, color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{ph}</button>
+          ))}
+        </div>
+        <div style={{ marginTop: 11, display: 'flex', gap: 8 }}>
+          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
+          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, borderRadius: 12, border: 0, background: custom.trim() && !busy && !sent ? accent : `${accent}44`, color: '#0c0a08', cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
+        </div>
+      </div>
+    </div>,
+    surface
+  );
+}
+
 function BSFollowMini({ onOpen }) {
   const t = useBS();
   const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.() || {}).user?.id || null;
@@ -11795,6 +11875,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // out. ⚠ Hooks MUST stay ABOVE the openProfile/openChat early returns below —
   // hooks after a conditional return crash React ("fewer hooks than expected", #300).
   const [realActive, setRealActive] = useStateBSC([]);
+  const [boostFor, setBoostFor] = useStateBSC(null);   // rail person mid-activity → live-boost sheet
   React.useEffect(() => {
     if (!window.ShapePresence?.activeNow) return undefined;
     let on = true;
@@ -11899,8 +11980,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               // Coaches wear their own ladder color (Icon=teal, …); members the client ramp.
               const tc = p.role ? bsTierColor(String(bsCoachTier(p.tier)).toLowerCase()) : bsTierColor(p.tier);
               const pPhoto = p.photoUrl || bsUnsplash(p.photo);
+              const railProfile = { who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) };
+              // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
+              // cheer them on while they're at it; otherwise straight to the profile.
               return (
-                <button key={p.userId || i} onClick={() => setOpenProfile({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) })} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <BSFacetAvatar size={40} c={tc} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
                   </div>
@@ -11910,6 +11994,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             })}
           </div>
       </div>
+
+      {boostFor && (
+        <BSLiveBoostSheet person={boostFor} onClose={() => setBoostFor(null)}
+          onOpenProfile={() => setOpenProfile(boostFor._profile || { who: boostFor.name, kind: 'CLIENT', tier: boostFor.tier, public: true, userId: boostFor.userId || null, photo: boostFor.photoUrl || bsDemoFace(boostFor.name) })} />
+      )}
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `6px ${t.padX}px 0` }}>
@@ -12866,6 +12955,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
                   padding: '11px 14px',
                   cursor: 'pointer', userSelect: 'none',
                 }}>
+                  {m.boost && (
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.boost === 'cooking' ? t.AMBER : teal, marginBottom: 5, fontWeight: 800 }}>▲ Live boost · {m.boost === 'cooking' ? 'mid-cook' : 'mid-workout'}</div>
+                  )}
                   {m.t}
                   {m.clip && (
                     <div style={{ marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 9 }}>
