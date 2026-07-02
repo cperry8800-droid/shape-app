@@ -2141,6 +2141,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [goalsPage, setGoalsPage] = useStateBSC(false);
+  const [todayPage, setTodayPage] = useStateBSC(false);   // the daily check-in + hydration page
   // Engine-driven top move — the signal engine's single highest-value action for
   // the signed-in client today (check-in overdue · streak at risk · food gap ·
   // goal slip · score drop). Honest: only a real flag from the live self record;
@@ -2454,6 +2455,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   if (goalsPage) {
     return <BSClientGoals onBack={() => setGoalsPage(false)} onOpenProgress={() => { setGoalsPage(false); setHomeProgressPage(true); }} />;
   }
+  if (todayPage) {
+    return <BSTodayPage onBack={() => setTodayPage(false)} />;
+  }
 
   // "Today · your move" — ONE clear next move. The signal engine's top action
   // leads when it has a real flag (the RIGHT move, not just the next chronological
@@ -2479,8 +2483,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       goal:      { head: 'Your goal pace slipped.', cta: ["I'll weigh in →", () => setGoalsPage(true)], c: t.AMBER },
       score:     { head: 'Grab a win today.', cta: ["I'll grab a win →", () => setHabitsPage(true)], c: t.AMBER },
       // `sleep` deliberately omitted — logging last night's sleep is consolidated
-      // into the "How are you · today" check-in card below (its Sleep · last night
-      // row + recovery readiness), so it never spawns a separate directive box.
+      // into the "Today · how are you" check-in page (opened from the nudge below;
+      // Sleep · last night row + recovery readiness), so it never spawns a
+      // separate directive box.
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
@@ -2897,8 +2902,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      {/* TODAY — daily check-in (energy/hunger/sleep/rested) + hydration, one plate */}
-      <BSTodayCard />
+      {/* TODAY — the daily check-in + hydration box now lives on its OWN page;
+          Home carries a compact notification-style door (due vs logged-aware). */}
+      <BSTodayNudge onOpen={() => setTodayPage(true)} />
 
       {/* SHAPE STEPS — the daily steps instrument (moved off the profile; it
           belongs with the day's living metrics). Taps into the steps history. */}
@@ -15328,6 +15334,62 @@ function BSSleepHistory({ onClose }) {
 // dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
 // its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
 // door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
+// TODAY nudge — the check-in + hydration box moved to its own page (BSTodayPage);
+// Home carries this compact notification-style door instead. Status-aware: "due"
+// until a MANUAL signal exists for today (same rule as the card — a wearable
+// syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
+function BSTodayNudge({ onOpen }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [logged, setLogged] = useStateBSC(false);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    const d = new Date();
+    const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on || !p || !p.series) return;
+      const has = (k) => (p.series[k] || []).some((s) => s.date === todayIso);
+      const deviceMeta = has('sleepEfficiency') || has('restingHr') || has('hrv');
+      if (has('energy') || has('hunger') || has('sleepQuality') || (has('sleep') && !deviceMeta)) setLogged(true);
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  const BSPlate = window.BSPlate;
+  return (
+    <BSPlate c={teal} tick={!logged} bracket pad="12px 16px 12px 22px" role="button" tabIndex={0} ariaLabel="Open today's check-in" onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
+      style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</div>
+          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{logged ? 'Logged for today ✓' : 'Quick check-in.'}</div>
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{logged ? 'Tap to review · add water' : 'Energy · sleep · hydration · 30 sec'}</div>
+        </div>
+        <span style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 5, border: `1px solid ${teal}`, color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{logged ? 'Open →' : 'Check in →'}</span>
+      </div>
+    </BSPlate>
+  );
+}
+
+// TODAY page — the full daily check-in + hydration box on its own page,
+// opened from the Home nudge above.
+function BSTodayPage({ onBack }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  _bsScrollTopOnMount();
+  return (
+    <BSPage>
+      <BSDetailHeader onBack={onBack} eyebrow="Section · Check-in" title={<>How are <span style={{ fontStyle: 'italic', color: teal }}>you.</span></>} />
+      <div style={{ paddingTop: 4 }}>
+        <BSTodayCard />
+      </div>
+      <div style={{ height: 28 }} />
+    </BSPage>
+  );
+}
+
 function BSTodayCard() {
   const t = useBS();
   const BSPlate = window.BSPlate;
