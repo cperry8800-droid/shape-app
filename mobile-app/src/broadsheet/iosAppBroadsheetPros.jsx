@@ -1805,11 +1805,25 @@ function BSProClientPreviewPage({ client, onBack, onViewFullProfile }) {
 
 // ── Shared chrome for the coach action pages (Adjust program / Schedule) ──────
 function bsProAccent(t, role) { return role === 'nutritionist' ? '#d8b25a' : (t.isLight ? '#0a8f87' : '#34d6c5'); }
+// The standing masthead row (logo + Vol·No) for pros pages with fully custom
+// headers — withCorners adds the coach corner cluster (search + self avatar).
+function bsProMastRow(withCorners = true) {
+  const MastRow = typeof window !== 'undefined' ? window.BSMastRow : null;
+  if (!MastRow) return null;
+  const trailing = withCorners ? (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+      {typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}
+      <BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} />
+    </span>
+  ) : null;
+  return <MastRow trailing={trailing} />;
+}
 function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
   const t = useBS();
   return (
-    <div style={{ paddingTop: 50 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ paddingTop: 46 }}>
+      {bsProMastRow()}
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{eyebrow}</div>
         <BSBackButton onClick={onBack} />
       </div>
@@ -2862,8 +2876,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // ---- header (shared across tabs) ----
   const fireEvt = (name) => { try { window.dispatchEvent(new CustomEvent(name, { detail: { client } })); } catch (e) {} };
   const headerBlock = (
-    <div style={{ paddingTop: 50 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ paddingTop: 46 }}>
+      {bsProMastRow()}
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: accent }}>{headEyebrow}</div>
         <BSBackButton onClick={onBack} />
       </div>
@@ -5088,7 +5103,8 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   return (
     <BSStShell embedded={embedded} t={t} footerL="Soundtracks" footerR={`${all.length} playlists`} topPad={46}>
         {!embedded && (<>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {bsProMastRow()}
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{all.length} PLAYLISTS</span>
         </div>
@@ -5220,7 +5236,9 @@ function BSProMe({ role, name, onLogout, onSettings = () => {}, onRadio = () => 
 
   return (
     <BSPage>
-      <div style={{ padding: `${onBack ? 54 : 60}px ${t.padX}px 0` }}>
+      <div style={{ padding: `46px ${t.padX}px 0` }}>
+        {/* Own avatar already anchors this header's name row — logo-only masthead. */}
+        <div style={{ marginBottom: 14 }}>{bsProMastRow(false)}</div>
         {onBack && (
           <BSBackButton onClick={onBack} label="Profile" style={{ marginBottom: 14 }} />
         )}
@@ -5733,7 +5751,9 @@ function BSCoachGoalPlanPage({ role = 'trainer', onBack }) {
   );
   return (
     <BSPage>
-      <div style={{ padding: `48px ${t.padX}px 0` }}>
+      <div style={{ padding: `46px ${t.padX}px 0` }}>
+        {/* Edit + Back own the right corner here — logo-only masthead. */}
+        <div style={{ marginBottom: 12 }}>{bsProMastRow(false)}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, lineHeight: 1.5, minWidth: 0 }}>{D.eyebrow}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
