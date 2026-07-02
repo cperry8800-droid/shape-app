@@ -223,6 +223,38 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — Home + profile polish round 2 (#1502) · Message pill everywhere messageable (#1503)
+- **Home "Daily habits" card → instrument plate (#1502).** It had drifted to a soft
+  rounded card while the rest of the home page speaks BSPlate: now a green plate
+  (notch/spine/bracket), mono `HABITS · n/m done` eyebrow + tabular `+pts/possible`,
+  serif **"Daily habits."** title, squared Do/Avoid tags (accent left edge), squared
+  checkboxes, mono `View all →` footer. Behavior kept (tap-anywhere opens Habits,
+  inline check-off, flash chip, empty/all-done states); keyboard activation added —
+  Codex P2: the plate's onKeyDown fires only when `e.target === e.currentTarget`, so
+  Enter/Space on an inline checkbox checks the habit instead of opening the page.
+- **`BSTodayCard` compacted (#1502)** ~25% shorter: gauge tap rows 44→34px (above the
+  24px floor), tighter paddings/margins, smaller value type, slimmer sleep chips /
+  log button / hydration quick-adds.
+- **Profile "Personal activities" cards run FULL-BLEED (#1502)** — negative side
+  margins break out of the tab body padding (member −20px / coach −22px), side
+  borders + radius dropped at the screen edges. (Supersedes #1500's full-width step.)
+- **Message pill on every messageable profile (#1503).** Two gaps left #1500's pill
+  missing (user screenshots): the real-account `uid` gate is dropped from
+  `BSFollowBlock` — the HOST handler decides real-vs-demo (the feed host opens a
+  local thread for demo people, like the big Message CTA) — and the two HOSTLESS
+  `BSPublicProfile` contexts (universal-search person view + Settings follow-list
+  view) now wire `onMessage` through a shared module helper
+  **`bsOpenMemberConversation(person, closeOverlay)`** (get-or-create → close the
+  local overlay → `shape:openConversation`; the shell listener closes search + jumps
+  to Chat). Review round (Codex P2 + 2 CodeRabbit Majors, all fixed): both hostless
+  handlers use the exact search-row gate (`signedIn + userId + not-self`) so a
+  self/signed-out profile never shows an erroring pill, and the search handler clears
+  its local `viewPerson` BEFORE dispatching (no stale profile on a kept-mounted
+  search); the duplicated handler boilerplate is collapsed into the shared helper.
+- Both squash-merged (`bbf367a0` #1502, `da870999` #1503), CI green, CodeRabbit +
+  Codex threads all resolved; branches kept. Verified per round: JSX parse · mobile
+  Vite build (PowerShell) · 363/363 tests.
+
 ### 2026-07-02 — Profile polish: full-width activity cards + Message beside Follow (#1500)
 - **Full-width activity cards.** The profile "Personal activities" feed's MM/DD **date
   gutter is removed** on BOTH profiles (member Terrain + coach Signal) so the rich
