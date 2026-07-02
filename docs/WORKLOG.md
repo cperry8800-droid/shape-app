@@ -33,6 +33,10 @@ changelog whenever something ships.
   auto-loaded into context, so this pointer is how they get found. When you write
   one, keep the short shipped-summary as a dated entry in this file's changelog too,
   and name the handoff file so it sorts by date.
+- **Older history → `docs/WORKLOG-ARCHIVE-2026-06-cycles-2-5.md`.** The early-June
+  root `WORKLOG.md` (Cycles 2–5, PRs #712–#807) is archived there; the root file is
+  now just a pointer to THIS file. The archive's conventions (branch names, merge
+  rules, `public/m` publish steps) are superseded — never work from them.
 - **Mobile app** lives in `mobile-app/` (Capacitor/Vite SPA, the `/m/` broadsheet).
   - Build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`.
   - Publish into the website: from the **repo root**, `rm -rf public/m && cp -r mobile-app/dist public/m`.
@@ -134,6 +138,12 @@ changelog whenever something ships.
 - `mobile-app/src/services/shapeBackend.js` — Supabase data layer (`conversationToThread`, etc.).
 - **Theme:** `useBS()` → `t`. Teal accent literal: `t.isLight ? '#0a8f87' : '#34d6c5'`.
   Role colors: nutritionist gold `#a07a2e`, trainer rust `#c0533b`.
+- **Window-globals load order:** modules expose components via
+  `Object.assign(window, {...})` and consume them via top-level
+  `const {...} = window`. If a role module reads a global before a feature module
+  defines it, you get React error #130 (undefined component). The shell loaders in
+  `iosAppBroadsheetMain.jsx` load feature modules *first*, then the role module;
+  pros reuse client-module globals (e.g. `BSClientChat`) off `window`.
 - **Sheets** must `createPortal` into `#bs-phone-surface` (position:absolute) so they
   don't overhang the phone frame in desktop preview.
 
@@ -212,6 +222,43 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-02 — Waitlist follow-ups (#1497 notification matrix · #1498 Book-now one-time) + WORKLOG consolidation
+- **Waitlist notification types registered + preference-enforced (#1497).** The #1495
+  follow-up: `waitlist_join` / `waitlist_invite` delivered in-app + push with no
+  per-channel toggles. New **`createPreferredNotification()`** (`src/lib/notify.ts`)
+  resolves the RECIPIENT's `notification_settings` (master mute) +
+  `notification_preferences` overrides via the AI layer's `channelsForType`
+  (imported from `notifications.mjs` — one source of truth): muted or
+  all-channels-off **skips the write**; otherwise the row carries `data.channels`
+  (the push webhook already gates on `channels.push === false`) and email goes out
+  when opted in (mirrors `notify-core.ts deliver()`). Both waitlist routes send
+  through it. **`GET /api/notifications` now filters `data.channels.inapp === false`
+  rows** — the bell gate notify-core documented but never implemented (rows without
+  channels metadata stay visible). Types registered in the web `NotificationDashboard`
+  (`clientMeSettings.jsx` NP_TYPES, `?v=20260702a` on ClientApp + ClientMe — note this
+  file is tracked **CRLF**, the repo's only one) and mobile `BSNotifyPrefs`
+  (`waitlist_join` on the coach list, `waitlist_invite` on the client list). Defaults
+  unchanged (in-app + push on, email off).
+- **Website invited "Book now" → per-role one-time purchase (#1498).** The invited
+  first-dibs CTA on both website coach profiles clicked `tpSubscribeLink` (monthly
+  sub); now it clicks the page's one-time link — trainer `tpBookLink`
+  (`/purchase?role=trainer&kind=booking`), nutritionist `tpBuyMealPlanLink`
+  (`/purchase?role=nutritionist&kind=meal_plan`). Safe both sides:
+  `hasActiveWaitlistInvite` allows purchase AND subscribe, and the Stripe webhook
+  booked-flip covers both `payment` + `subscription` modes. Subscribe stays available
+  on the page.
+- **WORKLOG consolidation.** The stale early-June root `WORKLOG.md` (Cycles 2–5,
+  PRs #712–#807, frozen at #808 — dead branch name, pre-PR-flow merge rule, pre-#1470
+  publish steps) is archived to `docs/WORKLOG-ARCHIVE-2026-06-cycles-2-5.md`; the
+  root file is now a pointer stub to THIS file. Its one live-guidance piece — the
+  **window-globals load-order gotcha** (React error #130 when a role module reads a
+  global before a feature module defines it) — is ported into the architecture map
+  above. `AGENTS.md` already pointed only at `docs/WORKLOG.md`; nothing else
+  references the root path as a source of truth.
+- War Room: both waitlist follow-up checklist items flipped to done (in their PRs).
+  Remaining #1495 follow-ups (optional expired-invite cron; withdraw optimistic-UI /
+  bridge-header / alert()→toast polish) stay open.
 
 ### 2026-07-01 — Per-coach waiting room (#1495) + RLS-authoritative rework
 - **New feature: per-coach waiting list.** When a coach is **at capacity**, signed-in
