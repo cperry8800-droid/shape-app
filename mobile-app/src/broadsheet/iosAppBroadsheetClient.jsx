@@ -6948,6 +6948,24 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
   return surface ? createPortal(sheet, surface) : sheet;
 }
 
+// One-time global CSS for the Follow/Message instrument chips (press feedback +
+// the breathing Follow glow) — injected once, NOT per BSFollowBlock instance
+// (the chips render in lists, so an inline <style> would duplicate per row).
+let _bsFaCssInjected = false;
+function bsInjectFollowChipCss() {
+  if (_bsFaCssInjected || typeof document === 'undefined') return;
+  _bsFaCssInjected = true;
+  const el = document.createElement('style');
+  el.textContent = `
+    .bs-fa-wrap button:active { transform: translateY(1px) scale(0.96); }
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes bsFaBreath { 0%, 100% { box-shadow: 0 0 0 0 var(--fa-glow); } 55% { box-shadow: 0 0 0 6px transparent; } }
+      .bs-fa-follow { animation: bsFaBreath 2.6s ease-in-out infinite; }
+    }
+  `;
+  document.head.appendChild(el);
+}
+
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
@@ -7037,17 +7055,11 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
     transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
   };
+  if (!isSelf) bsInjectFollowChipCss();
   const actions = !isSelf ? (
     /* One flex item so Follow + Message always share a row — the pair wraps
        together, never apart. */
     <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 7 }}>
-      <style>{`
-        .bs-fa-wrap button:active { transform: translateY(1px) scale(0.96); }
-        @media (prefers-reduced-motion: no-preference) {
-          @keyframes bsFaBreath { 0%, 100% { box-shadow: 0 0 0 0 var(--fa-glow); } 55% { box-shadow: 0 0 0 6px transparent; } }
-          .bs-fa-follow { animation: bsFaBreath 2.6s ease-in-out infinite; }
-        }
-      `}</style>
       <button onClick={onToggle} disabled={busy} className={fs === 'follow' ? 'bs-fa-follow' : undefined} style={{
         ...faBase, cursor: busy ? 'default' : 'pointer',
         '--fa-glow': bsTHexA(c, 0.5),
