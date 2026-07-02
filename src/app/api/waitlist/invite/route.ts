@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createNotification } from '@/lib/notify';
+import { createPreferredNotification } from '@/lib/notify';
 import { readJson } from '@/lib/request-utils';
 import { resolveRequestClient, UUID_RE } from '@/lib/waitlist';
 
@@ -49,7 +49,9 @@ export async function POST(request: Request) {
   // rather than 500-ing after the state change.
   try {
     const admin = createAdminClient();
-    await createNotification(admin, {
+    // Preference-aware: waitlist_invite is registered in the notification-center
+    // matrix, so the client's per-channel toggles (and master mute) are honored.
+    await createPreferredNotification(admin, {
       userId: result.client_id, type: 'waitlist_invite',
       title: `${result.provider_name ?? 'Your coach'} has room for you`,
       body: 'Tap to book before this coach reopens to everyone.',

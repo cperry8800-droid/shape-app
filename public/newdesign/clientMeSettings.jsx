@@ -838,6 +838,7 @@ const NP_TYPES = [
   ["score_drop", "Score dips", "When your Shape Score drops"],
   ["coach_cosign", "Co-signs", "When a coach co-signs your work"],
   ["streak_broken", "Streak restarts", "A gentle nudge — never shaming"],
+  ["waitlist_invite", "Waitlist invites", "When a coach has room for you"],
   ["habit_reminder", "Habit reminders", "Set per-habit on the app's Habits page"],
 ];
 
