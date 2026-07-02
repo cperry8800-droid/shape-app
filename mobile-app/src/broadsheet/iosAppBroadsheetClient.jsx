@@ -2988,18 +2988,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       })()}
 
       {/* PROGRESS — a slim door to the full progress hub (moved off the profile) */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        return (
-          <button onClick={() => setHomeProgressPage(true)} aria-label="Open your progress" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: `calc(100% - ${t.padX * 2}px)`, margin: `2px ${t.padX}px 12px`, boxSizing: 'border-box', padding: '11px 14px', borderRadius: 10, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: bsTHexA(t.INK, 0.03), cursor: 'pointer', textAlign: 'left' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Progress<span style={{ color: teal }}>.</span></div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Streak · trends · training · nutrition</div>
-            </div>
-            <span aria-hidden style={{ color: teal, fontSize: 15, fontWeight: 700, flexShrink: 0 }}>›</span>
-          </button>
-        );
-      })()}
+      <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
 
       {/* Week-stat detail sheet */}
       {weekStat && createPortal(
@@ -6626,31 +6615,37 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   // sheet on open (no autofocused input — that would pop the mobile keyboard).
   const panelRef = React.useRef(null);
   React.useEffect(() => { try { panelRef.current && panelRef.current.focus(); } catch (e) {} }, []);
+  // Living-instrument boot: the sheet rises, the live dot breathes, the pulse
+  // rule draws, phrase chips stagger in — shared sd keyframes + chip CSS.
+  const reduced = bsSdReduced();
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); bsInjectFollowChipCss(); }, []);
   const surface = (typeof document !== 'undefined' && (document.getElementById('bs-phone-surface') || document.body)) || null;
   if (!surface) return null;
   return createPortal(
     <div onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } }} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Send ${first} a live boost`} onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', outline: 'none' }}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Send ${first} a live boost`} onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', outline: 'none', ...(reduced ? null : { animation: 'bsSdFadeUp 340ms cubic-bezier(.2,.8,.3,1) both' }) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <BSFacetAvatar size={44} c={bsTierColor(person.tier)} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33` }} />
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent, boxShadow: `0 0 0 3px ${accent}33`, ...(reduced ? null : { '--sd-glow': bsTHexA(accent, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
             </div>
             <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Boost {first}<span style={{ color: accent }}>.</span></div>
           </div>
           {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
         </div>
-        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
-        <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph) => (
-            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ padding: '9px 13px', borderRadius: 999, border: `1px solid ${accent}55`, background: `${accent}12`, color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{ph}</button>
+        {/* pulse rule — draws in under the header, in the activity's accent */}
+        <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${accent}, ${bsTHexA(accent, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
+        <div className="bs-fa-wrap" style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph, i) => (
+            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ padding: '9px 13px', borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', border: `1px solid ${accent}55`, borderLeft: `3px solid ${accent}`, background: `${accent}12`, color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, transition: 'transform 140ms ease', ...(reduced ? null : { animation: `bsSdFadeUp 380ms ease ${160 + i * 70}ms both` }) }}>{ph}</button>
           ))}
         </div>
-        <div style={{ marginTop: 11, display: 'flex', gap: 8 }}>
-          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
-          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, borderRadius: 12, border: 0, background: custom.trim() && !busy && !sent ? accent : `${accent}44`, color: '#0c0a08', cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
+        <div style={{ marginTop: 11, display: 'flex', gap: 8, ...(reduced ? null : { animation: 'bsSdFadeUp 380ms ease 440ms both' }) }}>
+          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 13px', fontFamily: t.DISPLAY, fontSize: 13.5, outline: 'none' }} />
+          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', border: 0, background: custom.trim() && !busy && !sent ? accent : `${accent}44`, color: '#0c0a08', cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
         </div>
       </div>
     </div>,
@@ -15702,6 +15697,41 @@ function BSSleepHistory({ onClose }) {
   );
 }
 
+// PROGRESS door — Home's slim entry to the progress hub, in the instrument
+// language: clipped notch, teal spine, corner bracket, and one colored tick per
+// section behind the door (streak teal · trends blue · training rust ·
+// nutrition gold). Compresses on press via the shared chip CSS.
+function BSProgressDoor({ onOpen }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  React.useInsertionEffect(() => { bsInjectFollowChipCss(); }, []);
+  const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+  const segs = [['Streak', teal], ['Trends', t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], ['Training', '#c0533b'], ['Nutrition', '#d8b25a']];
+  return (
+    <div className="bs-fa-wrap" style={{ margin: `2px ${t.padX}px 12px` }}>
+      <button onClick={onOpen} aria-label="Open your progress" style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
+        <span aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clipN(11), background: bsTHexA(t.INK, 0.1) }} />
+        <span aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clipN(10), background: bsTHexA(t.INK, 0.025) }} />
+        <span aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: teal }} />
+        <span aria-hidden style={{ position: 'absolute', right: 6, bottom: 6, width: 8, height: 8, borderRight: `1.5px solid ${teal}`, borderBottom: `1.5px solid ${teal}`, opacity: 0.55 }} />
+        <span style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 15px 12px 19px' }}>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Progress<span style={{ color: teal }}>.</span></span>
+            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '3px 10px', marginTop: 6 }}>
+              {segs.map(([lab, c]) => (
+                <span key={lab} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
+                  <span aria-hidden style={{ width: 10, height: 1.5, background: c, borderRadius: 2 }} />{lab}
+                </span>
+              ))}
+            </span>
+          </span>
+          <span aria-hidden style={{ color: teal, fontSize: 15, fontWeight: 700, flexShrink: 0 }}>›</span>
+        </span>
+      </button>
+    </div>
+  );
+}
+
 // Today instrument plate — the home daily check-in + hydration, consolidated into
 // ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
 // the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
@@ -15770,6 +15800,10 @@ function BSTodayCard() {
   const amber = t.isLight ? '#b9802a' : '#e8b14a';
   const blue = t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5'); // recovery accent
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  // Un-boxed page layout: each block is its own slim instrument plate that
+  // staggers in (shared sd keyframes; reduced-motion renders the final state).
+  const reduced = bsSdReduced();
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
 
   // ── check-in state ──
   const [energy, setEnergy] = useStateBSC(null);
@@ -15919,21 +15953,28 @@ function BSTodayCard() {
   const chips = t.isMetric ? [['+250 ml', ML], ['+500 ml', ML2]] : [['+8 oz', OZ], ['+16 oz', OZ2]];
   const hydDisplay = t.isMetric ? `${L(cur)} / ${L(hydTarget)} L` : `${Math.round(cur * 33.814)} / ${Math.round(hydTarget * 33.814)} oz`;
 
+  // ── un-boxed page layout — each block is its own slim instrument plate
+  // (clipped notch + accent spine), staggered in. Plain function (not a JSX
+  // component) so React keeps the DOM nodes stable across re-renders and the
+  // one-shot entrances never replay on a gauge tap.
+  const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
+  const plate = (key, c, i, body, pad = '10px 14px 11px 18px') => (
+    <div key={key} style={{ position: 'relative', marginBottom: 10, ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${80 + i * 85}ms both` }) }}>
+      <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clipN(10), background: bsTHexA(t.INK, 0.09) }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clipN(9), background: bsTHexA(t.INK, 0.02) }} />
+      <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: c }} />
+      <div style={{ position: 'relative', padding: pad }}>{body}</div>
+    </div>
+  );
   return (
     <div data-bs-checkin style={{ margin: `0 ${t.padX}px 12px` }}>
-      <BSPlate c={teal} notch={11} spine={3} tick={signedIn} bracket pad="10px 15px 10px 20px">
-        {/* header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: showForm ? 7 : 6 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</span>
-          {logged && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>Edit</button>}
-        </div>
-
-        {showForm ? (
-          <>
-            <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
-            <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
-            {/* SLEEP — device-first hours + an always-on Rested gauge */}
-            <div style={{ marginTop: 2, paddingTop: 7, borderTop: `1px solid ${t.HAIR}` }}>
+      {showForm ? (
+        <>
+          {plate('energy', teal, 0, <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />, '10px 14px 5px 18px')}
+          {plate('hunger', amber, 1, <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />, '10px 14px 5px 18px')}
+          {/* SLEEP — device-first hours (read-only snapshot when a wearable synced) */}
+          {plate('sleep', blue, 2, (
+            <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.13em', textTransform: 'uppercase', color: t.INK70 }}>Sleep · last night</span>
                 {sleepHours != null && <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: blue }}>{bsSleepHM(sleepHours)}</span>}
@@ -15955,18 +15996,23 @@ function BSTodayCard() {
                   ); })}
                 </div>
               )}
-              <div style={{ marginTop: 6 }}>
-                <Gauge label="Rested" val={rested} set={setRested} c={blue} />
-              </div>
-            </div>
-            <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 4, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}>{saving ? 'Saving…' : 'Log today'}</button>
-          </>
-        ) : (
-          <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
-        )}
+            </>
+          ))}
+          {plate('rested', blue, 3, <Gauge label="Rested" val={rested} set={setRested} c={blue} />, '10px 14px 5px 18px')}
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginBottom: 10, width: '100%', border: 0, background: (nothingSet || saving) ? t.HAIR : teal, color: (nothingSet || saving) ? t.INK50 : '#04201d', cursor: saving ? 'default' : 'pointer', padding: '10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)', ...(reduced ? null : { animation: 'bsSdFadeUp 420ms ease 425ms both' }) }}>{saving ? 'Saving…' : 'Log today'}</button>
+        </>
+      ) : (
+        plate('summary', teal, 0, (
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.5, minWidth: 0 }}>Energy <b style={{ color: teal }}>{energy ?? '—'}</b> · Hunger <b style={{ color: amber }}>{hunger ?? '—'}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{bsSleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
+            <button onClick={() => setEditing(true)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50 }}>Edit</button>
+          </div>
+        ))
+      )}
 
-        {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.HAIR}` }}>
+      {/* HYDRATION — its own plate, STAYS LIVE whether or not the check-in is logged */}
+      {plate('hydration', teal, showForm ? 5 : 1, (
+        <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Hydration</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hyd == null ? '—' : <>{hydDisplay}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
@@ -15980,22 +16026,22 @@ function BSTodayCard() {
           {/* quick-add row */}
           <div style={{ display: 'flex', gap: 8 }}>
             {chips.map(([lab, d]) => (
-              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 6, border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
+              <button key={lab} onClick={() => addWater(d)} disabled={hydBusy} style={{ flex: 1, borderRadius: 3, clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)', border: `1px solid ${teal}66`, background: `${teal}14`, color: t.INK, cursor: hydBusy ? 'default' : 'pointer', opacity: hydBusy ? 0.5 : 1, padding: '8px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em' }}>{lab}</button>
             ))}
-            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
+            <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: (lastDelta && !hydBusy) ? t.INK : t.INK50, cursor: (lastDelta && !hydBusy) ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 13, fontWeight: 800 }}>↶</button>
           </div>
-        </div>
+        </>
+      ))}
 
-        {/* recovery readiness + the door to the full sleep detail page */}
-        {signedIn && (
-          <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
-              {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
-            </span>
-            <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
-          </div>
-        )}
-      </BSPlate>
+      {/* recovery readiness + the door to the full sleep detail page */}
+      {signedIn && (
+        <div style={{ padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...(reduced ? null : { animation: `bsSdFadeUp 420ms ease ${showForm ? 595 : 250}ms both` }) }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>
+            {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : 'Sleep & recovery'}
+          </span>
+          <button onClick={() => setDetail(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', margin: '-7px -8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: blue }}>Sleep detail →</button>
+        </div>
+      )}
       {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
     </div>
   );
