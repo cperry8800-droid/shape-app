@@ -6907,7 +6907,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </button>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 14, rowGap: 8, flexWrap: 'wrap', marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 11, rowGap: 8, flexWrap: 'wrap', marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
       {statBtn(stats.followers, 'Followers', () => openList('followers'))}
       {statBtn(stats.following, 'Following', () => openList('following'))}
       {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
@@ -6918,29 +6918,35 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
       )}
-      {!isSelf && (() => {
-        const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
-        const solid = fs === 'follow';
-        return (
-          <button onClick={onToggle} disabled={busy} style={{
-            flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
-            fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-            background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
-            border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
-          }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
-        );
-      })()}
-      {/* Message → the profile host's handler (it dismisses the profile overlay
-          BEFORE opening the real 1:1 — same handoff as the profiles' big
-          Message CTA). Rendered wherever a live handler exists; the HOST decides
-          real-vs-demo behavior (the feed host opens a local thread for demo
-          people; search/list hosts only pass a handler for real accounts). */}
-      {!isSelf && typeof onMessage === 'function' && (
-        <button onClick={() => onMessage()} style={{
-          flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
-          fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-          background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.3)}`,
-        }}>Message</button>
+      {!isSelf && (
+        /* Follow + Message travel as ONE flex item so they always share a row —
+           when the stats line runs tight, the pair wraps together, never apart. */
+        <div style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {(() => {
+            const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
+            const solid = fs === 'follow';
+            return (
+              <button onClick={onToggle} disabled={busy} style={{
+                flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
+                fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+                background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
+                border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
+              }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
+            );
+          })()}
+          {/* Message → the profile host's handler (it dismisses the profile overlay
+              BEFORE opening the real 1:1 — same handoff as the profiles' big
+              Message CTA). Rendered wherever a live handler exists; the HOST decides
+              real-vs-demo behavior (the feed host opens a local thread for demo
+              people; search/list hosts only pass a handler for real accounts). */}
+          {typeof onMessage === 'function' && (
+            <button onClick={() => onMessage()} style={{
+              flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
+              fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+              background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.3)}`,
+            }}>Message</button>
+          )}
+        </div>
       )}
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
     </div>
@@ -7214,8 +7220,13 @@ function bsLinkHref(key, val) {
   return 'https://' + (pre ? pre + v.replace(/^@/, '') : v);
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0 }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
+  // bleed = the host body's side padding: boxed pieces break out of it to run
+  // full-bleed (side borders + radius dropped at the screen edges); typographic
+  // pieces (kickers, link pills) keep the page gutter.
+  const bx = bleed ? { marginLeft: -bleed, marginRight: -bleed } : null;
+  const bxCard = bleed ? { ...bx, borderRadius: 0, borderLeft: 0, borderRight: 0 } : null;
   const cu = custom || {};
   c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
@@ -7229,7 +7240,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
   return (
     <div style={{ marginBottom: 26 }}>
       {heroStats.length > 0 && (
-        <div style={{ display: 'flex', gap: 9, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 9, marginBottom: 16, ...bx }}>
           {heroStats.map((s) => (
             <div key={s.k} style={{ flex: 1, background: bsTHexA(c, 0.07), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '13px 10px', textAlign: 'center' }}>
               <div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', lineHeight: 1, color: INK }}>{s.value}</div>
@@ -7239,7 +7250,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
         </div>
       )}
       {pinned && (
-        <div style={{ marginBottom: 16, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.3)}`, borderRadius: 16, padding: '15px 17px' }}>
+        <div style={{ marginBottom: 16, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.3)}`, borderRadius: 16, padding: bleed ? `15px ${bleed}px` : '15px 17px', ...bxCard }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>★ Pinned · {pinned.kind || 'Highlight'}</span>
           </div>
@@ -7251,7 +7262,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
       {embed && (
         <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
           <Kick>{(cu.song && cu.song.label) ? cu.song.label : 'Profile song'}</Kick>
-          <div style={{ marginTop: 10, borderRadius: 14, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+          <div style={{ marginTop: 10, borderRadius: 14, overflow: 'hidden', border: `1px solid ${bsTHexA(INK, 0.1)}`, ...bxCard }}>
             <iframe title="Profile song" src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} />
           </div>
         </div>
@@ -7259,7 +7270,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats }) {
       {prompts.length > 0 && (
         <div style={{ marginBottom: links.length ? 18 : 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {prompts.map((p, i) => (
-            <div key={i} style={{ background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14, padding: '13px 15px' }}>
+            <div key={i} style={{ background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14, padding: bleed ? `13px ${bleed}px` : '13px 15px', ...bxCard }}>
               <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{p.q}</div>
               <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6 }}>{p.a}</div>
             </div>
@@ -8137,11 +8148,14 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
 // Shared segmented tab bar for the living-identity profiles (Terrain + Signal).
 // Sticky under the hero; the accent follows the profile's tier color. Personal
 // activities is always the first tab so a profile opens on what someone's doing.
-function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
+function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0 }) {
   const MONO = "'JetBrains Mono', monospace";
+  // pad = the host body's side padding: the bar breaks out of it to run
+  // FULL-BLEED (side borders + radius dropped at the screen edges), and the
+  // sticky background then covers the whole width while scrolling.
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: '0 0 14px', padding: '6px 0', background: BG }}>
-      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 4 }}>
+    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: `0 ${-pad}px 14px`, padding: '6px 0', background: BG }}>
+      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 4, ...(pad ? { borderRadius: 0, borderLeft: 0, borderRight: 0 } : null) }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
             position: 'relative', overflow: 'hidden',
@@ -8162,10 +8176,13 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG }) {
 // someone else's profile — save their public playlist into your own library.
 function bsProviderColor(p) { return p === 'apple' ? '#fa243c' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
 function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
-function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
+function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0 }) {
   const t = useBS();
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const muted = bsTHexA(INK, 0.55), hair = bsTHexA(INK, 0.1);
+  // bleed = the host body's side padding: playlist cards break out of it to run
+  // full-bleed (side borders + radius dropped); the header row keeps the gutter.
+  const bxCard = bleed ? { marginLeft: -bleed, marginRight: -bleed, borderRadius: 0, borderLeft: 0, borderRight: 0 } : null;
   const [items, setItems] = React.useState(null);
   const [adding, setAdding] = React.useState(false);
   const [sendFor, setSendFor] = React.useState(null);
@@ -8206,7 +8223,7 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
       {items === null ? (
         <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Loading…</div>
       ) : items.length === 0 ? (
-        <div style={{ ...card, padding: '20px 16px', textAlign: 'center' }}>
+        <div style={{ ...card, padding: bleed ? `20px ${bleed}px` : '20px 16px', textAlign: 'center', ...bxCard }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: INK }}>{isSelf ? 'No playlists yet.' : 'No public playlists.'}</div>
           <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, color: muted, lineHeight: 1.45 }}>{isSelf ? 'Add your Spotify or Apple Music playlists — keep them private or share them with the community.' : 'When they make a playlist public, it shows up here.'}</div>
           {isSelf && <button onClick={() => setAdding(true)} style={{ ...pill(true), marginTop: 12 }}>＋ Add your first</button>}
@@ -8216,7 +8233,7 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG }) {
           {items.map((pl) => {
             const pc = bsProviderColor(pl.provider);
             return (
-              <div key={pl.id} style={{ ...card, padding: 11 }}>
+              <div key={pl.id} style={{ ...card, padding: bleed ? `11px ${bleed}px` : 11, ...bxCard }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                   <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 9, overflow: 'hidden', background: pl.cover ? `center/cover no-repeat url(${pl.cover})` : `${pc}22`, border: `1px solid ${pc}55`, color: pc, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, textDecoration: 'none' }}>{pl.cover ? '' : '♪'}</a>
                   <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
@@ -8831,18 +8848,27 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </div>
         </div>
       ) : (
-        /* Others' public profile (pushed): back + avatar corner. */
-        <div style={{ padding: '44px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <BSBackButton onClick={onBack} />
-          {isSelf
-            ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
-                <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                </button>
-                <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
-              </div>
-            : <BSMeCorner />}
+        /* Others' public profile (pushed): the standard masthead (logo + Vol·No
+           + search/avatar corners — same chrome as every page), then a back row. */
+        <div style={{ padding: '44px 18px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {BSLogo && <BSLogo size={16} color={INK} />}
+              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
+            </div>
+            {isSelf
+              ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
+                  <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </button>
+                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                </div>
+              : <BSMeCorner />}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <BSBackButton onClick={onBack} />
+          </div>
         </div>
       )}
       {/* Identity heading — tier/streak + name + handle·goal + follows, above the
@@ -8854,8 +8880,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
           onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
       </div>
-      {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet avatar) */}
-      <div style={{ padding: '10px 18px 0' }}>
+      {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet
+          avatar). FULL-BLEED: spans the whole screen width (no side gutters). */}
+      <div style={{ padding: '10px 0 0' }}>
         {(() => {
           const W = 330, H = 178;
           const base = [10, H - 26], peak = [W - 26, 34];
@@ -8877,7 +8904,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.2)}, ${bsTHexA('#100d0a', 0.55)} 70%, ${bsTHexA('#100d0a', 0.9)})` }} />
               </div>
             )}
-            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden style={{ display: 'block', position: 'relative' }}>
+            {/* preserveAspectRatio="none": the ridge stretches to the card's real
+                width, so the %-positioned HTML overlays (you-are-here badge,
+                level pills) stay aligned with the drawn geometry at full-bleed. */}
+            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block', position: 'relative' }}>
               <defs><linearGradient id={`asc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.5)} /><stop offset="100%" stopColor={bsTHexA(c, 0.04)} /></linearGradient></defs>
               {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
               <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill={`url(#asc${seed})`} />
@@ -9003,14 +9033,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
-          <div style={{ ...card, padding: '18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ ...card, padding: '18px 20px', display: 'flex', gap: 12, alignItems: 'flex-start', margin: '0 -20px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
             <span aria-hidden style={{ fontSize: 16 }}>🔒</span>
             <div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their terrain with friends — connect to see the full climb.` : `${first} keeps their terrain private — only their name and tier are shown.`}</div>
           </div>
         ) : (
           <>
             <div ref={activityRef} />
-            <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
+            <BSLivingTabs c={c} INK={INK} BG={BG} pad={20} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
@@ -9018,7 +9048,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
-                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={20} />
               </div>
             )}
             {tab === 'climb' && (<>
@@ -9089,13 +9119,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               </div>
             </div>
 
-            {(goal || bio) && <div style={{ background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.22)}`, borderRadius: 16, padding: '16px 18px', marginBottom: 26 }}><Kick col={c}>⛰ Why</Kick><div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{goal || bio}</div></div>}
+            {(goal || bio) && <div style={{ background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.22)}`, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px', margin: '0 -20px 26px' }}><Kick col={c}>⛰ Why</Kick><div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{goal || bio}</div></div>}
             </>)}
 
             {tab === 'signals' && (<>
             <div style={{ marginBottom: 28 }}>
               <Kick>Living signals</Kick>
-              <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: 9, margin: '12px -20px 0' }}>
                 <div style={{ flex: 'none', width: 96, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.25)}`, borderLeft: `2.5px solid ${c}`, borderRadius: 5, padding: '13px 14px' }}>
                   <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1 }}>{streakEff}</div>
                   <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 6 }}>Day streak</div>
@@ -9105,7 +9135,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 30 }}>{weekEff.map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(8, (v / maxWk) * 100)}%`, background: i === weekEff.length - 2 ? TEAL : bsTHexA(c, 0.5), borderRadius: 2 }} />)}</div>
                 </div>
               </div>
-              <div style={{ marginTop: 9, ...card, padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ margin: '9px -20px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', color: TEAL }}>{trajDeltaLb > 0 ? '+' : '−'}{Math.abs(trajDeltaLb)} lb</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Trajectory</div></div>
                 <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }}><path d={sparkPath} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 <div style={{ fontFamily: SANS, fontSize: 11, color: bsTHexA(INK, 0.5), flex: 'none' }}>16-wk recomp</div>
@@ -9121,14 +9151,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 9, marginBottom: 28 }}>
+            <div style={{ display: 'flex', gap: 9, margin: '0 -20px 28px' }}>
               {liftsEff.map(([label, val]) => <div key={label} style={{ flex: 1, ...card, borderRadius: 13, padding: '14px 8px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
             </>)}
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                 <Kick>Personal activities</Kick>
                 {isSelf && (
@@ -9139,7 +9169,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               </div>
               <div style={{ marginTop: 16 }}>
                 {feedEff.length === 0 && (
-                  <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+                  <div style={{ ...card, padding: '15px 20px', margin: '0 -20px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
                 {feedEff.map((a, i) => (
                   /* Full-BLEED card — breaks out of the tab body's 20px side
@@ -9561,21 +9591,29 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             </div>
           </>
         ) : (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <BSBackButton onClick={onBack} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
+        /* Pushed coach profile: the standard masthead (logo + Vol·No +
+           search/avatar corners — same chrome as every page), then a back row. */
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {BSLogo && <BSLogo size={16} color={INK} />}
+              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
+            </div>
             {isSelf
-              ? <>
+              ? <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
                   <button onClick={() => setShowCustomizer(true)} aria-label="Edit public profile" style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: bsTHexA(INK, 0.06), color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
-                </>
+                </div>
               : <BSMeCorner />}
           </div>
-        </div>
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <BSBackButton onClick={onBack} />
+            <Kick col={c}>{isNutri ? 'Nutritionist' : 'Coach'}</Kick>
+          </div>
+        </>
         )}
 
         {/* Followers / following / follow — centered row (the coach's name/tier
@@ -9612,19 +9650,19 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
         </div>
 
-        {/* hero stat */}
-        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, ...card, borderRadius: 16, padding: '14px 16px' }}>
+        {/* hero stat — FULL-BLEED: spans the whole screen width */}
+        <div data-tour="hero-me" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px' }}>
           <div onClick={isSelf ? onOpenScore : undefined} style={{ flex: 'none', cursor: isSelf ? 'pointer' : 'default' }}><div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: '-0.03em', lineHeight: 0.9 }}>{score.toLocaleString()}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 4 }}>Shape Score{isSelf ? ' ›' : ''}</div></div>
           <div style={{ width: 1, height: 34, background: bsTHexA(INK, 0.12) }} />
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 11, color: TEAL }}>★ {rating}/10 · <span onClick={() => setTab('reviews')} style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>{liveReviews && liveReviews.length ? liveReviews.length : reviewCount} reviews</span></div><div style={{ fontFamily: SANS, fontSize: 11.5, color: bsTHexA(INK, 0.55), marginTop: 4 }}>Responds within hours</div></div>
         </div>
 
         {isPrivate ? (
-          <div style={{ ...card, padding: '18px', marginTop: 18, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their profile with friends — connect to see more.` : `${first} keeps their profile private — only name and tier are shown.`}</div></div>
+          <div style={{ ...card, padding: '18px 20px', margin: '18px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, display: 'flex', gap: 12, alignItems: 'flex-start' }}><span aria-hidden style={{ fontSize: 16 }}>🔒</span><div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their profile with friends — connect to see more.` : `${first} keeps their profile private — only name and tier are shown.`}</div></div>
         ) : (
         <>
           <div ref={activityRef} style={{ marginTop: 22 }}>
-            <BSLivingTabs c={c} INK={INK} BG={BG} active={tab} onPick={setTab} tabs={[
+            <BSLivingTabs c={c} INK={INK} BG={BG} pad={22} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'about', label: 'About' },
               { key: 'coaching', label: 'Coaching' },
@@ -9634,7 +9672,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           </div>
           {tab === 'playlists' && (
             <div style={{ marginTop: 22, marginBottom: 22 }}>
-              <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} />
+              <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={22} />
             </div>
           )}
           {tab === 'about' && (<>
@@ -9650,13 +9688,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ marginTop: 28 }}>
             <Kick>{disLabel}</Kick>
             {disciplines.length ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginTop: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, margin: '12px -22px 0' }}>
               {disciplines.map(([label, val], i) => { const col = i === 0 ? c : i === disciplines.length - 1 ? TEAL : bsTHexA(c, 0.8); return (
                 <div key={label} style={{ ...card, padding: '12px 13px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: col }} /><span style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.82) }}>{label}</span></div><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', marginTop: 6 }}>{Math.round(val * 100)}<span style={{ fontSize: 12, color: bsTHexA(INK, 0.4) }}>/100</span></div><div style={{ height: 3, borderRadius: 2, background: bsTHexA(INK, 0.1), marginTop: 8, overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: col, borderRadius: 2 }} /></div></div>
               ); })}
             </div>
             ) : (
-            <div style={{ ...card, padding: '14px 15px', marginTop: 12, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Set your focus in Customize</div>
+            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Set your focus in Customize</div>
             )}
           </div>
 
@@ -9664,7 +9702,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {lifts.length ? (
           <div style={{ marginTop: 24 }}>
             <Kick>Track record</Kick>
-            <div style={{ display: 'flex', gap: 9, marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 9, margin: '12px -22px 0' }}>
               {lifts.map(([label, val]) => <div key={label} style={{ flex: 1, textAlign: 'center', background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.2)}`, borderRadius: 13, padding: '14px 6px' }}><div style={{ fontFamily: SERIF, fontSize: 25, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
             </div>
           </div>
@@ -9674,7 +9712,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ marginTop: 28 }}>
             <Kick>Certifications</Kick>
             {certs.length ? (
-            <div style={{ ...card, padding: 4, marginTop: 12 }}>
+            <div style={{ ...card, padding: 4, margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
               {certs.map(([abbr, body, year], i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 13px', borderTop: i ? `1px solid ${bsTHexA(INK, 0.07)}` : 'none' }}>
                   <span style={{ fontFamily: MONO, fontSize: 12, color: c, minWidth: 78 }}>{abbr}</span>
@@ -9684,7 +9722,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               ))}
             </div>
             ) : (
-            <div style={{ ...card, padding: '14px 15px', marginTop: 12, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>No certifications added yet</div>
+            <div style={{ ...card, padding: '14px 20px', margin: '12px -22px 0', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>No certifications added yet</div>
             )}
           </div>
 
@@ -9696,7 +9734,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               INVITED is the live/actionable state (a BSPlate instrument);
               join/waiting are quiet rounded cards, matching the surrounding chrome. */}
           {!isSelf && atCapacity && wl?.status === 'invited' && (
-            <BSPlate c={tTheme.GREEN} tick style={{ marginTop: 24 }}>
+            <BSPlate c={tTheme.GREEN} tick style={{ margin: '24px -22px 0' }}>
               <Kick col={tTheme.GREEN}>You're invited</Kick>
               <div style={{ fontFamily: tTheme.DISPLAY, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.3, margin: '7px 0 11px' }}>{first} has room for you.</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -9706,21 +9744,21 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             </BSPlate>
           )}
           {!isSelf && atCapacity && wl && wl.status !== 'invited' && (
-            <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
+            <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
               <Kick col={tTheme.RUST}>On the waiting list</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>You're #{wl.position} in line. {first} will invite you when a spot opens.</div>
               <button onClick={wlWithdraw} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: `1px solid ${INK}`, background: 'transparent', color: INK, cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Leave the list</button>
             </div>
           )}
           {!isSelf && atCapacity && !wl && (
-            <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
+            <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
               <Kick col={tTheme.RUST}>At capacity</Kick>
               <div style={{ fontFamily: SANS, fontSize: 13, color: tTheme.INK70, margin: '7px 0 12px' }}>{first} isn't taking new clients right now. Join the waiting list to be first in line.</div>
               <button onClick={wlJoin} style={{ width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: c, color: '#0c0a08', cursor: 'pointer', fontFamily: MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Join the waiting list</button>
             </div>
           )}
           {!isSelf && !atCapacity && (
-            <div style={{ marginTop: 24, ...card, padding: '16px 17px' }}>
+            <div style={{ margin: '24px -22px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px' }}>
               <Kick col={c}>Work with {first}</Kick>
               <div style={{ fontFamily: SERIF, fontSize: 18, letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 8 }}>{monthlyPkg.name} · <span style={{ color: c }}>{monthlyPkg.price}{monthlyPkg.unit === '/ month' ? '/mo' : ''}</span></div>
               {Array.isArray(monthlyPkg.perks) && <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.6), marginTop: 5 }}>{monthlyPkg.perks.slice(0, 3).join(' · ')}</div>}
@@ -9739,11 +9777,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 <button key={ct} onClick={() => setOfferTab(ct)} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${on ? c : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(c, 0.14) : 'transparent', color: on ? c : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{ct}</button>
               ); })}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
               {visibleOfferings.length ? visibleOfferings.map(([cat, kind, nm, sub, price, pl], i) => {
                 const buyable = !isSelf && pl && pl.id && pl.providerId && price !== 'Free' && price !== 'Listed';
                 return (
-                <div key={i} style={{ ...card, padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div key={i} style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, marginBottom: 4 }}>{kind}</div><div style={{ fontFamily: SERIF, fontSize: 16, letterSpacing: '-0.01em' }}>{nm}</div><div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.55), marginTop: 3 }}>{sub}</div></div>
                   {buyable
                     ? <button onClick={() => buyPlan(pl)} style={{ flex: 'none', borderRadius: 999, border: 0, background: c, color: '#0c0a08', padding: '9px 14px', fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Buy · {price}</button>
@@ -9751,7 +9789,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 </div>
                 );
               }) : (
-                <div style={{ ...card, padding: '14px 15px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Publish your first plan to list it here</div>
+                <div style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '14px 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Publish your first plan to list it here</div>
               )}
             </div>
           </div>
@@ -9767,11 +9805,11 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             return (
             <div style={{ marginTop: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}><Kick>Reviews</Kick><div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}><span style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em' }}>{liveAvg != null ? liveAvg : rating}</span><span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : reviewCount}</span></div></div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px -22px 0' }}>
                 {liveList.map(([nm, ini, hue, body, stars, authorId], i) => {
                   const open = authorId ? () => setReviewerProfile({ who: nm, kind: 'CLIENT', userId: authorId, public: true }) : null;
                   return (
-                  <div key={i} style={{ ...card, padding: '13px 15px' }}>
+                  <div key={i} style={{ ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><div onClick={open || undefined} style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: `linear-gradient(150deg, hsl(${hue} 40% 34%), hsl(${hue} 36% 20%))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 12, cursor: open ? 'pointer' : 'default' }}>{ini}</div><span onClick={open || undefined} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 500, cursor: open ? 'pointer' : 'default', textDecoration: open ? 'underline' : 'none', textUnderlineOffset: 2 }}>{nm}</span><span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 10, color: c }}>{stars}/10</span></div>
                     <p style={{ fontFamily: SERIF, fontSize: 14, fontStyle: 'italic', lineHeight: 1.45, color: bsTHexA(INK, 0.82), margin: '10px 0 0' }}>“{body}”</p>
                   </div>
@@ -9785,7 +9823,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           {tab === 'activity' && (
           /* field notes */
           <div style={{ marginTop: 8 }}>
-            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: 'Tier', value: tierName }, rating: { label: 'Rating', value: rating }, reviews: { label: 'Reviews', value: reviewCount } }} />
+            <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: 'Tier', value: tierName }, rating: { label: 'Rating', value: rating }, reviews: { label: 'Reviews', value: reviewCount } }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <Kick>Personal activities</Kick>
               {isSelf && (
@@ -9796,7 +9834,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             </div>
             <div style={{ marginTop: 16 }}>
               {coachFeedEff.length === 0 && (
-                <div style={{ ...card, padding: '15px 16px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+                <div style={{ ...card, padding: '15px 20px', margin: '0 -22px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
               )}
               {coachFeedEff.map((a, i) => (
                 /* Full-BLEED card — breaks out of the coach body's 22px side
