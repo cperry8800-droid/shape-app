@@ -1501,7 +1501,7 @@ function conversationToThread(conversation, messages = []) {
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
-      boost: (message.metadata && message.metadata.kind === 'live_boost') ? (message.metadata.activity === 'cooking' ? 'cooking' : 'workout') : null,
+      boost: (message.metadata && message.metadata.kind === 'live_boost' && (message.metadata.activity === 'cooking' || message.metadata.activity === 'workout')) ? message.metadata.activity : null,
     })),
     updatedAt: conversation.updated_at || conversation.last_message_at || conversation.created_at,
   };
@@ -1538,7 +1538,7 @@ function memberThreadFromRow(row, messages = []) {
       audio: message.metadata && message.metadata.audio ? message.metadata.audio.url : null,
       photo: message.metadata && message.metadata.photo ? message.metadata.photo.url : null,
       sharedChannel: (message.metadata && message.metadata.channel && message.metadata.channel.id != null) ? message.metadata.channel : null,
-      boost: (message.metadata && message.metadata.kind === 'live_boost') ? (message.metadata.activity === 'cooking' ? 'cooking' : 'workout') : null,
+      boost: (message.metadata && message.metadata.kind === 'live_boost' && (message.metadata.activity === 'cooking' || message.metadata.activity === 'workout')) ? message.metadata.activity : null,
     })),
     updatedAt: row.last_message_at,
   };
@@ -4872,7 +4872,9 @@ window.ShapePresence = {
     if (!supabase || !uid) return null;
     try {
       const { data } = await supabase.from('user_activity').select('kind, started_at, expires_at').eq('user_id', uid).maybeSingle();
-      if (!data || !data.kind) return null;
+      // Only the two known kinds — unknown/malformed rows read as not-active
+      // rather than fabricating a "workout" label (honest-data).
+      if (!data || (data.kind !== 'workout' && data.kind !== 'cooking')) return null;
       if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) return null;
       return { kind: data.kind, startedAt: data.started_at || null };
     } catch (e) { return null; }

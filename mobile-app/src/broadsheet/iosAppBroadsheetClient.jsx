@@ -6622,11 +6622,15 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
       window.__bsToast?.('Could not send — try again', 'err');
     } finally { setBusy(false); }
   };
+  // Real modal semantics: dialog role + Escape closes + focus moves INTO the
+  // sheet on open (no autofocused input — that would pop the mobile keyboard).
+  const panelRef = React.useRef(null);
+  React.useEffect(() => { try { panelRef.current && panelRef.current.focus(); } catch (e) {} }, []);
   const surface = (typeof document !== 'undefined' && (document.getElementById('bs-phone-surface') || document.body)) || null;
   if (!surface) return null;
   return createPortal(
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+    <div onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } }} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Send ${first} a live boost`} onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', outline: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <BSFacetAvatar size={44} c={bsTierColor(person.tier)} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -11262,7 +11266,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     i: (th.who || 'C').toString().trim().charAt(0).toUpperCase(),
     last: th.last,
     conversation_id: th.conversation_id,
-    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null })),
+    messages: (th.messages || []).map(m => ({ who: m.who || th.who, t: m.t || m.body || '', time: m.time || '', me: m.me || m.who === 'You', coach: m.coach, audio: m.audio || null, photo: m.photo || null, sharedChannel: m.sharedChannel || null, boost: m.boost || null })),
   }));
 
   // External "Message <coach>" requests (e.g. from a workout preview) land
@@ -11983,8 +11987,10 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               const railProfile = { who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) };
               // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
               // cheer them on while they're at it; otherwise straight to the profile.
+              // Real accounts only — demo rail people aren't actually live, so their
+              // tap keeps the profile behavior (honest-data).
               return (
-                <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={p.userId || i} onClick={() => ((p.activity && p.userId) ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <BSFacetAvatar size={40} c={tc} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
                   </div>
@@ -12878,7 +12884,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
-        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost') ? (row.metadata.activity === 'cooking' ? 'cooking' : 'workout') : null }]);
+        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
