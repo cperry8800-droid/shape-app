@@ -149,7 +149,16 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-01.md`](HANDOFF-2026-07-01.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-07-02.md`](HANDOFF-2026-07-02.md)** —
+> Per-coach **waiting room** (#1495) — members join an at-capacity coach's list, the coach
+> invites with a 7-day first-dibs window, a paid checkout claims the spot. Built then reworked
+> **RLS-authoritative** (caller-scoped writes + own-row policies + a `guard_cols` trigger;
+> auth-checked `SECURITY DEFINER` RPCs for position/room/invite; admin only for notify + the
+> Stripe webhook) across **four CodeRabbit review rounds** (incl. a Postgres reserved-word fix
+> and an at-capacity INSERT gate); coach discretion on invites (CodeRabbit accepted). Squash-
+> merged `4f1805fa`, CI green, 0 unresolved threads, branch kept, migration applied.
+>
+> (Prior: [`docs/HANDOFF-2026-07-01.md`](HANDOFF-2026-07-01.md) —
 > Two 2026-07-01 sessions. **Latest:** web **notifications dashboard + reminders parity** in the
 > client Settings page (#1483 — mobile `BSNotifyPrefs`/`BSReminderManager` ported, wired to the
 > live notification-center tables via `get_notification_center()`; no new route/migration),
@@ -248,9 +257,22 @@ changelog whenever something ships.
   security-review pass caught and fixed **two real MAJORs before commit**: the UPDATE-USING
   queue-jump/un-book, and a join↔invite reactivation race (reactivation now re-checks expiry +
   its rowcount so a concurrent coach invite isn't clobbered).
-- Verified: `tsc --noEmit` clean · **363/363** tests · JSX/JS parse · LF/no-BOM. **⚠ OWNER:
-  re-run the updated `supabase-migrations/2026-07-01-coach-waitlist.sql`** (adds the client
-  RLS policies, the guard trigger, and the 3 RPCs) before deploy — idempotent, safe to re-run.
+- **Post-open review rounds (all addressed).** CodeRabbit's incremental re-review + a
+  migration-run error surfaced three more iterations: a Postgres **reserved-word** fix
+  (`position` → `queue_position` in the RPC `returns table` + `#variable_conflict use_column`);
+  and RLS hardening the re-review caught — the INSERT policy now verifies the target coach
+  room **exists AND is at capacity** (mirrors `isEffectivelyAtCapacity`), the UPDATE policy
+  blocks reverting a **live** invite back to `waiting`, deterministic FIFO tie-break
+  `(created_at, id)`, strict canonical-UUID validation, join/withdraw error-surfacing (no
+  false `already_processed`), and the invite-notification tap now opens the marketplace
+  pre-filtered by role. CodeRabbit **accepted the coach-discretion (non-FIFO) decision** and
+  withdrew those flags; **every review thread resolved** (webhook 200+log, subscribe, and the
+  at-capacity gate all confirmed addressed by CodeRabbit).
+- Verified each round: `tsc --noEmit` clean · **363/363** tests · JSX/JS parse · LF/no-BOM.
+  **Squash-merged to `main` as `4f1805fa` (#1495)** — CI green (Web · Mobile · gitleaks), 0
+  unresolved CodeRabbit threads; branch kept. **Migration APPLIED by the owner** (re-run
+  across the RLS-hardening iterations; idempotent — final version carries the client RLS
+  policies, the `guard_cols` trigger, and the 3 SECURITY DEFINER RPCs).
 
 ### 2026-07-01 — Profile activity feed shares the community dataset (#1490)
 - **Profile "Personal activities" now match the chat/community feed (#1490).** The mobile
