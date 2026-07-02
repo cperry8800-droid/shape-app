@@ -8161,10 +8161,10 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0 }) {
   // FULL-BLEED (side borders + radius dropped at the screen edges), and the
   // sticky background then covers the whole width while scrolling.
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: `0 ${-pad}px 14px`, padding: '6px 0', background: BG }}>
-      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 4, ...(pad ? { borderRadius: 0, borderLeft: 0, borderRight: 0 } : null) }}>
+    <div style={{ position: 'sticky', top: 0, zIndex: 3, margin: `0 ${-pad}px 9px`, padding: '5px 0', background: BG }}>
+      <div style={{ display: 'flex', gap: 6, background: bsTHexA(INK, 0.05), border: `1px solid ${bsTHexA(INK, 0.1)}`, borderRadius: 7, padding: 3, ...(pad ? { borderRadius: 0, borderLeft: 0, borderRight: 0 } : null) }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
-          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '8px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
+          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, padding: '6px 2px', borderRadius: 5, border: 0, cursor: 'pointer',
             position: 'relative', overflow: 'hidden',
             background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : bsTHexA(INK, 0.55),
             fontFamily: MONO, fontSize: 8.5, fontWeight: on ? 800 : 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
@@ -8370,6 +8370,20 @@ function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
         )}
       </div>
     </BSPostSheetShell>
+  );
+}
+
+// Owner-only "＋ Log activity" CTA — shared by both profile feeds (there's no
+// section label anymore; the Activity tab names the feed).
+function BSActivityLogCta({ isSelf, accent, onClick }) {
+  if (!isSelf) return null;
+  const MONO = "'JetBrains Mono', monospace";
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(accent, 0.12), border: `1px solid ${bsTHexA(accent, 0.45)}`, color: accent, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+        ＋ Log activity
+      </button>
+    </div>
   );
 }
 
@@ -9166,15 +9180,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {tab === 'activity' && (
             <div>
               <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                <Kick>Personal activities</Kick>
-                {isSelf && (
-                  <button onClick={() => setShowLog(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(TEAL, 0.12), border: `1px solid ${bsTHexA(TEAL, 0.45)}`, color: TEAL, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                    ＋ Log activity
-                  </button>
-                )}
-              </div>
-              <div style={{ marginTop: 16 }}>
+              <BSActivityLogCta isSelf={isSelf} accent={TEAL} onClick={() => setShowLog(true)} />
+              <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
                   <div style={{ ...card, padding: '15px 20px', margin: '0 -20px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
                 )}
@@ -9831,15 +9838,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           /* field notes */
           <div style={{ marginTop: 8 }}>
             <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={22} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: Number(score).toLocaleString() }, tier: { label: 'Tier', value: tierName }, rating: { label: 'Rating', value: rating }, reviews: { label: 'Reviews', value: reviewCount } }} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Kick>Personal activities</Kick>
-              {isSelf && (
-                <button onClick={() => setShowLog(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(c, 0.12), border: `1px solid ${bsTHexA(c, 0.45)}`, color: c, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                  ＋ Log activity
-                </button>
-              )}
-            </div>
-            <div style={{ marginTop: 16 }}>
+            <BSActivityLogCta isSelf={isSelf} accent={c} onClick={() => setShowLog(true)} />
+            <div style={{ marginTop: isSelf ? 12 : 0 }}>
               {coachFeedEff.length === 0 && (
                 <div style={{ ...card, padding: '15px 20px', margin: '0 -22px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
               )}
