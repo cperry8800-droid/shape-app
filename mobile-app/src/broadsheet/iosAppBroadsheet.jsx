@@ -662,6 +662,22 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
   );
 }
 
+// The standing masthead row — SHAPE logo + "Vol. 1 · No. 1" (+ optional right
+// tools). This strip opens EVERY page; BSMasthead/BSPageHeader embed their own
+// copy, so reach for this on screens with fully custom headers.
+function BSMastRow({ trailing = null, size = 16, style = null }) {
+  const t = useBS();
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, ...style }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <BSLogo size={size} color={t.INK} />
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+      </div>
+      {trailing}
+    </div>
+  );
+}
+
 // Compact page header (non-masthead, for inner tabs)
 function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, titleSize = 34 }) {
   const t = useBS();
@@ -1442,7 +1458,7 @@ function BSBackButton({ onClick, label = 'Back', style }) {
 }
 Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton,
-  BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
+  BSPage, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits,
 });

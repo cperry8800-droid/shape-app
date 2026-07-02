@@ -1283,9 +1283,11 @@ function BSLibraryDetail({ item, onBack }) {
   const saved = lib.some(x => x.id === item.id);
   return (
     <BSPage>
-      <div style={{ padding: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <BSBackButton onClick={onBack} label="Library" />
-        <BSMeCorner />
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <div style={{ marginTop: 12 }}>
+          <BSBackButton onClick={onBack} label="Library" />
+        </div>
       </div>
       <div style={{ padding: `18px ${t.padX}px 0` }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1332,9 +1334,9 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   return (
     <BSPage>
       <div style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <div style={{ marginTop: 12 }}>
           <BSBackButton onClick={onBack} />
-          <BSMeCorner />
         </div>
         <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Your library</div>
         <h1 style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>Saved<br/><span style={{ fontStyle: 'italic', color: teal }}>everything.</span></h1>
@@ -1428,7 +1430,10 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
   const footBtn = { flex: 1, padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
   return (
     <BSPage>
-      <div style={{ padding: `62px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ padding: `46px ${t.padX}px 0` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+      </div>
+      <div style={{ padding: `12px ${t.padX}px 2px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <BSBackButton onClick={onBack} />
         <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>Preview</span>
         <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>Message</button>
@@ -3915,9 +3920,11 @@ function BSMealPreview({ meal, onBack, onLog }) {
 
   return (
     <BSPage>
-      <div style={{ padding: `62px ${t.padX}px 10px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <BSBackButton onClick={onBack} />
-        <BSMeCorner />
+      <div style={{ padding: `46px ${t.padX}px 10px` }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
+        <div style={{ marginTop: 12 }}>
+          <BSBackButton onClick={onBack} />
+        </div>
       </div>
 
       {/* Hero photo — clipped instrument plate (falls back to a halftone if the image fails) */}
@@ -12787,7 +12794,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
   return (
     <BSPage tabBarHeight={0}>
       {/* Custom header with back chevron — no tab bar on the thread screen */}
-      <div style={{ padding: '64px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+      <div style={{ padding: '46px 18px 14px', borderBottom: `1px solid ${t.SURFACE_BORDER}`, background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <BSBackButton onClick={onBack} />
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{eyebrow}</span>
@@ -17933,14 +17941,16 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════
 function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = false }) {
   const t = useBS();
+  const BSMastRow = window.BSMastRow;
+  // Standing masthead row first (logo + Vol·No + the search/avatar corners —
+  // the strip that opens every page), then the back + eyebrow row. Top padding
+  // dropped 64 → 46 so the sticky header stays about the same height.
   return (
-    <div style={{ padding: '64px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+    <div style={{ padding: '46px 18px 14px', background: t.PAPER, position: 'sticky', top: 0, zIndex: 2 }}>
+      {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} style={{ marginBottom: 12 }} />}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
         <BSBackButton onClick={onBack} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
-          {!noCorner && <BSMeCorner />}
-        </div>
+        {eyebrow && <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>}
       </div>
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
