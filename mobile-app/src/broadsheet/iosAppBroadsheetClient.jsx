@@ -6551,7 +6551,18 @@ function BSFollowMini({ onOpen }) {
       {stat(f.following, 'Following', 'following')}
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={bsMyName()} c={bsMyTierColor()} INK={t.INK} BG={t.PAPER} coach={bsIsCoachRole((window.ShapeAuth?.getCachedState?.()?.profile?.role) || '')} self ownerPhoto={bsMyPhoto() || undefined} onClose={() => setSheet(null)} onOpenProfile={(p) => { setSheet(null); setViewPerson(p); }} />}
       {viewPerson && createPortal(
-        <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)} />,
+        <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)}
+          onMessage={viewPerson.userId ? async (person) => {
+            // Real 1:1 via the shell's shape:openConversation listener (it closes
+            // overlays + jumps to the Chat tab) — same path as the search rows.
+            try {
+              const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
+              const cid = (r && r.data) || null;
+              if (!cid) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); return; }
+              setViewPerson(null);
+              try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name: person.who || person.name } })); } catch (e) {}
+            } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
+          } : null} />,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
     </div>
@@ -6914,8 +6925,10 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       })()}
       {/* Message → the profile host's handler (it dismisses the profile overlay
           BEFORE opening the real 1:1 — same handoff as the profiles' big
-          Message CTA). Rendered only where a live handler + real account exist. */}
-      {!isSelf && uid && typeof onMessage === 'function' && (
+          Message CTA). Rendered wherever a live handler exists; the HOST decides
+          real-vs-demo behavior (the feed host opens a local thread for demo
+          people; search/list hosts only pass a handler for real accounts). */}
+      {!isSelf && typeof onMessage === 'function' && (
         <button onClick={() => onMessage()} style={{
           flex: 'none', alignSelf: 'center', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
           fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -9992,7 +10005,17 @@ function BSUniversalSearch({ onClose }) {
 
   if (viewPerson) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)} />
+      <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)}
+        onMessage={viewPerson.userId ? async (person) => {
+          // Same path as the inline ✉ search-row button: real 1:1 → the shell's
+          // shape:openConversation listener closes the search + opens the thread.
+          try {
+            const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
+            const cid = (r && r.data) || null;
+            if (!cid) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); return; }
+            try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name: person.who || person.name } })); } catch (e) {}
+          } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
+        } : null} />
     </div>
   );
   if (viewRecipe) return (
