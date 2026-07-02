@@ -6552,7 +6552,7 @@ function BSFollowMini({ onOpen }) {
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={bsMyName()} c={bsMyTierColor()} INK={t.INK} BG={t.PAPER} coach={bsIsCoachRole((window.ShapeAuth?.getCachedState?.()?.profile?.role) || '')} self ownerPhoto={bsMyPhoto() || undefined} onClose={() => setSheet(null)} onOpenProfile={(p) => { setSheet(null); setViewPerson(p); }} />}
       {viewPerson && createPortal(
         <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)}
-          onMessage={viewPerson.userId ? async (person) => {
+          onMessage={(uid && viewPerson.userId && viewPerson.userId !== uid) ? async (person) => {
             // Real 1:1 via the shell's shape:openConversation listener (it closes
             // overlays + jumps to the Chat tab) — same path as the search rows.
             try {
@@ -10006,7 +10006,7 @@ function BSUniversalSearch({ onClose }) {
   if (viewPerson) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
       <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)}
-        onMessage={viewPerson.userId ? async (person) => {
+        onMessage={(signedIn && viewPerson.userId && viewPerson.userId !== ((typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null)) ? async (person) => {
           // Same path as the inline ✉ search-row button: real 1:1 → the shell's
           // shape:openConversation listener closes the search + opens the thread.
           try {
