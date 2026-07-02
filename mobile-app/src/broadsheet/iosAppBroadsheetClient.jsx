@@ -6642,7 +6642,7 @@ function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
           </div>
           {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
         </div>
-        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
         <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
           {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph) => (
             <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ padding: '9px 13px', borderRadius: 999, border: `1px solid ${accent}55`, background: `${accent}12`, color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{ph}</button>
@@ -7052,7 +7052,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   const faBase = {
     flex: 'none', position: 'relative', lineHeight: 1, minHeight: 28, padding: '8px 13px',
     clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', borderRadius: 3,
-    fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+    fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
     transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
   };
   if (!isSelf) bsInjectFollowChipCss();
@@ -7101,12 +7101,12 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     <div style={{ marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
       {title ? (
         <>
-          {/* Actions ride the NAME row (right of the member's name); the counts
-              get their own line below. A long name wraps the chips down-right
-              instead of crushing into them. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px 12px', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 auto', minWidth: 0 }}>{title}</div>
-            {actions && <div style={{ flex: '0 0 auto', marginLeft: 'auto' }}>{actions}</div>}
+          {/* Actions PIN top-right of the name row — never wrap below it. The
+              name column owns the remaining width and word-wraps to a second
+              line when long (never truncated), so any member name formats clean. */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: '1 1 0', minWidth: 0, overflowWrap: 'break-word' }}>{title}</div>
+            {actions && <div style={{ flex: '0 0 auto', marginTop: 2 }}>{actions}</div>}
           </div>
           <div style={{ marginTop: 9 }}>{statsRow}</div>
         </>
@@ -7131,7 +7131,7 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
       </div>
       <div style={{ marginTop: 7 }}>
         <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage}
-          title={<h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: 0 }}>{name}<span style={{ color: c }}>.</span></h1>} />
+          title={<h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: 0 }}>{name}<span style={{ color: c }}>.</span></h1>} />
       </div>
     </div>
   );
@@ -12029,10 +12029,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               const railProfile = { who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: pPhoto || bsDemoFace(p.name) };
               // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
               // cheer them on while they're at it; otherwise straight to the profile.
-              // Real accounts only — demo rail people aren't actually live, so their
-              // tap keeps the profile behavior (honest-data).
+              // Demo rail people open the sheet too (it's how the feature is
+              // discoverable in preview) — the sheet labels itself a demo preview
+              // and a send lands the honest "reaches real members" note, never a
+              // fake delivery (honest-data).
               return (
-                <button key={p.userId || i} onClick={() => ((p.activity && p.userId) ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
+                <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <BSFacetAvatar size={40} c={tc} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} INK={'#fff'} />
                   </div>
