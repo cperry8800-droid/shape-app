@@ -223,6 +223,41 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — LIVE BOOST (#1514) · Today nudge leads Home (#1513) · Follow/Message instrument chips beside the name (#1515)
+- **LIVE BOOST — cheer someone on WHILE they're mid-workout/mid-cook (#1514).** Tapping
+  a mid-activity member on the chat presence rail (teal/amber corner dot) now opens
+  **`BSLiveBoostSheet`** instead of the profile: their avatar + an honest
+  "In a workout now · N min in" line (elapsed from `user_activity.started_at` via the
+  new **`ShapePresence.activityDetail`** — the table is authenticated-read, NO
+  migration), four one-tap motivational phrases per activity kind + a free-text line.
+  Sending fires a REAL 1:1 DM (`getOrCreateMemberConversation` + `sendMessage`)
+  stamped `metadata {kind:'live_boost', activity}` — delivery/unread/push ride the
+  existing message spine, so it lands mid-set instead of after the activity posts.
+  Threads render a **"▲ Live boost · mid-workout/mid-cook"** eyebrow on EVERY path —
+  both DM mappers, the coach-thread remap, and the open-thread realtime append
+  (Codex P2: the time-sensitive case). Review round (Codex + 4 CodeRabbit Majors, all
+  fixed): boost eligibility requires a REAL `userId` (demo rail people keep the
+  profile tap — honest-data), unknown activity kinds map to `null` (never a
+  fabricated "workout" label), and the sheet is a real modal (role=dialog +
+  aria-modal, Escape closes, focus moves in; no autofocused input — mobile keyboard).
+  **War Room v2 item:** the full "see the workout in progress live" view (set-level
+  state broadcast from the session player + a privacy toggle).
+- **Today check-in nudge leads Home (#1513).** The #1511 nudge moved to the TOP of the
+  Home card list, directly under the THIS WEEK calendar strip (position-only).
+- **Follow/Message → live instrument chips beside the name (#1515).** The static round
+  pills are now clipped instrument chips (top-right notch, squared radius, 3px accent
+  spine): **＋ Follow** solid-accent with a soft BREATHING glow until followed
+  (`prefers-reduced-motion`-gated), **✓ Following** accent-tinted, **Requested**
+  quiet, **✉ Message** ink-spined; both compress on press. On member profiles the
+  chips ride the NAME row (new `title` slot on `BSFollowBlock` — the serif name left,
+  chips right, counts on their own line below; long names wrap the chips down-right).
+  Coach profiles keep the centered layout with the new chips. CodeRabbit nit fixed:
+  the chip CSS injects ONCE (`bsInjectFollowChipCss`), not per instance.
+- All three squash-merged (`b166b648` #1513 · `cdc12f68` #1514 · `576e8ed8` #1515),
+  CI green, every review thread resolved; branches kept. Verified per PR: JSX parse ·
+  `node --check` shapeBackend · tsc (warroom) · PowerShell mobile build · 363/363
+  tests · LF normalized.
+
 ### 2026-07-02 — Today check-in box → a Home notification nudge + its own page (#1511)
 - **The "Today · how are you" check-in + hydration plate leaves the Home flow.** Home
   now carries **`BSTodayNudge`** — a compact notification-style door in its slot
