@@ -6520,6 +6520,20 @@ function bsDemoIsPrivate(name) {
 // Compact followers/following counts for the Me identity card (Settings) — each
 // count opens the SAME live followers/following list sheet the profile uses (with
 // photos + tap-through to each person's public profile). Reads your own follow stats.
+// Open (or create) the real 1:1 with a person and jump to the Chat tab via the
+// shell's shape:openConversation listener. Shared by the hostless profile
+// overlays (Settings follow lists + universal search) so their get-or-create →
+// close-overlay → dispatch behavior can never drift apart.
+async function bsOpenMemberConversation(person, closeOverlay) {
+  try {
+    const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
+    const cid = (r && r.data) || null;
+    if (!cid) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); return; }
+    if (closeOverlay) closeOverlay();
+    try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name: person.who || person.name } })); } catch (e) {}
+  } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
+}
+
 function BSFollowMini({ onOpen }) {
   const t = useBS();
   const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.() || {}).user?.id || null;
@@ -6552,17 +6566,7 @@ function BSFollowMini({ onOpen }) {
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={bsMyName()} c={bsMyTierColor()} INK={t.INK} BG={t.PAPER} coach={bsIsCoachRole((window.ShapeAuth?.getCachedState?.()?.profile?.role) || '')} self ownerPhoto={bsMyPhoto() || undefined} onClose={() => setSheet(null)} onOpenProfile={(p) => { setSheet(null); setViewPerson(p); }} />}
       {viewPerson && createPortal(
         <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)}
-          onMessage={(uid && viewPerson.userId && viewPerson.userId !== uid) ? async (person) => {
-            // Real 1:1 via the shell's shape:openConversation listener (it closes
-            // overlays + jumps to the Chat tab) — same path as the search rows.
-            try {
-              const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
-              const cid = (r && r.data) || null;
-              if (!cid) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); return; }
-              setViewPerson(null);
-              try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name: person.who || person.name } })); } catch (e) {}
-            } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
-          } : null} />,
+          onMessage={(uid && viewPerson.userId && viewPerson.userId !== uid) ? (person) => bsOpenMemberConversation(person, () => setViewPerson(null)) : null} />,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
     </div>
@@ -10006,16 +10010,11 @@ function BSUniversalSearch({ onClose }) {
   if (viewPerson) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
       <BSPublicProfile person={viewPerson} onBack={() => setViewPerson(null)}
-        onMessage={(signedIn && viewPerson.userId && viewPerson.userId !== ((typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null)) ? async (person) => {
-          // Same path as the inline ✉ search-row button: real 1:1 → the shell's
-          // shape:openConversation listener closes the search + opens the thread.
-          try {
-            const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
-            const cid = (r && r.data) || null;
-            if (!cid) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); return; }
-            try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { conversationId: cid, name: person.who || person.name } })); } catch (e) {}
-          } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
-        } : null} />
+        onMessage={(signedIn && viewPerson.userId && viewPerson.userId !== ((typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null))
+          // Same gate + path as the inline ✉ search-row button; clears viewPerson
+          // BEFORE dispatching so a kept-mounted search never re-shows a stale profile.
+          ? (person) => bsOpenMemberConversation(person, () => setViewPerson(null))
+          : null} />
     </div>
   );
   if (viewRecipe) return (
