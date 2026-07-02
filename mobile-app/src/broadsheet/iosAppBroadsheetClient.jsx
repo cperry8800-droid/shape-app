@@ -12875,7 +12875,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {} }) {
     } else if (thread.conversationId && window.ShapeMessages?.subscribeMessages) {
       unsub = window.ShapeMessages.subscribeMessages((row) => {
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
-        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null }]);
+        // Carry the live-boost stamp on realtime appends too — a boost landing
+        // while this thread is OPEN (the time-sensitive case) must render with
+        // its eyebrow immediately, not only after a reload re-maps metadata.
+        setExtras(e => [...e, { who: thread.who || 'Member', t: row.body, time: 'now', me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost') ? (row.metadata.activity === 'cooking' ? 'cooking' : 'workout') : null }]);
         window.ShapeUnread?.markConversationRead?.(thread.conversationId);
       });
     }
