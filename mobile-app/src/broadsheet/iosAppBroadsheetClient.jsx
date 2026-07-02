@@ -6951,7 +6951,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
@@ -7027,8 +7027,51 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
       <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
     </button>
   );
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 11, rowGap: 8, flexWrap: 'wrap', marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
+  // ── Follow / Message — instrument chips (clipped notch + spine), not static
+  //    pills. The Follow chip "breathes" (a soft accent glow) until you follow;
+  //    both give press feedback. Motion respects prefers-reduced-motion.
+  const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
+  const faBase = {
+    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 28, padding: '8px 13px',
+    clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', borderRadius: 3,
+    fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+    transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
+  };
+  const actions = !isSelf ? (
+    /* One flex item so Follow + Message always share a row — the pair wraps
+       together, never apart. */
+    <div className="bs-fa-wrap" style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 7 }}>
+      <style>{`
+        .bs-fa-wrap button:active { transform: translateY(1px) scale(0.96); }
+        @media (prefers-reduced-motion: no-preference) {
+          @keyframes bsFaBreath { 0%, 100% { box-shadow: 0 0 0 0 var(--fa-glow); } 55% { box-shadow: 0 0 0 6px transparent; } }
+          .bs-fa-follow { animation: bsFaBreath 2.6s ease-in-out infinite; }
+        }
+      `}</style>
+      <button onClick={onToggle} disabled={busy} className={fs === 'follow' ? 'bs-fa-follow' : undefined} style={{
+        ...faBase, cursor: busy ? 'default' : 'pointer',
+        '--fa-glow': bsTHexA(c, 0.5),
+        background: fs === 'follow' ? c : fs === 'following' ? bsTHexA(c, 0.12) : 'transparent',
+        color: fs === 'follow' ? '#06110e' : fs === 'following' ? c : bsTHexA(INK, 0.6),
+        border: `1px solid ${fs === 'requested' ? bsTHexA(INK, 0.25) : c}`,
+        borderLeft: `3px solid ${fs === 'requested' ? bsTHexA(INK, 0.35) : c}`,
+      }}>{fs === 'following' ? '✓ Following' : fs === 'requested' ? 'Requested' : '＋ Follow'}</button>
+      {/* Message → the profile host's handler (it dismisses the profile overlay
+          BEFORE opening the real 1:1 — same handoff as the profiles' big
+          Message CTA). Rendered wherever a live handler exists; the HOST decides
+          real-vs-demo behavior (the feed host opens a local thread for demo
+          people; search/list hosts only pass a handler for real accounts). */}
+      {typeof onMessage === 'function' && (
+        <button onClick={() => onMessage()} style={{
+          ...faBase, cursor: 'pointer',
+          background: bsTHexA(INK, 0.05), color: INK,
+          border: `1px solid ${bsTHexA(INK, 0.28)}`, borderLeft: `3px solid ${bsTHexA(INK, 0.55)}`,
+        }}>✉ Message</button>
+      )}
+    </div>
+  ) : null;
+  const statsRow = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 11, rowGap: 8, flexWrap: 'wrap' }}>
       {statBtn(stats.followers, 'Followers', () => openList('followers'))}
       {statBtn(stats.following, 'Following', () => openList('following'))}
       {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
@@ -7039,36 +7082,23 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           background: c, color: '#06110e', border: 0,
         }}>{reqCount} request{reqCount === 1 ? '' : 's'}</button>
       )}
-      {!isSelf && (
-        /* Follow + Message travel as ONE flex item so they always share a row —
-           when the stats line runs tight, the pair wraps together, never apart. */
-        <div style={{ flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {(() => {
-            const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
-            const solid = fs === 'follow';
-            return (
-              <button onClick={onToggle} disabled={busy} style={{
-                flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
-                fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-                background: solid ? c : 'transparent', color: solid ? '#06110e' : INK,
-                border: `1px solid ${solid ? c : bsTHexA(INK, 0.3)}`,
-              }}>{fs === 'following' ? 'Following ✓' : fs === 'requested' ? 'Requested' : 'Follow'}</button>
-            );
-          })()}
-          {/* Message → the profile host's handler (it dismisses the profile overlay
-              BEFORE opening the real 1:1 — same handoff as the profiles' big
-              Message CTA). Rendered wherever a live handler exists; the HOST decides
-              real-vs-demo behavior (the feed host opens a local thread for demo
-              people; search/list hosts only pass a handler for real accounts). */}
-          {typeof onMessage === 'function' && (
-            <button onClick={() => onMessage()} style={{
-              flex: 'none', borderRadius: 999, padding: '5px 11px', cursor: 'pointer', lineHeight: 1,
-              fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-              background: 'transparent', color: INK, border: `1px solid ${bsTHexA(INK, 0.3)}`,
-            }}>Message</button>
-          )}
-        </div>
-      )}
+      {!title && actions}
+    </div>
+  );
+  return (
+    <div style={{ marginBottom: embedded ? 0 : 14, paddingBottom: embedded ? 0 : 12, borderBottom: embedded ? 0 : `1px solid ${bsTHexA(INK, 0.1)}` }}>
+      {title ? (
+        <>
+          {/* Actions ride the NAME row (right of the member's name); the counts
+              get their own line below. A long name wraps the chips down-right
+              instead of crushing into them. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px 12px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 auto', minWidth: 0 }}>{title}</div>
+            {actions && <div style={{ flex: '0 0 auto', marginLeft: 'auto' }}>{actions}</div>}
+          </div>
+          <div style={{ marginTop: 9 }}>{statsRow}</div>
+        </>
+      ) : statsRow}
       {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
     </div>
   );
@@ -7087,9 +7117,9 @@ function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo,
         <span style={{ color: c, fontWeight: 800 }}>{tierName} Tier</span>
         {streak ? <><span style={{ color: bsTHexA(INK, 0.4) }}>·</span><span style={{ color: '#c0533b' }}>{streak} week streak</span></> : null}
       </div>
-      <h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: '7px 0 0' }}>{name}<span style={{ color: c }}>.</span></h1>
-      <div style={{ marginTop: 8 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage} />
+      <div style={{ marginTop: 7 }}>
+        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage}
+          title={<h1 style={{ fontFamily: SERIF, fontSize: 31, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1, margin: 0 }}>{name}<span style={{ color: c }}>.</span></h1>} />
       </div>
     </div>
   );
