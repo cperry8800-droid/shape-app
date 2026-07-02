@@ -11011,7 +11011,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               {facepile.length > 0 && (
                 <button onClick={onOpenLikers} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
                   <span style={{ display: 'inline-flex', gap: 5 }}>{facepile.map((l, i) => (
-                    <span key={i} style={sdReduced ? null : { display: 'inline-flex', animation: `bsSdFadeUp 380ms ease ${240 + i * 70}ms both` }}>
+                    <span key={l.userId || l.name || i} style={sdReduced ? null : { display: 'inline-flex', animation: `bsSdFadeUp 380ms ease ${240 + i * 70}ms both` }}>
                       <BSFacetAvatar size={24} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                     </span>
                   ))}</span>
@@ -11022,7 +11022,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <div style={{ ...eyebrow, marginTop: 24, paddingTop: 17, borderTop: `1px solid ${hair}` }}><span style={{ width: 14, height: 1.5, background: heat, borderRadius: 2 }} /><span>Comments · <BSSdCountUp text={String(comments.length)} duration={620} delay={220} /></span></div>
             {comments.length === 0 && <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: muted, paddingBottom: 6, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 180ms both' }) }}>No comments yet — be the first.</div>}
             {comments.map((c, i) => (
-              <div key={i} style={(sdReduced || i >= commentsAtOpen.current) ? null : { animation: `bsSdFadeUp 420ms ease ${180 + Math.min(i, 9) * 80}ms both` }}>
+              <div key={c.id ?? c.ts ?? `${c.who || 'c'}·${i}`} style={(sdReduced || i >= commentsAtOpen.current) ? null : { animation: `bsSdFadeUp 420ms ease ${180 + Math.min(i, 9) * 80}ms both` }}>
                 <BSFeedComment c={c} t={t} cardInk={t.INK} muted={muted} feedAvatars={feedAvatars} real={a.real} size={28} />
               </div>
             ))}
@@ -15706,7 +15706,7 @@ function BSProgressDoor({ onOpen }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   React.useInsertionEffect(() => { bsInjectFollowChipCss(); }, []);
   const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
-  const segs = [['Streak', teal], ['Trends', t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], ['Training', '#c0533b'], ['Nutrition', '#d8b25a']];
+  const segs = [['Streak', teal], ['Trends', t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], ['Training', t.RUST || '#c0533b'], ['Nutrition', t.AMBER || '#d8b25a']];
   return (
     <div className="bs-fa-wrap" style={{ margin: `2px ${t.padX}px 12px` }}>
       <button onClick={onOpen} aria-label="Open your progress" style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
