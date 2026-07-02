@@ -13306,7 +13306,7 @@ const SHAPE_SCORE_TIERS_COACH = [
 // Per-tier accent colors — a cool→warm→premium progression. Used wherever a
 // tier is shown (score card, etc.) so tiers are color-coordinated app-wide.
 const BS_TIER_COLORS = {
-  raw: '#8a93a0', base: '#8a93a0',
+  raw: '#5fa96e', base: '#5fa96e',
   tempo: '#d8a23a',
   form: '#e0463c',
   peak: '#8fe3e6',
@@ -13314,7 +13314,7 @@ const BS_TIER_COLORS = {
   // Coach tiers (scheme J) — same 5-rung ladder, renamed, with teal (the logo
   // color) crowning the top. Diverges from the client ramp at Elite (crimson)
   // and the Ice → Teal apex.
-  certified: '#8a93a0',
+  certified: '#5fa96e',
   pro: '#d8a23a',
   elite: '#e0463c',
   master: '#8fe3e6',

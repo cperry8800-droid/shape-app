@@ -6,7 +6,7 @@
 // owner sees an Edit action; everyone else gets Message. Public fields
 // (bio/pronouns/goal/link) only come back when the member is set to Public.
 
-const MP_TIER_COLORS = { raw: "#8a93a0", base: "#8a93a0", tempo: "#d8a23a", form: "#e0463c", peak: "#8fe3e6", legend: "#34d6c5" };
+const MP_TIER_COLORS = { raw: "#5fa96e", base: "#5fa96e", tempo: "#d8a23a", form: "#e0463c", peak: "#8fe3e6", legend: "#34d6c5" };
 function mpTierColor(tier) { return MP_TIER_COLORS[String(tier || "").toLowerCase().trim()] || "#d8a23a"; }
 function mpInitials(name) { return String(name || "").replace(/^#\s*/, "").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?"; }
 function mpTierForPoints(pts) { const p = Number(pts) || 0; if (p >= 15000) return "Legend"; if (p >= 5000) return "Peak"; if (p >= 2000) return "Form"; if (p >= 750) return "Tempo"; return "Base"; }

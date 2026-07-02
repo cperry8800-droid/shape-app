@@ -18,8 +18,8 @@
   var SANS = "'Space Grotesk', sans-serif";
   var SERIF = "'Fraunces', serif";
   var MONO = "'JetBrains Mono', monospace";
-  var SS_TIERS = [[15000, '#e879a6'], [5000, '#a78bfa'], [2000, '#34d6c5'], [750, '#d8a23a'], [0, '#8a93a0']];
-  function tierColor(p) { p = Number(p) || 0; for (var i = 0; i < SS_TIERS.length; i++) { if (p >= SS_TIERS[i][0]) return SS_TIERS[i][1]; } return '#8a93a0'; }
+  var SS_TIERS = [[15000, '#e879a6'], [5000, '#a78bfa'], [2000, '#34d6c5'], [750, '#d8a23a'], [0, '#5fa96e']];
+  function tierColor(p) { p = Number(p) || 0; for (var i = 0; i < SS_TIERS.length; i++) { if (p >= SS_TIERS[i][0]) return SS_TIERS[i][1]; } return '#5fa96e'; }
   function roleLabel(r) { return r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Member'; }
   function roleColor(r) { return r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : TEAL; }
   function initials(name) { return String(name || '?').split(' ').map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase(); }
@@ -30,7 +30,7 @@
   // content) — matches the marketplace / living-profile / app avatar.
   function facet(photo, ini, color, size) {
     size = size || 38;
-    if (!/^#[0-9a-fA-F]{3,8}$/.test(String(color))) color = '#8a93a0'; // never interpolate an unvalidated color into the style string
+    if (!/^#[0-9a-fA-F]{3,8}$/.test(String(color))) color = '#5fa96e'; // never interpolate an unvalidated color into the style string
     var inset = Math.max(2, Math.round(size * 0.055));
     var inner = photo
       ? '<img src="' + esc(photo) + '" alt="" style="position:absolute;width:152%;height:152%;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-45deg);object-fit:cover" />'
