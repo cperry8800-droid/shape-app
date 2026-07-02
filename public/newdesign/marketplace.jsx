@@ -292,7 +292,7 @@ function Filters({ tab, cat, setCat, sort, setSort, format, setFormat, loc, setL
 
 // Coach ladder (Certified·Pro·Elite·Master·Icon) + color, matching the living
 // Signal profile — derived from experience so cards preview the real tier.
-const MK_COACH_LADDER = [["Certified", "#8a93a0"], ["Pro", "#d8a23a"], ["Elite", "#e0463c"], ["Master", "#8fe3e6"], ["Icon", "#34d6c5"]];
+const MK_COACH_LADDER = [["Certified", "#5fa96e"], ["Pro", "#d8a23a"], ["Elite", "#e0463c"], ["Master", "#8fe3e6"], ["Icon", "#34d6c5"]];
 function mkCoachTier(c) {
   const s = c.sessions || 0;
   const i = s >= 1500 ? 4 : s >= 1000 ? 3 : s >= 700 ? 2 : s >= 400 ? 1 : 0;

@@ -8,8 +8,8 @@
 // ladder: Certified/Pro/Elite/Master/Icon. Same names + colors as the rest of
 // the app (mobile + profiles), so a person's tier reads identically everywhere.
 const CW_TIER_COLORS = {
-  raw: "#8a93a0", base: "#8a93a0", tempo: "#d8a23a", form: "#e0463c", peak: "#8fe3e6", legend: "#34d6c5",
-  certified: "#8a93a0", pro: "#d8a23a", elite: "#e0463c", master: "#8fe3e6", icon: "#34d6c5",
+  raw: "#5fa96e", base: "#5fa96e", tempo: "#d8a23a", form: "#e0463c", peak: "#8fe3e6", legend: "#34d6c5",
+  certified: "#5fa96e", pro: "#d8a23a", elite: "#e0463c", master: "#8fe3e6", icon: "#34d6c5",
 };
 const CW_CLIENT_LADDER = ["Base", "Tempo", "Form", "Peak", "Legend"];
 const CW_COACH_LADDER = ["Certified", "Pro", "Elite", "Master", "Icon"];

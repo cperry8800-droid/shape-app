@@ -119,8 +119,8 @@ function navGroupsFor(authUser) {
 // goal keywords (role + photo + points → tier color). Nora (Shape's concierge)
 // matches help/support queries and opens the chat widget's Help tab. Rows link
 // to the person's public profile page.
-const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "#34d6c5"], [750, "#d8a23a"], [0, "#8a93a0"]];
-function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#8a93a0"; }
+const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "#34d6c5"], [750, "#d8a23a"], [0, "#5fa96e"]];
+function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#5fa96e"; }
 function ssShade(hex, f) { const h = String(hex || "#888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Facet gem avatar (rotated rounded-square, tier gradient, counter-rotated
 // content) — matches the marketplace / living-profile / app avatar.
