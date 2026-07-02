@@ -2655,6 +2655,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </BSPlate>
       )}
 
+      {/* YOUR GOAL — the featured goal card (moved off the profile; the profile
+          is identity-only now). Taps into the full Goals page. */}
+      <div style={{ margin: `3px ${t.padX}px 9px` }}>
+        <BSMeGoalCard c={t.isLight ? '#0a8f87' : '#34d6c5'} onOpen={() => setGoalsPage(true)} compact />
+      </div>
+
       {/* The day's plan beneath the move. The section header shows only on
           non-today views — the "Your move" hero owns the single "Today" narrative. */}
       {selIdx !== todayIdx && <BSSection title={upNextLabel} />}
@@ -2894,6 +2900,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* TODAY — daily check-in (energy/hunger/sleep/rested) + hydration, one plate */}
       <BSTodayCard />
 
+      {/* SHAPE STEPS — the daily steps instrument (moved off the profile; it
+          belongs with the day's living metrics). Taps into the steps history. */}
+      <BSStepsCard />
+
       {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -2968,6 +2978,20 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               })}
             </div>
           </>
+        );
+      })()}
+
+      {/* PROGRESS — a slim door to the full progress hub (moved off the profile) */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        return (
+          <button onClick={() => setHomeProgressPage(true)} aria-label="Open your progress" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: `calc(100% - ${t.padX * 2}px)`, margin: `2px ${t.padX}px 12px`, boxSizing: 'border-box', padding: '11px 14px', borderRadius: 10, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${teal}`, background: bsTHexA(t.INK, 0.03), cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Progress<span style={{ color: teal }}>.</span></div>
+              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Streak · trends · training · nutrition</div>
+            </div>
+            <span aria-hidden style={{ color: teal, fontSize: 15, fontWeight: 700, flexShrink: 0 }}>›</span>
+          </button>
         );
       })()}
 
@@ -8387,7 +8411,7 @@ function BSActivityLogCta({ isSelf, accent, onClick }) {
   );
 }
 
-function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenProgress = () => {}, onOpenGoals = () => {}, onOpenScore = () => {} }) {
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
@@ -9023,34 +9047,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         })()}
       </div>
 
-      {meMode && isSelf && (
-        <div style={{ padding: '14px 18px 0' }}>
-          <BSMeGoalCard c={c} onOpen={onOpenGoals} compact />
-        </div>
-      )}
-
-      {meMode && isSelf && (
-        <div style={{ padding: '12px 0 0' }}>
-          <BSStepsCard />
-        </div>
-      )}
-
-      {isSelf && (
-        <div style={{ padding: '12px 18px 0' }}>
-          <button onClick={onOpenProgress} aria-label="Open your progress" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', borderRadius: 10, border: `1px solid ${bsTHexA(INK, 0.14)}`, borderLeft: `3px solid ${c}`, background: bsTHexA(INK, 0.04), padding: '13px 14px' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>Progress<span style={{ color: c }}>.</span></div>
-              <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                {['Streak', 'Trends', 'Overall', 'Training', 'Nutrition'].map((x) => (
-                  <span key={x} style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 3, padding: '2px 6px' }}>{x}</span>
-                ))}
-              </div>
-            </div>
-            <span aria-hidden style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${bsTHexA(INK, 0.16)}`, display: 'grid', placeItems: 'center', color: c, fontSize: 16, fontWeight: 700, flexShrink: 0 }}>›</span>
-          </button>
-        </div>
-      )}
-
+      {/* The goal / Shape-steps / Progress utility cards moved to the HOME tab —
+          the profile stays identity + climb + activity. */}
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
@@ -16520,8 +16518,8 @@ function BSHealthIntake({ onDone, onBack = null, initial = null }) {
 }
 
 function BSClientMe(props) {
-  const [showProgress, setShowProgress] = useStateBSC(false);
-  const [showGoals, setShowGoals] = useStateBSC(false);
+  // Goal / progress doors moved to the HOME tab (their overlays live there) —
+  // the Me tab keeps only the Score → Store chain off the hero's score plate.
   const [showScore, setShowScore] = useStateBSC(false);
   const [showStore, setShowStore] = useStateBSC(false);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
@@ -16533,8 +16531,6 @@ function BSClientMe(props) {
   const name = bsMyName();
   const photo = bsMyPhoto() || null;
   const person = { who: name, init: bsMyInitials() || bsInitials(name) || 'A', kind: 'CLIENT', userId: uid, photo };
-  if (showProgress) return <BSClientProgress onBack={() => setShowProgress(false)} />;
-  if (showGoals) return <BSClientGoals onBack={() => setShowGoals(false)} onOpenProgress={() => { setShowGoals(false); setShowProgress(true); }} />;
   if (showScore) return <BSShapeScorePage profile={scoreProfile} onBack={() => setShowScore(false)} onOpenStore={() => { setShowScore(false); setShowStore(true); }} />;
   if (showStore) return <BSShapeStorePage profile={scoreProfile} onBack={() => setShowStore(false)} onOpenScore={() => { setShowStore(false); setShowScore(true); }} />;
   return (
@@ -16544,8 +16540,6 @@ function BSClientMe(props) {
       meMode
       onBack={props.goHome || (() => {})}
       onOpenSettings={() => { try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }}
-      onOpenProgress={() => setShowProgress(true)}
-      onOpenGoals={() => setShowGoals(true)}
       onOpenScore={() => setShowScore(true)}
     />
   );
