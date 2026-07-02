@@ -223,6 +223,23 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-02 — Goal · Shape steps · Progress move from the profile to HOME (#1509)
+- **The three private utility cards leave the profile page** (now a public-facing,
+  full-bleed identity surface) and land on **Home**, the daily surface: the compact
+  **`BSMeGoalCard`** renders above the day's agenda (opens the full Goals page via
+  Home's existing `goalsPage` overlay; honest gating kept — a signed-in account with
+  no goal renders nothing, the demo goal is signed-out preview only), **`BSStepsCard`**
+  slots directly under the Today plate with the day's other living metrics, and
+  **Progress** becomes a slim bordered door after the weekly totals (Home's existing
+  `homeProgressPage` overlay). *(The old 2026-06-12 "goal card renders on HOME" note
+  had gone stale — the card wasn't rendering there anymore; this restores it.)*
+- Cleanup: `BSTerrainProfile` drops the three blocks + the now-unused
+  `onOpenGoals`/`onOpenProgress` props; `BSClientMe` sheds its unreachable
+  goals/progress overlay states (the Score → Store chain off the hero's score plate
+  stays). The profile is purely identity + climb + activity.
+- Squash-merged `b96de598` (#1509), CI green, CodeRabbit clean (0 findings). Verified:
+  JSX parse · PowerShell mobile build · 363/363 tests · LF normalized.
+
 ### 2026-07-02 — Profile round 3: Message beside Follow · FULL-BLEED profiles · the masthead opens EVERY page (#1505 · #1506 · #1507)
 - **Message pill rides the Follow row (#1505).** `BSFollowBlock` groups Follow + Message
   into ONE flex item so they always share a row (the pair wraps together, never apart);
