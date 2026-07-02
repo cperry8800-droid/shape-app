@@ -10573,11 +10573,14 @@ function bsSdHeatColor(intensity, fallback) {
 function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, muted, distanceMi = null, zoneGrad = false, markMax = false, unit = '' }) {
   const [ref, seen] = useBSSdInView();
   const [scrub, setScrub] = useStateBSC(null); // { frac, i }
+  // Gradient ids must be unique PER MOUNT — the same chart can render twice
+  // (e.g. two detail hosts), and duplicate SVG ids resolve to the first in DOM.
+  const sdUid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
   if (!Array.isArray(vals) || vals.length < 2) return null;
   const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1, W = 100, top = 5, bot = 95, span = bot - top;
   const yOf = (v) => invert ? (top + ((v - lo) / rng) * span) : (bot - ((v - lo) / rng) * span);
   const line = vals.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * W).toFixed(2)} ${yOf(v).toFixed(2)}`).join(' ');
-  const gid = `sd-${idKey}`;
+  const gid = `sd-${idKey}-${sdUid}`;
   const fmtv = fmt || ((v) => `${Math.round(v)}`);
   const yTicks = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
   const step = distanceMi && distanceMi > 0 ? Math.max(1, Math.round(distanceMi / 5)) : 0;
@@ -10756,7 +10759,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // v2 "living instrument": the page's TEMPERATURE follows the session's
   // time-in-zone intensity — a recovery session reads cool teal, a max effort
   // reads ember/red. Falls back to the neutral accent when no zone data.
-  bsInjectSessionDetailCss();
+  // Inject before paint (not during render) so an abandoned render can't
+  // mutate the document; insertion effects exist for exactly this.
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
   const sdReduced = bsSdReduced();
   const heat = bsSdHeatColor(bsSdIntensity(d.zones), accent);
   // ── Instrument-plate helpers (stats view) ──────────────────────────────────
@@ -10945,7 +10950,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         )}
         {/* HEART RATE — a bpm-over-distance area chart (y-axis bpm + x-axis miles),
             then time-in-zone as LABELED horizontal bars. Avg HR leads in Summary. */}
-        {!isComments && (d.trace || (Array.isArray(d.zones) && d.zones.length > 0)) && (
+        {!isComments && ((Array.isArray(d.trace) && d.trace.length > 1) || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
             {secHead('Heart rate')}
             {Array.isArray(d.trace) && d.trace.length > 1 && <BSSdTrace vals={d.trace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="hr" height={116} t={t} muted={muted} distanceMi={distanceMi} zoneGrad markMax unit="bpm" />}
