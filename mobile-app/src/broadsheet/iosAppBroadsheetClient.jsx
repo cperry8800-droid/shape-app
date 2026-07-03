@@ -15789,12 +15789,22 @@ function BSSleepHistory({ onClose }) {
 // language: clipped notch, teal spine, corner bracket, and one colored tick per
 // section behind the door (streak teal · trends blue · training rust ·
 // nutrition gold). Compresses on press via the shared chip CSS.
-function BSProgressDoor({ onOpen }) {
+function BSProgressDoor({ onOpen, door = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   React.useInsertionEffect(() => { bsInjectFollowChipCss(); }, []);
   const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   const segs = [['Streak', teal], ['Trends', t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], ['Training', t.RUST || '#c0533b'], ['Nutrition', t.AMBER || '#d8b25a']];
+  if (door) {
+    const ticks = (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {segs.map(([lab, sc]) => (
+          <span key={lab} aria-hidden title={lab} style={{ width: 6, height: 6, borderRadius: 999, background: sc, flexShrink: 0 }} />
+        ))}
+      </span>
+    );
+    return <BSShelfDoor c={teal} eyebrow="Progress" figure={ticks} status="4 sections" onOpen={onOpen} />;
+  }
   return (
     <div className="bs-fa-wrap" style={{ margin: `2px ${t.padX}px 12px` }}>
       <button onClick={onOpen} aria-label="Open your progress" style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
@@ -15820,20 +15830,186 @@ function BSProgressDoor({ onOpen }) {
   );
 }
 
-// Today instrument plate — the home daily check-in + hydration, consolidated into
-// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
-// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
-// when a wearable synced last night, else manual hour chips). Hydration folds in as a
-// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
-// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
-// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
-// TODAY nudge — the check-in + hydration box moved to its own page (BSTodayPage);
-// Home carries this compact notification-style door instead. Status-aware: "due"
-// until a MANUAL signal exists for today (same rule as the card — a wearable
-// syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
-function BSTodayNudge({ onOpen }) {
+// ── Front-Page primitives (spec: docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md) ──
+// Do not add a plate. If it can't be a row, it lives on a tab and gets at most a row-door.
+
+// BSSlateRow — one time-ordered run-sheet row inside TODAY'S SLATE. min-height 48px,
+// grid 50px time / 58px domain-tag / 1fr title / auto status / 20px control-or-chevron,
+// 1px t.HAIR bottom rule. Whole row is a button ≥48px tall, Enter/Space-activatable,
+// press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
+// non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
+// a custom control cell (36px meal ghost-tick / 26px habit checkbox) rendered as-is.
+function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel }) {
   const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const isLead = right === 'lead';
+  const isNode = right && typeof right === 'object';
+  const interactive = !isLead && typeof onOpen === 'function';
+  const [pressed, setPressed] = useStateBSC(false);
+  // NEVER a <button> wrapper — rows contain nested interactive controls (the
+  // meal ghost-tick, the habit checkbox), and a <button> nested inside another
+  // <button> is invalid HTML. Matches the existing BSPlate pattern
+  // (iosAppBroadsheet.jsx ~line 1030): a plain div with role="button" + tabIndex
+  // when interactive. Non-interactive rows (right='lead') render a bare div with
+  // no role/tabIndex.
+  return (
+    <div
+      onClick={interactive ? onOpen : undefined}
+      onKeyDown={interactive ? (e) => {
+        // First line, always: a keypress that bubbled up from a nested control
+        // (the meal ghost-tick / habit checkbox) must not also trigger the row's
+        // own Enter/Space handling (the #1502 keyboard guard).
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
+      } : undefined}
+      onPointerDown={interactive ? () => setPressed(true) : undefined}
+      onPointerUp={interactive ? () => setPressed(false) : undefined}
+      onPointerLeave={interactive ? () => setPressed(false) : undefined}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={ariaLabel}
+      style={{
+        display: 'grid', gridTemplateColumns: '50px 58px 1fr auto 20px', alignItems: 'center', gap: 8,
+        width: '100%', minHeight: 48, boxSizing: 'border-box', padding: '6px 0',
+        border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
+        transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
+        font: 'inherit', color: 'inherit',
+      }}
+    >
+      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span aria-hidden style={{ width: 16, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
+      </span>
+      <span style={{ minWidth: 0, overflow: 'hidden' }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+      </span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right' }}>{status || ''}</span>
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        {isLead ? (
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ LEAD</span>
+        ) : isNode ? right : (
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.INK50 }}>›</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+// BSIndexRow — one row in the "Inside." index. 44px, grid 86px domain-label / 1fr
+// dot-leader / auto figure / 18px chevron. No background/border/radius — pure
+// typographic rows. `due` pulses the 5px status tick; `done` shows a ✓ instead.
+function BSIndexRow({ label, figure, status, due, done, onOpen }) {
+  const t = useBS();
+  const interactive = typeof onOpen === 'function';
+  const Tag = interactive ? 'button' : 'div';
+  return (
+    <Tag
+      {...(interactive ? { onClick: onOpen, type: 'button' } : {})}
+      onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+      aria-label={interactive ? `${label} ${status || ''}`.trim() : undefined}
+      style={{
+        display: 'grid', gridTemplateColumns: '86px 1fr auto 18px', alignItems: 'center', gap: 8,
+        width: '100%', height: 44, boxSizing: 'border-box', border: 0, background: 'transparent',
+        padding: 0, textAlign: 'left', cursor: interactive ? 'pointer' : 'default', font: 'inherit', color: 'inherit',
+      }}
+    >
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{label}</span>
+      <span aria-hidden style={{ borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-3px)', minWidth: 12 }} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span aria-hidden style={{
+          width: 5, height: 5, borderRadius: 999, flexShrink: 0,
+          background: done ? (t.GREEN || '#5fae7e') : due ? (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5')) : bsTHexA(t.INK, 0.18),
+          ...(due && !done && !bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null),
+        }} />
+        {/* Render the figure even when done — a done row with a real figure
+            (e.g. CHECK-IN's figure="Logged ✓") must show that text, not a bare
+            "✓" that discards it. Only fall back to a bare checkmark when no
+            figure was passed. */}
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{done && !figure ? '✓' : figure}</span>
+        {status ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap' }}>{status}</span> : null}
+      </span>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK50, textAlign: 'right' }}>{interactive ? '›' : ''}</span>
+    </Tag>
+  );
+}
+
+// BSHomeBulletin — a slim 40px one-liner ABOVE the lead, for a due time-sensitive
+// item (max 2 on the page). Hairline top+bottom, pulsing 6px tick, mono label +
+// detail, trailing ›. Renders only while its caller decides it's due — this
+// component itself is unconditional (the caller gates visibility).
+function BSHomeBulletin({ label, detail, onOpen }) {
+  const t = useBS();
+  const accent = t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5');
+  return (
+    <button
+      type="button" onClick={onOpen} aria-label={`${label} · ${detail || ''}`.trim()}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 9, width: '100%', height: 40, boxSizing: 'border-box',
+        border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent',
+        padding: `0 ${t.padX}px`, textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+      }}
+    >
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: accent, flexShrink: 0, ...(!bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null) }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{detail}</span>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0 }}>›</span>
+    </button>
+  );
+}
+
+// BSShelfDoor — one compact door (~112w×64h) in the horizontal shelf. Native
+// button (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
+// PROGRESS 4-tick row). `pct` (0–100), when a number, draws a 2px bottom
+// progress sliver at that width. Press feedback scale(0.97) 120ms; the scale
+// transition is skipped under prefers-reduced-motion (transform still applies
+// instantly on press for a11y/testing, just without the animated transition).
+function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
+  const t = useBS();
+  const accent = c || (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5'));
+  const [pressed, setPressed] = useStateBSC(false);
+  const reduced = bsSdReduced();
+  const hasPct = typeof pct === 'number' && isFinite(pct);
+  return (
+    <button
+      type="button" onClick={onOpen} aria-label={`${eyebrow || ''} ${status || ''}`.trim()}
+      onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
+      style={{
+        position: 'relative', flex: '0 0 auto', width: 112, height: 64, boxSizing: 'border-box',
+        scrollSnapAlign: 'start', borderRadius: 6, border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.03),
+        padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        textAlign: 'left', cursor: 'pointer', overflow: 'hidden',
+        transform: pressed ? 'scale(0.97)' : 'scale(1)',
+        ...(reduced ? null : { transition: 'transform 120ms ease' }),
+      }}
+    >
+      <span aria-hidden style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 10px 10px 0', borderColor: `transparent ${accent} transparent transparent`, opacity: 0.7 }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
+        {typeof figure === 'string' || typeof figure === 'number'
+          ? <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{figure}</span>
+          : figure}
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status}</span>
+        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: accent, marginLeft: 'auto' }}>›</span>
+      </span>
+      {hasPct && (
+        <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: bsTHexA(t.INK, 0.08) }}>
+          <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: accent, ...(reduced ? null : { transition: 'width 400ms cubic-bezier(.4,0,.2,1)' }) }} />
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Reduced-motion gating for these primitives reuses the EXISTING module-scope
+// `bsSdReduced()` (defined once, ~line 10486) — the single reduced-motion
+// predicate app-wide. Do not define a second one here.
+
+// useBSCheckinLogged — the manual-signal "logged for today" predicate, extracted
+// VERBATIM from BSTodayNudge's own effect (see the comment above — the has()/
+// deviceMeta/rule is copied unchanged, only lifted into a reusable hook).
+function useBSCheckinLogged() {
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [logged, setLogged] = useStateBSC(false);
   React.useEffect(() => {
@@ -15849,6 +16025,67 @@ function BSTodayNudge({ onOpen }) {
     }).catch(() => {});
     return () => { on = false; };
   }, [signedIn]);
+  return logged;
+}
+
+// useBSStepsToday — the steps-today data effect + derived render flags, extracted
+// VERBATIM from BSStepsCard (goal via the existing useBSStepGoal() hook, signed-out
+// preview sample, todayKnown honesty gate, Shape Steps→points conversion).
+function useBSStepsToday() {
+  const TARGET = useBSStepGoal();
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [steps, setSteps] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      const series = p && p.series && Array.isArray(p.series.steps) ? p.series.steps : [];
+      const d = new Date();
+      const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const row = series.find((s) => s.date === todayIso);
+      setSteps({ today: row ? Math.round(Number(row.value) || 0) : null, ever: series.length > 0 });
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  const hasData = signedIn ? !!(steps && steps.ever) : true;
+  const todayKnown = signedIn ? !!(steps && steps.today != null) : true;
+  const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
+  const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
+  const hit = todayKnown && val >= TARGET;
+  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET);
+  return { hasData, todayKnown, val, goal: TARGET, pct, hit, stepPts };
+}
+
+// Today instrument plate — the home daily check-in + hydration, consolidated into
+// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
+// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
+// when a wearable synced last night, else manual hour chips). Hydration folds in as a
+// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
+// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
+// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
+// TODAY nudge — the check-in + hydration box moved to its own page (BSTodayPage);
+// Home carries this compact notification-style door instead. Status-aware: "due"
+// until a MANUAL signal exists for today (same rule as the card — a wearable
+// syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
+// variant undefined → the exact current plate render (call site line 2618, untouched
+// this task). variant 'bulletin' → BSHomeBulletin CHECK-IN DUE, rendered only while
+// due (signed-in gating carried from the plate's own logged-detection scope — the
+// bulletin simply renders nothing once logged, matching "decays to an index row once
+// logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
+// → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
+function BSTodayNudge({ onOpen, variant }) {
+  const t = useBS();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const logged = useBSCheckinLogged();
+  if (variant === 'bulletin') {
+    if (logged) return null;
+    return <BSHomeBulletin label="Check-in due" detail="Energy · sleep · 30 sec" onOpen={onOpen} />;
+  }
+  if (variant === 'row') {
+    if (!logged) return null;
+    return <BSIndexRow label="Check-in" figure="Logged ✓" status="add water" done onOpen={onOpen} />;
+  }
   return (
     <BSPlate c={teal} tick={!logged} bracket pad="12px 16px 12px 22px" role="button" tabIndex={0} ariaLabel="Open today's check-in" onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
@@ -16144,31 +16381,8 @@ function BSTodayCard() {
 function BSStepsCard() {
   const t = useBS();
   const accent = t.isLight ? '#0a8f87' : '#34d6c5';
-  const TARGET = useBSStepGoal();
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [steps, setSteps] = useStateBSC(null);
   const [history, setHistory] = useStateBSC(false);
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
-    let on = true;
-    window.ShapeProgress.progress().then((p) => {
-      if (!on) return;
-      const series = p && p.series && Array.isArray(p.series.steps) ? p.series.steps : [];
-      const d = new Date();
-      const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const row = series.find((s) => s.date === todayIso);
-      setSteps({ today: row ? Math.round(Number(row.value) || 0) : null, ever: series.length > 0 });
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-  // Signed-out preview shows a sample; signed-in shows TODAY's real count (0 until
-  // today syncs), and the connect-a-device prompt only when nothing has ever synced.
-  const hasData = signedIn ? !!(steps && steps.ever) : true;
-  const todayKnown = signedIn ? !!(steps && steps.today != null) : true; // synced today? (else show "—", not 0)
-  const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
-  const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
-  const hit = todayKnown && val >= TARGET;
-  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET); // today's running Shape Steps → points
+  const { hasData, todayKnown, val, goal: TARGET, pct, hit, stepPts } = useBSStepsToday();
   const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
   const openHistory = () => setHistory(true);
   return (
@@ -16654,7 +16868,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
 
 // Featured goal card on the Me profile (self only) — your top body-comp goal
 // from user_goals('client_goals'). Personal numbers stay off the public profile.
-function BSMeGoalCard({ c, onOpen, compact = false }) {
+function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   const t = useBS();
   // Follow the paper theme so the goal text reads on light papers too.
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -16666,7 +16880,9 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
     return () => { on = false; };
   }, []);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
-  // is the signed-out preview only. A real goal (g) shows once it loads.
+  // is the signed-out preview only. A real goal (g) shows once it loads. This gate
+  // is shared by ALL variants (door included) — a door never appears for a
+  // signed-in account with no goal.
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   if (bsGoalSignedIn && !g) return null;
   const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
@@ -16679,6 +16895,11 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
+  if (door) {
+    return (
+      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status="on track" pct={Math.round(pct * 100)} onOpen={onOpen} />
+    );
+  }
   return (
     <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel="Open your goal" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
