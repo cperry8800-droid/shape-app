@@ -46,6 +46,9 @@ export function bsSdNeedle(value, trace, mode = 'pace') {
   if (!(hi > lo)) return null;
   const s = String(value == null ? '' : value);
   if (mode === 'speed') {
+    // A mislabeled time-shaped value ("7:58/mi") must never parse as a speed
+    // (stripping non-digits would read it as "758" mph) — reject it outright.
+    if (s.includes(':')) return null;
     const avg = parseFloat(s.replace(/[^\d.]/g, ''));
     if (!isFinite(avg)) return null;
     return { frac: clamp01((avg - lo) / (hi - lo)), lo: lo.toFixed(1), hi: hi.toFixed(1) };

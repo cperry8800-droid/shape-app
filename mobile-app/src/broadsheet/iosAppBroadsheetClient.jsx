@@ -10758,10 +10758,10 @@ function BSSdRoute({ route, heat, t }) {
           <path d={dPath} fill="none" stroke={heat} strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round"
             pathLength={1} strokeDasharray={reduced ? 'none' : 1} strokeDashoffset={reduced ? 0 : (seen ? 0 : 1)} style={{ transition: 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 120ms' }} />
         </svg>
-        <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${sx}% - 2px), 0px), calc(100% - 5px))`, top: `min(max(calc(${sy * 0.96}% - 2px), 0px), calc(100% - 5px))`, width: 5, height: 5, border: `1.2px solid ${t.INK}`, background: 'transparent' }} />
-        {(seen || reduced) && <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${ex}% - 3px), 0px), calc(100% - 6px))`, top: `min(max(calc(${ey * 0.96}% - 3px), 0px), calc(100% - 6px))`, width: 6, height: 6, borderRadius: 999, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.18)}`, ...(reduced ? null : { animation: 'bsSdPop 340ms ease 1240ms both' }) }} />}
-        <span style={{ ...lbl, left: `min(max(calc(${sx}% - 16px), 0px), calc(100% - 36px))`, top: `min(calc(${sy * 0.96}% + 5px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 900ms' }) }}>START</span>
-        <span style={{ ...lbl, left: `min(max(calc(${ex}% - 12px), 0px), calc(100% - 28px))`, top: `min(calc(${ey * 0.96}% + 6px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 1000ms' }) }}>END</span>
+        <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${sx}% - 2px), 0px), calc(100% - 5px))`, top: `min(max(calc(${sy}% - 2px), 0px), calc(100% - 5px))`, width: 5, height: 5, border: `1.2px solid ${t.INK}`, background: 'transparent' }} />
+        {(seen || reduced) && <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${ex}% - 3px), 0px), calc(100% - 6px))`, top: `min(max(calc(${ey}% - 3px), 0px), calc(100% - 6px))`, width: 6, height: 6, borderRadius: 999, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.18)}`, ...(reduced ? null : { animation: 'bsSdPop 340ms ease 1240ms both' }) }} />}
+        <span style={{ ...lbl, left: `min(max(calc(${sx}% - 16px), 0px), calc(100% - 36px))`, top: `min(calc(${sy}% + 5px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 900ms' }) }}>START</span>
+        <span style={{ ...lbl, left: `min(max(calc(${ex}% - 12px), 0px), calc(100% - 28px))`, top: `min(calc(${ey}% + 6px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 1000ms' }) }}>END</span>
       </div>
       {caption ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{caption}</div> : null}
     </div>
@@ -10786,7 +10786,7 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
         const needle = isPace ? bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace') : null;
         const ghost = (!isPace && hrRe.test(String(k))) ? ghostFor(k) : null;
         return (
-          <div key={`${k}-${i}`} style={{ position: 'relative', padding: '11px 0 12px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${i * 90}ms both` }) }}>
+          <div key={`${k}-${i}`} aria-label={needle ? `${k}: ${u.num}${u.unit ? ' ' + u.unit : ''} — average between ${needle.lo} and ${needle.hi}` : undefined} style={{ position: 'relative', padding: '11px 0 12px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${i * 90}ms both` }) }}>
             {ghost && (
               <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 0, bottom: 8, width: 132, height: 'calc(100% - 16px)', opacity: seen ? 0.11 : 0, transition: 'opacity 700ms ease 650ms' }}>
                 <path d={ghost} fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
@@ -10845,7 +10845,7 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
 // (stats focus) or the comment icon (comments focus → autofocus the composer).
 function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onClose, onReact, onProfile, onOpenLikers, draft, setDraft, onSend }) {
   const t = useBS();
-  const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1), card = bsTHexA(t.INK, 0.03);
+  const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1);
   const tc = d.tc, a = d.a;
   // Neutral ink tone — the stats sections (heads, tiles, charts, splits) read
   // neutral (same for everyone); only the hero PR plate carries the tier color.
@@ -10905,7 +10905,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const heroKey = d.heroStat ? String(d.heroStat[0]).toLowerCase() : null;
   const allStats = (!isComments && Array.isArray(d.detailStats)) ? d.detailStats.filter(([k]) => String(k).toLowerCase() !== heroKey) : [];
   const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i, bestPaceRe = /best|fastest|max.*(pace|speed)/i, calRe = /cal/i, cadRe = /cadence/i, elevRe = /elev|ascent|altitude|climb/i, summaryRe = /duration|\btime\b|moving|elapsed|distance|sets|volume|reps|tonnage|laps/i;
-  const hrStats = allStats.filter(([k]) => hrRe.test(k) && !paceRe.test(k));
   const bestPaceStat = allStats.find(([k]) => paceRe.test(k) && bestPaceRe.test(k)) || null;
   // Cadence + Elevation get their OWN graph sections when a series is present;
   // the scalar then rides as a chip on that graph.
@@ -10978,7 +10977,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {/* ── OPEN LEDGER — hero → route → summary threaded on the heat rail ── */}
         <div style={{ position: 'relative', paddingLeft: 15 }}>
           <div aria-hidden style={{ position: 'absolute', left: 0, top: 6, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 38%, ${bsTHexA(t.INK, 0.12)} 72%, transparent)`, ...(sdReduced ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1100ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
-          {!sdReduced && <span aria-hidden style={{ position: 'absolute', left: -0.5, top: 96, width: 3, height: 10, borderRadius: 2, background: heat, '--sd-glow': bsTHexA(heat, 0.4), animation: 'bsSdPrBreath 3.2s ease-in-out 1500ms infinite' }} />}
+          <span aria-hidden style={{ position: 'absolute', left: -0.5, top: 96, width: 3, height: 10, borderRadius: 2, background: heat, ...(sdReduced ? null : { '--sd-glow': bsTHexA(heat, 0.4), animation: 'bsSdPrBreath 3.2s ease-in-out 1500ms infinite' }) }} />
           <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 18 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
           {d.heroStat && (() => {
             const u = bsSdSplitUnit(d.heroStat[1]);
@@ -11000,34 +10999,34 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               </div>
             );
           })()}
-        {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
-        {d.coSign && (
-          <div style={{ marginTop: 12, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 560ms both' }) }}>
-            <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>✓</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800 }}>{d.coSign.name}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
-            </button>
-          </div>
-        )}
-        {d.routeObj ? <BSSdRoute route={d.routeObj} heat={heat} t={t} /> : d.showRoute && (
-          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
-            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 100ms both' }) }}>GPS · Not recorded</span>
-            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
-          </div>
-        )}
-        {/* SUMMARY — only the MAIN stats (the hero number is shown above; this is
-            the 2–3 headline figures). Everything else lives in its own section. */}
-        {!isComments && summaryStats.length > 0 && (() => {
-          const { primary, secondary } = bsSdRankStats(summaryStats);
-          return (
-            <>
-              {secHead('Summary')}
-              <BSSdLedger primary={primary} secondary={secondary} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />
-            </>
-          );
-        })()}
+          {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
+          {d.coSign && (
+            <div style={{ marginTop: 12, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 560ms both' }) }}>
+              <button type="button" onClick={() => onProfile && onProfile({ who: d.coSign.name, kind: String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: d.coSign.byId || undefined, init: bsInitials(d.coSign.name), public: true })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: d.coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '5px 12px', cursor: 'pointer' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900 }}>✓</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800 }}>{d.coSign.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>co-signed · {String(d.coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+              </button>
+            </div>
+          )}
+          {d.routeObj ? <BSSdRoute route={d.routeObj} heat={heat} t={t} /> : d.showRoute && (
+            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
+              <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 100ms both' }) }}>GPS · Not recorded</span>
+              <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+            </div>
+          )}
+          {/* SUMMARY — only the MAIN stats (the hero number is shown above; this is
+              the 2–3 headline figures). Everything else lives in its own section. */}
+          {!isComments && summaryStats.length > 0 && (() => {
+            const { primary, secondary } = bsSdRankStats(summaryStats);
+            return (
+              <>
+                {secHead('Summary')}
+                <BSSdLedger primary={primary} secondary={secondary} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />
+              </>
+            );
+          })()}
         </div>
         {/* PACE / SPEED — the primary velocity chart over distance, per the rule:
             Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}

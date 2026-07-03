@@ -66,3 +66,8 @@ test('needle: honest null on short/flat/unparseable input', () => {
   assert.equal(bsSdNeedle('brisk', [521, 432], 'pace'), null);
   assert.equal(bsSdNeedle('7:58/mi', null, 'pace'), null);
 });
+
+test('needle: speed mode rejects time-shaped and unparseable values', () => {
+  assert.equal(bsSdNeedle('7:58/mi', [12, 21.5], 'speed'), null);
+  assert.equal(bsSdNeedle('brisk', [12, 21.5], 'speed'), null);
+});
