@@ -6,6 +6,7 @@ import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/r
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
+import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -2652,37 +2653,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         <BSHomeBulletin label="Weekly check-in due" detail="2 min" onOpen={() => setCheckinPage(true)} />
       )}
 
-      {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
-      {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
-      {coachFeed.items.length > 0 && (
-        <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.ACCENT, marginBottom: 10 }}>
-            From your coach
-          </div>
-          {coachFeed.items.length > 0 && (
-            <div style={{ marginTop: 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>
-                For today
-              </div>
-              {coachFeed.items.map(it => {
-                const p = it.payload || {};
-                const isMeal = it.kind === 'meal';
-                const meta = isMeal
-                  ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
-                  : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
-                return (
-                  <BSPlate key={it.id} c={isMeal ? (t.isLight ? '#0a8f87' : '#34d6c5') : t.RUST} notch={8} spine={2.5} pad="10px 12px 10px 16px" style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 500, color: t.INK }}>{p.name}</div>
-                    {meta && <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.06em', color: t.INK50, marginTop: 2 }}>{meta}</div>}
-                    {(p.cue || p.note) && <div style={{ fontSize: 12, color: t.INK50, marginTop: 4, fontStyle: 'italic' }}>"{p.cue || p.note}"</div>}
-                  </BSPlate>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ★ THE LEAD — the single elevated hero, the ONLY BSPlate on the page.
           One right action for today: the signal engine's top flag when it has
           one, else the plan's next move. Lead=workout carries the compact
@@ -2745,39 +2715,21 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           non-today views — the "Your move" hero owns the single "Today" narrative. */}
       {selIdx !== todayIdx && <BSSection title={upNextLabel} />}
 
+      {/* TODAY'S SLATE — one time-ordered run-sheet. Admission test: "is this
+          scheduled to happen TODAY?" Rows, not cards. Anti-accretion: a future
+          feature may claim a slate row only by passing that test; otherwise it
+          lives on a tab and gets at most an index row / shelf door (see §5). */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const rust = t.RUST;
-        // "Up next" cards ride the shared instrument plate (chrome's BSPlate).
-        const AgendaCard = ({ c, children }) => (
-          <BSPlate c={c} tick bracket pad="11px 16px 11px 22px" style={{ margin: `0 ${t.padX}px 9px` }}>{children}</BSPlate>
-        );
-        const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
-        const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
-        const eyebrow = (c) => ({ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c });
-        const metaRight = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 };
-        const Person = ({ init, name, role, fill }) => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-            <BSAvatar init={init} size={30} fill={fill} ink={t.PAPER} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{role}</div>
-            </div>
-          </div>
-        );
-        // Coach-scheduled times for each item (24h minutes) — drive both the
-        // displayed time and the order (earliest first). The workout is today's
-        // actual session (shared week); the meal follows the client's lunch-time
-        // preference so it stays in sync with the day-log.
+        // Coach-scheduled times (24h minutes) drive both the displayed time and
+        // the sort order — carried verbatim from the pre-slate AgendaCard block.
         const _wkAt = (selWorkout && selWorkout.time && selWorkout.time !== '—') ? selWorkout.time : '09:00';
         const [_wkH, _wkM] = String(_wkAt).split(':').map(Number);
         const WORKOUT_AT = (Number.isNaN(_wkH) ? 9 : _wkH) * 60 + (Number.isNaN(_wkM) ? 0 : _wkM);
-        const _wkMoves = (selWorkout && selWorkout.detail && selWorkout.detail.moves) || [];
         const _wkShortMeta = (selWorkout && selWorkout.detail && selWorkout.detail.meta)
           ? selWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
           : (selWorkout && selWorkout.sub) || '';
-        const _wkCompact = _wkMoves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
-        if (_wkMoves.length > 3) _wkCompact.push(['+', `+ ${_wkMoves.length - 3} more`, _wkMoves.slice(3).map(m => m.name).slice(0, 3).join(' · '), '']);
         const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
         const [_lh, _lm] = String(_lunchPref).split(':').map(Number);
         const MEAL_AT = (Number.isNaN(_lh) ? 12 : _lh) * 60 + (Number.isNaN(_lm) ? 40 : _lm);
@@ -2787,56 +2739,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const h12 = h % 12 === 0 ? 12 : h % 12;
           return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
         };
-        const workoutCard = selWorkout ? (
-          <AgendaCard c={rust}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
-              <span style={metaRight}>{_wkShortMeta}</span>
-            </div>
-            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
-              {selWorkout.title}
-            </div>
-            {_wkCompact.length > 0 && (
-              <div style={{ marginTop: 9 }}>
-                {_wkCompact.map(([n, name, sub, wt], i, arr) => (
-                  <div key={`${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
-                    </div>
-                    {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
-                <button onClick={() => goTrain?.()} style={pillFilled}>Start →</button>
-              </div>
-            </div>
-          </AgendaCard>
-        ) : (
-          <AgendaCard c={t.GREEN}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(t.GREEN)}>Recovery · today</span>
-              <span style={metaRight}>Rest day</span>
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              Active <span style={{ fontStyle: 'italic', color: t.GREEN }}>recovery.</span>
-            </div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
-              No session today — an easy walk and 10 minutes of mobility keeps the streak alive.
-            </div>
-            <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-              <button onClick={() => goChat('Jordan Chen', 'Coach · Hypertrophy')} style={pillOutline}>Message →</button>
-            </div>
-          </AgendaCard>
-        );
-        // One card per meal of the selected day — same chrome as the workout card.
         const mealMinutes = (m) => {
           const [h, mm] = String(m.time || '').split(':').map(Number);
           if (!Number.isNaN(h)) return h * 60 + (Number.isNaN(mm) ? 0 : mm);
@@ -2851,129 +2753,216 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const h = Math.floor(mealMinutes(m) / 60);
           return h < 11 ? 'Breakfast' : h < 15 ? 'Lunch' : h < 17 ? 'Snack' : 'Dinner';
         };
-        // ONE meals card — every meal of the day, sectioned off inside the same
-        // chrome as the workout card. Tap a meal → its preview; per-meal Log →.
-        const mealsDayWord = selIdx === todayIdx ? 'Today’s' : `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekDates[selIdx].getDay()]}’s`;
-        const mealsLogged = selMeals.filter(m => mealLogged[m.id]).length;
-        const mealsCard = selMeals.length ? (
-          <AgendaCard c={teal}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(teal)}>Meals · {mealsLogged}/{selMeals.length} logged</span>
-              <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Nutri plan</span>
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
-              {mealsDayWord} <span style={{ fontStyle: 'italic', color: teal }}>meals.</span>
-            </div>
-            {/* GLANCE — the next meal only; the rest live in Eat (one tap). Logging
-                the next meal is the hero's job, so no duplicate Log button when the
-                hero already targets it. */}
-            {(() => {
-              const next = selMeals.find(m => !mealLogged[m.id]) || selMeals[0];
-              const more = selMeals.length - 1;
-              const logged = !!mealLogged[next.id];
-              const isHeroTarget = !!(todayDirective && todayDirective.heroMealId === next.id);
-              return (
-                <>
-                  <div style={{ marginTop: 4, padding: '8px 0 9px', borderBottom: more > 0 ? `1px solid ${t.HAIR}` : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{logged ? 'Latest' : 'Next'} · {slotLabel(next)} · {fmtAt(mealMinutes(next))}</span>
-                      {logged && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>✓ Logged</span>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 5 }}>
-                      <div onClick={() => setPreviewMeal(next)} style={{ cursor: 'pointer', minWidth: 0, flex: 1 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.05, letterSpacing: '-0.02em', color: t.INK, opacity: logged ? 0.55 : 1 }}>{next.title}</div>
-                        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{next.sub}</div>
-                      </div>
-                      {!logged && (isHeroTarget
-                        ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, border: `1px solid ${teal}`, borderRadius: 999, padding: '6px 11px' }}>Next ↑</span>
-                        : <button onClick={() => { setMealToLog(next); setLoggingMealId(next.id); setShowLogMeal(true); }} style={{ ...pillFilled, padding: '8px 13px' }}>Log →</button>)}
-                    </div>
-                  </div>
-                  {more > 0 && (
-                    <button onClick={() => goEat()} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '11px 0 1px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{more} more meal{more > 1 ? 's' : ''} today</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Open Eat →</span>
-                    </button>
-                  )}
-                </>
-              );
-            })()}
-            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              {(() => {
-                // Credit the real assigning nutritionist when a live plan exists.
-                const who = (livePlan && livePlan.meals && livePlan.meals.coach) || 'Dr. Maya Patel';
-                return <Person init={who.replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase() || 'M'} name={who} role="Nutritionist" fill={t.AMBER} />;
-              })()}
-              <button onClick={() => goEat()} style={pillOutline}>Full plan →</button>
-            </div>
-          </AgendaCard>
-        ) : null;
-        const firstMealAt = selMeals.length ? Math.min(...selMeals.map(mealMinutes)) : MEAL_AT;
-        const agenda = [
-          { at: WORKOUT_AT, k: 'workout', node: workoutCard },
-          ...(mealsCard ? [{ at: firstMealAt, k: 'meals', node: mealsCard }] : []),
-        ].sort((a, b) => a.at - b.at);
-        return <>{agenda.map((x) => <React.Fragment key={x.k}>{x.node}</React.Fragment>)}</>;
-      })()}
-
-      {/* HABITS — one agenda-style plate (same chrome as the workout/meal cards);
-          tapping anywhere opens the full habits page (check-off lives there) */}
-      {(() => {
-        const done = selDayHabits.filter(h => h.done).length;
-        const pts = selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0);
-        const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
-        const openHabits = selDayHabits.filter(h => !h.done); // completed habits leave the card
+        // Ghost log-tick — the 36px inline control cell for a MEAL row's `right`
+        // slot. Carries the exact tap targets the old mealsCard glance used
+        // (setMealToLog/setLoggingMealId/setShowLogMeal), plus the LOGGED state.
+        const MealTick = ({ m, logged }) => logged ? (
+          <span aria-hidden style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
+            aria-label={`Log ${m.title}`}
+            style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
+          />
+        );
+        // Untimed rows come after all timed rows (bsHomeSlateSort's contract);
+        // every row here carries a real `time` so this only matters if a future
+        // row type omits one — kept honest rather than assumed.
+        const rows = [];
+        // MEAL rows — one per selMeals meal. heroMealId suppresses the tick with
+        // the lead echo (no second interactive surface on the lead's subject).
+        selMeals.forEach((m) => {
+          const logged = !!mealLogged[m.id];
+          const isLead = !!(todayDirective && todayDirective.heroMealId === m.id);
+          rows.push({
+            key: `meal-${m.id}`,
+            time: fmtAt(mealMinutes(m)),
+            _sortAt: mealMinutes(m),
+            tag: 'MEAL', tagColor: teal,
+            title: m.title,
+            status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} kcal` : ''}`.replace(/ · $/, ''),
+            right: isLead ? 'lead' : <MealTick m={m} logged={logged} />,
+            onOpen: () => setPreviewMeal(m),
+            ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? 'logged' : 'not logged'}`,
+          });
+        });
+        // TRAINING row — real duration status; lead echo when the lead IS the
+        // workout, else a quiet Start → link (training stays one tap). Rest day
+        // → the Active-recovery row (carried verbatim from the old rest-day
+        // branch's copy/tone, condensed to slate-row shape).
+        // Reads Task 3's authoritative leadIsWorkout flag — never re-derive lead
+        // status via a title-string comparison (todayDirective.head === selWorkout.title
+        // is fragile: it only happens to work because Task 3's todo.push sets
+        // label: selWorkout.title verbatim, and breaks silently the moment that
+        // coupling drifts).
+        const workoutIsLead = !!(todayDirective && todayDirective.leadIsWorkout);
+        if (selWorkout) {
+          rows.push({
+            key: 'slate-training',
+            time: fmtAt(WORKOUT_AT),
+            _sortAt: WORKOUT_AT,
+            tag: 'TRAINING', tagColor: rust,
+            title: selWorkout.title,
+            status: _wkShortMeta,
+            right: workoutIsLead ? 'lead' : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>Start →</button>
+                <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
+              </div>
+            ),
+            onOpen: () => setShowWorkoutPreview(true),
+            ariaLabel: `${selWorkout.title}, training, ${_wkShortMeta}`,
+          });
+        } else {
+          rows.push({
+            key: 'slate-training',
+            time: fmtAt(WORKOUT_AT),
+            _sortAt: WORKOUT_AT,
+            tag: 'TRAINING', tagColor: t.GREEN,
+            title: 'Active recovery',
+            status: 'Rest day · an easy walk and 10 min of mobility keeps the streak alive',
+            right: undefined,
+            onOpen: undefined,
+            ariaLabel: 'Active recovery, rest day',
+          });
+        }
+        // COACH rows — pushed items from coach_pushed_items (payload taps carried
+        // verbatim from the deleted "From your coach" block).
+        (coachFeed.items || []).forEach((it) => {
+          const p = it.payload || {};
+          const isMeal = it.kind === 'meal';
+          const meta = isMeal
+            ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
+            : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
+          const atMins = bsHomeTimeMinutes(p.time);
+          rows.push({
+            key: `coach-${it.id}`,
+            time: p.time || '',
+            _sortAt: atMins == null ? undefined : atMins,
+            tag: 'COACH', tagColor: isMeal ? teal : rust,
+            title: p.name || (isMeal ? 'Meal from your coach' : 'Workout from your coach'),
+            status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
+            right: undefined,
+            onOpen: undefined,
+            ariaLabel: `Coach-pushed ${isMeal ? 'meal' : 'workout'}: ${p.name || ''}`,
+          });
+        });
+        // OPEN habit rows — up to 3, carried verbatim from the deleted HABITS
+        // plate: habit checkbox stopPropagation + the #1502 keyboard guard on
+        // the ROW (BSSlateRow's onKeyDown, first line: `if (e.target !==
+        // e.currentTarget) return;` — added in Task 2). The checkbox itself is
+        // a leaf control, not a container an event could bubble THROUGH before
+        // reaching it — it only needs stopPropagation on click (so the row's
+        // onOpen doesn't also fire) plus its own native <button> Enter/Space
+        // activation. Do NOT re-add the e.target!==e.currentTarget guard on
+        // the checkbox's own onKeyDown — a bare <button> has no children for a
+        // keypress to bubble up FROM, so that guard there is meaningless (it
+        // would always be true) and duplicates logic that already lives one
+        // level up, on the row.
+        const habitsDone = selDayHabits.filter(h => h.done).length;
+        const habitsPts = selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0);
+        const habitsPossible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
+        const openHabits = selDayHabits.filter(h => !h.done);
+        openHabits.slice(0, 3).forEach((h) => {
+          const avoid = h.type === 'avoid';
+          const pillC = avoid ? t.RUST : t.GREEN;
+          rows.push({
+            key: `habit-${h.id || h.name}`,
+            time: '', _sortAt: undefined,
+            tag: avoid ? 'AVOID' : 'DO', tagColor: pillC,
+            title: h.name,
+            status: `+${Math.round(h.pts)} pts`,
+            right: (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
+                aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'}
+                style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}
+              >{h.live ? '' : '🔒'}</button>
+            ),
+            onOpen: () => setHabitsPage(true),
+            ariaLabel: `${avoid ? 'Avoid' : 'Do'}: ${h.name}, worth ${Math.round(h.pts)} points, ${h.done ? 'done' : 'open'}`,
+          });
+        });
+        const timedRows = rows.filter((r) => r._sortAt !== undefined).sort((a, b) => a._sortAt - b._sortAt);
+        const untimedRows = rows.filter((r) => r._sortAt === undefined);
+        const sortedRows = bsHomeSlateSort([...timedRows, ...untimedRows]);
         return (
-          <div data-tour="hero-habits" style={{ margin: `0 ${t.padX}px 9px` }}>
-            <BSPlate c={t.GREEN} notch={11} spine={3} bracket pad="12px 15px 12px 20px"
-              onClick={() => setHabitsPage(true)} role="button" tabIndex={0} ariaLabel="Open daily habits"
-              onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHabitsPage(true); } }}
-              style={{ textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits{selDayHabits.length > 0 ? ` · ${done}/${selDayHabits.length} done` : ''}</span>
-              {possible > 0 && (
-                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts} / {possible} pts</span>
+          <>
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▤ Today's slate</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{upNextLabel}</span>
+              </span>
+              <button onClick={() => goEat()} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${teal}66`, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Eat →</button>
+            </div>
+            <div style={{ padding: `0 ${t.padX}px 4px` }}>
+              <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
+            </div>
+            <div>
+              {sortedRows.length === 0 ? (
+                <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>Nothing scheduled for today.</div>
+              ) : sortedRows.map((r, i) => (
+                <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+              ))}
+              {openHabits.length > 3 && (
+                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>+{openHabits.length - 3} more habit{openHabits.length - 3 > 1 ? 's' : ''}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 800 }}>View all →</span>
+                </button>
+              )}
+              {selDayHabits.length === 0 && (
+                <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
+                  <button onClick={() => setHabitsPage(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add your first habit →</button>
+                </div>
+              )}
+              {selDayHabits.length > 0 && openHabits.length === 0 && (
+                <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
+                  All habits done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{habitsPts} pts</span> banked today.
+                </div>
+              )}
+              {habitFlash && (
+                <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>✓ +{habitFlash.pts} pts → Shape Score</div>
               )}
             </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.1, letterSpacing: '-0.02em', color: t.INK }}>Daily habits<span style={{ color: t.GREEN }}>.</span></div>
-            {/* Transient credit after checking a habit — the points land, the row leaves */}
-            {habitFlash && (
-              <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>✓ +{habitFlash.pts} pts → Shape Score</div>
-            )}
-            {selDayHabits.length === 0 ? (
-              <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
-                Tap to add your first habit.
-              </div>
-            ) : openHabits.length === 0 ? (
-              <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
-                All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today.
-              </div>
-            ) : (
-              <div style={{ marginTop: 8 }}>
-                {/* First 3 open habits — check off inline; the full list lives in Habits via "View all". */}
-                {openHabits.slice(0, 3).map((h, i, arr) => {
-                  const avoid = h.type === 'avoid';
-                  const pillC = avoid ? t.RUST : t.GREEN;
-                  const last = i === arr.length - 1 && openHabits.length <= 3;
-                  return (
-                    <div key={`${h.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
-                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: pillC, background: `${pillC}1a`, borderLeft: `2px solid ${pillC}`, padding: '3px 7px' }}>{avoid ? 'Avoid' : 'Do'}</span>
-                      <div style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
+            {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines,
+                rendered INSIDE the slate section, after the rows. Fixes the
+                pre-existing demo-notes leak: the Jordan Chen / Dr. Maya Patel
+                fallback (formerly map lines 3086-3089) now renders signed-out
+                only — a signed-in account with no real coach banners yet sees
+                no notes at all, instead of fabricated samples. */}
+            {(() => {
+              const banners = coachFeed.banners || [];
+              const dayOf = (b) => {
+                if (!b || !b.sent_at) return 'Mon';
+                const d = new Date(b.sent_at);
+                return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
+              };
+              const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
+              const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
+              const notes = [];
+              if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
+              if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
+              // No real notes yet: the sample-note fallback is signed-out preview
+              // ONLY (the fix — was unconditional before this task).
+              if (!notes.length && !bsHomeSignedIn) {
+                notes.push({ role: 'trainer', text: "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.", who: 'Jordan Chen', when: 'Mon' });
+                notes.push({ role: 'nutritionist', text: "Three weeks of steady protein — it's working. Keep breakfast above 35g and we'll carry the momentum into the next block.", who: 'Dr. Maya Patel', when: 'Mon' });
+              }
+              if (!notes.length) return null;
+              return (
+                <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {notes.map((n, i) => (
+                    <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
+                      &ldquo;{n.text}&rdquo;
+                      <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+                        — {n.who} · {n.role === 'nutritionist' ? 'Nutritionist' : 'Trainer'}
+                      </span>
                     </div>
-                  );
-                })}
-                {openHabits.length > 3 && (
-                  <div style={{ padding: '8px 0 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>+{openHabits.length - 3} more</div>
-                )}
-              </div>
-            )}
-            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.GREEN }}>View all →</span>
-            </div>
-            </BSPlate>
-          </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </>
         );
       })()}
 
@@ -3123,60 +3112,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 </div>
               </>
             )}
-          </>
-        );
-      })()}
-
-      {/* THIS WEEK'S NOTE — coach's weekly note (trainer or nutritionist),
-          editable from their console and sent to specific clients
-          (coach_focus_banners, RLS-scoped). Falls back to an editorial line. */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const banners = coachFeed.banners || [];
-        const dayOf = (b) => {
-          if (!b || !b.sent_at) return 'Mon';
-          const d = new Date(b.sent_at);
-          return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
-        };
-        // Most-recent note from each role (banners arrive newest-first).
-        const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
-        const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
-        const notes = [];
-        if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
-        if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
-        // No real notes yet → show a sample from each coach (the demo client has both).
-        if (!notes.length) {
-          notes.push({ role: 'trainer', text: "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.", who: 'Jordan Chen', when: 'Mon' });
-          notes.push({ role: 'nutritionist', text: "Three weeks of steady protein — it's working. Keep breakfast above 35g and we'll carry the momentum into the next block.", who: 'Dr. Maya Patel', when: 'Mon' });
-        }
-        return (
-          <>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
-              <BSEyebrow color={teal}>From your team</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{notes.length > 1 ? 'This week’s notes' : 'This week’s note'}</div>
-            </div>
-            <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {notes.map((n, i) => {
-                const isNutri = n.role === 'nutritionist';
-                return (
-                  <div key={i} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
-                      &ldquo;{n.text}&rdquo;
-                    </div>
-                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                        <BSAvatar init={(n.who || 'C').charAt(0)} size={28} fill={isNutri ? t.AMBER : t.RUST} ink={t.PAPER} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{n.who}</div>
-                          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{isNutri ? 'Nutritionist' : 'Trainer'}</div>
-                        </div>
-                      </div>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{n.when}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </>
         );
       })()}
