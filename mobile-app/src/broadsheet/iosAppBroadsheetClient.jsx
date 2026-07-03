@@ -10733,6 +10733,44 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted }) {
   );
 }
 
+// The route inked straight onto the paper — no box, no fill. The heat-stroked
+// polyline draws itself in-view (the BSSdTrace dash recipe); hollow ink start
+// square, popping heat end dot, honest provider/privacy caption (never
+// fabricated). Same stretched-viewBox geometry as BSActivityRoutePreview.
+function BSSdRoute({ route, heat, t }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  const pts = (route && Array.isArray(route.points)) ? route.points : [];
+  if (pts.length < 2) return null;
+  const dPath = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' ');
+  const [sx, sy] = pts[0];
+  const [ex, ey] = pts[pts.length - 1];
+  const caption = [route.provider ? String(route.provider).toUpperCase() : '', route.privacy ? String(route.privacy).toUpperCase() : ''].filter(Boolean).join(' · ');
+  const lbl = { position: 'absolute', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.1em', color: bsTHexA(t.INK, 0.45), pointerEvents: 'none' };
+  return (
+    <div ref={ref}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), margin: '20px 0 8px' }}>
+        <span aria-hidden style={{ width: 6, height: 1.5, background: heat, marginLeft: -15 }} />
+        <span>Route · GPS</span>
+      </div>
+      <div style={{ position: 'relative' }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden style={{ width: '100%', height: 96, display: 'block' }}>
+          <path d={dPath} fill="none" stroke={heat} strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round"
+            pathLength={1} strokeDasharray={reduced ? 'none' : 1} strokeDashoffset={reduced ? 0 : (seen ? 0 : 1)} style={{ transition: 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 120ms' }} />
+        </svg>
+        <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${sx}% - 2px), 0px), calc(100% - 5px))`, top: `min(max(calc(${sy * 0.96}% - 2px), 0px), calc(100% - 5px))`, width: 5, height: 5, border: `1.2px solid ${t.INK}`, background: 'transparent' }} />
+        {(seen || reduced) && <span aria-hidden style={{ position: 'absolute', left: `min(max(calc(${ex}% - 3px), 0px), calc(100% - 6px))`, top: `min(max(calc(${ey * 0.96}% - 3px), 0px), calc(100% - 6px))`, width: 6, height: 6, borderRadius: 999, background: heat, boxShadow: `0 0 0 3px ${bsTHexA(heat, 0.18)}`, ...(reduced ? null : { animation: 'bsSdPop 340ms ease 1240ms both' }) }} />}
+        <span style={{ ...lbl, left: `min(max(calc(${sx}% - 16px), 0px), calc(100% - 36px))`, top: `min(calc(${sy * 0.96}% + 5px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 900ms' }) }}>START</span>
+        <span style={{ ...lbl, left: `min(max(calc(${ex}% - 12px), 0px), calc(100% - 28px))`, top: `min(calc(${ey * 0.96}% + 6px), calc(100% - 11px))`, ...(reduced ? null : { opacity: seen ? 1 : 0, transition: 'opacity 380ms ease 1000ms' }) }}>END</span>
+      </div>
+      {caption ? <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.4) }}>{caption}</div> : null}
+    </div>
+  );
+}
+
+// Full-screen activity detail — the post + every stat/breakdown + who reacted +
+// the whole comments thread + a sticky composer. Opened from "Session details"
+// (stats focus) or the comment icon (comments focus → autofocus the composer).
 function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onClose, onReact, onProfile, onOpenLikers, draft, setDraft, onSend }) {
   const t = useBS();
   const muted = bsTHexA(t.INK, 0.6), hair = bsTHexA(t.INK, 0.1), card = bsTHexA(t.INK, 0.03);
@@ -10925,9 +10963,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </button>
           </div>
         )}
-        {d.routeObj ? <div style={{ marginTop: 14 }}><BSActivityRoutePreview route={d.routeObj} /></div> : d.showRoute && (
-          <div style={{ position: 'relative', marginTop: 14, height: 120, borderRadius: 12, overflow: 'hidden', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/10px 10px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
-            <span style={{ position: 'absolute', left: 10, bottom: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 6px', borderRadius: 3 }}>GPS route</span>
+        {d.routeObj ? <BSSdRoute route={d.routeObj} heat={heat} t={t} /> : d.showRoute && (
+          <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
+            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+            <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 100ms both' }) }}>GPS · Not recorded</span>
+            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
           </div>
         )}
         {/* SUMMARY — only the MAIN stats (the hero number is shown above; this is
