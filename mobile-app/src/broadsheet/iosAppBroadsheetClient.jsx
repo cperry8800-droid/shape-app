@@ -11009,7 +11009,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               </button>
             </div>
           )}
-          {d.routeObj ? <BSSdRoute route={d.routeObj} heat={heat} t={t} /> : d.showRoute && (
+          {(d.routeObj && Array.isArray(d.routeObj.points) && d.routeObj.points.length >= 2) ? <BSSdRoute route={d.routeObj} heat={heat} t={t} /> : d.showRoute && (
             <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
               <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 100ms both' }) }}>GPS · Not recorded</span>
