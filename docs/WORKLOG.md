@@ -273,6 +273,38 @@ changelog whenever something ships.
   Application Control blocked the reinstalled `@tailwindcss/oxide` native `.node` after a
   dependency reinstall; CI builds `/m/` on Linux, unaffected, as the gate.)*
 
+### 2026-07-03 — Session Details "Open Ledger" (#1523): unboxed hero + heat rail · self-drawing route · two-register summary ledger + pace needle
+- **The session page's top section loses every box** (owner-picked from a 3-concept
+  adversarial design round; spec `docs/superpowers/specs/2026-07-03-session-details-open-ledger-design.md`,
+  plan `docs/superpowers/plans/2026-07-03-session-details-open-ledger.md`). The hero
+  plate, the 120px halftone GPS box, and the 8-tile summary grid are replaced by:
+  an **unboxed 50px hero figure** (value/unit split, ink-text PR readout w/ heat ↑ +
+  underline) threaded on a **2px heat rail** that grows in and spans hero→route→summary
+  (breathing needle tick beside the figure); a **self-drawing route** inked straight on
+  the paper (`BSSdRoute` — heat stroke, hollow start square, popping end dot, honest
+  provider/privacy caption; no-GPS collapses to a one-line `GPS · NOT RECORDED`
+  redaction rule); and a **two-register ledger** — pace/time/HR primaries as 30px
+  baseline rows (**AVG PACE carries a needle-on-tick-scale band** showing the average
+  between the session's slowest/fastest; HR keeps its ghost sparkline) over an ink→heat
+  divider and dot-leader secondaries. Charts below Summary + the comments page's own
+  sections untouched; `BSActivityRoutePreview` (feed cards) untouched.
+- **Bleed fix at the root:** the hero heat-wash (`inset:'-18px -16px -14px'`) that
+  painted over the author row is DELETED; an author-row hairline hard-separates the
+  byline. Dead code swept with the tiles: `statTile`, `sumCols`, `outputStats` + the
+  Output section, the `clip` helper, and the pre-existing dead `card`/`hrStats` locals.
+- **New pure module `mobile-app/src/services/sessionLedger.mjs`** (+ 11 tests):
+  `bsSdRankStats` (primary/secondary split, promoted primaries for strength sessions),
+  `bsSdSplitUnit` (only short trailing unit tokens split — times/composites stay whole),
+  `bsSdNeedle` (honest null on short/flat/unparseable traces; speed mode rejects
+  time-shaped values). Honesty gates are unit-tested; needle values are exposed to
+  screen readers via an aria-label on the pace row.
+- **Review stack:** per-task implementer+reviewer subagents (4 tasks Approved) → a
+  whole-branch review (1 Important: a `%`-vs-`px` unit slip in the route markers,
+  plan-originated — fixed in `9be44d54` + char-wise re-review) → CodeRabbit on the PR.
+  Verified: 374/374 tests · parse clean · PowerShell mobile build exit 0 · LF clean.
+  **On-device pass recommended** (Black/Sage/Cream; run/ride/strength) — dotted-leader
+  DPR rendering + the 12.5vw hero clamp are device-only proofs.
+
 ### 2026-07-02 — Session Details v2 (#1518) · living-instrument sweep (#1519) · tier 1 goes SAGE (#1520) · chip/boost fixes (#1517)
 - **Chip formatting + boost reachability (#1517).** The #1515 name-row chips wrapped
   under a long member name — the actions now pin top-right (`flex: 0 0 auto`, no wrap)
