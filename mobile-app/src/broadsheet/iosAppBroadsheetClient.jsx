@@ -2136,6 +2136,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
+  const [stepsHistory, setStepsHistory] = useStateBSC(false); // STEPS door → BSStepsHistory overlay (Home now owns this; BSStepsCard's own copy was deleted with its mount)
+  // Hoisted OUT of the render body's door-shelf IIFE — useBSStepsToday() is a
+  // React hook (uses useStateBSC/useBSStepGoal internally) and must be called
+  // unconditionally at the top level, never inside JSX below the early-return
+  // overlays. Step 3's shelf JSX reads this const directly.
+  const stepsToday = useBSStepsToday();
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
@@ -2705,12 +2711,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </BSPlate>
       )}
 
-      {/* YOUR GOAL — the featured goal card (moved off the profile; the profile
-          is identity-only now). Taps into the full Goals page. */}
-      <div style={{ margin: `3px ${t.padX}px 9px` }}>
-        <BSMeGoalCard c={t.isLight ? '#0a8f87' : '#34d6c5'} onOpen={() => setGoalsPage(true)} compact />
-      </div>
-
       {/* The day's plan beneath the move. The section header shows only on
           non-today views — the "Your move" hero owns the single "Today" narrative. */}
       {selIdx !== todayIdx && <BSSection title={upNextLabel} />}
@@ -2966,81 +2966,85 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      {/* SHAPE STEPS — the daily steps instrument (moved off the profile; it
-          belongs with the day's living metrics). Taps into the steps history. */}
-      <BSStepsCard />
-
-      {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
+      {/* § INSIDE. — everything else lives here: index rows (live figure + door)
+          and the shelf doors. Per the Front-Page Rule: do not add a plate here. If
+          it can't be a row, it lives on a tab and gets at most a row-door. */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         return (
-          <BSPlate c={teal} notch={9} spine={2.5} pad="13px 16px 13px 22px" role="button" ariaLabel="Open your shopping list" onClick={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Shop list · this week</div>
-                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK }}>
-                  Your <span style={{ fontStyle: 'italic', color: teal }}>shopping list.</span>
-                </div>
-                <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Auto-built from your meals · sorted by aisle</div>
-              </div>
-              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Open →</span>
-            </div>
-          </BSPlate>
+          <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', color: t.INK }}>
+              Inside<span style={{ color: teal, fontStyle: 'italic' }}>.</span>
+            </span>
+            <div aria-hidden style={{ height: 2, marginTop: 8, background: `linear-gradient(90deg, ${t.INK}, ${teal} 58%, transparent)` }} />
+          </div>
         );
       })()}
 
-      {/* Weekly check-in due plate DELETED (Front-Page restructure) — its due
-          state now lives in the BULLETINS block above the lead (BSHomeBulletin,
-          suppressed only when the engine's checkin lever is the lead — not
-          whenever any lead exists); its logged residue becomes an INSIDE.
-          index row (Task 5). */}
-
-      {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
+      {/* WEEKLY TOTALS → two index rows. Same payloads as the old tile grid — the
+          weekStat portal sheet below is unchanged and reads these objects as-is.
+          Signed-out-only gate carried verbatim from the deleted tile grid. */}
       {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        // Two high-signal totals (density pass) — training + nutrition; the full
-        // weekly breakdown (check-ins, consults, …) lives on the Progress page.
+        // These are hardcoded demo figures (not wired to real rollups yet) — show
+        // them only in the signed-out preview, never as fake stats to a real user.
+        if (bsHomeSignedIn) return null;
         const weekTotals = [
           { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
             history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
           { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
             series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
         ];
-        // These are hardcoded demo figures (not wired to real rollups yet) — show
-        // them only in the signed-out preview, never as fake stats to a real user.
-        if (bsHomeSignedIn) return null;
         return (
           <>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
-              <BSEyebrow color={teal}>Weekly totals</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>So far</div>
-            </div>
-            <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-              {weekTotals.map(s => {
-                const pct = Math.max(0, Math.min(1, s.v / s.max));
-                return (
-                  <BSPlate key={s.l} c={s.c} notch={9} spine={2.5} pad="11px 11px 9px 13px" role="button" ariaLabel={`${s.l} — view detail`} onClick={() => setWeekStat(s)} style={{ textAlign: 'left' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
-                    </div>
-                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{s.v.toLocaleString()}</div>
-                    <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 2 }} />
-                    </div>
-                    {s.goalFrame
-                      ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.goalFrame}</div>
-                      : <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>}
-                  </BSPlate>
-                );
-              })}
-            </div>
+            {/* weekTotals[0] (Sessions) carries no goalFrame field (only Avg kcal
+                does) — give it a real status string matching the old tile's own
+                affordance copy ("View history →" in its footer) rather than
+                leaving status undefined (a blank status reads as a rendering
+                bug, not a deliberate omission). */}
+            <BSIndexRow label="Sessions" figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status="View history ›" onOpen={() => setWeekStat(weekTotals[0])} />
+            <BSIndexRow label="Avg kcal" figure={`${weekTotals[1].v.toLocaleString()}/${weekTotals[1].max.toLocaleString()}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
           </>
         );
       })()}
 
-      {/* PROGRESS — a slim door to the full progress hub (moved off the profile) */}
-      <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
+      {/* CHECK-IN residue — BSTodayNudge's row variant; only renders once today's
+          check-in is logged (the bulletin owns the due state, above the lead). */}
+      <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+
+      {/* THE DOOR SHELF — STEPS · GOAL · PROGRESS · SHOP, horizontal snap-scroll,
+          3 visible + a 12px end-peek so the 4th door shows a sliver. Native buttons
+          in DOM order (VoiceOver traversal order == visual order).
+          `stepsToday` is read from the HOISTED const (Step 2, top of BSClientHome's
+          hooks block) — NOT called here. No hook may be called inside this render
+          IIFE (or anywhere in the main-return JSX): BSClientHome has 8 early-return
+          overlays above this point, so a hook called here would be skipped on those
+          renders and violate the Rules of Hooks. */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const openStepsDoor = () => {
+          if (stepsToday.hasData) { setStepsHistory(true); return; }
+          try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
+        };
+        const stepsFigure = stepsToday.todayKnown ? stepsToday.val.toLocaleString() : '—';
+        const stepsStatus = !stepsToday.hasData
+          ? 'Connect a watch'
+          : !stepsToday.todayKnown
+            ? 'No steps yet today'
+            : stepsToday.hit
+              ? 'Goal hit ✓'
+              : `${Math.max(0, stepsToday.goal - stepsToday.val).toLocaleString()} to go`;
+        return (
+          <>
+            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px`, paddingRight: `calc(${t.padX}px + 12px)`, overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
+              <BSShelfDoor c={teal} eyebrow="Steps" figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
+              <BSMeGoalCard c={teal} onOpen={() => setGoalsPage(true)} door />
+              <BSProgressDoor onOpen={() => setHomeProgressPage(true)} door />
+              <BSShelfDoor c={teal} eyebrow="Shop list" figure="→" status="By aisle" onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
+            </div>
+            {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
+          </>
+        );
+      })()}
 
       {/* Week-stat detail sheet */}
       {weekStat && createPortal(
