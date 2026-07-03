@@ -2701,7 +2701,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           {todayDirective.leadIsWorkout && _wkCompactLead.length > 0 && (
             <div style={{ marginTop: 9 }}>
               {_wkCompactLead.map(([n, name, sub, wt], i, arr) => (
-                <div key={`lead-${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                <div
+                  key={`lead-${n}-${i}`}
+                  onClick={() => setShowWorkoutPreview(true)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWorkoutPreview(true); } }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${name} — open workout preview`}
+                  style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
                   <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
