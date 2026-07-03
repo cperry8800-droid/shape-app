@@ -10975,7 +10975,10 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             deleted; the rail below carries the page temperature instead). */}
         <div aria-hidden style={{ height: 1, background: bsTHexA(t.INK, 0.08), margin: '14px 0 0' }} />
         {/* ── OPEN LEDGER — hero → route → summary threaded on the heat rail ── */}
-        <div style={{ position: 'relative', paddingLeft: 15 }}>
+        {/* marginLeft pulls the rail into the page gutter so the ledger fills
+            more of the width — internal rail geometry (paddingLeft 15, the
+            -15 station ticks) is untouched by design. */}
+        <div style={{ position: 'relative', paddingLeft: 15, marginLeft: -10 }}>
           <div aria-hidden style={{ position: 'absolute', left: 0, top: 6, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 38%, ${bsTHexA(t.INK, 0.12)} 72%, transparent)`, ...(sdReduced ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1100ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
           <span aria-hidden style={{ position: 'absolute', left: -0.5, top: 96, width: 3, height: 10, borderRadius: 2, background: heat, ...(sdReduced ? null : { '--sd-glow': bsTHexA(heat, 0.4), animation: 'bsSdPrBreath 3.2s ease-in-out 1500ms infinite' }) }} />
           <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 18 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
