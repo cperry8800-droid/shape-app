@@ -2489,14 +2489,33 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
-    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
+    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id, meal: m }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
     if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ["I'll finish my habits →", () => setHabitsPage(true)], c: t.GREEN });
     // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
-    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN };
+    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN, leadIsWorkout: false, leadMeal: null };
     const lead = todo[0];
-    return { head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c, sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null), heroMealId: lead.mealId || null };
+    return {
+      head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c,
+      sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null),
+      heroMealId: lead.mealId || null,
+      // Lead-identity flags (Task 4 reads these to suppress the slate's echo row's
+      // second interactive surface — the double-feature fix).
+      leadIsWorkout: !!lead.workout,
+      leadMeal: lead.meal || null,
+    };
+  })();
+
+  // Compact 3-move list for the LEAD plate when lead=workout (mirrors the
+  // slate TRAINING row's own list — same source, same 3-move truncation — so
+  // the lead and the slate never disagree on what "today's workout" is).
+  const _wkCompactLead = (() => {
+    if (!(todayDirective && todayDirective.leadIsWorkout && selWorkout)) return [];
+    const moves = (selWorkout.detail && selWorkout.detail.moves) || [];
+    const compact = moves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
+    if (moves.length > 3) compact.push(['+', `+ ${moves.length - 3} more`, moves.slice(3).map((m) => m.name).slice(0, 3).join(' · '), '']);
+    return compact;
   })();
 
   return (
@@ -2612,10 +2631,26 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       </div>
 
-      {/* TODAY — the daily check-in + hydration box lives on its OWN page; this
-          notification-style door (due vs logged-aware) leads the card list,
-          right under the week calendar. */}
-      <BSTodayNudge onOpen={() => setTodayPage(true)} />
+      {/* BULLETINS — max 2 slim one-liners, ABOVE the lead. Each suppressed
+          per-lever, not by whether a lead exists at all (the spec: bulletins
+          suppress "when the lever they represent is already the lead"). The
+          daily check-in bulletin is NOT gated externally here — BSTodayNudge's
+          variant="bulletin" already self-gates on `useBSCheckinLogged()`
+          internally (returns null once logged), so the only external
+          suppression needed is the engine's `checkin` lever leading. Calling
+          useBSCheckinLogged() again here would be a second hook instance
+          racing the same async fetch against BSTodayNudge's own — deleted, not
+          duplicated. Same per-lever suppression on the weekly bulletin: it
+          hides only when the engine's `checkin` lever is the lead, not
+          whenever ANY lead exists (a workout/meal/habit lead must not eat the
+          weekly check-in's only Home surface). Urgency earns height;
+          completion demotes to an index row (Task 5, INSIDE.). */}
+      {!(engineFlag && engineFlag.lever === 'checkin') && (
+        <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
+      )}
+      {checkinDue && !(engineFlag && engineFlag.lever === 'checkin') && (
+        <BSHomeBulletin label="Weekly check-in due" detail="2 min" onOpen={() => setCheckinPage(true)} />
+      )}
 
       {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
       {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
@@ -2648,9 +2683,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       )}
 
-      {/* TODAY · YOUR MOVE — the single elevated hero. One right action for today:
-          the signal engine's top flag when it has one, else the plan's next move.
-          Everything below steps down a level (this is the only glowing plate). */}
+      {/* ★ THE LEAD — the single elevated hero, the ONLY BSPlate on the page.
+          One right action for today: the signal engine's top flag when it has
+          one, else the plan's next move. Lead=workout carries the compact
+          3-move list + the first-person CTA + a quiet mono PREVIEW → link into
+          the existing workout preview. Lead=meal carries title + macros + its
+          CTA. Done-state ("You kept your word today.") still renders — the
+          fold is never empty. */}
       {todayDirective && (
         <BSPlate c={todayDirective.c} tick bracket pad="13px 18px 13px 24px" data-tour="hero-home" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -2659,8 +2698,32 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           </div>
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
           {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+          {todayDirective.leadIsWorkout && _wkCompactLead.length > 0 && (
+            <div style={{ marginTop: 9 }}>
+              {_wkCompactLead.map(([n, name, sub, wt], i, arr) => (
+                <div key={`lead-${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
+                  </div>
+                  {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
+                </div>
+              ))}
+            </div>
+          )}
+          {todayDirective.leadMeal && (
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>
+              {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
+            </div>
+          )}
           {todayDirective.cta && (
-            <button onClick={todayDirective.cta[1]} style={{ marginTop: 10, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button onClick={todayDirective.cta[1]} style={{ padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+              {todayDirective.leadIsWorkout && (
+                <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Preview →</button>
+              )}
+            </div>
           )}
         </BSPlate>
       )}
@@ -2930,19 +2993,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      {/* WEEKLY CHECK-IN — nudge plate when this week's check-in hasn't been sent */}
-      {checkinDue && (
-        <BSPlate c={t.ACCENT} tick pad="12px 16px 12px 22px" role="button" ariaLabel="Open the weekly check-in" onClick={() => setCheckinPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT }}>Weekly check-in · due</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Tell your coach how the week went.</div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Ratings · photos · measurements · 2 min</div>
-            </div>
-            <span style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 5, border: `1px solid ${t.ACCENT}`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Check in →</span>
-          </div>
-        </BSPlate>
-      )}
+      {/* Weekly check-in due plate DELETED (Front-Page restructure) — its due
+          state now lives in the BULLETINS block above the lead (BSHomeBulletin,
+          suppressed only when the engine's checkin lever is the lead — not
+          whenever any lead exists); its logged residue becomes an INSIDE.
+          index row (Task 5). */}
 
       {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
       {(() => {
