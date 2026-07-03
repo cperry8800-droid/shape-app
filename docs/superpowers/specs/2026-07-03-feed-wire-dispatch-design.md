@@ -91,7 +91,9 @@ this post's rail). Label = one continuous mono sentence 8.5px/800/0.06em upperca
 One row above a 1px `bsTHexA(t.INK,.08)` hairline (`marginTop:16, paddingTop:12`).
 ✦ **Five flex-distributed cells (`flex:1`), each min 44×44px, centered glyphs,
 invisible boundaries** — no circles, no borders. Boost cell: `bsFeedIcon('react')` +
-verb + count (`BEAST · 41`), height 36, **squared `borderRadius:6`** — tinted
+verb + count (`BEAST · 41`) as a **36px-tall visible chip centered inside its ≥44px
+hit cell** — the cell's invisible padding supplies the tap target per the 44px rule
+above — **squared `borderRadius:6`**, tinted
 `${accent}14` unreacted, filled accent when reacted (heat's single permitted fill).
 Comment/Share/Send/Repost: bare monochrome glyph 15px + mono 9.5px count,
 `bsTHexA(t.INK,.55)` → `t.INK` on press. ✦ Press state = transform-only
