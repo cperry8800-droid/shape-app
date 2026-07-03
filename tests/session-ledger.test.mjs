@@ -67,6 +67,13 @@ test('needle: honest null on short/flat/unparseable input', () => {
   assert.equal(bsSdNeedle('7:58/mi', null, 'pace'), null);
 });
 
+test('needle: fractional trace endpoints carry into minutes (never "7:60")', () => {
+  const n = bsSdNeedle('7:30/mi', [432.2, 479.6], 'pace');
+  assert.equal(n.lo, '8:00');
+  assert.match(n.lo, /^\d+:[0-5]\d$/);
+  assert.match(n.hi, /^\d+:[0-5]\d$/);
+});
+
 test('needle: speed mode rejects time-shaped and unparseable values', () => {
   assert.equal(bsSdNeedle('7:58/mi', [12, 21.5], 'speed'), null);
   assert.equal(bsSdNeedle('brisk', [12, 21.5], 'speed'), null);

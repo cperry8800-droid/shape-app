@@ -33,7 +33,11 @@ export function bsSdRankStats(stats) {
 }
 
 const clamp01 = (n) => Math.max(0, Math.min(1, n));
-const fmtPace = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+// Round to whole seconds FIRST so a fractional 479.6 can't render "7:60".
+const fmtPace = (sec) => {
+  const total = Math.round(sec);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+};
 
 // Where the average sits between the session's slowest and fastest samples.
 // Returns null (→ plain ledger row, never a fabricated needle) when the trace
@@ -42,7 +46,9 @@ const fmtPace = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60))
 // lo/hi are the LEFT/RIGHT endpoint labels (slowest → fastest).
 export function bsSdNeedle(value, trace, mode = 'pace') {
   if (!Array.isArray(trace) || trace.length < 2) return null;
-  const lo = Math.min(...trace), hi = Math.max(...trace);
+  // Linear scan, not spread — dense per-second traces can exceed the arg limit.
+  const lo = trace.reduce((a, b) => Math.min(a, b), Infinity);
+  const hi = trace.reduce((a, b) => Math.max(a, b), -Infinity);
   if (!(hi > lo)) return null;
   const s = String(value == null ? '' : value);
   if (mode === 'speed') {
