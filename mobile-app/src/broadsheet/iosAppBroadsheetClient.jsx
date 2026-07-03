@@ -10768,6 +10768,78 @@ function BSSdRoute({ route, heat, t }) {
   );
 }
 
+// The two-register summary ledger. Primaries = full-width baseline rows (30px
+// figures; AVG PACE carries the needle band, HR its ghost trace at 0.11);
+// then the ink→heat divider; secondaries = telegram dot-leader lines (15px).
+// Zero boxes — hierarchy is size + rule weight only. The needle renders ONLY
+// from a real pace trace (bsSdNeedle returns null otherwise).
+function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }) {
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
+  const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i;
+  const unitSpan = (u, size) => (u ? <span style={{ fontFamily: t.MONO, fontSize: size, fontWeight: 700, color: bsTHexA(t.INK, 0.55), marginLeft: 4 }}>{u}</span> : null);
+  return (
+    <div ref={ref}>
+      {primary.map(([k, v], i) => {
+        const u = bsSdSplitUnit(v);
+        const isPace = paceRe.test(String(k));
+        const needle = isPace ? bsSdNeedle(v, paceTrace, isRide ? 'speed' : 'pace') : null;
+        const ghost = (!isPace && hrRe.test(String(k))) ? ghostFor(k) : null;
+        return (
+          <div key={`${k}-${i}`} style={{ position: 'relative', padding: '11px 0 12px', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}`, ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${i * 90}ms both` }) }}>
+            {ghost && (
+              <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 0, bottom: 8, width: 132, height: 'calc(100% - 16px)', opacity: seen ? 0.11 : 0, transition: 'opacity 700ms ease 650ms' }}>
+                <path d={ghost} fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              </svg>
+            )}
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '46%' }}>{k}</span>
+              <span style={{ position: 'relative', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                <BSSdCountUp text={u.num} run={seen} duration={800} delay={180 + i * 90} />
+                {unitSpan(u.unit, 10)}
+              </span>
+            </div>
+            {needle && (
+              <div aria-hidden>
+                <div style={{ position: 'relative', height: 15, marginTop: 8 }}>
+                  <svg viewBox="0 0 100 15" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+                    {Array.from({ length: 25 }, (_, ti) => {
+                      const x = (ti / 24) * 100, tall = ti % 5 === 0;
+                      return <line key={ti} x1={x} y1={tall ? 1 : 4} x2={x} y2={tall ? 14 : 11} stroke={bsTHexA(t.INK, tall ? 0.32 : 0.18)} strokeWidth="1" vectorEffect="non-scaling-stroke" />;
+                    })}
+                  </svg>
+                  <span style={{ position: 'absolute', top: 0, bottom: 0, width: 2, background: heat, left: `calc(${(seen || reduced) ? needle.frac * 100 : 0}% - 1px)`, transition: reduced ? 'none' : 'left 700ms cubic-bezier(.3,.7,.2,1) 140ms' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: bsTHexA(t.INK, 0.45), fontVariantNumeric: 'tabular-nums' }}>
+                  <span>{needle.lo}</span><span>{needle.hi}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {secondary.length > 0 && (
+        <>
+          <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
+          {secondary.map(([k, v], i) => {
+            const u = bsSdSplitUnit(v);
+            return (
+              <div key={`${k}-${i}`} style={{ display: 'flex', alignItems: 'baseline', padding: '7px 0', ...(reduced ? null : { animation: `bsSdFadeUp 460ms ease ${380 + Math.min(i, 9) * 55}ms both` }) }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>{k}</span>
+                <span aria-hidden style={{ flex: 1, margin: '0 8px', borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-3px)' }} />
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  <BSSdCountUp text={u.num} run={seen} duration={650} delay={420 + Math.min(i, 9) * 55} />
+                  {unitSpan(u.unit, 8.5)}
+                </span>
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Full-screen activity detail — the post + every stat/breakdown + who reacted +
 // the whole comments thread + a sticky composer. Opened from "Session details"
 // (stats focus) or the comment icon (comments focus → autofocus the composer).
@@ -10805,8 +10877,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const sdReduced = bsSdReduced();
   const heat = bsSdHeatColor(bsSdIntensity(d.zones), accent);
   // ── Instrument-plate helpers (stats view) ──────────────────────────────────
-  // Clipped top-right notch (matches the shared BSPlate language).
-  const clip = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   // Section head — a hairline rule ABOVE the label (matching the comments page's
   // sectioning) + the mono eyebrow with an accent tick, so each block reads as
   // its own clearly-divided section.
@@ -10827,27 +10897,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     if (!series) return null;
     const lo = Math.min(...series), hi = Math.max(...series), rng = (hi - lo) || 1;
     return series.map((v, i) => `${i ? 'L' : 'M'}${((i / (series.length - 1)) * 100).toFixed(1)} ${(88 - ((v - lo) / rng) * 76).toFixed(1)}`).join(' ');
-  };
-  const statTile = (k, v, i) => {
-    const ghost = ghostFor(k);
-    return (
-      <div key={i} style={{ position: 'relative', minWidth: 0, ...(sdReduced ? null : { animation: `bsSdFadeUp 460ms ease ${140 + i * 90}ms both` }) }}>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(10), background: bsTHexA(t.INK, 0.08) }} />
-        <div aria-hidden style={{ position: 'absolute', inset: 1, clipPath: clip(9), background: bsTHexA(t.INK, 0.015) }} />
-        <div aria-hidden style={{ position: 'absolute', left: 1, top: 1, bottom: 1, width: 3, background: bsTHexA(heat, 0.6) }} />
-        {ghost && (
-          <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 1, width: 'calc(100% - 2px)', height: 'calc(100% - 2px)', clipPath: clip(9), opacity: 0.14 }}>
-            <path d={ghost} fill="none" stroke={heat} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-          </svg>
-        )}
-        <div style={{ position: 'relative', padding: '11px 12px 12px 14px' }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k}</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, marginTop: 5, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            <BSSdCountUp text={v} duration={800} delay={180 + i * 90} />
-          </div>
-        </div>
-      </div>
-    );
   };
   // Reusable section chip (right-aligned stat on a chart head).
   const headChip = (label, accent) => <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.05em', color: muted, background: bsTHexA(t.INK, 0.06), border: accent ? `1px solid ${bsTHexA(t.INK, 0.18)}` : 0, borderRadius: 999, padding: '2px 8px' }}>{label}</span>;
@@ -10871,8 +10920,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // calories, stride, … — reads up top.
   const isChartedScalar = (k) => (hasCadGraph && cadRe.test(k)) || (hasElevGraph && elevRe.test(k));
   const summaryStats = allStats.filter((s) => s !== bestPaceStat && !isChartedScalar(s[0]));
-  const outputStats = [];
-  const sumCols = summaryStats.length <= 3 ? (summaryStats.length || 1) : 2;
   // Total distance (for the x-axis mile markers) — only when the distance stat
   // is in miles (runs/rides); swims/others report metres, so skip the markers.
   const distStat = (d.heroStat && /dist/i.test(d.heroStat[0])) ? d.heroStat : allStats.find(([k]) => /dist/i.test(k));
@@ -10972,14 +11019,15 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         )}
         {/* SUMMARY — only the MAIN stats (the hero number is shown above; this is
             the 2–3 headline figures). Everything else lives in its own section. */}
-        {!isComments && summaryStats.length > 0 && (
-          <>
-            {secHead('Summary')}
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sumCols}, 1fr)`, gap: 9 }}>
-              {summaryStats.map(([k, v], i) => statTile(k, v, i))}
-            </div>
-          </>
-        )}
+        {!isComments && summaryStats.length > 0 && (() => {
+          const { primary, secondary } = bsSdRankStats(summaryStats);
+          return (
+            <>
+              {secHead('Summary')}
+              <BSSdLedger primary={primary} secondary={secondary} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />
+            </>
+          );
+        })()}
         </div>
         {/* PACE / SPEED — the primary velocity chart over distance, per the rule:
             Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}
@@ -11037,16 +11085,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           <>
             {secHead('Elevation', elevStat ? headChip(`+${elevStat[1]} gain`) : null)}
             <BSSdTrace vals={d.elevTrace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="ft" />
-          </>
-        )}
-        {/* OUTPUT — the remaining device metrics (stride, ground, training, …) in
-            their own clearly-labeled section, NOT packed up top. */}
-        {!isComments && outputStats.length > 0 && (
-          <>
-            {secHead('Output')}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-              {outputStats.map(([k, v], i) => statTile(k, v, i))}
-            </div>
           </>
         )}
         {/* COMMENTS PAGE — reactions summary (likes open their own sheet) + the
