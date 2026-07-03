@@ -10499,6 +10499,7 @@ function bsInjectSessionDetailCss() {
       @keyframes bsSdDrawX { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
       @keyframes bsSdStamp { 0% { opacity: 0; transform: scale(1.55) rotate(-3deg); } 62% { transform: scale(0.96) rotate(0.6deg); } 100% { opacity: 1; transform: none; } }
       @keyframes bsSdPop { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
+      @keyframes bsSdGrowY { 0% { transform: scaleY(0); } 100% { transform: scaleY(1); } }
     }
   `;
   document.head.appendChild(el);
@@ -10885,30 +10886,35 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: muted, marginTop: 3, letterSpacing: '0.04em' }}>{d.ago} ago{d.city ? ` · ${d.city}` : ''} · {d.role || 'Client'}</div>
           </div>
         </div>
-        {/* hero — boots on entry: the intensity heat-wash sits behind it, the
-            title's pulse rule draws in, and the headline number counts up. */}
-        <div style={{ position: 'relative' }}>
-          <div aria-hidden style={{ position: 'absolute', inset: '-18px -16px -14px', background: `radial-gradient(120% 95% at 18% 0%, ${bsTHexA(heat, 0.13)}, transparent 62%)`, pointerEvents: 'none' }} />
-          <div style={{ position: 'relative', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 15 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
-          <div aria-hidden style={{ position: 'relative', height: 2, marginTop: 9, background: `linear-gradient(90deg, ${heat}, ${bsTHexA(heat, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 80ms both' }) }} />
-          {d.heroStat && (
-            <div style={{ position: 'relative', marginTop: 13 }}>
-              <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: clip(14), background: `${heat}77` }} />
-              <div aria-hidden style={{ position: 'absolute', inset: 1.25, clipPath: clip(13), background: `linear-gradient(165deg, ${heat}24, ${heat}07 46%, ${t.PAPER2} 92%), ${t.PAPER}` }} />
-              <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: heat }} />
-              <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${heat}`, borderBottom: `1.5px solid ${heat}`, opacity: 0.6 }} />
-              <div style={{ position: 'relative', padding: '14px 16px 15px' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginBottom: 7 }}>{d.heroStat[0]}</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 12px' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 48, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
-                    <BSSdCountUp text={d.heroStat[1]} duration={780} delay={120} />
+        {/* author hairline — a hard "filed-by" cut between the byline and the
+            hero zone (the heat-wash that used to bleed over the author row is
+            deleted; the rail below carries the page temperature instead). */}
+        <div aria-hidden style={{ height: 1, background: bsTHexA(t.INK, 0.08), margin: '14px 0 0' }} />
+        {/* ── OPEN LEDGER — hero → route → summary threaded on the heat rail ── */}
+        <div style={{ position: 'relative', paddingLeft: 15 }}>
+          <div aria-hidden style={{ position: 'absolute', left: 0, top: 6, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 38%, ${bsTHexA(t.INK, 0.12)} 72%, transparent)`, ...(sdReduced ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1100ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
+          {!sdReduced && <span aria-hidden style={{ position: 'absolute', left: -0.5, top: 96, width: 3, height: 10, borderRadius: 2, background: heat, '--sd-glow': bsTHexA(heat, 0.4), animation: 'bsSdPrBreath 3.2s ease-in-out 1500ms infinite' }} />}
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 800, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.08, marginTop: 18 }}>{d.title}{/[.!?]$/.test(String(d.title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
+          {d.heroStat && (() => {
+            const u = bsSdSplitUnit(d.heroStat[1]);
+            return (
+              <div>
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 14 }}>{d.heroStat[0]}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(50px, 12.5vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
+                    <BSSdCountUp text={u.num} duration={780} delay={120} />
                   </span>
-                  {d.prDelta && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: heat, background: `${heat}22`, border: `1px solid ${heat}`, padding: '4px 9px', borderRadius: 999, ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 720ms both' }) }}>↑ {d.prDelta}</span>}
+                  {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
+                  {d.prDelta && (
+                    <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2, whiteSpace: 'nowrap', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 720ms both' }) }}>
+                      <span style={{ color: heat }}>↑</span> PR {d.prDelta}
+                    </span>
+                  )}
                 </div>
+                <div aria-hidden style={{ height: 2, marginTop: 11, background: `linear-gradient(90deg, ${heat}, ${bsTHexA(heat, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 80ms both' }) }} />
               </div>
-            </div>
-          )}
-        </div>
+            );
+          })()}
         {d.body && <p style={{ fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK, margin: '14px 0 0' }}>{d.body}</p>}
         {d.coSign && (
           <div style={{ marginTop: 12, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 560ms both' }) }}>
@@ -10934,6 +10940,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </div>
           </>
         )}
+        </div>
         {/* PACE / SPEED — the primary velocity chart over distance, per the rule:
             Pace (M:SS, inverted) for foot sports + swims, Speed (mph) for rides. */}
         {!isComments && Array.isArray(d.paceTrace) && d.paceTrace.length > 1 && (
