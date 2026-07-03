@@ -203,8 +203,13 @@ function ScoreTiers() {
                 </React.Fragment>
               );
             })}
-            {/* current-position marker — sits in open space between orbs (current tier color) */}
-            <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: tiers[reachedIdx].color, boxShadow: `0 0 0 5px ${tiers[reachedIdx].color}33`, transform: "translate(-50%, -50%)", zIndex: 0 }} />
+            {/* current-position marker — sits in open space between orbs, colored
+                as the NEXT tier you're climbing toward (falls back to the top
+                tier's color once you're at the highest rung). */}
+            {(() => {
+              const nextColor = tiers[Math.min(reachedIdx + 1, tiers.length - 1)].color;
+              return <div style={{ position: "absolute", left: `${barPct}%`, top: 58, width: 11, height: 11, borderRadius: 999, background: nextColor, boxShadow: `0 0 0 5px ${nextColor}33`, transform: "translate(-50%, -50%)", zIndex: 0 }} />;
+            })()}
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${tiers.length}, 1fr)`, position: "relative", zIndex: 1 }}>
               {tiers.map((t, i) => {
                 const reached = SCORE_TOTAL >= t.min;
