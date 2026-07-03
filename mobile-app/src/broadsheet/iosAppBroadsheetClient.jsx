@@ -15906,9 +15906,18 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
   // (iosAppBroadsheet.jsx ~line 1030): a plain div with role="button" + tabIndex
   // when interactive. Non-interactive rows (right='lead') render a bare div with
   // no role/tabIndex.
+  // Click guard: a click that originated inside a nested interactive control
+  // (meal ghost-tick, habit checkbox) must not ALSO open the row — even if that
+  // control forgets stopPropagation. Ignore any click whose target's nearest
+  // interactive ancestor isn't the row itself.
+  const handleClick = interactive ? (e) => {
+    const nested = e.target instanceof Element ? e.target.closest('button,a,input,select,textarea,[role="button"],[role="checkbox"],[role="switch"]') : null;
+    if (nested && nested !== e.currentTarget) return;
+    onOpen();
+  } : undefined;
   return (
     <div
-      onClick={interactive ? onOpen : undefined}
+      onClick={handleClick}
       onKeyDown={interactive ? (e) => {
         // First line, always: a keypress that bubbled up from a nested control
         // (the meal ghost-tick / habit checkbox) must not also trigger the row's
@@ -15957,11 +15966,14 @@ function BSIndexRow({ label, figure, status, due, done, onOpen }) {
   const t = useBS();
   const interactive = typeof onOpen === 'function';
   const Tag = interactive ? 'button' : 'div';
+  // aria-label must carry the visible figure too — a screen-reader user
+  // otherwise never hears the actual value the row displays.
+  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
   return (
     <Tag
       {...(interactive ? { onClick: onOpen, type: 'button' } : {})}
       onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
-      aria-label={interactive ? `${label} ${status || ''}`.trim() : undefined}
+      aria-label={interactive ? [label, ariaFigure, status].filter(Boolean).join(' ') : undefined}
       style={{
         display: 'grid', gridTemplateColumns: '86px 1fr auto 18px', alignItems: 'center', gap: 8,
         width: '100%', height: 44, boxSizing: 'border-box', border: 0, background: 'transparent',
@@ -16024,9 +16036,12 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
   const [pressed, setPressed] = useStateBSC(false);
   const reduced = bsSdReduced();
   const hasPct = typeof pct === 'number' && isFinite(pct);
+  // aria-label must carry the visible figure too — a screen-reader user
+  // otherwise never hears the actual value the door displays.
+  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
   return (
     <button
-      type="button" onClick={onOpen} aria-label={`${eyebrow || ''} ${status || ''}`.trim()}
+      type="button" onClick={onOpen} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
       onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
       style={{
         position: 'relative', flex: '0 0 auto', width: 112, height: 64, boxSizing: 'border-box',
@@ -16951,8 +16966,16 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
   if (door) {
+    // Honest status — never a fabricated "on track". Derive from the SAME
+    // computed values the plate variant renders below: goal reached (within a
+    // small epsilon, so float rounding doesn't withhold the ✓) reads
+    // 'goal hit ✓'; otherwise a real '{N} {unit} to go' from toGo/unit; when
+    // those values aren't usable (no range, no unit), fall back to '—'.
+    const hasRange = range > 0 && isFinite(toGo) && !!unit;
+    const goalHit = hasRange && Math.abs(toGo) < 0.05;
+    const doorStatus = goalHit ? 'goal hit ✓' : hasRange ? `${Math.abs(toGo)} ${unit} to go` : '—';
     return (
-      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status="on track" pct={Math.round(pct * 100)} onOpen={onOpen} />
+      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status={doorStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
     );
   }
   return (
