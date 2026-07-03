@@ -16914,8 +16914,10 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
     // 'goal hit ✓'; otherwise a real '{N} {unit} to go' from toGo/unit; when
     // those values aren't usable (no range, no unit), fall back to '—'.
     const hasRange = range > 0 && isFinite(toGo) && !!unit;
-    const goalHit = hasRange && Math.abs(toGo) < 0.05;
-    const doorStatus = goalHit ? 'goal hit ✓' : hasRange ? `${Math.abs(toGo)} ${unit} to go` : '—';
+    // toGo = now - target on a cut-framed goal (range > 0): at-or-past target
+    // reads as HIT — an over-achieved goal must never show a false "to go".
+    const goalHit = hasRange && toGo <= 0.05;
+    const doorStatus = goalHit ? 'goal hit ✓' : hasRange ? `${+Math.max(0, toGo).toFixed(1)} ${unit} to go` : '—';
     return (
       <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status={doorStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
     );
