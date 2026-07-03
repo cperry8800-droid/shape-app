@@ -4,7 +4,7 @@
 
 **Goal:** Restructure `BSClientHome` from ~11 uniform bordered plates into the Front-Page hierarchy — bulletins → one engine-owned lead plate → TODAY'S SLATE run-sheet rows → INSIDE. index rows + compact door shelf — keeping all 11 existing features reachable.
 
-**Architecture:** A render-section refactor of `BSClientHome` (spec: `docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md`; verified line map: `.superpowers/sdd/home-structure-map.md`). All state, hooks, effects, and early-return overlays survive untouched. Four new presentational primitives (`BSSlateRow`, `BSIndexRow`, `BSHomeBulletin`, `BSShelfDoor`), two extracted hooks (`useBSCheckinLogged`, `useBSStepsToday`), and one pure sorted-slate service module (`homeSlate.mjs`) carry the new structure; every deleted card's data feed and honest-data gate moves line-for-line into a row or door.
+**Architecture:** A render-section refactor of `BSClientHome` (spec: `docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md`; verified line map: `docs/superpowers/plans/2026-07-03-home-structure-map.md`). All state, hooks, effects, and early-return overlays survive untouched. Four new presentational primitives (`BSSlateRow`, `BSIndexRow`, `BSHomeBulletin`, `BSShelfDoor`), two extracted hooks (`useBSCheckinLogged`, `useBSStepsToday`), and one pure sorted-slate service module (`homeSlate.mjs`) carry the new structure; every deleted card's data feed and honest-data gate moves line-for-line into a row or door.
 
 **Tech Stack:** React function components in the window-global JSX bundle (`mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx`, ~22.7k lines, no per-component imports); pure ESM service module tested with `node:test`; injected-keyframes CSS pattern for motion.
 
@@ -2433,7 +2433,7 @@ avatar shows the real self avatar`):
 ### 2026-07-03 — Client Home "Front Page" hybrid restructure (#PR)
 - **`BSClientHome` restructured from ~11 uniform bordered plates into the
   Front-Page hierarchy** (spec `docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md`,
-  structure map `.superpowers/sdd/home-structure-map.md`): 0–2 slim **BULLETINS**
+  structure map `docs/superpowers/plans/2026-07-03-home-structure-map.md`): 0–2 slim **BULLETINS**
   above the lead (daily check-in due · weekly check-in due, each suppressed
   once the lead already targets that lever) → exactly **ONE** engine-owned
   **LEAD** `BSPlate` (`todayDirective`'s #1 action — the page's only CTA
