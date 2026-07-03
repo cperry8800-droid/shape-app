@@ -2429,18 +2429,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     ? 'Log a meal to see where today lands against your goal.'
     : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
 
-  // Context handed to the customizable card stack so each card builds from live
-  // signals. `energy` here is the goal-aware model computed above.
-  const homeCardsCtx = { t, ticker, analytics, energy, energyAccent, energyCaption, noLiveToday };
-  const homeCardOpeners = {
-    training: goTrain,
-    consistency: goScore,
-    energy: undefined,
-    recovery: goIntegrations,
-    protein: undefined,
-    mood: () => setShowMood(true),
-  };
-
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setShowLogMeal(true); setPreviewMeal(null); }} />;
   }
@@ -2525,6 +2513,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return compact;
   })();
 
+  // ── ANTI-ACCRETION CONTRACT ────────────────────────────────────────────
+  // Do not add a plate. If it can't be a row, it lives on a tab and gets at
+  // most a row-door.
+  // ────────────────────────────────────────────────────────────────────────
   return (
     <BSPage>
       <BSMasthead
@@ -2981,35 +2973,39 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         );
       })()}
 
-      {/* WEEKLY TOTALS → two index rows. Same payloads as the old tile grid — the
-          weekStat portal sheet below is unchanged and reads these objects as-is.
-          Signed-out-only gate carried verbatim from the deleted tile grid. */}
-      {(() => {
-        // These are hardcoded demo figures (not wired to real rollups yet) — show
-        // them only in the signed-out preview, never as fake stats to a real user.
-        if (bsHomeSignedIn) return null;
-        const weekTotals = [
-          { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
-            history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
-          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
-            series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
-        ];
-        return (
-          <>
-            {/* weekTotals[0] (Sessions) carries no goalFrame field (only Avg kcal
-                does) — give it a real status string matching the old tile's own
-                affordance copy ("View history →" in its footer) rather than
-                leaving status undefined (a blank status reads as a rendering
-                bug, not a deliberate omission). */}
-            <BSIndexRow label="Sessions" figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status="View history ›" onOpen={() => setWeekStat(weekTotals[0])} />
-            <BSIndexRow label="Avg kcal" figure={`${weekTotals[1].v.toLocaleString()}/${weekTotals[1].max.toLocaleString()}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
-          </>
-        );
-      })()}
+      {/* The INSIDE. index-rows block fades in as ONE quiet unit (not per-row) —
+          #1518-pattern keyframe, reduced-motion-gated. */}
+      <div style={{ ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
+        {/* WEEKLY TOTALS → two index rows. Same payloads as the old tile grid — the
+            weekStat portal sheet below is unchanged and reads these objects as-is.
+            Signed-out-only gate carried verbatim from the deleted tile grid. */}
+        {(() => {
+          // These are hardcoded demo figures (not wired to real rollups yet) — show
+          // them only in the signed-out preview, never as fake stats to a real user.
+          if (bsHomeSignedIn) return null;
+          const weekTotals = [
+            { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
+              history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
+            { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
+              series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
+          ];
+          return (
+            <>
+              {/* weekTotals[0] (Sessions) carries no goalFrame field (only Avg kcal
+                  does) — give it a real status string matching the old tile's own
+                  affordance copy ("View history →" in its footer) rather than
+                  leaving status undefined (a blank status reads as a rendering
+                  bug, not a deliberate omission). */}
+              <BSIndexRow label="Sessions" figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status="View history ›" onOpen={() => setWeekStat(weekTotals[0])} />
+              <BSIndexRow label="Avg kcal" figure={`${weekTotals[1].v.toLocaleString()}/${weekTotals[1].max.toLocaleString()}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
+            </>
+          );
+        })()}
 
-      {/* CHECK-IN residue — BSTodayNudge's row variant; only renders once today's
-          check-in is logged (the bulletin owns the due state, above the lead). */}
-      <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+        {/* CHECK-IN residue — BSTodayNudge's row variant; only renders once today's
+            check-in is logged (the bulletin owns the due state, above the lead). */}
+        <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+      </div>
 
       {/* THE DOOR SHELF — STEPS · GOAL · PROGRESS · SHOP, horizontal snap-scroll,
           3 visible + a 12px end-peek so the 4th door shows a sliver. Native buttons
@@ -10505,6 +10501,28 @@ function bsInjectSessionDetailCss() {
   `;
   document.head.appendChild(el);
 }
+// ── Home "Front Page" — injected keyframes ────────────────────────────────
+// Slate rows stagger in (opacity + 4px rise); the INSIDE. index block fades as
+// one quiet unit; door slivers draw 0→pct via a plain CSS `width` transition
+// on BSShelfDoor's own sliver span (Task 2's shipped body — no keyframe needed
+// for that, so none is defined here — see Step 4). Only due-ticks pulse
+// (reuses the shared BSPlate tick keyframe — no new pulse here). All wrapped
+// in the reduced-motion media query per the #1518 pattern; every consumer
+// additionally gates its own inline `animation` with
+// `...(bsSdReduced() ? null : {...})`.
+let _bsHomeCssInjected = false;
+function bsInjectBsHomeCss() {
+  if (_bsHomeCssInjected || typeof document === 'undefined') return;
+  _bsHomeCssInjected = true;
+  const el = document.createElement('style');
+  el.textContent = `
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes bsHomeRowIn { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
+      @keyframes bsHomeIndexIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+    }
+  `;
+  document.head.appendChild(el);
+}
 // Count-up number: rolls 0 → the value's numeric part (prefix/suffix kept, e.g.
 // "8,150 lb" · "3.2 mi"). Times ("42:15"), ranges, and non-numeric values render
 // static — a fabricated mid-count time would read as a different duration.
@@ -15840,12 +15858,14 @@ function BSProgressDoor({ onOpen, door = false }) {
 // press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
 // non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
 // a custom control cell (36px meal ghost-tick / 26px habit checkbox) rendered as-is.
-function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel }) {
+function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
   const t = useBS();
   const isLead = right === 'lead';
   const isNode = right && typeof right === 'object';
   const interactive = !isLead && typeof onOpen === 'function';
   const [pressed, setPressed] = useStateBSC(false);
+  const reduced = bsSdReduced();
+  React.useInsertionEffect(() => { bsInjectBsHomeCss(); }, []);
   // NEVER a <button> wrapper — rows contain nested interactive controls (the
   // meal ghost-tick, the habit checkbox), and a <button> nested inside another
   // <button> is invalid HTML. Matches the existing BSPlate pattern
@@ -15883,6 +15903,7 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
         font: 'inherit', color: 'inherit',
+        ...(reduced ? null : { animation: `bsHomeRowIn 180ms ease-out ${index * 30}ms both` }),
       }}
     >
       <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
@@ -15982,6 +16003,7 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
   const [pressed, setPressed] = useStateBSC(false);
   const reduced = bsSdReduced();
   const hasPct = typeof pct === 'number' && isFinite(pct);
+  React.useInsertionEffect(() => { bsInjectBsHomeCss(); }, []);
   // aria-label must carry the visible figure too — a screen-reader user
   // otherwise never hears the actual value the door displays.
   const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
@@ -16084,38 +16106,21 @@ function useBSStepsToday() {
 // Home carries this compact notification-style door instead. Status-aware: "due"
 // until a MANUAL signal exists for today (same rule as the card — a wearable
 // syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
-// variant undefined → the exact current plate render (call site line 2618, untouched
-// this task). variant 'bulletin' → BSHomeBulletin CHECK-IN DUE, rendered only while
-// due (signed-in gating carried from the plate's own logged-detection scope — the
+// `variant` is REQUIRED — no silent fallback to the old bare-plate look (Task 6
+// deleted that dead branch once every call site carried an explicit variant).
+// variant 'bulletin' → BSHomeBulletin CHECK-IN DUE, rendered only while due
+// (signed-in gating carried from the plate's own logged-detection scope — the
 // bulletin simply renders nothing once logged, matching "decays to an index row once
 // logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
 // → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
 function BSTodayNudge({ onOpen, variant }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const logged = useBSCheckinLogged();
   if (variant === 'bulletin') {
     if (logged) return null;
     return <BSHomeBulletin label="Check-in due" detail="Energy · sleep · 30 sec" onOpen={onOpen} />;
   }
-  if (variant === 'row') {
-    if (!logged) return null;
-    return <BSIndexRow label="Check-in" figure="Logged ✓" status="add water" done onOpen={onOpen} />;
-  }
-  return (
-    <BSPlate c={teal} tick={!logged} bracket pad="12px 16px 12px 22px" role="button" tabIndex={0} ariaLabel="Open today's check-in" onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
-      style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</div>
-          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{logged ? 'Logged for today ✓' : 'Quick check-in.'}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{logged ? 'Tap to review · add water' : 'Energy · sleep · hydration · 30 sec'}</div>
-        </div>
-        <span style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 5, border: `1px solid ${teal}`, color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{logged ? 'Open →' : 'Check in →'}</span>
-      </div>
-    </BSPlate>
-  );
+  if (!logged) return null;
+  return <BSIndexRow label="Check-in" figure="Logged ✓" status="add water" done onOpen={onOpen} />;
 }
 
 // TODAY page — the full daily check-in + hydration box on its own page,
@@ -16384,61 +16389,6 @@ function BSTodayCard() {
         </div>
       )}
       {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
-    </div>
-  );
-}
-
-// Daily steps / NEAT card — today's count vs the user's editable goal (set on the
-// steps history page, default 8k), DISPLAY-ONLY. Steps come
-// from a connected watch (Apple Health / Garmin sync writes daily_health_snapshot
-// .steps) — never manual entry, since a person can't know their own count. Tap the
-// card to open the steps timeline/history; when nothing is synced it prompts to
-// connect a device. Self-contained.
-function BSStepsCard() {
-  const t = useBS();
-  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [history, setHistory] = useStateBSC(false);
-  const { hasData, todayKnown, val, goal: TARGET, pct, hit, stepPts } = useBSStepsToday();
-  const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
-  const openHistory = () => setHistory(true);
-  return (
-    <div style={{ margin: '0 18px 10px', boxSizing: 'border-box' }}>
-      <BSPlate
-        c={accent} notch={12} spine={3} tick={hasData && todayKnown} bracket pad="12px 14px 12px 17px"
-        onClick={hasData ? openHistory : undefined}
-        onKeyDown={hasData ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } } : undefined}
-        tabIndex={hasData ? 0 : undefined} role={hasData ? 'button' : undefined} ariaLabel="Open steps history"
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Shape Steps · Today</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Goal {TARGET.toLocaleString()}</span>
-        </div>
-        {hasData ? (
-          <>
-            <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{todayKnown ? val.toLocaleString() : '—'}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>steps</span>
-            </div>
-            <div style={{ marginTop: 8, height: 5, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
-              <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent, boxShadow: hit ? `0 0 8px ${accent}` : 'none' }} />
-            </div>
-            {todayKnown && (
-              <div style={{ marginTop: 7, display: 'flex', alignItems: 'baseline', gap: 6, paddingTop: 7, borderTop: `1px solid ${t.HAIR}` }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>Shape Steps</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stepPts.shapeSteps}</span>
-                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: stepPts.total > 0 ? accent : t.INK50 }}>{stepPts.total > 0 ? `+${stepPts.total} pts${stepPts.bonus > 0 ? ' · goal' : ''}` : 'Walk 5k for +1'}</span>
-              </div>
-            )}
-            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
-            </div>
-          </>
-        ) : (
-          <button onClick={openDevices} style={{ marginTop: 5, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.05em', color: accent, fontWeight: 700 }}>Connect a watch to track steps →</button>
-        )}
-      </BSPlate>
-      {history && <BSStepsHistory onClose={() => setHistory(false)} />}
     </div>
   );
 }

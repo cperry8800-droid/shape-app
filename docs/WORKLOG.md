@@ -233,6 +233,64 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-03 — Client Home "Front Page" hybrid restructure (#1527)
+- **`BSClientHome` restructured from ~11 uniform bordered plates into the
+  Front-Page hierarchy** (spec `docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md`,
+  structure map `docs/superpowers/plans/2026-07-03-home-structure-map.md`): 0–2 slim **BULLETINS**
+  above the lead (daily check-in due · weekly check-in due, each suppressed
+  once the lead already targets that lever) → exactly **ONE** engine-owned
+  **LEAD** `BSPlate` (`todayDirective`'s #1 action — the page's only CTA
+  button) → **THE SLATE**, a time-ordered run-sheet of 48px rows (one per meal
+  · the day's training row · up to 3 open habit checkboxes · coach-pushed
+  items · bylined coach notes) → **INSIDE.**, a serif-headed index of 44px
+  rows (SESSIONS/AVG KCAL, signed-out-only · CHECK-IN residue once logged) plus
+  a compact horizontal door shelf (STEPS · GOAL · PROGRESS · SHOP LIST,
+  ~112×64). All 11 pre-existing pieces stay reachable — nothing deleted, only
+  demoted to a row or a door.
+- **Workout/meal double-feature fixed**: the lead's subject never gets a
+  second interactive surface — lead=workout shows `↑ LEAD` on the TRAINING
+  slate row (no second action); lead=meal (`heroMealId`) shows `↑ LEAD` on
+  that MEAL row instead of its log tick.
+- **Demo-notes leak fixed**: the "This week's notes" Jordan/Maya fallback
+  (previously shown to any account with zero coach banners, live or not) is
+  now signed-out-preview only — a real signed-in client with no coach notes
+  yet sees nothing fabricated.
+- **One-plate rule enforced by a code comment** at the top of `BSClientHome`'s
+  return: *"Do not add a plate. If it can't be a row, it lives on a tab and
+  gets at most a row-door."*
+- **Motion**: slate rows stagger 30ms apart (opacity + 4px rise, 180ms,
+  `bsInjectBsHomeCss` following the #1518 injected-keyframes pattern); the
+  INSIDE. index block (weekly-totals rows + the CHECK-IN residue row) fades in
+  as one quiet unit (220ms); door slivers draw 0→pct (400ms, plain CSS `width`
+  transition — no new keyframe needed); only due-ticks pulse (reuses
+  `BSPlate`'s existing `bsPlatePulse`, confirmed still the live pulse source —
+  no second pulse keyframe added). Rows are plain functions with stable
+  per-item keys (carried verbatim from Task 4), so entrances never replay on
+  check-off. Every animated style is reduced-motion-gated via `bsSdReduced()`.
+- **Dead code removed**: the unreferenced `homeCardsCtx`/`homeCardOpeners`
+  block (fed a card-stack component, `BSHomeCards`, that was never mounted
+  from Home's render path); `BSTodayNudge`'s legacy no-`variant` plate branch
+  (both call sites already passed an explicit `variant` — `variant` is now a
+  required prop, no silent fallback); the orphaned **`BSStepsCard`** component
+  definition (its only mount was removed in Task 5 and its data effect had
+  already been extracted to `useBSStepsToday` in Task 2 — verified zero
+  remaining references anywhere in the repo, including the pros/coach modules
+  and window-global exports, before deleting).
+- New primitives `BSSlateRow` · `BSIndexRow` · `BSHomeBulletin` · `BSShelfDoor`;
+  extracted hooks `useBSCheckinLogged` (from `BSTodayNudge`'s manual-signal
+  predicate, carried verbatim) · `useBSStepsToday` (from `BSStepsCard`); pure
+  sorted-slate module `mobile-app/src/services/homeSlate.mjs` (+ tests).
+- **Review stack**: BSSlateRow's click handler carries the post-review
+  nested-interactive `closest()` guard unchanged (motion is additive only,
+  never regresses it); BSIndexRow/BSShelfDoor aria-labels still include the
+  visible figure; BSMeGoalCard's door status stays a derived value — none of
+  these post-brief hardenings were touched by this task's diff.
+  Verified: JSX parse · PowerShell mobile build (exit 0) · full `npm test`
+  (382/382) · LF normalized. **On-device pass recommended** (Black/Sage/Cream)
+  to confirm the slate stagger, INSIDE. fade, and door-sliver draw read right
+  under real touch/scroll, and that reduced-motion renders the finished state
+  with no residual transform/opacity.
+
 ### 2026-07-03 — Quick security pass (clean) · Score "Start" label takes tier color · calendar avatar shows the real self avatar
 - **Read-only security pass over the delta since the 2026-06-30 audit (b8672856 → HEAD).**
   Three parallel scans (secrets · authz/RLS · input/deps), each P1/P2 candidate
