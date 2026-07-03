@@ -219,7 +219,7 @@ function ScoreTiers() {
                     <div style={{ height: 22, marginTop: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {t.bonus > 0
                         ? <span style={{ fontFamily: mono, fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", color: t.color, background: `${t.color}1f`, border: `1px solid ${t.color}59`, borderRadius: 999, padding: "4px 11px", whiteSpace: "nowrap" }}>+{t.bonus.toLocaleString()} pts bonus</span>
-                        : <span style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.3)" }}>Start</span>}
+                        : <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: t.color, background: `${t.color}1f`, border: `1px solid ${t.color}59`, borderRadius: 999, padding: "4px 11px" }}>Start</span>}
                     </div>
                     <div style={{ marginTop: 9, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: "rgba(242,237,228,0.5)", textAlign: "center", maxWidth: 190 }}>{t.desc}</div>
                   </div>

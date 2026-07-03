@@ -577,6 +577,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'P2 OAuth open-redirect + console/program write-IDOR + claim-jack (#1471/#1472/#1473/#1476): safeReturnPath guard; route gates + RLS splits (is_discipline_coach_on_client INSERT); claim_provider_row -> service-role. Merged; migrations APPLIED + verified', status: 'done' },
         { label: 'P2 email-enumeration (#1481): get_email_for_username revoked to service_role; username login -> rate-limited POST /api/auth/resolve-username (login.jsx + shapeBackend.js). Merged; migration APPLIED + verified live (anon=f/authd=f/svc=t)', status: 'done' },
         { label: 'Dependabot swept: #1477/#1478 (Actions) + #1479 (mobile deps) merged; #1480 (web deps: stripe 22.3, @supabase/ssr 0.12) tsc-compat fixed + merged', status: 'done' },
+        { label: 'Quick re-audit (2026-07-03, read-only over the delta since b8672856): 0 P1 / 0 P2 / 1 P3. Secrets clean (only the by-design publishable key; PEM hits are docs+reconstruction literals). Authz/RLS clean — all prior P1/P2 stay remediated, no new route/RPC gap; Stripe webhook sig-verified; OAuth callbacks via safe-redirect. Input clean (no dangerouslySetInnerHTML; URLs scheme-checked; size caps hold; RPCs parameterized). npm audit --omit=dev = 0 vulns (root + mobile). No report file (no P1/P2)', status: 'done' },
+        { label: 'P3 (OWNER/dashboard, unchanged): make "Secret scan (gitleaks)" a REQUIRED status check on main (GitHub -> Settings -> Branches). It runs on every PR today but is advisory, not gating', status: 'manual' },
       ],
     },
     {

@@ -159,7 +159,17 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-02.md`](HANDOFF-2026-07-02.md)** —
+> **Latest session handoff: [`docs/HANDOFF-2026-07-03.md`](HANDOFF-2026-07-03.md)** —
+> **Quick read-only security pass** over the delta since the last full audit (0 P1 / 0 P2 /
+> 1 P3 — gitleaks-should-be-required; no report file, no P1/P2), plus two UI fixes: the website
+> Shape Score ladder's first-tier **"Start" label now takes the tier color** (sage chip on Raw,
+> `score.jsx?v=17`) and the **month-calendar masthead avatar shows the real self avatar** (was a
+> stale hardcoded "A" in preview — now `bsMyInitials/TierColor/Photo` like every other header).
+> Merged without review per the owner's call. ⚠ Local mobile Vite build blocked this session by
+> Windows Application Control on the reinstalled oxide native binary (CI Linux build unaffected —
+> see the handoff).
+>
+> (Prior: [`docs/HANDOFF-2026-07-02.md`](HANDOFF-2026-07-02.md) —
 > Per-coach **waiting room** (#1495) — members join an at-capacity coach's list, the coach
 > invites with a 7-day first-dibs window, a paid checkout claims the spot. Built then reworked
 > **RLS-authoritative** (caller-scoped writes + own-row policies + a `guard_cols` trigger;
@@ -222,6 +232,46 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-03 — Quick security pass (clean) · Score "Start" label takes tier color · calendar avatar shows the real self avatar
+- **Read-only security pass over the delta since the 2026-06-30 audit (b8672856 → HEAD).**
+  Three parallel scans (secrets · authz/RLS · input/deps), each P1/P2 candidate
+  adversarially re-checked. **Result: 0 P1 / 0 P2 / 1 P3.** No report file written (the
+  quick-pass contract only writes `docs/SECURITY-AUDIT-*` on a P1/P2).
+  - **Secrets — none.** Only the by-design Supabase publishable key is client-exposed;
+    the `-----BEGIN` hits are a docs placeholder + the Apple-Music PEM-marker *reconstruction*
+    literal (no key material); every `*_KEY/*_SECRET` is an env-var name or `.env.example`
+    placeholder. `.gitleaks.toml` allowlist is correctly scoped (publishable key · localStorage
+    key names · `public/m` · `.map` · lockfiles · the two documented PEM files).
+  - **Authz/RLS — clean; every prior-audit P1/P2 stays remediated.** The 7 post-audit
+    migrations hold: store pricing server-authoritative (`store_catalogue`), console +
+    program-assignment INSERTs gated by `is_discipline_coach_on_client()`, `get_email_for_username`
+    service-role-only (username login via the rate-limited resolve route), coach-waitlist RPCs
+    ownership-checked with a column-freeze trigger. Stripe webhook verifies its signature before
+    any work; OAuth callback routes go through `safe-redirect` (no open redirect). **No NEW
+    routes/RPCs introduced an auth gap.**
+  - **Input/deps — clean.** No `dangerouslySetInnerHTML`; user URLs scheme-checked
+    (`safeMusicUrl` http/https + host allowlist); the proxy size cap + `readJson` still cover the
+    newer routes; `.rpc()` args parameterized. **`npm audit --omit=dev` = 0 vulnerabilities**
+    (root + mobile-app). next 16.2.9 · react 19.2.7 · stripe 22.3 · @supabase current.
+  - **P3 (OWNER/dashboard):** the `Secret scan (gitleaks)` CI job runs on every PR but is
+    **advisory, not a required check** on `main` — add it under GitHub → Settings → Branches to
+    make it a hard gate. (Long-standing known item; unchanged.)
+- **Website Shape Score — the first-tier "Start" label now reflects the tier color.** On the
+  marketing Score ladder (`public/newdesign/score.jsx`) the Raw node's `Start` sat in a faded
+  neutral (`rgba(242,237,228,0.3)`); it's now a tinted chip in the tier color (`t.color` →
+  **sage** for Raw) matching the `+bonus pts` chips on the higher tiers. `score.jsx?v=17` on
+  `Score.html`. (The dashboard `clientScore.jsx` renders the ladder as a plain list with no
+  "Start" node — nothing to change there.)
+- **Month calendar masthead shows the real self avatar** (`iosAppBroadsheetCalendar.jsx`). The
+  avatar corner was gated `signedIn ? bsMy*() : roleInit`, so in signed-out/preview it showed a
+  stale hardcoded **"A"** with a fixed teal instead of the demo persona's photo/initials/tier.
+  Now it calls `bsMyInitials()` / `bsMyTierColor()` / `bsMyPhoto()` / `bsAmLive()` directly like
+  every other page header — the helpers already resolve real-account vs demo-persona internally,
+  so signed-out shows Quinn Harper's headshot + tier and signed-in shows the real user. Verified:
+  both files parse; 363/363 tests. *(Local mobile Vite build could not run this session — Windows
+  Application Control blocked the reinstalled `@tailwindcss/oxide` native `.node` after a
+  dependency reinstall; CI builds `/m/` on Linux, unaffected, as the gate.)*
 
 ### 2026-07-02 — Session Details v2 (#1518) · living-instrument sweep (#1519) · tier 1 goes SAGE (#1520) · chip/boost fixes (#1517)
 - **Chip formatting + boost reachability (#1517).** The #1515 name-row chips wrapped

@@ -310,16 +310,18 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         }}>← Back</button>
       )}
       {(() => {
-        // Real signed-in avatar (initials · photo · tier color) like every other
-        // header; the role-based demo initials are the signed-out preview only.
+        // The real self avatar — initials · photo · tier color · live dot —
+        // rendered exactly like every other page header. The self helpers already
+        // resolve signed-in (the real account) vs signed-out (the demo persona +
+        // its headshot), so there's no page-local demo fallback to drift: the old
+        // `signedIn ? … : roleInit` gate showed a stale hardcoded "A" in preview
+        // instead of the demo persona's photo/initials/tier.
         const W = typeof window !== 'undefined' ? window : {};
-        const signedIn = !!(W.ShapeAuth && W.ShapeAuth.getCachedState && W.ShapeAuth.getCachedState() && W.ShapeAuth.getCachedState().user && W.ShapeAuth.getCachedState().user.id);
-        const roleInit = role === 'trainer' ? 'J' : role === 'nutritionist' ? 'M' : 'A';
-        const roleColor = role === 'trainer' ? t.AMBER : role === 'nutritionist' ? t.RUST : (t.isLight ? '#0a8f87' : '#34d6c5');
-        const init = signedIn ? ((W.bsMyInitials && W.bsMyInitials()) || roleInit) : roleInit;
-        const color = signedIn ? ((W.bsMyTierColor && W.bsMyTierColor()) || roleColor) : roleColor;
-        const photo = signedIn ? ((W.bsMyPhoto && W.bsMyPhoto()) || (W.ShapeIdentity && W.ShapeIdentity.photo) || undefined) : undefined;
-        const live = !!(signedIn && W.bsAmLive && W.bsAmLive());
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const init = (W.bsMyInitials && W.bsMyInitials()) || 'S';
+        const color = (W.bsMyTierColor && W.bsMyTierColor()) || teal;
+        const photo = (W.bsMyPhoto && W.bsMyPhoto()) || undefined;
+        const live = !!(W.bsAmLive && W.bsAmLive());
         const FA = W.BSFacetAvatar;
         if (FA) return React.createElement(FA, { size: 32, c: color, initial: init, photo, live, showRank: false, onClick: onProfile });
         return <BSAvatarCal init={init} size={32} fill={color} ink={role !== 'client' ? t.PAPER : null} onClick={onProfile} />;
