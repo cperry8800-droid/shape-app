@@ -27,6 +27,69 @@ function dCard(extra) {
   return { background: dHexA(LV_INK, 0.04), border: `1px solid ${dHexA(LV_INK, 0.09)}`, borderRadius: 18, ...extra };
 }
 
+// ── Ledger primitives (desktop analogs of the mobile BST* kit) ─────────────
+// The Open Ledger / Route Card language on the web: zero-box stations threaded
+// on a tier-heat rail, station heads with a heat tick + ink→heat rule,
+// eyebrow-above-figure registers, dotted-leader rows, honest redaction lines.
+// Heat = tierOf(d).color, line-only. dCard stays for a few genuinely-boxed
+// affordances (the customizer editor); content sections use dStation.
+function dStation(extra) {
+  return { position: "relative", ...extra };
+}
+// Section head: 6px heat tick + mono eyebrow (+ optional right meta) over a 2px
+// ink→heat ledger rule.
+function DStationHead({ c, label, meta, style }) {
+  return (
+    <div style={{ marginBottom: 16, ...style }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <span aria-hidden="true" style={{ flex: "none", width: 8, height: 2, background: c }} />
+        <span style={{ fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55) }}>{label}</span>
+        {meta ? <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.4), whiteSpace: "nowrap" }}>{meta}</span> : null}
+      </div>
+      <div aria-hidden="true" style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${dHexA(LV_INK, 0.55)}, ${dHexA(c, 0.7)} 55%, transparent)` }} />
+    </div>
+  );
+}
+// Eyebrow-above-figure register (matches the mobile BSTLedgerStat orientation).
+function DLedgerStat({ c, label, value, sub, delta, figSize = 40, style }) {
+  return (
+    <div style={{ ...style }}>
+      <div style={{ fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+        <span style={{ fontFamily: dSerif, fontSize: figSize, fontWeight: 400, letterSpacing: "-0.03em", lineHeight: 0.9, color: LV_INK }}>{value}</span>
+        {delta ? <span style={{ fontFamily: dMono, fontSize: 11, fontWeight: 700, color: c }}>{delta}</span> : null}
+      </div>
+      {sub ? <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.08em", color: dHexA(LV_INK, 0.45), marginTop: 6 }}>{sub}</div> : null}
+    </div>
+  );
+}
+// Honest-absent redaction line — a dashed rule flexing both sides of a mono label.
+function DRedact({ label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", margin: "6px 0" }} aria-label={label}>
+      <span aria-hidden="true" style={{ flex: 1, borderTop: `1px dashed ${dHexA(LV_INK, 0.2)}` }} />
+      <span style={{ fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.42), padding: "0 12px" }}>{label}</span>
+      <span aria-hidden="true" style={{ flex: 1, borderTop: `1px dashed ${dHexA(LV_INK, 0.2)}` }} />
+    </div>
+  );
+}
+// Dotted leader for dot-leader rows (label · leader · figure).
+function DLeader() {
+  return <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${dHexA(LV_INK, 0.28)}`, transform: "translateY(-4px)", minWidth: 18 }} />;
+}
+// The tier rail that threads the tab content — a 2px heat line at the left of the
+// centered content column (desktop-scoped analog of the mobile continuous rail).
+function DRail({ c, children, max = 1240, padY = "14px 0" }) {
+  return (
+    <div style={{ maxWidth: max, margin: "0 auto", padding: `${padY.split(" ")[0]} 40px ${padY.split(" ")[1] || "0"}` }}>
+      <div style={{ position: "relative", paddingLeft: 22 }}>
+        <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ── Top navigation ─────────────────────────────────────────────
 function DesktopNav({ d, direction }) {
   const c = tierOf(d).color;
@@ -196,27 +259,19 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 16, fontFamily: dMono, fontSize: 13, color: dHexA(LV_INK, 0.55) }}>
           <span>{d.handle}</span><span style={{ opacity: 0.4 }}>·</span><span>{d.pronouns}</span><span style={{ opacity: 0.4 }}>·</span><span>{d.city}</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: c }}>{d.roleLabel}</span>
         </div>
-        {/* goal */}
-        <div style={{ marginTop: 26, padding: "20px 24px", borderRadius: 16, background: dHexA(c, 0.08), border: `1px solid ${dHexA(c, 0.22)}`, maxWidth: 460 }}>
-          <DKick c={c} style={{ marginBottom: 9, fontSize: 10.5 }}>{direction === "terrain" ? "⛰ Summit · " : ""}{d.goalKicker}</DKick>
+        {/* goal — zero-box: heat-tick eyebrow + serif italic, a short heat rule */}
+        <div style={{ marginTop: 26, maxWidth: 460, position: "relative", paddingLeft: 15 }}>
+          <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 2, background: c }} />
+          <DKick c={dHexA(LV_INK, 0.55)} style={{ marginBottom: 9, fontSize: 10.5, letterSpacing: "0.2em" }}>{direction === "terrain" ? "⛰ Summit · " : ""}{d.goalKicker}</DKick>
           <div style={{ fontFamily: dSerif, fontSize: 27, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.15 }}>{d.goal}</div>
         </div>
-        {/* score strip */}
-        <div style={{ display: "flex", gap: 30, marginTop: 28, alignItems: "flex-end" }}>
-          <div>
-            <div style={{ fontFamily: dSerif, fontSize: 44, letterSpacing: "-0.03em", lineHeight: 0.9 }}>{d.score.toLocaleString()}</div>
-            <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 6 }}>Shape Score · ▲{d.scoreWk} wk</div>
-          </div>
-          <div style={{ width: 1, height: 44, background: dHexA(LV_INK, 0.12) }} />
-          <div>
-            <div style={{ fontFamily: dSerif, fontSize: 44, letterSpacing: "-0.03em", lineHeight: 0.9 }}>{d.streak}</div>
-            <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 6 }}>Day streak</div>
-          </div>
-          <div style={{ width: 1, height: 44, background: dHexA(LV_INK, 0.12) }} />
-          <div>
-            <div style={{ fontFamily: dSerif, fontSize: 44, letterSpacing: "-0.03em", lineHeight: 0.9, color: LV_TEAL }}>{d.trajDelta}</div>
-            <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 6 }}>{d.trajLabel}</div>
-          </div>
+        {/* score strip — eyebrow-above-figure ledger registers */}
+        <div style={{ display: "flex", gap: 36, marginTop: 28, alignItems: "flex-end" }}>
+          <DLedgerStat c={c} label="Shape Score" value={d.score.toLocaleString()} sub={`▲ ${d.scoreWk} this week`} />
+          <div style={{ width: 1, height: 52, background: dHexA(LV_INK, 0.12) }} />
+          <DLedgerStat c={c} label="Day streak" value={d.streak} />
+          <div style={{ width: 1, height: 52, background: dHexA(LV_INK, 0.12) }} />
+          <DLedgerStat c={c} label={d.trajLabel} value={d.trajDelta} />
         </div>
         {/* CTAs */}
         <div style={{ display: "flex", gap: 12, marginTop: 30 }}>
@@ -263,29 +318,23 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
 function SignalsBand({ d }) {
   const c = tierOf(d).color;
   return (
-    <section style={{ maxWidth: 1240, margin: "0 auto", padding: "44px 40px 0" }}>
-      <DKick style={{ marginBottom: 18 }}>Living signals</DKick>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }} className="dk-3up">
-        <div style={dCard({ padding: "22px 24px" })}>
-          <div style={{ fontFamily: dSerif, fontSize: 46, letterSpacing: "-0.03em", lineHeight: 1 }}>{d.streak}<span style={{ fontFamily: dMono, fontSize: 14, color: LV_TEAL, marginLeft: 8 }}>△ days</span></div>
-          <div style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 12 }}>Current streak</div>
-        </div>
-        <div style={dCard({ padding: "22px 24px" })}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
-            <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>Weekly momentum</span>
-            <span style={{ fontFamily: dMono, fontSize: 11, color: LV_TEAL }}>today ↑</span>
+    <DRail c={c} padY="44px 0">
+      <DStationHead c={c} label="Living signals" meta="This week" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 30, alignItems: "end" }} className="dk-3up">
+        <DLedgerStat c={c} label="Current streak" value={d.streak} delta="△ days" figSize={46} />
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <span style={{ fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>Weekly momentum</span>
+            <span style={{ fontFamily: dMono, fontSize: 10, color: c }}>today ↑</span>
           </div>
           <LvWeekBars d={d} height={48} />
         </div>
-        <div style={dCard({ padding: "22px 24px", display: "flex", alignItems: "center", gap: 18 })}>
-          <div style={{ flex: "none" }}>
-            <div style={{ fontFamily: dSerif, fontSize: 30, letterSpacing: "-0.02em", color: LV_TEAL }}>{d.trajDelta}</div>
-            <div style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 6 }}>{d.trajNote}</div>
-          </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 18 }}>
+          <DLedgerStat c={c} label={d.trajNote} value={d.trajDelta} figSize={30} style={{ flex: "none" }} />
           <div style={{ flex: 1 }}><LvSparkline data={d.traj} color={c} w={200} h={56} /></div>
         </div>
       </div>
-    </section>
+    </DRail>
   );
 }
 
@@ -370,16 +419,21 @@ function ClimbBlock({ d, owner }) {
       return next;
     });
   };
-  const pill = (on) => ({ padding: "5px 11px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? LV_TEAL : dHexA(LV_INK, 0.18)}`, background: on ? dHexA(LV_TEAL, 0.14) : "transparent", color: on ? LV_TEAL : dHexA(LV_INK, 0.6), fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" });
+  // Aspect index — mono labels with a heat underline on the active one (ledger
+  // index, not a pill). The customizer toggle stays a small pill affordance.
+  const idx = (on) => ({ background: "transparent", border: 0, cursor: "pointer", padding: "4px 2px 7px", position: "relative", fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: on ? LV_INK : dHexA(LV_INK, 0.45) });
+  const pill = (on) => ({ padding: "5px 11px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? c : dHexA(LV_INK, 0.18)}`, background: on ? dHexA(c, 0.14) : "transparent", color: on ? c : dHexA(LV_INK, 0.6), fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" });
   return (
-    <div style={dCard({ padding: "24px 26px" })}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <DKick>{d.arcLabel}</DKick>
-        <span style={{ fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.5) }}>{d.sinceLabel} {d.since}</span>
-      </div>
+    <div style={dStation()}>
+      <DStationHead c={c} label={d.arcLabel} meta={`${d.sinceLabel} ${d.since}`} />
       {tabs.length > 1 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-          {tabs.map((s) => <button key={s.key} onClick={() => pick(s.key)} style={pill(active === s.key)}>{s.label}</button>)}
+        <div style={{ display: "flex", gap: 18, marginBottom: 16, flexWrap: "wrap", alignItems: "center", borderBottom: `1px solid ${dHexA(LV_INK, 0.08)}` }}>
+          {tabs.map((s) => { const on = active === s.key; return (
+            <button key={s.key} onClick={() => pick(s.key)} style={idx(on)}>
+              {s.label}
+              {on && <span aria-hidden="true" style={{ position: "absolute", left: 2, right: 2, bottom: -1, height: 2, background: c }} />}
+            </button>
+          ); })}
           {owner && <button onClick={() => setCustom((v) => !v)} style={{ ...pill(custom), marginLeft: "auto" }}>⚙ Customize</button>}
         </div>
       )}
@@ -410,48 +464,47 @@ function ClimbBlock({ d, owner }) {
 // ── Disciplines — terrain: strata bars · signal: ring legend ──
 function DisciplinesBlock({ d, direction }) {
   const c = tierOf(d).color;
+  const disc = Array.isArray(d.disciplines) ? d.disciplines : [];
   if (direction === "terrain") {
     return (
-      <div style={dCard({ padding: "24px 26px" })}>
-        <DKick style={{ marginBottom: 18 }}>{d.discLabel} · strata</DKick>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {d.disciplines.map(([label, val], i) => {
-            const col = i === d.disciplines.length - 1 ? LV_TEAL : c;
-            return (
+      <div style={dStation()}>
+        <DStationHead c={c} label={`${d.discLabel} · strata`} />
+        {disc.length ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {disc.map(([label, val]) => (
               <div key={label}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
-                  <span style={{ fontFamily: dSans, fontSize: 14, color: dHexA(LV_INK, 0.85) }}>{label}</span>
-                  <span style={{ fontFamily: dMono, fontSize: 12, color: dHexA(LV_INK, 0.5) }}>{Math.round(val * 100)}</span>
+                  <span style={{ fontFamily: dMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.72) }}>{label}</span>
+                  <span style={{ fontFamily: dSerif, fontSize: 16, color: LV_INK }}>{Math.round(val * 100)}</span>
                 </div>
-                <div style={{ height: 8, borderRadius: 5, background: dHexA(LV_INK, 0.08), overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${val * 100}%`, background: `linear-gradient(90deg, ${dHexA(col, 0.5)}, ${col})`, borderRadius: 5 }} />
+                <div style={{ height: 6, background: dHexA(LV_INK, 0.08), overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${val * 100}%`, background: c }} />
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        ) : <DRedact label="Strata · not on record" />}
       </div>
     );
   }
-  // signal — ring legend grid
+  // signal — zero-box label · bar · figure ledger rows
   return (
-    <div style={dCard({ padding: "24px 26px" })}>
-      <DKick style={{ marginBottom: 18 }}>{d.discLabel}</DKick>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {d.disciplines.map(([label, val], i) => {
-          const col = i === 0 ? c : i === d.disciplines.length - 1 ? LV_TEAL : dHexA(c, 0.8);
-          return (
-            <div key={label} style={{ background: dHexA(LV_INK, 0.03), border: `1px solid ${dHexA(LV_INK, 0.08)}`, borderRadius: 13, padding: "14px 15px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 9, height: 9, borderRadius: 999, background: col }} />
-                <span style={{ fontFamily: dSans, fontSize: 13.5, color: dHexA(LV_INK, 0.82) }}>{label}</span>
-              </div>
-              <div style={{ fontFamily: dSerif, fontSize: 26, letterSpacing: "-0.02em", marginTop: 8 }}>{Math.round(val * 100)}<span style={{ fontSize: 13, color: dHexA(LV_INK, 0.4) }}>/100</span></div>
-              <div style={{ height: 3, borderRadius: 2, background: dHexA(LV_INK, 0.1), marginTop: 9, overflow: "hidden" }}><div style={{ height: "100%", width: `${val * 100}%`, background: col, borderRadius: 2 }} /></div>
+    <div style={dStation()}>
+      <DStationHead c={c} label={d.discLabel} />
+      {disc.length ? (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {disc.map(([label, val], i) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderTop: i ? `1px solid ${dHexA(LV_INK, 0.08)}` : 0 }}>
+              <span style={{ width: 150, flex: "none", fontFamily: dMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: dHexA(LV_INK, 0.72) }}>{label}</span>
+              <span style={{ flex: 1, position: "relative", height: 6 }}>
+                <span style={{ position: "absolute", inset: 0, background: dHexA(LV_INK, 0.08) }} />
+                <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${val * 100}%`, background: c }} />
+              </span>
+              <span style={{ flex: "none", fontFamily: dSerif, fontSize: 18, letterSpacing: "-0.02em", minWidth: 52, textAlign: "right" }}>{Math.round(val * 100)}<span style={{ fontFamily: dMono, fontSize: 10, color: dHexA(LV_INK, 0.4) }}>/100</span></span>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : <DRedact label="Focus · not set" />}
     </div>
   );
 }
@@ -459,28 +512,33 @@ function DisciplinesBlock({ d, direction }) {
 // ── Records / signature numbers ────────────────────────────────
 function RecordsBlock({ d }) {
   const c = tierOf(d).color;
+  const lifts = Array.isArray(d.lifts) ? d.lifts : [];
   return (
-    <div style={dCard({ padding: "24px 26px" })}>
-      <DKick style={{ marginBottom: 18 }}>{d.liftsLabel}</DKick>
-      <div style={{ display: "flex", gap: 12 }}>
-        {d.lifts.map(([label, val]) => (
-          <div key={label} style={{ flex: 1, textAlign: "center", background: dHexA(c, 0.08), border: `1px solid ${dHexA(c, 0.2)}`, borderRadius: 14, padding: "20px 8px" }}>
-            <div style={{ fontFamily: dSerif, fontSize: 32, letterSpacing: "-0.02em" }}>{val}</div>
-            <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 7 }}>{label}</div>
-          </div>
-        ))}
-      </div>
+    <div style={dStation()}>
+      <DStationHead c={c} label={d.liftsLabel} />
+      {lifts.length ? (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {lifts.map(([label, val], i) => (
+            <div key={label} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "11px 0", borderTop: i ? `1px solid ${dHexA(LV_INK, 0.08)}` : 0 }}>
+              <span style={{ fontFamily: dMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.72) }}>{label}</span>
+              <DLeader />
+              <span style={{ fontFamily: dSerif, fontSize: 22, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>{val}</span>
+            </div>
+          ))}
+        </div>
+      ) : <DRedact label="Records · not on record" />}
     </div>
   );
 }
 
 // ── Relation card ──────────────────────────────────────────────
 function RelationBlock({ d }) {
+  const c = tierOf(d).color;
   return (
-    <div style={dCard({ padding: "22px 24px" })}>
-      <DKick style={{ marginBottom: 14 }}>{d.relation.kicker}</DKick>
+    <div style={dStation()}>
+      <DStationHead c={c} label={d.relation.kicker} />
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div style={{ width: 48, height: 48, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${d.relation.hue} 40% 34%), hsl(${d.relation.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: dSerif, fontSize: 18 }}>{d.relation.initials}</div>
+        <div style={{ width: 46, height: 46, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${d.relation.hue} 40% 34%), hsl(${d.relation.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: dSerif, fontSize: 17 }}>{d.relation.initials}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: dSans, fontSize: 15, fontWeight: 500 }}>{d.relation.name}</div>
           <div style={{ fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.6), lineHeight: 1.45, marginTop: 4, textWrap: "pretty" }}>{d.relation.note}</div>
@@ -498,42 +556,38 @@ function FeedBlock({ d, direction, owner }) {
   const hidden = d.feed.length - shown.length;
   const mark = direction === "terrain" ? "▲ " : "";
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <DKick>{d.feedLabel}{direction === "terrain" ? " · log" : ""}</DKick>
-        {owner && <span style={{ fontFamily: dMono, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.4) }}>＋ Post</span>}
-      </div>
-      {/* expedition log — a dashed trail descending with waypoint chevrons (matches the mobile app timeline) */}
+    <div style={dStation()}>
+      <DStationHead c={c} label={`${d.feedLabel}${direction === "terrain" ? " · log" : ""}`} meta={owner ? "＋ Post" : null} />
+      {shown.length === 0 && hidden === 0 && <DRedact label="No activity yet" />}
+      {/* expedition log — a dashed trail descending with waypoint chevrons (matches the mobile app timeline); zero-box entries on the trail */}
       <div style={{ position: "relative", paddingLeft: 30 }}>
-        <div style={{ position: "absolute", left: 7, top: 7, bottom: 12, width: 0, borderLeft: `1.5px dashed ${dHexA(c, 0.4)}` }} />
+        {shown.length > 0 && <div style={{ position: "absolute", left: 7, top: 7, bottom: 12, width: 0, borderLeft: `1.5px dashed ${dHexA(c, 0.4)}` }} />}
         {shown.map((it, i) => {
           const hot = it.k === "win" || it.k === "pr";
           return (
-            <div key={i} style={{ position: "relative", marginBottom: 14 }}>
-              <div style={{ position: "absolute", left: -30, top: 17, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ width: 10, height: 10, transform: "rotate(45deg)", background: LV_BG, border: `2px solid ${hot ? LV_TEAL : c}` }} />
+            <div key={i} style={{ position: "relative", paddingBottom: 22, borderBottom: i < shown.length - 1 ? `1px solid ${dHexA(LV_INK, 0.07)}` : 0, marginBottom: i < shown.length - 1 ? 22 : 0 }}>
+              <div style={{ position: "absolute", left: -30, top: 4, width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 10, height: 10, transform: "rotate(45deg)", background: LV_BG, border: `2px solid ${c}` }} />
               </div>
-              <div style={dCard({ padding: "16px 19px" })}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  <span style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: hot ? LV_TEAL : c }}>{mark}{LV_FEED[it.k] || it.k}</span>
-                  <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>{it.time}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <span style={{ fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hot ? c : dHexA(LV_INK, 0.55) }}>{mark}{LV_FEED[it.k] || it.k}</span>
+                <span style={{ marginLeft: "auto", fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>{it.time}</span>
+              </div>
+              <div style={{ fontFamily: dSerif, fontSize: 21, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 10 }}>{it.t}</div>
+              <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "7px 0 0", textWrap: "pretty" }}>{it.b}</p>
+              {it.metric && (
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 13 }}>
+                  <div style={{ flex: 1, height: 1, background: dHexA(LV_INK, 0.12) }} />
+                  <span style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>{it.metric[0]}</span>
+                  <span style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: hot ? c : LV_INK }}>{it.metric[1]}</span>
                 </div>
-                <div style={{ fontFamily: dSerif, fontSize: 21, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 11 }}>{it.t}</div>
-                <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.55, color: dHexA(LV_INK, 0.72), margin: "7px 0 0", textWrap: "pretty" }}>{it.b}</p>
-                {it.metric && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 13 }}>
-                    <div style={{ flex: 1, height: 1, background: dHexA(LV_INK, 0.12) }} />
-                    <span style={{ fontFamily: dMono, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) }}>{it.metric[0]}</span>
-                    <span style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: hot ? LV_TEAL : LV_INK }}>{it.metric[1]}</span>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           );
         })}
       </div>
       {!owner && hidden > 0 && (
-        <div style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.38), marginTop: 14 }}>{direction === "terrain" ? "▲" : "↯"} {hidden} private {hidden === 1 ? "entry" : "entries"} hidden</div>
+        <div style={{ marginTop: shown.length ? 16 : 0 }}><DRedact label={`${hidden} private ${hidden === 1 ? "entry" : "entries"} hidden`} /></div>
       )}
     </div>
   );
@@ -605,11 +659,15 @@ function DesktopTabs({ direction, tab, setTab, c }) {
     : [["activity", "Activity"], ["signals", "Signals"], ["climb", "Climb"], ["music", "Music"]];
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", padding: "26px 40px 0" }}>
-      <div style={{ display: "inline-flex", gap: 6, background: dHexA(LV_INK, 0.05), border: `1px solid ${dHexA(LV_INK, 0.1)}`, borderRadius: 999, padding: 5 }}>
+      {/* Typographic index — mono labels on a hairline, active carries a heat underline */}
+      <div role="tablist" aria-label="Profile sections" style={{ display: "flex", gap: 28, borderBottom: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
         {tabs.map(([k, label]) => {
           const on = tab === k;
           return (
-            <button key={k} onClick={() => setTab(k)} style={{ padding: "9px 22px", borderRadius: 999, border: 0, cursor: "pointer", background: on ? dHexA(c, 0.16) : "transparent", color: on ? c : dHexA(LV_INK, 0.55), fontFamily: dMono, fontSize: 11, fontWeight: on ? 700 : 500, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</button>
+            <button key={k} role="tab" aria-selected={on} onClick={() => setTab(k)} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "12px 2px 13px", color: on ? LV_INK : dHexA(LV_INK, 0.45), fontFamily: dMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+              {label}
+              {on && <span aria-hidden="true" style={{ position: "absolute", left: 2, right: 2, bottom: -1, height: 2, background: c }} />}
+            </button>
           );
         })}
       </div>
@@ -732,40 +790,37 @@ function ProfileExtras({ d, owner }) {
   if (empty && !owner) return null;
   return (
     <div style={{ marginBottom: 22 }}>
-      {owner && <button onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 16, padding: "10px 16px", borderRadius: 12, border: `1px dashed ${dHexA(c, 0.5)}`, background: dHexA(c, 0.06), color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
+      {owner && <button onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 18, padding: "10px 16px", borderRadius: 10, border: `1px dashed ${dHexA(c, 0.5)}`, background: "transparent", color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
       {heroStats.length > 0 && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-          {heroStats.map((s) => (
-            <div key={s.k} style={{ flex: 1, background: dHexA(c, 0.07), border: `1px solid ${dHexA(c, 0.2)}`, borderRadius: 14, padding: "16px 12px", textAlign: "center" }}>
-              <div style={{ fontFamily: dSerif, fontSize: 28, letterSpacing: "-0.02em", lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginTop: 8 }}>{s.label}</div>
-            </div>
-          ))}
+        <div style={{ display: "flex", gap: 34, marginBottom: 26 }}>
+          {heroStats.map((s) => <DLedgerStat key={s.k} c={c} label={s.label} value={s.value} figSize={28} />)}
         </div>
       )}
       {pinned && (
-        <div style={{ marginBottom: 16, background: dHexA(c, 0.08), border: `1px solid ${dHexA(c, 0.3)}`, borderRadius: 16, padding: "20px 22px" }}>
-          <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: c, fontWeight: 700 }}>★ Pinned · {pinned.kind || "Highlight"}</div>
+        <div style={{ marginBottom: 26, position: "relative", paddingLeft: 15 }}>
+          <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 2, background: c }} />
+          <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55), fontWeight: 700 }}>★ Pinned · {pinned.kind || "Highlight"}</div>
           <div style={{ fontFamily: dSerif, fontSize: 24, letterSpacing: "-0.01em", lineHeight: 1.15, marginTop: 9 }}>{pinned.title}</div>
           {pinned.note && <p style={{ fontFamily: dSans, fontSize: 14, lineHeight: 1.5, color: dHexA(LV_INK, 0.72), margin: "8px 0 0" }}>{pinned.note}</p>}
-          {pinned.metric && <div style={{ display: "inline-flex", marginTop: 13, padding: "7px 14px", borderRadius: 10, background: dHexA(c, 0.12), border: `1px solid ${dHexA(c, 0.25)}`, fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: c }}>{pinned.metric}</div>}
+          {pinned.metric && <div style={{ fontFamily: dSerif, fontSize: 19, letterSpacing: "-0.02em", color: c, marginTop: 11 }}>{pinned.metric}</div>}
         </div>
       )}
       {(embed || prompts.length || links.length) > 0 && (
-        <div style={dCard({ padding: "22px 24px" })}>
+        <div style={{ marginBottom: 6 }}>
           {embed && (
-            <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
-              <DKick style={{ marginBottom: 12 }}>{(cu.song && cu.song.label) ? cu.song.label : "Profile song"}</DKick>
-              <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.1)}` }}>
+            <div style={{ marginBottom: prompts.length || links.length ? 22 : 0 }}>
+              <DStationHead c={c} label={(cu.song && cu.song.label) ? cu.song.label : "Profile song"} />
+              <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.1)}`, maxWidth: 520 }}>
                 <iframe title="Profile song" src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: "block", border: 0 }} />
               </div>
             </div>
           )}
           {prompts.length > 0 && (
-            <div style={{ marginBottom: links.length ? 18 : 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }} className="dk-feed">
+            <div style={{ marginBottom: links.length ? 22 : 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 34px" }} className="dk-feed">
               {prompts.map((p, i) => (
-                <div key={i} style={{ background: dHexA(LV_INK, 0.04), border: `1px solid ${dHexA(LV_INK, 0.08)}`, borderRadius: 14, padding: "15px 17px" }}>
-                  <div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{p.q}</div>
+                <div key={i} style={{ position: "relative", paddingLeft: 13 }}>
+                  <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 2, background: dHexA(c, 0.5) }} />
+                  <div style={{ fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{p.q}</div>
                   <div style={{ fontFamily: dSerif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.2, marginTop: 7 }}>{p.a}</div>
                 </div>
               ))}
@@ -773,7 +828,7 @@ function ProfileExtras({ d, owner }) {
           )}
           {links.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
-              {links.map(([l, v]) => <a key={l.key} href={dkLinkHref(l.key, v)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", padding: "8px 14px", borderRadius: 999, border: `1px solid ${dHexA(c, 0.4)}`, background: dHexA(c, 0.08), color: c, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{l.label} ↗</a>)}
+              {links.map(([l, v]) => <a key={l.key} href={dkLinkHref(l.key, v)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", padding: "8px 14px", borderRadius: 999, border: `1px solid ${dHexA(c, 0.4)}`, background: "transparent", color: c, fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{l.label} ↗</a>)}
             </div>
           )}
         </div>
@@ -1069,8 +1124,11 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             {/* Activity — personal activities lead */}
             {tab === "activity" && (
               <section id="dk-activity" style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
-                <ProfileExtras d={d} owner={owner} />
-                <FeedBlock d={d} direction={direction} owner={owner} />
+                <div style={{ position: "relative", paddingLeft: 22 }}>
+                  <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
+                  <ProfileExtras d={d} owner={owner} />
+                  <FeedBlock d={d} direction={direction} owner={owner} />
+                </div>
               </section>
             )}
 
@@ -1078,37 +1136,53 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             {tab === (coach ? "about" : "signals") && (
               <React.Fragment>
                 <SignalsBand d={d} />
-                <section style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                    <DisciplinesBlock d={d} direction={direction} />
+                <section style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 40px 0" }}>
+                  <div style={{ position: "relative", paddingLeft: 22 }}>
+                    <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 40, alignItems: "start" }} className="dk-grid">
+                      <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
+                        <DisciplinesBlock d={d} direction={direction} />
+                      </div>
+                      <aside style={{ display: "flex", flexDirection: "column", gap: 34, position: "sticky", top: 96 }} className="dk-rail">
+                        <RecordsBlock d={d} />
+                        {!coach && <RelationBlock d={d} />}
+                      </aside>
+                    </div>
                   </div>
-                  <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail">
-                    <RecordsBlock d={d} />
-                    {!coach && <RelationBlock d={d} />}
-                  </aside>
                 </section>
               </React.Fragment>
             )}
 
             {/* Climb (member only) */}
             {!coach && tab === "climb" && (
-              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 24, alignItems: "start" }} className="dk-grid">
-                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}><ClimbBlock d={d} owner={owner} /></div>
-                <aside style={{ display: "flex", flexDirection: "column", gap: 24, position: "sticky", top: 96 }} className="dk-rail"><RecordsBlock d={d} /></aside>
+              <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
+                <div style={{ position: "relative", paddingLeft: 22 }}>
+                  <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 40, alignItems: "start" }} className="dk-grid">
+                    <div style={{ display: "flex", flexDirection: "column", gap: 34 }}><ClimbBlock d={d} owner={owner} /></div>
+                    <aside style={{ display: "flex", flexDirection: "column", gap: 34, position: "sticky", top: 96 }} className="dk-rail"><RecordsBlock d={d} /></aside>
+                  </div>
+                </div>
               </section>
             )}
 
             {/* Coaching (coach only) — services / certs (reviews on their own tab) */}
             {coach && tab === "coaching" && (
               <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
-                <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} view="coaching" onReviews={() => setTab("reviews")} /></div>
+                <div style={{ position: "relative", paddingLeft: 22 }}>
+                  <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
+                  <LvCoachBlocks d={d} light={false} owner={owner} view="coaching" onReviews={() => setTab("reviews")} />
+                </div>
               </section>
             )}
 
             {/* Reviews (coach only) — its own tab */}
             {coach && tab === "reviews" && (
               <section style={{ maxWidth: 1240, margin: "0 auto", padding: "14px 40px 0" }}>
-                <div style={dCard({ padding: "8px 24px 26px" })}><LvCoachBlocks d={d} light={false} owner={owner} view="reviews" /></div>
+                <div style={{ position: "relative", paddingLeft: 22 }}>
+                  <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
+                  <LvCoachBlocks d={d} light={false} owner={owner} view="reviews" />
+                </div>
               </section>
             )}
 
