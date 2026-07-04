@@ -239,6 +239,50 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-04 — Progress "Field Ledger" (#1535) · Marketplace "Classifieds" (#1536) · profile/boost polish (#1534)
+- **Waves 6 + 7 of the July redesign** — owner-picked from animated concept boards
+  (P1 "The Ledger" body + P2 "Field Report" verdict lead for Progress; M1
+  "Classifieds" structure + M2 "Masthead" portraits for the Marketplace); one spec
+  covers both: `docs/superpowers/specs/2026-07-04-progress-marketplace-ledger-design.md`.
+- **Progress hub "Field Ledger" (#1535).** `BSClientProgress` serialized zero-box;
+  **heat = the member's tier, line-only**. THE VERDICT — the old `BSClientNextPlate`
+  plate becomes a serif verdict lead (engine data + honest gating verbatim); KPI
+  grids → **eyebrow-above-figure ledger registers** (`BSTLedgerStat` count-ups;
+  composites like `6/7` stay static — never fabricated mid-count values); the trend
+  card → mono series toggles + a line-only **self-drawing** `BSProgChart` (the
+  9-color series palette, macro colors, muscle palette, area gradient, and delta
+  chips all died); PRs/measurements/foods → dot-leader rows (PR rows gain keyboard
+  activation); weekly-focus + `BSWeekendsCard` → zero-box stations (the flagged
+  weekend gap keeps semantic rust); volume/calorie/hydration bars → heat fills with
+  one-shot grow entrances; `BSStrengthCard` chrome → a ledger station row (single
+  consumer verified; data/hook verbatim); tabs → a typographic index (deliberately
+  NOT sticky — `BSDetailHeader` owns the sticky top). Every empty case renders a
+  `BSTRedact` redaction line; `BSPROG_EMPTY` signed-in zeroing unchanged; zero
+  infinite loops; keyframes injected via `useInsertionEffect`. **Dead code:** the
+  `embedded` (Me→Stats) mode removed — both remaining consumers are full-page.
+- **Marketplace "Classifieds" (#1536).** `BSMarketplaceScreen` — **heat = each
+  coach's ROLE** (trainer rust / nutritionist gold, the feed's declaration),
+  line-only; page chrome keeps the teal brand accent. THE CLASSIFIEDS eyebrow +
+  an **underline search** + a typographic role index (pill chrome died, incl. the
+  `MktPill` component); **Coach of the Week → a role-spined FEATURE** with a
+  duotone-framed portrait (M2 graft), serif byline + role-heat period, inline
+  ledger stats, the tracklist, an underlined action; the featured 2-up gradient
+  cards → **portrait cells** (framed photo w/ role spine + initials fallback);
+  results → dense **classifieds rows** (role spine · mono index · serif name ·
+  dot leader → rate; role always NAMED in the meta, never color-only; ≥44px rows);
+  What's-hot pills → mono underline toggles; the apply CTAs → amber-spined
+  notices (semantic recruiting accent, text demoted to ink). All commerce/search/
+  filter/tap-through handlers verbatim — the Signal profile it opens is unchanged.
+- **Owner calls this session:** the coach **Signal profile KEEPS its sigil design**
+  — the Route Card parity ("Rate Card") concept is shelved with its preview parked;
+  instead the follow row moved under the name block, the Terrain ridge avatar grew
+  46→60px, and the live-boost sheet gained more workout quick-hits + cooking
+  conversation starters (**#1534**).
+- Verified per PR: JSX parse · PowerShell mobile build exit 0 · 382/382 tests · LF.
+  War Room: waves 6-7 registered done; the wave 6-7 **on-device pass** (Black/Sage/
+  Cream — tier-heat trace legibility, role spines, portrait frames, 320px listing
+  density, reduced motion) registered as the standing manual item.
+
 ### 2026-07-04 — Terrain profile "Route Card" redesign (#1531 spec · #1532 build)
 - **The mobile member profile (`BSTerrainProfile`) serialized into the Open Ledger /
   Wire Dispatch language** — wave 4 of the July redesign (after Session Details #1523,
