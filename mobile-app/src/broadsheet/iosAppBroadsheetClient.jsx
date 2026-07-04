@@ -6,6 +6,7 @@ import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/r
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { shapeStepsPoints } from '../services/shapeSteps.mjs';
 import { bsSdSplitUnit, bsSdRankStats, bsSdNeedle } from '../services/sessionLedger.mjs';
+import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 // iosAppBroadsheetClient.jsx — Client role: Home, Train, Eat, Chat, Me
 // Uses primitives from iosAppBroadsheet.jsx via window globals.
@@ -2135,6 +2136,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
+  const [stepsHistory, setStepsHistory] = useStateBSC(false); // STEPS door → BSStepsHistory overlay (Home now owns this; BSStepsCard's own copy was deleted with its mount)
+  // Hoisted OUT of the render body's door-shelf IIFE — useBSStepsToday() is a
+  // React hook (uses useStateBSC/useBSStepGoal internally) and must be called
+  // unconditionally at the top level, never inside JSX below the early-return
+  // overlays. Step 3's shelf JSX reads this const directly.
+  const stepsToday = useBSStepsToday();
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [weekStat, setWeekStat] = useStateBSC(null); // tapped Week-totals card → detail sheet
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
@@ -2422,18 +2429,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     ? 'Log a meal to see where today lands against your goal.'
     : (hasLiveBalance ? energy.tail : `${macros.note} ${energy.tail}`);
 
-  // Context handed to the customizable card stack so each card builds from live
-  // signals. `energy` here is the goal-aware model computed above.
-  const homeCardsCtx = { t, ticker, analytics, energy, energyAccent, energyCaption, noLiveToday };
-  const homeCardOpeners = {
-    training: goTrain,
-    consistency: goScore,
-    energy: undefined,
-    recovery: goIntegrations,
-    protein: undefined,
-    mood: () => setShowMood(true),
-  };
-
   if (previewMeal) {
     return <BSMealPreview meal={previewMeal} onBack={() => setPreviewMeal(null)} onLog={() => { setMealToLog(previewMeal); setShowLogMeal(true); setPreviewMeal(null); }} />;
   }
@@ -2489,16 +2484,39 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     }[engineFlag.lever]) : null;
     const todo = [];
     if (engineMove) todo.push({ head: engineMove.head, sub: [engineFlag.reason, engineMove.stakes].filter(Boolean).join(' · '), cta: engineMove.cta, c: engineMove.c, engine: true });
-    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST });
-    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id }));
+    if (selWorkout && selWorkout.title) todo.push({ label: selWorkout.title, cta: ["I'll train today →", () => setShowWorkoutPreview(true)], c: t.RUST, workout: true });
+    selMeals.filter(m => !mealLogged[m.id]).forEach(m => todo.push({ label: `Log ${m.title}`, cta: ["I'll log it →", () => { setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }], c: _teal, mealId: m.id, meal: m }));
     const habitsLeft = selDayHabits.filter(h => !h.done).length;
     if (habitsLeft > 0) todo.push({ label: `${habitsLeft} habit${habitsLeft > 1 ? 's' : ''} to finish`, cta: ["I'll finish my habits →", () => setHabitsPage(true)], c: t.GREEN });
     // Kept-promise echo: when everything's logged, close the loop on the day's pledge.
-    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN };
+    if (!todo.length) return { done: true, head: "You kept your word today.", sub: "Everything you said you'd do — done.", c: t.GREEN, leadIsWorkout: false, leadMeal: null };
     const lead = todo[0];
-    return { head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c, sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null), heroMealId: lead.mealId || null };
+    return {
+      head: lead.engine ? lead.head : lead.label, cta: lead.cta, c: lead.c,
+      sub: lead.engine ? lead.sub : (todo.length > 1 ? `${todo.length - 1} more on today's plan` : null),
+      heroMealId: lead.mealId || null,
+      // Lead-identity flags (Task 4 reads these to suppress the slate's echo row's
+      // second interactive surface — the double-feature fix).
+      leadIsWorkout: !!lead.workout,
+      leadMeal: lead.meal || null,
+    };
   })();
 
+  // Compact 3-move list for the LEAD plate when lead=workout (mirrors the
+  // slate TRAINING row's own list — same source, same 3-move truncation — so
+  // the lead and the slate never disagree on what "today's workout" is).
+  const _wkCompactLead = (() => {
+    if (!(todayDirective && todayDirective.leadIsWorkout && selWorkout)) return [];
+    const moves = (selWorkout.detail && selWorkout.detail.moves) || [];
+    const compact = moves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
+    if (moves.length > 3) compact.push(['+', `+ ${moves.length - 3} more`, moves.slice(3).map((m) => m.name).slice(0, 3).join(' · '), '']);
+    return compact;
+  })();
+
+  // ── ANTI-ACCRETION CONTRACT ────────────────────────────────────────────
+  // Do not add a plate. If it can't be a row, it lives on a tab and gets at
+  // most a row-door.
+  // ────────────────────────────────────────────────────────────────────────
   return (
     <BSPage>
       <BSMasthead
@@ -2612,45 +2630,34 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </div>
       </div>
 
-      {/* TODAY — the daily check-in + hydration box lives on its OWN page; this
-          notification-style door (due vs logged-aware) leads the card list,
-          right under the week calendar. */}
-      <BSTodayNudge onOpen={() => setTodayPage(true)} />
-
-      {/* From your coach — pushed items (meals/workouts) from coach_pushed_items */}
-      {/* (RLS-scoped to me). The coach's focus-banner note renders in the Op-ed below. */}
-      {coachFeed.items.length > 0 && (
-        <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: t.ACCENT, marginBottom: 10 }}>
-            From your coach
-          </div>
-          {coachFeed.items.length > 0 && (
-            <div style={{ marginTop: 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>
-                For today
-              </div>
-              {coachFeed.items.map(it => {
-                const p = it.payload || {};
-                const isMeal = it.kind === 'meal';
-                const meta = isMeal
-                  ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
-                  : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
-                return (
-                  <BSPlate key={it.id} c={isMeal ? (t.isLight ? '#0a8f87' : '#34d6c5') : t.RUST} notch={8} spine={2.5} pad="10px 12px 10px 16px" style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 500, color: t.INK }}>{p.name}</div>
-                    {meta && <div style={{ fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.06em', color: t.INK50, marginTop: 2 }}>{meta}</div>}
-                    {(p.cue || p.note) && <div style={{ fontSize: 12, color: t.INK50, marginTop: 4, fontStyle: 'italic' }}>"{p.cue || p.note}"</div>}
-                  </BSPlate>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      {/* BULLETINS — max 2 slim one-liners, ABOVE the lead. Each suppressed
+          per-lever, not by whether a lead exists at all (the spec: bulletins
+          suppress "when the lever they represent is already the lead"). The
+          daily check-in bulletin is NOT gated externally here — BSTodayNudge's
+          variant="bulletin" already self-gates on `useBSCheckinLogged()`
+          internally (returns null once logged), so the only external
+          suppression needed is the engine's `checkin` lever leading. Calling
+          useBSCheckinLogged() again here would be a second hook instance
+          racing the same async fetch against BSTodayNudge's own — deleted, not
+          duplicated. Same per-lever suppression on the weekly bulletin: it
+          hides only when the engine's `checkin` lever is the lead, not
+          whenever ANY lead exists (a workout/meal/habit lead must not eat the
+          weekly check-in's only Home surface). Urgency earns height;
+          completion demotes to an index row (Task 5, INSIDE.). */}
+      {!(engineFlag && engineFlag.lever === 'checkin') && (
+        <BSTodayNudge onOpen={() => setTodayPage(true)} variant="bulletin" />
+      )}
+      {checkinDue && !(engineFlag && engineFlag.lever === 'checkin') && (
+        <BSHomeBulletin label="Weekly check-in due" detail="2 min" onOpen={() => setCheckinPage(true)} />
       )}
 
-      {/* TODAY · YOUR MOVE — the single elevated hero. One right action for today:
-          the signal engine's top flag when it has one, else the plan's next move.
-          Everything below steps down a level (this is the only glowing plate). */}
+      {/* ★ THE LEAD — the single elevated hero, the ONLY BSPlate on the page.
+          One right action for today: the signal engine's top flag when it has
+          one, else the plan's next move. Lead=workout carries the compact
+          3-move list + the first-person CTA + a quiet mono PREVIEW → link into
+          the existing workout preview. Lead=meal carries title + macros + its
+          CTA. Done-state ("You kept your word today.") still renders — the
+          fold is never empty. */}
       {todayDirective && (
         <BSPlate c={todayDirective.c} tick bracket pad="13px 18px 13px 24px" data-tour="hero-home" style={{ margin: `10px ${t.padX}px 6px`, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -2659,55 +2666,62 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           </div>
           <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 22, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK }}>{todayDirective.head}</div>
           {todayDirective.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{todayDirective.sub}</div>}
+          {todayDirective.leadIsWorkout && _wkCompactLead.length > 0 && (
+            <div style={{ marginTop: 9 }}>
+              {_wkCompactLead.map(([n, name, sub, wt], i, arr) => (
+                <div
+                  key={`lead-${n}-${i}`}
+                  onClick={() => setShowWorkoutPreview(true)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowWorkoutPreview(true); } }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${name} — open workout preview`}
+                  style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
+                  </div>
+                  {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
+                </div>
+              ))}
+            </div>
+          )}
+          {todayDirective.leadMeal && todayDirective.leadMeal.kcal > 0 && (
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>
+              {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
+            </div>
+          )}
           {todayDirective.cta && (
-            <button onClick={todayDirective.cta[1]} style={{ marginTop: 10, padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <button onClick={todayDirective.cta[1]} style={{ padding: '10px 17px', borderRadius: 9, border: `1px solid ${todayDirective.c}`, background: `${todayDirective.c}1f`, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{todayDirective.cta[0]}</button>
+              {todayDirective.leadIsWorkout && (
+                <button onClick={() => setShowWorkoutPreview(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Preview →</button>
+              )}
+            </div>
           )}
         </BSPlate>
       )}
 
-      {/* YOUR GOAL — the featured goal card (moved off the profile; the profile
-          is identity-only now). Taps into the full Goals page. */}
-      <div style={{ margin: `3px ${t.padX}px 9px` }}>
-        <BSMeGoalCard c={t.isLight ? '#0a8f87' : '#34d6c5'} onOpen={() => setGoalsPage(true)} compact />
-      </div>
+      {/* The day's plan beneath the move. The slate header below (its kicker
+          shows upNextLabel on non-today views) is the single label surface now —
+          the old BSSection duplicate here was removed (Roll-up c). */}
 
-      {/* The day's plan beneath the move. The section header shows only on
-          non-today views — the "Your move" hero owns the single "Today" narrative. */}
-      {selIdx !== todayIdx && <BSSection title={upNextLabel} />}
-
+      {/* TODAY'S SLATE — one time-ordered run-sheet. Admission test: "is this
+          scheduled to happen TODAY?" Rows, not cards. Anti-accretion: a future
+          feature may claim a slate row only by passing that test; otherwise it
+          lives on a tab and gets at most an index row / shelf door (see §5). */}
       {(() => {
         const teal = t.isLight ? '#0a8f87' : '#34d6c5';
         const rust = t.RUST;
-        // "Up next" cards ride the shared instrument plate (chrome's BSPlate).
-        const AgendaCard = ({ c, children }) => (
-          <BSPlate c={c} tick bracket pad="11px 16px 11px 22px" style={{ margin: `0 ${t.padX}px 9px` }}>{children}</BSPlate>
-        );
-        const pillFilled = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
-        const pillOutline = { flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
-        const eyebrow = (c) => ({ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c });
-        const metaRight = { fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 };
-        const Person = ({ init, name, role, fill }) => (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-            <BSAvatar init={init} size={30} fill={fill} ink={t.PAPER} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{role}</div>
-            </div>
-          </div>
-        );
-        // Coach-scheduled times for each item (24h minutes) — drive both the
-        // displayed time and the order (earliest first). The workout is today's
-        // actual session (shared week); the meal follows the client's lunch-time
-        // preference so it stays in sync with the day-log.
+        // Coach-scheduled times (24h minutes) drive both the displayed time and
+        // the sort order — carried verbatim from the pre-slate AgendaCard block.
         const _wkAt = (selWorkout && selWorkout.time && selWorkout.time !== '—') ? selWorkout.time : '09:00';
         const [_wkH, _wkM] = String(_wkAt).split(':').map(Number);
         const WORKOUT_AT = (Number.isNaN(_wkH) ? 9 : _wkH) * 60 + (Number.isNaN(_wkM) ? 0 : _wkM);
-        const _wkMoves = (selWorkout && selWorkout.detail && selWorkout.detail.moves) || [];
         const _wkShortMeta = (selWorkout && selWorkout.detail && selWorkout.detail.meta)
           ? selWorkout.detail.meta.split(' · ').slice(0, 3).join(' · ')
           : (selWorkout && selWorkout.sub) || '';
-        const _wkCompact = _wkMoves.slice(0, 3).map((m, i) => [String(i + 1).padStart(2, '0'), m.name, String(m.scheme || '').replace(' rest', ''), m.load || '']);
-        if (_wkMoves.length > 3) _wkCompact.push(['+', `+ ${_wkMoves.length - 3} more`, _wkMoves.slice(3).map(m => m.name).slice(0, 3).join(' · '), '']);
         const _lunchPref = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get().LUNCH) || '12:40';
         const [_lh, _lm] = String(_lunchPref).split(':').map(Number);
         const MEAL_AT = (Number.isNaN(_lh) ? 12 : _lh) * 60 + (Number.isNaN(_lm) ? 40 : _lm);
@@ -2717,56 +2731,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const h12 = h % 12 === 0 ? 12 : h % 12;
           return `${h12}:${String(m).padStart(2, '0')} ${ap}`;
         };
-        const workoutCard = selWorkout ? (
-          <AgendaCard c={rust}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(rust)}>Workout · {fmtAt(WORKOUT_AT)}</span>
-              <span style={metaRight}>{_wkShortMeta}</span>
-            </div>
-            <div onClick={() => setShowWorkoutPreview(true)} style={{ cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
-              {selWorkout.title}
-            </div>
-            {_wkCompact.length > 0 && (
-              <div style={{ marginTop: 9 }}>
-                {_wkCompact.map(([n, name, sub, wt], i, arr) => (
-                  <div key={`${n}-${i}`} onClick={() => setShowWorkoutPreview(true)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK50 }}>{n}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{name}</div>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, marginTop: 2 }}>{sub}</div>
-                    </div>
-                    {wt ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{wt}</span> : <span />}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <button onClick={() => setShowWorkoutPreview(true)} style={pillOutline}>Preview →</button>
-                <button onClick={() => goTrain?.()} style={pillFilled}>Start →</button>
-              </div>
-            </div>
-          </AgendaCard>
-        ) : (
-          <AgendaCard c={t.GREEN}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(t.GREEN)}>Recovery · today</span>
-              <span style={metaRight}>Rest day</span>
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 7 }}>
-              Active <span style={{ fontStyle: 'italic', color: t.GREEN }}>recovery.</span>
-            </div>
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45 }}>
-              No session today — an easy walk and 10 minutes of mobility keeps the streak alive.
-            </div>
-            <div style={{ marginTop: 13, paddingTop: 12, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <Person init="J" name="Jordan Chen" role="Coach" fill={rust} />
-              <button onClick={() => goChat('Jordan Chen', 'Coach · Hypertrophy')} style={pillOutline}>Message →</button>
-            </div>
-          </AgendaCard>
-        );
-        // One card per meal of the selected day — same chrome as the workout card.
         const mealMinutes = (m) => {
           const [h, mm] = String(m.time || '').split(':').map(Number);
           if (!Number.isNaN(h)) return h * 60 + (Number.isNaN(mm) ? 0 : mm);
@@ -2781,215 +2745,304 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const h = Math.floor(mealMinutes(m) / 60);
           return h < 11 ? 'Breakfast' : h < 15 ? 'Lunch' : h < 17 ? 'Snack' : 'Dinner';
         };
-        // ONE meals card — every meal of the day, sectioned off inside the same
-        // chrome as the workout card. Tap a meal → its preview; per-meal Log →.
-        const mealsDayWord = selIdx === todayIdx ? 'Today’s' : `${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][weekDates[selIdx].getDay()]}’s`;
-        const mealsLogged = selMeals.filter(m => mealLogged[m.id]).length;
-        const mealsCard = selMeals.length ? (
-          <AgendaCard c={teal}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={eyebrow(teal)}>Meals · {mealsLogged}/{selMeals.length} logged</span>
-              <span style={{ ...metaRight, letterSpacing: '0.16em' }}>Nutri plan</span>
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK, marginTop: 5 }}>
-              {mealsDayWord} <span style={{ fontStyle: 'italic', color: teal }}>meals.</span>
-            </div>
-            {/* GLANCE — the next meal only; the rest live in Eat (one tap). Logging
-                the next meal is the hero's job, so no duplicate Log button when the
-                hero already targets it. */}
-            {(() => {
-              const next = selMeals.find(m => !mealLogged[m.id]) || selMeals[0];
-              const more = selMeals.length - 1;
-              const logged = !!mealLogged[next.id];
-              const isHeroTarget = !!(todayDirective && todayDirective.heroMealId === next.id);
-              return (
-                <>
-                  <div style={{ marginTop: 4, padding: '8px 0 9px', borderBottom: more > 0 ? `1px solid ${t.HAIR}` : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{logged ? 'Latest' : 'Next'} · {slotLabel(next)} · {fmtAt(mealMinutes(next))}</span>
-                      {logged && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>✓ Logged</span>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 5 }}>
-                      <div onClick={() => setPreviewMeal(next)} style={{ cursor: 'pointer', minWidth: 0, flex: 1 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.05, letterSpacing: '-0.02em', color: t.INK, opacity: logged ? 0.55 : 1 }}>{next.title}</div>
-                        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{next.sub}</div>
-                      </div>
-                      {!logged && (isHeroTarget
-                        ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, border: `1px solid ${teal}`, borderRadius: 999, padding: '6px 11px' }}>Next ↑</span>
-                        : <button onClick={() => { setMealToLog(next); setLoggingMealId(next.id); setShowLogMeal(true); }} style={{ ...pillFilled, padding: '8px 13px' }}>Log →</button>)}
-                    </div>
-                  </div>
-                  {more > 0 && (
-                    <button onClick={() => goEat()} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: '11px 0 1px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{more} more meal{more > 1 ? 's' : ''} today</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>Open Eat →</span>
-                    </button>
-                  )}
-                </>
-              );
-            })()}
-            <div style={{ marginTop: 8, paddingTop: 9, borderTop: `1px solid ${t.RULE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              {(() => {
-                // Credit the real assigning nutritionist when a live plan exists.
-                const who = (livePlan && livePlan.meals && livePlan.meals.coach) || 'Dr. Maya Patel';
-                return <Person init={who.replace(/^Dr\.?\s+/i, '').charAt(0).toUpperCase() || 'M'} name={who} role="Nutritionist" fill={t.AMBER} />;
-              })()}
-              <button onClick={() => goEat()} style={pillOutline}>Full plan →</button>
-            </div>
-          </AgendaCard>
-        ) : null;
-        const firstMealAt = selMeals.length ? Math.min(...selMeals.map(mealMinutes)) : MEAL_AT;
-        const agenda = [
-          { at: WORKOUT_AT, k: 'workout', node: workoutCard },
-          ...(mealsCard ? [{ at: firstMealAt, k: 'meals', node: mealsCard }] : []),
-        ].sort((a, b) => a.at - b.at);
-        return <>{agenda.map((x) => <React.Fragment key={x.k}>{x.node}</React.Fragment>)}</>;
-      })()}
-
-      {/* HABITS — one agenda-style plate (same chrome as the workout/meal cards);
-          tapping anywhere opens the full habits page (check-off lives there) */}
-      {(() => {
-        const done = selDayHabits.filter(h => h.done).length;
-        const pts = selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0);
-        const possible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
-        const openHabits = selDayHabits.filter(h => !h.done); // completed habits leave the card
-        return (
-          <div data-tour="hero-habits" style={{ margin: `0 ${t.padX}px 9px` }}>
-            <BSPlate c={t.GREEN} notch={11} spine={3} bracket pad="12px 15px 12px 20px"
-              onClick={() => setHabitsPage(true)} role="button" tabIndex={0} ariaLabel="Open daily habits"
-              onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHabitsPage(true); } }}
-              style={{ textAlign: 'left' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.GREEN }}>Habits{selDayHabits.length > 0 ? ` · ${done}/${selDayHabits.length} done` : ''}</span>
-              {possible > 0 && (
-                <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{pts} / {possible} pts</span>
-              )}
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, lineHeight: 1.1, letterSpacing: '-0.02em', color: t.INK }}>Daily habits<span style={{ color: t.GREEN }}>.</span></div>
-            {/* Transient credit after checking a habit — the points land, the row leaves */}
-            {habitFlash && (
-              <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>✓ +{habitFlash.pts} pts → Shape Score</div>
-            )}
-            {selDayHabits.length === 0 ? (
-              <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
-                Tap to add your first habit.
-              </div>
-            ) : openHabits.length === 0 ? (
-              <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>
-                All done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{pts} pts</span> banked today.
-              </div>
-            ) : (
-              <div style={{ marginTop: 8 }}>
-                {/* First 3 open habits — check off inline; the full list lives in Habits via "View all". */}
-                {openHabits.slice(0, 3).map((h, i, arr) => {
-                  const avoid = h.type === 'avoid';
-                  const pillC = avoid ? t.RUST : t.GREEN;
-                  const last = i === arr.length - 1 && openHabits.length <= 3;
-                  return (
-                    <div key={`${h.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: last ? 0 : `1px solid ${t.HAIR}` }}>
-                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: pillC, background: `${pillC}1a`, borderLeft: `2px solid ${pillC}`, padding: '3px 7px' }}>{avoid ? 'Avoid' : 'Do'}</span>
-                      <div style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>+{Math.round(h.pts)}</span>
-                      <button onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }} aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'} style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}>{h.live ? '' : '🔒'}</button>
-                    </div>
-                  );
-                })}
-                {openHabits.length > 3 && (
-                  <div style={{ padding: '8px 0 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>+{openHabits.length - 3} more</div>
-                )}
-              </div>
-            )}
-            <div style={{ marginTop: 10, paddingTop: 9, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.GREEN }}>View all →</span>
-            </div>
-            </BSPlate>
-          </div>
+        // Ghost log-tick — the 36px inline control cell for a MEAL row's `right`
+        // slot. Carries the exact tap targets the old mealsCard glance used
+        // (setMealToLog/setLoggingMealId/setShowLogMeal), plus the LOGGED state.
+        // Plain element factory (called, not mounted as a component type) so its
+        // per-render identity can't remount the tick subtree.
+        const mealTick = (m, logged) => logged ? (
+          <span aria-hidden style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setMealToLog(m); setLoggingMealId(m.id); setShowLogMeal(true); }}
+            aria-label={`Log ${m.title}`}
+            style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, border: `1.5px solid ${teal}`, background: `${teal}12`, cursor: 'pointer', padding: 0 }}
+          />
         );
-      })()}
-
-      {/* SHAPE STEPS — the daily steps instrument (moved off the profile; it
-          belongs with the day's living metrics). Taps into the steps history. */}
-      <BSStepsCard />
-
-      {/* SHOP LIST — a quick door to this week's grocery list (built from the meals) */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        return (
-          <BSPlate c={teal} notch={9} spine={2.5} pad="13px 16px 13px 22px" role="button" ariaLabel="Open your shopping list" onClick={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Shop list · this week</div>
-                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 21, lineHeight: 1.04, letterSpacing: '-0.03em', color: t.INK }}>
-                  Your <span style={{ fontStyle: 'italic', color: teal }}>shopping list.</span>
-                </div>
-                <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>Auto-built from your meals · sorted by aisle</div>
+        // Untimed rows come after all timed rows (bsHomeSlateSort's contract);
+        // every row here carries a real `time` so this only matters if a future
+        // row type omits one — kept honest rather than assumed.
+        const rows = [];
+        // MEAL rows — one per selMeals meal. heroMealId suppresses the tick with
+        // the lead echo (no second interactive surface on the lead's subject).
+        selMeals.forEach((m) => {
+          const logged = !!mealLogged[m.id];
+          const isLead = !!(todayDirective && todayDirective.heroMealId === m.id);
+          rows.push({
+            key: `meal-${m.id}`,
+            time: fmtAt(mealMinutes(m)),
+            _sortAt: mealMinutes(m),
+            tag: 'MEAL', tagColor: teal,
+            title: m.title,
+            status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} kcal` : ''}`.replace(/ · $/, ''),
+            right: isLead ? 'lead' : mealTick(m, logged),
+            onOpen: () => setPreviewMeal(m),
+            ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? 'logged' : 'not logged'}`,
+          });
+        });
+        // TRAINING row — real duration status; lead echo when the lead IS the
+        // workout, else a quiet Start → link (training stays one tap). Rest day
+        // → the Active-recovery row (carried verbatim from the old rest-day
+        // branch's copy/tone, condensed to slate-row shape).
+        // Reads Task 3's authoritative leadIsWorkout flag — never re-derive lead
+        // status via a title-string comparison (todayDirective.head === selWorkout.title
+        // is fragile: it only happens to work because Task 3's todo.push sets
+        // label: selWorkout.title verbatim, and breaks silently the moment that
+        // coupling drifts).
+        const workoutIsLead = !!(todayDirective && todayDirective.leadIsWorkout);
+        if (selWorkout) {
+          rows.push({
+            key: 'slate-training',
+            time: fmtAt(WORKOUT_AT),
+            _sortAt: WORKOUT_AT,
+            tag: 'TRAINING', tagColor: rust,
+            title: selWorkout.title,
+            status: _wkShortMeta,
+            right: workoutIsLead ? 'lead' : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: rust }}>Start →</button>
+                <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
               </div>
-              <span style={{ flexShrink: 0, padding: '9px 16px', borderRadius: 9, border: `1px solid ${teal}`, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Open →</span>
-            </div>
-          </BSPlate>
-        );
-      })()}
-
-      {/* WEEKLY CHECK-IN — nudge plate when this week's check-in hasn't been sent */}
-      {checkinDue && (
-        <BSPlate c={t.ACCENT} tick pad="12px 16px 12px 22px" role="button" ariaLabel="Open the weekly check-in" onClick={() => setCheckinPage(true)} style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.ACCENT }}>Weekly check-in · due</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Tell your coach how the week went.</div>
-              <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Ratings · photos · measurements · 2 min</div>
-            </div>
-            <span style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 5, border: `1px solid ${t.ACCENT}`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Check in →</span>
-          </div>
-        </BSPlate>
-      )}
-
-      {/* WEEK TOTALS — running tally; tap a card for history / a chart */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        // Two high-signal totals (density pass) — training + nutrition; the full
-        // weekly breakdown (check-ins, consults, …) lives on the Progress page.
-        const weekTotals = [
-          { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
-            history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
-          { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
-            series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
-        ];
-        // These are hardcoded demo figures (not wired to real rollups yet) — show
-        // them only in the signed-out preview, never as fake stats to a real user.
-        if (bsHomeSignedIn) return null;
+            ),
+            onOpen: () => setShowWorkoutPreview(true),
+            ariaLabel: `${selWorkout.title}, training, ${_wkShortMeta}`,
+          });
+        } else {
+          rows.push({
+            key: 'slate-training',
+            time: '',
+            _sortAt: undefined,
+            tag: 'TRAINING', tagColor: t.GREEN,
+            title: 'Active recovery',
+            status: 'Rest day · walk + mobility',
+            right: undefined,
+            onOpen: undefined,
+            ariaLabel: 'Active recovery, rest day',
+          });
+        }
+        // COACH rows — pushed items from coach_pushed_items (payload taps carried
+        // verbatim from the deleted "From your coach" block).
+        (coachFeed.items || []).forEach((it) => {
+          const p = it.payload || {};
+          const isMeal = it.kind === 'meal';
+          const meta = isMeal
+            ? [p.time, p.kcal != null ? p.kcal + ' kcal' : null, p.protein != null ? p.protein + 'g P' : null].filter(Boolean).join(' · ')
+            : [p.sets, p.reps, p.tempo && ('Tempo ' + p.tempo)].filter(Boolean).join(' · ');
+          const atMins = bsHomeTimeMinutes(p.time);
+          rows.push({
+            key: `coach-${it.id}`,
+            time: p.time || '',
+            _sortAt: atMins == null ? undefined : atMins,
+            tag: 'COACH', tagColor: isMeal ? teal : rust,
+            title: p.name || (isMeal ? 'Meal from your coach' : 'Workout from your coach'),
+            status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
+            right: undefined,
+            onOpen: undefined,
+            ariaLabel: `Coach-pushed ${isMeal ? 'meal' : 'workout'}: ${p.name || ''}`,
+          });
+        });
+        // OPEN habit rows — up to 3, carried verbatim from the deleted HABITS
+        // plate: habit checkbox stopPropagation + the #1502 keyboard guard on
+        // the ROW (BSSlateRow's onKeyDown, first line: `if (e.target !==
+        // e.currentTarget) return;` — added in Task 2). The checkbox itself is
+        // a leaf control, not a container an event could bubble THROUGH before
+        // reaching it — it only needs stopPropagation on click (so the row's
+        // onOpen doesn't also fire) plus its own native <button> Enter/Space
+        // activation. Do NOT re-add the e.target!==e.currentTarget guard on
+        // the checkbox's own onKeyDown — a bare <button> has no children for a
+        // keypress to bubble up FROM, so that guard there is meaningless (it
+        // would always be true) and duplicates logic that already lives one
+        // level up, on the row.
+        const habitsDone = selDayHabits.filter(h => h.done).length;
+        const habitsPts = selDayHabits.filter(h => h.done).reduce((a, h) => a + Math.round(h.pts), 0);
+        const habitsPossible = selDayHabits.reduce((a, h) => a + Math.round(h.pts), 0);
+        const openHabits = selDayHabits.filter(h => !h.done);
+        openHabits.slice(0, 3).forEach((h) => {
+          const avoid = h.type === 'avoid';
+          const pillC = avoid ? t.RUST : t.GREEN;
+          rows.push({
+            key: `habit-${h.id || h.name}`,
+            time: '', _sortAt: undefined,
+            tag: avoid ? 'AVOID' : 'DO', tagColor: pillC,
+            title: h.name,
+            status: `+${Math.round(h.pts)} pts`,
+            right: (
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
+                aria-label={h.live ? `Mark ${h.name} done` : 'Demo habits — open the habits page'}
+                style={{ width: 26, height: 26, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 11, lineHeight: 1 }}
+              >{h.live ? '' : '🔒'}</button>
+            ),
+            onOpen: () => setHabitsPage(true),
+            ariaLabel: `${avoid ? 'Avoid' : 'Do'}: ${h.name}, worth ${Math.round(h.pts)} points, ${h.done ? 'done' : 'open'}`,
+          });
+        });
+        const timedRows = rows.filter((r) => r._sortAt !== undefined).sort((a, b) => a._sortAt - b._sortAt);
+        const untimedRows = rows.filter((r) => r._sortAt === undefined);
+        const sortedRows = bsHomeSlateSort([...timedRows, ...untimedRows]);
         return (
           <>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
-              <BSEyebrow color={teal}>Weekly totals</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>So far</div>
+            <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▤ Today's slate</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{upNextLabel}</span>
+              </span>
+              <button onClick={() => goEat()} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 4, border: `1px solid ${teal}66`, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>Eat →</button>
             </div>
-            <div style={{ padding: `10px ${t.padX}px 4px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-              {weekTotals.map(s => {
-                const pct = Math.max(0, Math.min(1, s.v / s.max));
-                return (
-                  <BSPlate key={s.l} c={s.c} notch={9} spine={2.5} pad="11px 11px 9px 13px" role="button" ariaLabel={`${s.l} — view detail`} onClick={() => setWeekStat(s)} style={{ textAlign: 'left' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.l}</span>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', color: t.INK50, fontWeight: 600 }}>/ {s.max.toLocaleString()}</span>
-                    </div>
-                    <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.04em', lineHeight: 1 }}>{s.v.toLocaleString()}</div>
-                    <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.HAIR, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct * 100}%`, height: '100%', background: s.c, borderRadius: 2 }} />
-                    </div>
-                    {s.goalFrame
-                      ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.c, fontWeight: 700 }}>{s.goalFrame}</div>
-                      : <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>View {s.chart ? 'chart' : 'history'} →</div>}
-                  </BSPlate>
-                );
-              })}
+            <div style={{ padding: `0 ${t.padX}px 4px` }}>
+              <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
             </div>
+            <div data-tour="hero-habits">
+              {sortedRows.length === 0 ? (
+                <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>Nothing scheduled for today.</div>
+              ) : sortedRows.map((r, i) => (
+                <BSSlateRow key={r.key} index={i} time={r.time} tag={r.tag} tagColor={r.tagColor} title={r.title} status={r.status} right={r.right} onOpen={r.onOpen} ariaLabel={r.ariaLabel} />
+              ))}
+              {openHabits.length > 3 && (
+                <button onClick={() => setHabitsPage(true)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: `10px ${t.padX}px`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}` }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>+{openHabits.length - 3} more habit{openHabits.length - 3 > 1 ? 's' : ''}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.GREEN, fontWeight: 800 }}>View all →</span>
+                </button>
+              )}
+              {selDayHabits.length === 0 && (
+                <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
+                  <button onClick={() => setHabitsPage(true)} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.GREEN, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>+ Add your first habit →</button>
+                </div>
+              )}
+              {selDayHabits.length > 0 && openHabits.length === 0 && (
+                <div style={{ padding: `10px ${t.padX}px 4px`, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>
+                  All habits done — <span style={{ color: t.GREEN, fontWeight: 700 }}>+{habitsPts} pts</span> banked today.
+                </div>
+              )}
+              {habitFlash && (
+                <div style={{ margin: `8px ${t.padX}px 0`, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 4, background: `${t.ACCENT}1f`, border: `1px solid ${t.ACCENT}55`, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em' }}>✓ +{habitFlash.pts} pts → Shape Score</div>
+              )}
+            </div>
+            {/* COACH WEEKLY NOTES — both notes as italic op-ed lines WITH bylines,
+                rendered INSIDE the slate section, after the rows. Fixes the
+                pre-existing demo-notes leak: the Jordan Chen / Dr. Maya Patel
+                fallback (formerly map lines 3086-3089) now renders signed-out
+                only — a signed-in account with no real coach banners yet sees
+                no notes at all, instead of fabricated samples. */}
+            {(() => {
+              const banners = coachFeed.banners || [];
+              const dayOf = (b) => {
+                if (!b || !b.sent_at) return 'Mon';
+                const d = new Date(b.sent_at);
+                return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
+              };
+              const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
+              const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
+              const notes = [];
+              if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
+              if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
+              // No real notes yet: the sample-note fallback is signed-out preview
+              // ONLY (the fix — was unconditional before this task).
+              if (!notes.length && !bsHomeSignedIn) {
+                notes.push({ role: 'trainer', text: "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.", who: 'Jordan Chen', when: 'Mon' });
+                notes.push({ role: 'nutritionist', text: "Three weeks of steady protein — it's working. Keep breakfast above 35g and we'll carry the momentum into the next block.", who: 'Dr. Maya Patel', when: 'Mon' });
+              }
+              if (!notes.length) return null;
+              return (
+                <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {notes.map((n, i) => (
+                    <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
+                      &ldquo;{n.text}&rdquo;
+                      <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
+                        — {n.who} · {n.role === 'nutritionist' ? 'Nutritionist' : 'Trainer'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </>
         );
       })()}
 
-      {/* PROGRESS — a slim door to the full progress hub (moved off the profile) */}
-      <BSProgressDoor onOpen={() => setHomeProgressPage(true)} />
+      {/* § INSIDE. — everything else lives here: index rows (live figure + door)
+          and the shelf doors. Per the Front-Page Rule: do not add a plate here. If
+          it can't be a row, it lives on a tab and gets at most a row-door. */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        return (
+          <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 20, letterSpacing: '-0.02em', color: t.INK }}>
+              Inside<span style={{ color: teal, fontStyle: 'italic' }}>.</span>
+            </span>
+            <div aria-hidden style={{ height: 2, marginTop: 8, background: `linear-gradient(90deg, ${t.INK}, ${teal} 58%, transparent)` }} />
+          </div>
+        );
+      })()}
+
+      {/* The INSIDE. index-rows block fades in as ONE quiet unit (not per-row) —
+          #1518-pattern keyframe, reduced-motion-gated. */}
+      <div style={{ ...(bsSdReduced() ? null : { animation: 'bsHomeIndexIn 220ms ease-out both' }) }}>
+        {/* WEEKLY TOTALS → two index rows. Same payloads as the old tile grid — the
+            weekStat portal sheet below is unchanged and reads these objects as-is.
+            Signed-out-only gate carried verbatim from the deleted tile grid. */}
+        {(() => {
+          // These are hardcoded demo figures (not wired to real rollups yet) — show
+          // them only in the signed-out preview, never as fake stats to a real user.
+          if (bsHomeSignedIn) return null;
+          const weekTotals = [
+            { l: 'Sessions', v: 4, max: 5, c: t.RUST, unit: 'sessions',
+              history: [['Mon', 'Upper Push — Peak', 'Done'], ['Tue', 'Lower Pull — Vol.', 'Done'], ['Thu', 'Upper Pull — Peak', 'Done'], ['Sat', 'Z2 run · 45m', 'Done'], ['Sun', 'Lower Push — Peak', 'Scheduled']] },
+            { l: 'Avg kcal', v: 1890, max: 2100, c: t.BLUE, unit: 'avg kcal', chart: true, goalFrame: 'In your deficit · on track',
+              series: [['M', 1820], ['T', 2010], ['W', 1760], ['T', 1980], ['F', 1890], ['S', 2140], ['S', 1830]] },
+          ];
+          return (
+            <>
+              {/* weekTotals[0] (Sessions) carries no goalFrame field (only Avg kcal
+                  does) — give it a real status string matching the old tile's own
+                  affordance copy ("View history →" in its footer) rather than
+                  leaving status undefined (a blank status reads as a rendering
+                  bug, not a deliberate omission). */}
+              <BSIndexRow label="Sessions" figure={`${weekTotals[0].v}/${weekTotals[0].max}`} status="View history ›" onOpen={() => setWeekStat(weekTotals[0])} />
+              <BSIndexRow label="Avg kcal" figure={`${weekTotals[1].v.toLocaleString()}/${weekTotals[1].max.toLocaleString()}`} status={weekTotals[1].goalFrame} onOpen={() => setWeekStat(weekTotals[1])} />
+            </>
+          );
+        })()}
+
+        {/* CHECK-IN residue — BSTodayNudge's row variant; only renders once today's
+            check-in is logged (the bulletin owns the due state, above the lead). */}
+        <BSTodayNudge variant="row" onOpen={() => setTodayPage(true)} />
+      </div>
+
+      {/* THE DOOR SHELF — STEPS · GOAL · PROGRESS · SHOP, horizontal snap-scroll,
+          3 visible + a 12px end-peek so the 4th door shows a sliver. Native buttons
+          in DOM order (VoiceOver traversal order == visual order).
+          `stepsToday` is read from the HOISTED const (Step 2, top of BSClientHome's
+          hooks block) — NOT called here. No hook may be called inside this render
+          IIFE (or anywhere in the main-return JSX): BSClientHome has 8 early-return
+          overlays above this point, so a hook called here would be skipped on those
+          renders and violate the Rules of Hooks. */}
+      {(() => {
+        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+        const openStepsDoor = () => {
+          if (stepsToday.hasData) { setStepsHistory(true); return; }
+          try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
+        };
+        const stepsFigure = stepsToday.todayKnown ? stepsToday.val.toLocaleString() : '—';
+        const stepsStatus = !stepsToday.hasData
+          ? 'Connect a watch'
+          : !stepsToday.todayKnown
+            ? 'No steps yet today'
+            : stepsToday.hit
+              ? 'Goal hit ✓'
+              : `${Math.max(0, stepsToday.goal - stepsToday.val).toLocaleString()} to go`;
+        return (
+          <>
+            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px`, paddingRight: `calc(${t.padX}px + 12px)`, overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
+              <BSShelfDoor c={teal} eyebrow="Steps" figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
+              <BSMeGoalCard c={teal} onOpen={() => setGoalsPage(true)} door />
+              <BSProgressDoor onOpen={() => setHomeProgressPage(true)} door />
+              <BSShelfDoor c={teal} eyebrow="Shop list" figure="→" status="By aisle" onOpen={() => { try { window.__bsPendingGrocery = true; } catch (e) {} goEat(); }} />
+            </div>
+            {stepsHistory && <BSStepsHistory onClose={() => setStepsHistory(false)} />}
+          </>
+        );
+      })()}
 
       {/* Week-stat detail sheet */}
       {weekStat && createPortal(
@@ -3061,60 +3114,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
                 </div>
               </>
             )}
-          </>
-        );
-      })()}
-
-      {/* THIS WEEK'S NOTE — coach's weekly note (trainer or nutritionist),
-          editable from their console and sent to specific clients
-          (coach_focus_banners, RLS-scoped). Falls back to an editorial line. */}
-      {(() => {
-        const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-        const banners = coachFeed.banners || [];
-        const dayOf = (b) => {
-          if (!b || !b.sent_at) return 'Mon';
-          const d = new Date(b.sent_at);
-          return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || 'Mon';
-        };
-        // Most-recent note from each role (banners arrive newest-first).
-        const trainerBanner = banners.find(b => b.provider_role !== 'nutritionist');
-        const nutriBanner = banners.find(b => b.provider_role === 'nutritionist');
-        const notes = [];
-        if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
-        if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
-        // No real notes yet → show a sample from each coach (the demo client has both).
-        if (!notes.length) {
-          notes.push({ role: 'trainer', text: "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.", who: 'Jordan Chen', when: 'Mon' });
-          notes.push({ role: 'nutritionist', text: "Three weeks of steady protein — it's working. Keep breakfast above 35g and we'll carry the momentum into the next block.", who: 'Dr. Maya Patel', when: 'Mon' });
-        }
-        return (
-          <>
-            <div style={{ padding: `${t.sectGap}px ${t.padX}px 4px` }}>
-              <BSEyebrow color={teal}>From your team</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{notes.length > 1 ? 'This week’s notes' : 'This week’s note'}</div>
-            </div>
-            <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {notes.map((n, i) => {
-                const isNutri = n.role === 'nutritionist';
-                return (
-                  <div key={i} style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.5, letterSpacing: '-0.01em' }}>
-                      &ldquo;{n.text}&rdquo;
-                    </div>
-                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                        <BSAvatar init={(n.who || 'C').charAt(0)} size={28} fill={isNutri ? t.AMBER : t.RUST} ink={t.PAPER} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{n.who}</div>
-                          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginTop: 1 }}>{isNutri ? 'Nutritionist' : 'Trainer'}</div>
-                        </div>
-                      </div>
-                      <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{n.when}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           </>
         );
       })()}
@@ -10504,6 +10503,28 @@ function bsInjectSessionDetailCss() {
   `;
   document.head.appendChild(el);
 }
+// ── Home "Front Page" — injected keyframes ────────────────────────────────
+// Slate rows stagger in (opacity + 4px rise); the INSIDE. index block fades as
+// one quiet unit; door slivers draw 0→pct via the bsHomeSliverIn keyframe
+// (scaleX from the left) on BSShelfDoor's sliver span. Only due-ticks pulse
+// (reuses the shared BSPlate tick keyframe — no new pulse here). All wrapped
+// in the reduced-motion media query per the #1518 pattern; every consumer
+// additionally gates its own inline `animation` with
+// `...(bsSdReduced() ? null : {...})`.
+let _bsHomeCssInjected = false;
+function bsInjectBsHomeCss() {
+  if (_bsHomeCssInjected || typeof document === 'undefined') return;
+  _bsHomeCssInjected = true;
+  const el = document.createElement('style');
+  el.textContent = `
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes bsHomeRowIn { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
+      @keyframes bsHomeIndexIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+      @keyframes bsHomeSliverIn { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+    }
+  `;
+  document.head.appendChild(el);
+}
 // Count-up number: rolls 0 → the value's numeric part (prefix/suffix kept, e.g.
 // "8,150 lb" · "3.2 mi"). Times ("42:15"), ranges, and non-numeric values render
 // static — a fabricated mid-count time would read as a different duration.
@@ -15789,12 +15810,22 @@ function BSSleepHistory({ onClose }) {
 // language: clipped notch, teal spine, corner bracket, and one colored tick per
 // section behind the door (streak teal · trends blue · training rust ·
 // nutrition gold). Compresses on press via the shared chip CSS.
-function BSProgressDoor({ onOpen }) {
+function BSProgressDoor({ onOpen, door = false }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   React.useInsertionEffect(() => { bsInjectFollowChipCss(); }, []);
   const clipN = (n) => `polygon(0 0, calc(100% - ${n}px) 0, 100% ${n}px, 100% 100%, 0 100%)`;
   const segs = [['Streak', teal], ['Trends', t.BLUE || (t.isLight ? '#3a6ea5' : '#5b9bd5')], ['Training', t.RUST || '#c0533b'], ['Nutrition', t.AMBER || '#d8b25a']];
+  if (door) {
+    const ticks = (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {segs.map(([lab, sc]) => (
+          <span key={lab} aria-hidden title={lab} style={{ width: 6, height: 6, borderRadius: 999, background: sc, flexShrink: 0 }} />
+        ))}
+      </span>
+    );
+    return <BSShelfDoor c={teal} eyebrow="Progress" figure={ticks} status="4 sections" onOpen={onOpen} />;
+  }
   return (
     <div className="bs-fa-wrap" style={{ margin: `2px ${t.padX}px 12px` }}>
       <button onClick={onOpen} aria-label="Open your progress" style={{ position: 'relative', display: 'block', width: '100%', border: 0, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', transition: 'transform 140ms ease' }}>
@@ -15820,20 +15851,205 @@ function BSProgressDoor({ onOpen }) {
   );
 }
 
-// Today instrument plate — the home daily check-in + hydration, consolidated into
-// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
-// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
-// when a wearable synced last night, else manual hour chips). Hydration folds in as a
-// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
-// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
-// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
-// TODAY nudge — the check-in + hydration box moved to its own page (BSTodayPage);
-// Home carries this compact notification-style door instead. Status-aware: "due"
-// until a MANUAL signal exists for today (same rule as the card — a wearable
-// syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
-function BSTodayNudge({ onOpen }) {
+// ── Front-Page primitives (spec: docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md) ──
+// Do not add a plate. If it can't be a row, it lives on a tab and gets at most a row-door.
+
+// BSSlateRow — one time-ordered run-sheet row inside TODAY'S SLATE. min-height 48px,
+// grid 50px time / 58px domain-tag / 1fr title / auto status / 20px control-or-chevron,
+// 1px t.HAIR bottom rule. Whole row is a button ≥48px tall, Enter/Space-activatable,
+// press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
+// non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
+// a custom control cell (36px meal ghost-tick / 26px habit checkbox) rendered as-is.
+function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLabel, index = 0 }) {
   const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const isLead = right === 'lead';
+  const isNode = right && typeof right === 'object';
+  const interactive = !isLead && typeof onOpen === 'function';
+  const [pressed, setPressed] = useStateBSC(false);
+  const reduced = bsSdReduced();
+  React.useInsertionEffect(() => { bsInjectBsHomeCss(); }, []);
+  // NEVER a <button> wrapper — rows contain nested interactive controls (the
+  // meal ghost-tick, the habit checkbox), and a <button> nested inside another
+  // <button> is invalid HTML. Matches the existing BSPlate pattern
+  // (iosAppBroadsheet.jsx ~line 1030): a plain div with role="button" + tabIndex
+  // when interactive. Non-interactive rows (right='lead') render a bare div with
+  // no role/tabIndex.
+  // Click guard: a click that originated inside a nested interactive control
+  // (meal ghost-tick, habit checkbox) must not ALSO open the row — even if that
+  // control forgets stopPropagation. Ignore any click whose target's nearest
+  // interactive ancestor isn't the row itself.
+  const handleClick = interactive ? (e) => {
+    const nested = e.target instanceof Element ? e.target.closest('button,a,input,select,textarea,[role="button"],[role="checkbox"],[role="switch"]') : null;
+    if (nested && nested !== e.currentTarget) return;
+    onOpen();
+  } : undefined;
+  return (
+    <div
+      onClick={handleClick}
+      onKeyDown={interactive ? (e) => {
+        // First line, always: a keypress that bubbled up from a nested control
+        // (the meal ghost-tick / habit checkbox) must not also trigger the row's
+        // own Enter/Space handling (the #1502 keyboard guard).
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
+      } : undefined}
+      onPointerDown={interactive ? () => setPressed(true) : undefined}
+      onPointerUp={interactive ? () => setPressed(false) : undefined}
+      onPointerLeave={interactive ? () => setPressed(false) : undefined}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={ariaLabel}
+      style={{
+        display: 'grid', gridTemplateColumns: '50px 58px 1fr auto 20px', alignItems: 'center', gap: 8,
+        width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
+        border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
+        transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
+        font: 'inherit', color: 'inherit',
+        ...(reduced ? null : { animation: `bsHomeRowIn 180ms ease-out ${index * 30}ms both` }),
+      }}
+    >
+      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{time || ''}</span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        <span aria-hidden style={{ width: 16, height: 2, borderRadius: 1, background: tagColor || t.INK50 }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tagColor || t.INK50, whiteSpace: 'nowrap' }}>{tag}</span>
+      </span>
+      <span style={{ minWidth: 0, overflow: 'hidden' }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+      </span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        {isLead ? (
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ LEAD</span>
+        ) : isNode ? right : (
+          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.INK50 }}>›</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+// BSIndexRow — one row in the "Inside." index. 44px, grid 86px domain-label / 1fr
+// dot-leader / auto figure / 18px chevron. No background/border/radius — pure
+// typographic rows. `due` pulses the 5px status tick; `done` shows a ✓ instead.
+function BSIndexRow({ label, figure, status, due, done, onOpen }) {
+  const t = useBS();
+  const interactive = typeof onOpen === 'function';
+  const Tag = interactive ? 'button' : 'div';
+  // aria-label must carry the visible figure too — a screen-reader user
+  // otherwise never hears the actual value the row displays.
+  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
+  return (
+    <Tag
+      {...(interactive ? { onClick: onOpen, type: 'button' } : {})}
+      onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } } : undefined}
+      aria-label={interactive ? [label, ariaFigure, status].filter(Boolean).join(' ') : undefined}
+      style={{
+        display: 'grid', gridTemplateColumns: '86px 1fr auto 18px', alignItems: 'center', gap: 8,
+        width: '100%', height: 44, boxSizing: 'border-box', border: 0, background: 'transparent',
+        padding: `0 ${t.padX}px`, textAlign: 'left', cursor: interactive ? 'pointer' : 'default', font: 'inherit', color: 'inherit',
+      }}
+    >
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{label}</span>
+      <span aria-hidden style={{ borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-3px)', minWidth: 12 }} />
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span aria-hidden style={{
+          width: 5, height: 5, borderRadius: 999, flexShrink: 0,
+          background: done ? (t.GREEN || '#5fae7e') : due ? (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5')) : bsTHexA(t.INK, 0.18),
+          ...(due && !done && !bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null),
+        }} />
+        {/* Render the figure even when done — a done row with a real figure
+            (e.g. CHECK-IN's figure="Logged ✓") must show that text, not a bare
+            "✓" that discards it. Only fall back to a bare checkmark when no
+            figure was passed. */}
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{done && !figure ? '✓' : figure}</span>
+        {status ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap' }}>{status}</span> : null}
+      </span>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK50, textAlign: 'right' }}>{interactive ? '›' : ''}</span>
+    </Tag>
+  );
+}
+
+// BSHomeBulletin — a slim 40px one-liner ABOVE the lead, for a due time-sensitive
+// item (max 2 on the page). Hairline top+bottom, pulsing 6px tick, mono label +
+// detail, trailing ›. Renders only while its caller decides it's due — this
+// component itself is unconditional (the caller gates visibility).
+function BSHomeBulletin({ label, detail, onOpen }) {
+  const t = useBS();
+  const accent = t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5');
+  return (
+    <button
+      type="button" onClick={onOpen} aria-label={`${label} · ${detail || ''}`.trim()}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 9, width: '100%', height: 40, boxSizing: 'border-box',
+        border: 0, borderTop: `1px solid ${t.HAIR}`, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent',
+        padding: `0 ${t.padX}px`, textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+      }}
+    >
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: accent, flexShrink: 0, ...(!bsSdReduced() ? { animation: 'bsPlatePulse 1.8s ease-in-out infinite' } : null) }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent, whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{detail}</span>
+      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0 }}>›</span>
+    </button>
+  );
+}
+
+// BSShelfDoor — one compact door (~112w×64h) in the horizontal shelf. Native
+// button (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
+// PROGRESS 4-tick row). `pct` (0–100), when a number, draws a 2px bottom
+// progress sliver at that width. Press feedback scale(0.97) 120ms; the scale
+// transition is skipped under prefers-reduced-motion (transform still applies
+// instantly on press for a11y/testing, just without the animated transition).
+function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
+  const t = useBS();
+  const accent = c || (t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5'));
+  const [pressed, setPressed] = useStateBSC(false);
+  const reduced = bsSdReduced();
+  const hasPct = typeof pct === 'number' && isFinite(pct);
+  React.useInsertionEffect(() => { bsInjectBsHomeCss(); }, []);
+  // aria-label must carry the visible figure too — a screen-reader user
+  // otherwise never hears the actual value the door displays.
+  const ariaFigure = (typeof figure === 'string' || typeof figure === 'number') ? String(figure) : '';
+  return (
+    <button
+      type="button" onClick={onOpen} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
+      onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
+      style={{
+        position: 'relative', flex: '0 0 auto', width: 112, height: 64, boxSizing: 'border-box',
+        scrollSnapAlign: 'start', borderRadius: 6, border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.03),
+        padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        textAlign: 'left', cursor: 'pointer', overflow: 'hidden',
+        transform: pressed ? 'scale(0.97)' : 'scale(1)',
+        ...(reduced ? null : { transition: 'transform 120ms ease' }),
+      }}
+    >
+      <span aria-hidden style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 10px 10px 0', borderColor: `transparent ${accent} transparent transparent`, opacity: 0.7 }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
+        {typeof figure === 'string' || typeof figure === 'number'
+          ? <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{figure}</span>
+          : figure}
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status}</span>
+        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: accent, marginLeft: 'auto' }}>›</span>
+      </span>
+      {hasPct && (
+        <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: bsTHexA(t.INK, 0.08) }}>
+          <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: accent, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsHomeSliverIn 400ms cubic-bezier(.4,0,.2,1) both' }) }} />
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Reduced-motion gating for these primitives reuses the EXISTING module-scope
+// `bsSdReduced()` (defined once, ~line 10486) — the single reduced-motion
+// predicate app-wide. Do not define a second one here.
+
+// useBSCheckinLogged — the manual-signal "logged for today" predicate, extracted
+// VERBATIM from BSTodayNudge's own effect (see the comment above — the has()/
+// deviceMeta/rule is copied unchanged, only lifted into a reusable hook).
+function useBSCheckinLogged() {
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   const [logged, setLogged] = useStateBSC(false);
   React.useEffect(() => {
@@ -15849,20 +16065,67 @@ function BSTodayNudge({ onOpen }) {
     }).catch(() => {});
     return () => { on = false; };
   }, [signedIn]);
-  return (
-    <BSPlate c={teal} tick={!logged} bracket pad="12px 16px 12px 22px" role="button" tabIndex={0} ariaLabel="Open today's check-in" onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }}
-      style={{ margin: `0 ${t.padX}px 12px`, textAlign: 'left' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Today · how are you</div>
-          <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{logged ? 'Logged for today ✓' : 'Quick check-in.'}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{logged ? 'Tap to review · add water' : 'Energy · sleep · hydration · 30 sec'}</div>
-        </div>
-        <span style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 5, border: `1px solid ${teal}`, color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{logged ? 'Open →' : 'Check in →'}</span>
-      </div>
-    </BSPlate>
-  );
+  return logged;
+}
+
+// useBSStepsToday — the steps-today data effect + derived render flags, extracted
+// VERBATIM from BSStepsCard (goal via the existing useBSStepGoal() hook, signed-out
+// preview sample, todayKnown honesty gate, Shape Steps→points conversion).
+function useBSStepsToday() {
+  const TARGET = useBSStepGoal();
+  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const [steps, setSteps] = useStateBSC(null);
+  React.useEffect(() => {
+    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
+    let on = true;
+    window.ShapeProgress.progress().then((p) => {
+      if (!on) return;
+      const series = p && p.series && Array.isArray(p.series.steps) ? p.series.steps : [];
+      const d = new Date();
+      const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const row = series.find((s) => s.date === todayIso);
+      setSteps({ today: row ? Math.round(Number(row.value) || 0) : null, ever: series.length > 0 });
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [signedIn]);
+  const hasData = signedIn ? !!(steps && steps.ever) : true;
+  const todayKnown = signedIn ? !!(steps && steps.today != null) : true;
+  const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
+  const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
+  const hit = todayKnown && val >= TARGET;
+  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET);
+  return { hasData, todayKnown, val, goal: TARGET, pct, hit, stepPts };
+}
+
+// Today instrument plate — the home daily check-in + hydration, consolidated into
+// ONE BSPlate. Energy / Hunger / Rested are tap-to-set 1–10 gauges (no migration —
+// the same 1–10 values the old tap-rows wrote); Sleep stays device-first (read-only
+// when a wearable synced last night, else manual hour chips). Hydration folds in as a
+// dot-progress + quick-add row that STAYS LIVE even after the check-in collapses to
+// its one-line summary (you sip water all day). Recovery readiness + the sleep-detail
+// door sit in the footer. Replaces BSDailyCheckinCard + BSHydrationCard.
+// TODAY nudge — the check-in + hydration box moved to its own page (BSTodayPage);
+// Home carries this compact notification-style door instead. Status-aware: "due"
+// until a MANUAL signal exists for today (same rule as the card — a wearable
+// syncing sleep alone never reads as logged), then flips to a quiet "logged ✓".
+// `variant` is REQUIRED — no silent fallback to the old bare-plate look (Task 6
+// deleted that dead branch once every call site carried an explicit variant).
+// variant 'bulletin' → BSHomeBulletin CHECK-IN DUE, rendered only while due
+// (signed-in gating carried from the plate's own logged-detection scope — the
+// bulletin simply renders nothing once logged, matching "decays to an index row once
+// logged" from the spec; the index-row decay itself is variant 'row'). variant 'row'
+// → BSIndexRow CHECK-IN residue (Logged ✓ · add water), rendered only once logged.
+function BSTodayNudge({ onOpen, variant }) {
+  const logged = useBSCheckinLogged();
+  if (variant === 'bulletin') {
+    if (logged) return null;
+    return <BSHomeBulletin label="Check-in due" detail="Energy · sleep · 30 sec" onOpen={onOpen} />;
+  }
+  // Explicit contract: only 'row' renders the residue — an omitted or mistyped
+  // variant renders nothing rather than silently picking a surface.
+  if (variant !== 'row') return null;
+  if (!logged) return null;
+  return <BSIndexRow label="Check-in" figure="Logged ✓" status="add water" done onOpen={onOpen} />;
 }
 
 // TODAY page — the full daily check-in + hydration box on its own page,
@@ -16131,84 +16394,6 @@ function BSTodayCard() {
         </div>
       )}
       {detail && <BSSleepHistory onClose={() => setDetail(false)} />}
-    </div>
-  );
-}
-
-// Daily steps / NEAT card — today's count vs the user's editable goal (set on the
-// steps history page, default 8k), DISPLAY-ONLY. Steps come
-// from a connected watch (Apple Health / Garmin sync writes daily_health_snapshot
-// .steps) — never manual entry, since a person can't know their own count. Tap the
-// card to open the steps timeline/history; when nothing is synced it prompts to
-// connect a device. Self-contained.
-function BSStepsCard() {
-  const t = useBS();
-  const accent = t.isLight ? '#0a8f87' : '#34d6c5';
-  const TARGET = useBSStepGoal();
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [steps, setSteps] = useStateBSC(null);
-  const [history, setHistory] = useStateBSC(false);
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeProgress?.progress) return undefined;
-    let on = true;
-    window.ShapeProgress.progress().then((p) => {
-      if (!on) return;
-      const series = p && p.series && Array.isArray(p.series.steps) ? p.series.steps : [];
-      const d = new Date();
-      const todayIso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const row = series.find((s) => s.date === todayIso);
-      setSteps({ today: row ? Math.round(Number(row.value) || 0) : null, ever: series.length > 0 });
-    }).catch(() => {});
-    return () => { on = false; };
-  }, [signedIn]);
-  // Signed-out preview shows a sample; signed-in shows TODAY's real count (0 until
-  // today syncs), and the connect-a-device prompt only when nothing has ever synced.
-  const hasData = signedIn ? !!(steps && steps.ever) : true;
-  const todayKnown = signedIn ? !!(steps && steps.today != null) : true; // synced today? (else show "—", not 0)
-  const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
-  const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
-  const hit = todayKnown && val >= TARGET;
-  const stepPts = shapeStepsPoints(todayKnown ? val : 0, TARGET); // today's running Shape Steps → points
-  const openDevices = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {} };
-  const openHistory = () => setHistory(true);
-  return (
-    <div style={{ margin: '0 18px 10px', boxSizing: 'border-box' }}>
-      <BSPlate
-        c={accent} notch={12} spine={3} tick={hasData && todayKnown} bracket pad="12px 14px 12px 17px"
-        onClick={hasData ? openHistory : undefined}
-        onKeyDown={hasData ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } } : undefined}
-        tabIndex={hasData ? 0 : undefined} role={hasData ? 'button' : undefined} ariaLabel="Open steps history"
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: accent, fontWeight: 800 }}>Shape Steps · Today</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Goal {TARGET.toLocaleString()}</span>
-        </div>
-        {hasData ? (
-          <>
-            <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{todayKnown ? val.toLocaleString() : '—'}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>steps</span>
-            </div>
-            <div style={{ marginTop: 8, height: 5, borderRadius: 999, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
-              <div style={{ width: `${todayKnown ? pct : 0}%`, height: '100%', borderRadius: 999, background: accent, boxShadow: hit ? `0 0 8px ${accent}` : 'none' }} />
-            </div>
-            {todayKnown && (
-              <div style={{ marginTop: 7, display: 'flex', alignItems: 'baseline', gap: 6, paddingTop: 7, borderTop: `1px solid ${t.HAIR}` }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>Shape Steps</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{stepPts.shapeSteps}</span>
-                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: stepPts.total > 0 ? accent : t.INK50 }}>{stepPts.total > 0 ? `+${stepPts.total} pts${stepPts.bonus > 0 ? ' · goal' : ''}` : 'Walk 5k for +1'}</span>
-              </div>
-            )}
-            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: hit ? accent : t.INK50, fontWeight: 700 }}>{!todayKnown ? 'No steps yet today' : (hit ? 'Goal hit ✓' : `${Math.max(0, TARGET - val).toLocaleString()} to go`)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: accent, fontWeight: 700 }}>History ›</span>
-            </div>
-          </>
-        ) : (
-          <button onClick={openDevices} style={{ marginTop: 5, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.05em', color: accent, fontWeight: 700 }}>Connect a watch to track steps →</button>
-        )}
-      </BSPlate>
-      {history && <BSStepsHistory onClose={() => setHistory(false)} />}
     </div>
   );
 }
@@ -16654,7 +16839,7 @@ function BSScoreCardDark({ points, tierKey, tierName, c, onOpen, composite = nul
 
 // Featured goal card on the Me profile (self only) — your top body-comp goal
 // from user_goals('client_goals'). Personal numbers stay off the public profile.
-function BSMeGoalCard({ c, onOpen, compact = false }) {
+function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   const t = useBS();
   // Follow the paper theme so the goal text reads on light papers too.
   const INK = t.INK, TEAL = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -16666,7 +16851,9 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
     return () => { on = false; };
   }, []);
   // Signed in with no goal set → render nothing (never the demo goal); the demo
-  // is the signed-out preview only. A real goal (g) shows once it loads.
+  // is the signed-out preview only. A real goal (g) shows once it loads. This gate
+  // is shared by ALL variants (door included) — a door never appears for a
+  // signed-in account with no goal.
   const bsGoalSignedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
   if (bsGoalSignedIn && !g) return null;
   const ov = g || { title: 'Lean by summer', start: 78, now: 76.8, target: 73.6, unit: 'kg', by: null, why: '' };
@@ -16679,6 +16866,20 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
+  // Honest status — never a fabricated "on track". Shared by BOTH variants
+  // (door + plate footer): goal reached (within a small epsilon, so float
+  // rounding doesn't withhold the ✓) reads 'goal hit ✓'; otherwise a real
+  // '{N} {unit} to go'; when the values aren't usable, an honest '—'.
+  // toGo = now - target on a cut-framed goal (range > 0): at-or-past target
+  // reads as HIT — an over-achieved goal must never show a false "to go".
+  const hasRange = range > 0 && isFinite(toGo) && !!unit;
+  const goalHit = hasRange && toGo <= 0.05;
+  const goalStatus = goalHit ? 'goal hit ✓' : hasRange ? `${+Math.max(0, toGo).toFixed(1)} ${unit} to go` : '—';
+  if (door) {
+    return (
+      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
+    );
+  }
   return (
     <BSPlate c={TEAL} notch={12} bracket pad={compact ? '12px 15px' : '16px 18px'} onClick={onOpen} role="button" tabIndex={0} ariaLabel="Open your goal" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen && onOpen(); } }} style={{ width: '100%', textAlign: 'left', marginBottom: compact ? 0 : 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
@@ -16687,7 +16888,7 @@ function BSMeGoalCard({ c, onOpen, compact = false }) {
       </div>
       <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
       <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
+      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {goalStatus}</div>
     </BSPlate>
   );
 }
