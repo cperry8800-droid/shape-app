@@ -23,7 +23,15 @@
   2. LF-normalize touched files: `sed -i 's/\r$//' <files>` (Edit/Write emit CRLF on this Windows box).
   3. `npm test` → all suites pass (the full suite: 39 registered test FILES ≈ 382 test CASES as of `710fc3e4`, plus the new `pro-ledger` file — the number that matters is ZERO failures).
   4. Mobile build from **PowerShell** (never Git Bash — MSYS mangles the base): `cd mobile-app; $env:VITE_BASE='/m/'; npm run build` → exit 0. If Windows Application Control blocks the oxide binary (known env issue), note it and rely on CI's Linux build as the gate.
-  - Do NOT rebuild/commit `public/m` (built at deploy since #1470).
+  - Do NOT rebuild/commit `public/m` (built at deploy since #1470). **Hook
+    caveat (verified):** the tracked pre-commit hook (`scripts/verify-staged.sh:86-95`)
+    still diffs `mobile-app/dist` against `public/m` and BLOCKS the commit
+    ("public/m is OUT OF SYNC") when `mobile-app/src/**` is staged — and this
+    checkout has no tracked `public/m`, so an ARMED hook fails every mobile
+    commit. On this Windows box the hook is UNARMED (`git config core.hooksPath`
+    is empty) so commits pass; a web session auto-arms it — there, commit
+    mobile-src changes with the documented bypass `SKIP_VERIFY=1 git commit …`
+    and NEVER hand-build `public/m`. CI stays the hard gate either way.
 - **Branch/PR choreography:** work on the session's `claude/*` branch reset to `origin/main`. Three PRs, merged sequentially with a `git reset --hard origin/main` re-sync between: **PR A** = Tasks 1–2 (module + kit + Today) · **PR B** = Task 3 (roster) · **PR C** = Tasks 4–6 (Case File) + Task 7 docs. Each PR: CI green (Web · Mobile · gitleaks) + **standard CodeRabbit wait** (no skip), findings addressed, squash-merge, branch kept.
 - **Preserve every `data-tour` attribute** when rewriting JSX (the coach onboarding tour `BSProOnboardingTour` anchors to them — run `grep -n "data-tour"` on each component BEFORE rewriting it, and re-attach each anchor to the equivalent new element).
 - **Verify base before ANY edit** (every session/turn): `git fetch origin main && git rev-parse --short HEAD origin/main` — if they differ, `git reset --hard origin/main` first.
@@ -87,7 +95,7 @@
 **Interfaces:**
 - Produces (consumed by Tasks 2, 4, 5): `bsProMin(hhmm)→min|null` · `bsProHourLabel(hhmm)→'7A'|'8:30'|'1P'` · `bsProGapLabel(startMin,endMin)→'12 – 2 · OPEN'` · `bsProDurationFromSub(sub)→min|null` · `bsProDayShape(bookings, now?)→{sessions,gaps[],openHours|null,nowSlot,countdown}` · `bsProAttentionBudget(triage,bookings,max=3)→{lead,leadAnchor,inline[],wires[],demoted[]}` · `bsProLeadVerdict({signedIn,sessions,firstLabel,top})→string|null`
 - Produces on `window` (for the pros bundle): `BSTStationHead, BSTRedact, BSTLedgerStat, BSTerrainTabs, BSSdBars, BSSdCountUp, useBSSdInView, bsSdReduced, bsInjectSessionDetailCss, bsTierForPoints`
-- Consumes: nothing new. Booking shape (existing Today wiring): `{ time:'HH:MM', title, sub, client, clientId, state?:'done', durationMin? }`. Triage shape (from `useBSProRoster` rows): `{ clientId?, name, severity:'red'|'amber'|'new', directive }`.
+- Consumes: nothing new. Booking shape (existing Today wiring): `{ time:'HH:MM', title, sub, client, clientId, state?:'done' }` — **`durationMin` does NOT exist upstream** (demo or calendar rows); it appears only after Task 2 derives it via `bsProDurationFromSub(b.sub)` and maps it onto the bookings it feeds `bsProDayShape`. Triage shape (from `useBSProRoster` rows through `bsRowSeverity` — see Task 2's verified mapping): `{ clientId?, name, severity:'red'|'amber'|'new', directive }`.
 
 - [ ] **Step 1: Write the failing tests** — create `tests/pro-ledger.test.mjs`:
 
@@ -306,7 +314,18 @@ function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a0
   - Bulletins: LIVE — reuse the exact `liveClients` presence logic from the old trainer body, EXTENDED per spec (trainer matches `activityOf===\'workout\'` → `WATCH →` → existing `onWatchLive` payload; nutritionist matches `\'cooking\'` → `OPEN →` → `window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: lc.userId, n: lc.n } } }))` — VERIFIED payload shape (the listener at pros `:42` reads `detail.client.{userId,n}`)). Render as the 3px teal-spine row w/ breathing dot (`animation: 'bsLivePulse 2.2s ease-in-out infinite'` — keyframe already local to the old LIVE plate; move the `<style>` tag with it). Signed-out shows the demo bulletin (Riley/Sam). REVIEW bulletin: heat spine, no dot, demo-gated exactly like the old Queue (`!coachSignedIn`), label `4 FORM CLIPS WAITING · REVIEW →` → `onOpenReviews()` (nutri: `2 CLIENT LOGS WAITING`).
   - THE LEAD: station head (pattern block) + serif verdict `fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.28` ending in `<span style={{ color: heat }}>.</span>`; signed-in text = `bsProLeadVerdict({ signedIn: true, sessions: bookings.length, firstLabel: bsProHourLabel(first?.time), top: budget.lead })`; signed-out = the day's demo lead copy verbatim. Registers row: SESSIONS/CONSULTS (`bookings.length`) · NEED YOU (**true** flagged total from the roster, not the budget) · OPEN HRS (`dayShape.openHours`, render the register only when non-null). Pattern-block registers with `BSSdCountUp` + `bsSdDrawX` rules.
   - Week strip: edit `BSProWeekStrip` in place — day letters mono 8/800; selected = `color: t.INK` + 2px heat underline (`left/right 22%`); the `dots` prop keeps its API but renders `Math.min(3, dots[i].length)` ink-alpha 3×3px ticks instead of colored dots. Add a `heat` prop (both call sites pass `bsProHeat(t, role)`).
-  - THE RAIL: station head `{DOW} · THE RAIL` + `CALENDAR →`. Compute `const dayShape = bsProDayShape(bookings, isToday ? { h: new Date().getHours(), m: new Date().getMinutes() } : null)` and `const budget = bsProAttentionBudget(triageRows, bookings)` where `triageRows` = the flagged subset of `useBSProRoster(role)` mapped with the VERIFIED row shape (rows carry `n`, `userId`, and a nested `_sig` from the engine — `bsRowFromTriage` ~`:1483–1491`): `roster.filter((c) => c._sig && c._sig.sev && c._sig.sev !== 'ok').map((c) => ({ clientId: c.userId || null, name: c.n, severity: c._sig.sev, directive: c._sig.directive || c._sig.label || '' }))` — rank order = the roster's existing engine ordering. Feed `bsProDayShape` bookings enriched with parsed durations: `bookings.map((b) => ({ ...b, durationMin: bsProDurationFromSub(b.sub) || undefined }))` (durations live embedded in the `sub` strings — `'Lower Pull · 60m'` — there is NO durationMin field on either the demo or the real calendar rows). Wrap entries in a rail container: `position: relative; paddingLeft: 44px` with a `::before`-equivalent absolute 2px heat bar at `left: 30` that scales in (`bsSdGrowY` one-shot, gated on the section's `useBSSdInView` pair). Per booking, in time order:
+  - THE RAIL: station head `{DOW} · THE RAIL` + `CALENDAR →`. Compute `const dayShape = bsProDayShape(bookings, isToday ? { h: new Date().getHours(), m: new Date().getMinutes() } : null)` and `const budget = bsProAttentionBudget(triageRows, bookings)` where `triageRows` uses the VERIFIED severity model (post-review fix — the engine's sev values are `red / amber / new / green / past` and **`green` means ON TRACK**, never flagged; demo rows carry NO `_sig` and derive severity from their `s` status, so go through `bsRowSeverity(c, role)` — the single live-or-demo path at ~`:1493`):
+
+```jsx
+const FLAG_WORDS = { red: 'FLAG', amber: 'WATCH', new: 'NEW' }; // green/past NEVER enter the budget
+const triageRows = roster
+  .map((c) => ({ c, sig: bsRowSeverity(c, role) }))
+  .filter(({ sig }) => sig && FLAG_WORDS[sig.sev])
+  .sort((a, b) => (a.sig.rank ?? 9) - (b.sig.rank ?? 9))
+  .map(({ c, sig }) => ({ clientId: c.userId || null, name: c.n, severity: sig.sev, directive: sig.directive || sig.label || '' }));
+```
+
+Severity words on spines/meta come from `FLAG_WORDS[sev]`; spine colors `red→'#c0533b' · amber→'#d8a23a' · new→'#5fa96e'`. Because `bsRowSeverity` falls back to the demo `s`-status mapping, signed-out demo flags flow through the same budget path (BSProTriageFeed's separate demo rows are NOT needed — its data dies with it). Feed `bsProDayShape` bookings enriched with parsed durations: `bookings.map((b) => ({ ...b, durationMin: bsProDurationFromSub(b.sub) || undefined }))` (durations live embedded in the `sub` strings — `'Lower Pull · 60m'` — there is NO durationMin field on either the demo or the real calendar rows). Wrap entries in a rail container: `position: relative; paddingLeft: 44px` with a `::before`-equivalent absolute 2px heat bar at `left: 30` that scales in (`bsSdGrowY` one-shot, gated on the section's `useBSSdInView` pair). Per booking, in time order:
 
 ```jsx
 <div key={i} style={{ position: 'relative', minHeight: 44, padding: '6px 0 10px' }}>
