@@ -2748,7 +2748,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // Ghost log-tick — the 36px inline control cell for a MEAL row's `right`
         // slot. Carries the exact tap targets the old mealsCard glance used
         // (setMealToLog/setLoggingMealId/setShowLogMeal), plus the LOGGED state.
-        const MealTick = ({ m, logged }) => logged ? (
+        // Plain element factory (called, not mounted as a component type) so its
+        // per-render identity can't remount the tick subtree.
+        const mealTick = (m, logged) => logged ? (
           <span aria-hidden style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: teal }}>✓</span>
         ) : (
           <button
@@ -2773,7 +2775,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             tag: 'MEAL', tagColor: teal,
             title: m.title,
             status: `${slotLabel(m)} · ${m.kcal ? `${m.kcal} kcal` : ''}`.replace(/ · $/, ''),
-            right: isLead ? 'lead' : <MealTick m={m} logged={logged} />,
+            right: isLead ? 'lead' : mealTick(m, logged),
             onOpen: () => setPreviewMeal(m),
             ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? 'logged' : 'not logged'}`,
           });
@@ -16119,6 +16121,9 @@ function BSTodayNudge({ onOpen, variant }) {
     if (logged) return null;
     return <BSHomeBulletin label="Check-in due" detail="Energy · sleep · 30 sec" onOpen={onOpen} />;
   }
+  // Explicit contract: only 'row' renders the residue — an omitted or mistyped
+  // variant renders nothing rather than silently picking a surface.
+  if (variant !== 'row') return null;
   if (!logged) return null;
   return <BSIndexRow label="Check-in" figure="Logged ✓" status="add water" done onOpen={onOpen} />;
 }
@@ -16861,19 +16866,18 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
   const words = String(ov.title || 'Your goal').trim().split(/\s+/);
   const last = words.length ? words.pop() : '';
   const head = words.join(' ');
+  // Honest status — never a fabricated "on track". Shared by BOTH variants
+  // (door + plate footer): goal reached (within a small epsilon, so float
+  // rounding doesn't withhold the ✓) reads 'goal hit ✓'; otherwise a real
+  // '{N} {unit} to go'; when the values aren't usable, an honest '—'.
+  // toGo = now - target on a cut-framed goal (range > 0): at-or-past target
+  // reads as HIT — an over-achieved goal must never show a false "to go".
+  const hasRange = range > 0 && isFinite(toGo) && !!unit;
+  const goalHit = hasRange && toGo <= 0.05;
+  const goalStatus = goalHit ? 'goal hit ✓' : hasRange ? `${+Math.max(0, toGo).toFixed(1)} ${unit} to go` : '—';
   if (door) {
-    // Honest status — never a fabricated "on track". Derive from the SAME
-    // computed values the plate variant renders below: goal reached (within a
-    // small epsilon, so float rounding doesn't withhold the ✓) reads
-    // 'goal hit ✓'; otherwise a real '{N} {unit} to go' from toGo/unit; when
-    // those values aren't usable (no range, no unit), fall back to '—'.
-    const hasRange = range > 0 && isFinite(toGo) && !!unit;
-    // toGo = now - target on a cut-framed goal (range > 0): at-or-past target
-    // reads as HIT — an over-achieved goal must never show a false "to go".
-    const goalHit = hasRange && toGo <= 0.05;
-    const doorStatus = goalHit ? 'goal hit ✓' : hasRange ? `${+Math.max(0, toGo).toFixed(1)} ${unit} to go` : '—';
     return (
-      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status={doorStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
+      <BSShelfDoor c={TEAL} eyebrow="Goal" figure={`${Math.round(pct * 100)}%`} status={goalStatus} pct={Math.round(pct * 100)} onOpen={onOpen} />
     );
   }
   return (
@@ -16884,7 +16888,7 @@ function BSMeGoalCard({ c, onOpen, compact = false, door = false }) {
       </div>
       <div style={{ marginTop: compact ? 5 : 7, fontFamily: SERIF, fontSize: compact ? 19 : 27, fontWeight: t.W.display, letterSpacing: '-0.02em', color: INK, lineHeight: 1.05 }}>{head} {last && <span style={{ fontStyle: 'italic', color: TEAL }}>{last}</span>}</div>
       <div style={{ marginTop: compact ? 9 : 13, height: compact ? 5 : 7, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${pct * 100}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {Math.abs(toGo)} {unit} to go · on track</div>
+      <div style={{ marginTop: compact ? 8 : 11, fontFamily: MONO, fontSize: compact ? 9.5 : 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{down > 0 ? '+' : '−'}{Math.abs(down)} {unit} so far · {goalStatus}</div>
     </BSPlate>
   );
 }
