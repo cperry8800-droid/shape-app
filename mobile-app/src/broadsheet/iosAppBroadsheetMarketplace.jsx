@@ -335,6 +335,32 @@ function mktCoachTier(c) {
   const color = (window.bsTierColor ? window.bsTierColor(String(name).toLowerCase()) : mktRoleColor(c)) || mktRoleColor(c);
   return { name, color, prof };
 }
+// Only turn a value into an <img> src when it's a real http(s)/data/blob URL
+// (mirrors bsValidPhoto, which isn't exposed cross-module) — junk/blank values
+// fall straight through to the initials.
+function mktValidPhoto(p) {
+  const s = (p == null ? '' : String(p)).trim();
+  if (!s || s === 'null' || s === 'undefined') return null;
+  return /^(https?:|blob:|data:image\/|\/)/i.test(s) ? s : null;
+}
+// Duotone-framed portrait: initials ALWAYS render as the base layer, so an
+// invalid src (bad scheme) never renders an <img> and a broken load hides
+// itself (onError) to reveal the initials underneath — the BSFacetAvatar
+// fallback contract, here without the cross-module dependency. `spine` draws
+// the role edge on the frame (the feature draws its own outer spine → omit).
+function MktPortrait({ photo, name, w, h, fontSize, spine }) {
+  const t = useBS();
+  const src = mktValidPhoto(photo);
+  return (
+    <span style={{ display: 'block', position: 'relative', width: w, height: h, flexShrink: 0, border: `1px solid ${t.INK}24`, background: t.PAPER2, overflow: 'hidden' }}>
+      <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize, fontWeight: 700, color: t.INK50 }}>{mktInitials(name)}</span>
+      {src ? <img src={src} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.82)' }} /> : null}
+      <span aria-hidden style={{ position: 'absolute', inset: 5, border: `1px solid ${t.PAPER}55`, pointerEvents: 'none' }} />
+      {spine ? <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: spine }} /> : null}
+    </span>
+  );
+}
+
 // M2 "Masthead" portrait cell — a duotone-framed portrait with a role spine on
 // the frame edge, serif byline, mono dateline, one stat line. The gradient card
 // + tier-colored text died with the Classifieds pass; tier reads as ink text.
@@ -345,13 +371,7 @@ function MktCoachCard({ c, onOpen, photo }) {
   const { name: tierName } = mktCoachTier(c);
   return (
     <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: 0 }}>
-      <span style={{ display: 'block', position: 'relative', height: 122, border: `1px solid ${t.INK}24`, background: t.PAPER2, overflow: 'hidden' }}>
-        {photo
-          ? <img src={photo} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.82)' }} />
-          : <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK50 }}>{mktInitials(c.name)}</span>}
-        <span aria-hidden style={{ position: 'absolute', inset: 5, border: `1px solid ${t.PAPER}55`, pointerEvents: 'none' }} />
-        <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: role }} />
-      </span>
+      <MktPortrait photo={photo} name={c.name} w="100%" h={122} fontSize={30} spine={role} />
       <span style={{ display: 'block', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
       <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isNutri ? 'Nutritionist' : 'Trainer'} · {tierName}</span>
       <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
@@ -589,9 +609,9 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
       </div>
 
       {/* Role index — typographic tabs on a hairline, teal (page-chrome) underline */}
-      <div style={{ margin: `12px ${t.padX}px ${catList ? 10 : 14}px`, display: 'flex', borderBottom: `1px solid ${t.INK}17` }}>
+      <div role="tablist" aria-label="Filter coaches by role" style={{ margin: `12px ${t.padX}px ${catList ? 10 : 14}px`, display: 'flex', borderBottom: `1px solid ${t.INK}17` }}>
         {pills.map((p) => { const on = pill === p && !(p === 'All' && forceList); return (
-          <button key={p} onClick={() => pickPill(p)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
+          <button key={p} role="tab" aria-selected={on} onClick={() => pickPill(p)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
             {p}
             {on && <span aria-hidden style={{ position: 'absolute', left: '20%', right: '20%', bottom: -1, height: 2, background: teal }} />}
           </button>
@@ -658,12 +678,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
               <div onClick={() => setOpen(cotw)} role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); setOpen(cotw); } }} style={{ cursor: 'pointer', marginTop: 10, position: 'relative', paddingLeft: 13 }}>
                 <span aria-hidden style={{ position: 'absolute', left: 0, top: 2, bottom: 2, width: 3, background: role }} />
                 <div style={{ display: 'flex', gap: 13 }}>
-                  <span style={{ display: 'block', position: 'relative', width: 96, height: 118, flexShrink: 0, border: `1px solid ${t.INK}24`, background: t.PAPER2, overflow: 'hidden' }}>
-                    {photo
-                      ? <img src={photo} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.82)' }} />
-                      : <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK50 }}>{mktInitials(cotw.name)}</span>}
-                    <span aria-hidden style={{ position: 'absolute', inset: 5, border: `1px solid ${t.PAPER}55`, pointerEvents: 'none' }} />
-                  </span>
+                  <MktPortrait photo={photo} name={cotw.name} w={96} h={118} fontSize={26} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{cotw.name}<span style={{ color: role }}>.</span></div>
                     <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isN ? 'Nutritionist' : 'Trainer'} · {ct.name} · {mktShortLoc(cotw.loc)}</div>
