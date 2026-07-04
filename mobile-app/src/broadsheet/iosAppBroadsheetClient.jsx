@@ -7081,18 +7081,18 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     );
   }
   const statBtn = (n, label, onTap) => (
-    <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
-      <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
-      <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
+    <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+      <span style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
+      <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), lineHeight: 1 }}>{label}</span>
     </button>
   );
   // ── Follow / Message — instrument chips (clipped notch + spine), not static
   //    pills. The Follow chip "breathes" (a soft accent glow) until you follow;
   //    both give press feedback. Motion respects prefers-reduced-motion.
   const faBase = {
-    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 28, padding: '8px 13px',
-    clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', borderRadius: 3,
-    fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+    flex: 'none', position: 'relative', lineHeight: 1, minHeight: 34, padding: '11px 17px',
+    clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', borderRadius: 3,
+    fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
     transition: 'transform 140ms ease, background 180ms ease, box-shadow 180ms ease',
   };
   if (!isSelf) bsInjectFollowChipCss();
@@ -7123,7 +7123,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     </div>
   ) : null;
   const statsRow = (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 11, rowGap: 8, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: center ? 'center' : 'flex-start', gap: 14, rowGap: 9, flexWrap: 'wrap' }}>
       {statBtn(stats.followers, 'Followers', () => openList('followers'))}
       {statBtn(stats.following, 'Following', () => openList('following'))}
       {statBtn(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
@@ -11640,16 +11640,16 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
             ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-              <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
+              <BSFacetAvatar size={44} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
-                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 16, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
                 </div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+                <div style={{ fontFamily: t.MONO, fontSize: 9, color: muted, marginTop: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
               </div>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
             )}
           {/* HERO — activity name + the promoted primary metric. Tapping the
