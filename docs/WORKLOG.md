@@ -239,6 +239,52 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-04 — Website living profiles → Open Ledger language (#1537, web↔app parity)
+- **The DESKTOP member (Terrain) + coach (Signal) profiles brought to the same
+  zero-box ledger language as the mobile app** — the website was still on the
+  pre-redesign boxed-card "living identity" design while the app shipped the Route
+  Card / Field Ledger waves. Owner-approved from a desktop preview; **both**
+  directions ledgered (the website coach leads the currently-unchanged mobile
+  coach — the owner's call). Dashboard surfaces (Home/Progress/Marketplace/Feed) are
+  a different grid paradigm and OUT of scope. Spec
+  `docs/superpowers/specs/2026-07-04-website-profile-ledger-design.md`.
+- **Heat = the profile's tier** (`tierOf(d).color` — member ladder / coach ladder),
+  **line-only**: the content **rail**, station-head ticks + ink→heat rules, tab
+  underline, ridge/sigil strokes (kept), bar fills, the identity tier chip. Tinted
+  card fills + decorative teal removed; **teal reserved for live/action** (Message,
+  "In training", Verified, follow-active).
+- **New desktop ledger primitives** (`livingDesktop.jsx`): `dStation` ·
+  `DStationHead` (heat tick + eyebrow + ink→heat rule) · `DLedgerStat`
+  (eyebrow-above-figure register) · `DRedact` (honest-absent) · `DLeader` (dotted
+  leader) · `DRail` (the 2px tier rail threading the tab content in the centered
+  column, `padTop`/`padBottom`).
+- **Blocks**: hero goal→zero-box heat-spine, score strip→3 ledger registers;
+  SignalsBand→registers; Disciplines→heat bars / ledger rows; Records→dot-leader
+  rows; Relation→zero-box; Climb→zero-box + a mono aspect index (the `TerrainRidge`
+  kept); Feed→zero-box entries on the dashed trail + redaction for hidden/empty;
+  Tabs→typographic index w/ a drawn heat underline; ProfileExtras→registers +
+  heat-spine + zero-box prompts. **Coach** (`livingShared.jsx` `LvCoachBlocks` +
+  `LvServices`): station heads, zero-box cert/review rows (press clippings), the
+  storefront becomes a dot-leader **RATE CARD** (name · leader · price), filing-tabs
+  → a mono index. **Kept**: the ascent ridge + heptagon sigil, the split hero
+  (desktop uses its width), MusicBlock playlist tiles + the availability widget.
+- **No data/behavior change** — every RPC (`get_public_profile`, `get_coach_certs`,
+  `get_follow_stats`, `get_member_playlists`, the own-profile `/api/client/*`
+  enrichment), the Subscribe/Book/Buy Stripe handlers, media, and the XSS-safe
+  `safeMusicUrl` are verbatim; empty cases → redaction lines.
+- **Render-verified on a local static server** (not just parse-check — these
+  browser-babel files are NOT compiled by CI's tsc/next build): the member profile
+  (Activity + Signals tabs) and the coach profile (Coaching rate card + certs) both
+  rendered clean in the ledger language with zero babel/React errors (only expected
+  backend 404s). **CodeRabbit** caught + I fixed: a rate-card rating that could drift
+  from the live Reviews tab (now passes the live avg/count — honest data), a buyable
+  service row that blocked keyboard/SR checkout (role=button + Enter/Space), the
+  reviews-jump mouse-only span (→ real button), `DRail` shorthand-string fragility
+  (→ numeric props), button `type`, and an index key.
+- Cache-bust: `livingDesktop.jsx?v=20260704a`, `livingShared.jsx?v=15` across all
+  **7 consumer pages** (3 profile pages + the 4 dashboard SPAs that embed the living
+  profile). Squash-merged (#1537), CI green; branch kept.
+
 ### 2026-07-04 — Progress "Field Ledger" (#1535) · Marketplace "Classifieds" (#1536) · profile/boost polish (#1534)
 - **Waves 6 + 7 of the July redesign** — owner-picked from animated concept boards
   (P1 "The Ledger" body + P2 "Field Report" verdict lead for Progress; M1
