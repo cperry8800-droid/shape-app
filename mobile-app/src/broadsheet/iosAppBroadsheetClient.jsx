@@ -9315,7 +9315,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      dropped at the edges). The card's own age chip carries the
                      timing; author header hidden (the profile owns the identity). */
                   <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} />
                   </div>
                 ))}
               </div>
@@ -9971,7 +9971,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
                 <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -22px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} />
                 </div>
               ))}
             </div>
@@ -11241,7 +11241,7 @@ function useBSCardSheets() {
 // community feed builds it once per render, the profile builds a slim version
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
-function BSActivityCard({ a, ctx, hideAuthor = false }) {
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
   const {
     t, cardInk, muted, hair, card,
     actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
@@ -11258,6 +11258,21 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
     const key = a.key || `${a.who}|${a.ago}`;
+    // Dispatch rail heat — role color, NOT tier (tier stays on the avatar ring
+    // only). Spec §1's literals: client teal + nutritionist gold are LIGHT/DARK
+    // pairs (the older roleColor() helper elsewhere in this file carries only
+    // the dark-paper gold; spec §1 overrides with the pair so heat reads on all
+    // 14 papers); trainer rust is one literal. Resolved from a.role, honest for
+    // both real + demo cards.
+    const heat = a.role === 'Trainer' ? '#c0533b' : a.role === 'Nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : (t.isLight ? '#0a8f87' : '#34d6c5');
+    // ONE useBSSdInView instance for the whole card (Global Constraint: one
+    // observer per card). railRef goes on the rail; railSeen gates the rail's
+    // own first-view growth below AND every later task's first-view animation
+    // (hero count-up, hero/separator rule draws, co-sign stamp) — later tasks
+    // consume this same [railRef, railSeen] pair, they do not call the hook again.
+    const [railRef, railSeen] = useBSSdInView();
+    const sdReduced = bsSdReduced();
+    React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
     // Seed from the post's live like state; local toggles override. The kudos
     // count from the row already includes my own like, so subtract the seed
     // before re-adding the local state (no double count).
@@ -11348,35 +11363,46 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (
-      <div style={{ background: card, overflow: 'hidden' }}>
-        <div style={{ height: 1, background: tc }} />
-        <div style={{ padding: '10px 13px 11px' }}>
-          {/* author + activity type — or, when hideAuthor (profile feed), a slim
-              header: the type chip on the right + the relative time on the left
-              (the profile's own card chrome already owns the author identity). */}
-          {hideAuthor ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
-              {/* owner edit — only when the host supplies onEdit (profile) AND the
-                  card is a real published post; the community feed passes no onEdit,
-                  and demo/PR cards have no postId, so this stays profile-own-posts. */}
-              {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
-              <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
-            </div>
-          ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
+      <div ref={railRef} style={{ position: 'relative' }}>
+        <div style={{ paddingLeft: 15 }}>
+          {/* per-post 2px heat rail — absolute, gradient fades down the card's
+              height (spec §1: top 4 → bottom 0 so the rail spans title → action
+              strip; 42% gradient stop), grows in on first view (bsSdGrowY, one
+              useBSSdInView per card from Step 2; pre-seen it holds scaleY(0) so
+              it never animates at mount while offscreen). aria-hidden:
+              decorative, carries no content. */}
+          <div aria-hidden style={{ position: 'absolute', left: 0, top: 4, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 42%, ${bsTHexA(t.INK, 0.1)} 78%, transparent)`, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
+          <div style={{ padding: '10px 13px 11px 0' }}>
+            {/* author + activity type — or, when hideAuthor (profile feed), a slim
+                header: the type tag on the right + the relative time on the left
+                (the profile's own card chrome already owns the author identity).
+                BOTH bordered chips die (spec §2 + the Deletes list name both
+                pills): one plain unboxed mono `PEAK · CLIENT` line replaces
+                them; the type tag reads as plain mono ink text with a heat
+                underline (graft); name is always t.INK (no tier tint on running
+                text — heat/tier are line-only per the Global Constraints). */}
+            {hideAuthor ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
+                {/* owner edit — only when the host supplies onEdit (profile) AND the
+                    card is a real published post; the community feed passes no onEdit,
+                    and demo/PR cards have no postId, so this stays profile-own-posts. */}
+                {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
+                <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+            ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+              <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
+                </div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+              </div>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
-          </div>
-          )}
+            )}
           {/* HERO — activity name + the promoted primary metric. Tapping the
               title/metric/caption (or the route below) opens the full session-
               details page. */}
@@ -11504,7 +11530,18 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
               )}
             </div>
           )}
+          </div>
         </div>
+        {/* ink→heat separator — the house 2px rule between dispatches (spec
+            §0): every card draws it at its own BOTTOM edge, suppressed on the
+            LAST card (isLast) so the feed doesn't end on a trailing rule. Sits
+            outside the 15px rail gutter → full content width. Drawn in-view
+            via bsSdDrawX, gated on the card's one railSeen flag (pre-seen it
+            holds scaleX(0) — never animates at mount while offscreen); reduced
+            motion renders it finished. */}
+        {!isLast && (
+          <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
+        )}
       </div>
     );
 }
@@ -12655,7 +12692,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} /></React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} /></React.Fragment>);
               })()}
             </div>
           ) : (
