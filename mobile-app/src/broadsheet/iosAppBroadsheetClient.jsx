@@ -11492,8 +11492,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
             </div>
           )}
           {/* phase 2 — expressive palette (opens on a press-and-hold of the
-              reaction). Picking a word re-labels MY reaction but stays the same
-              unified like (one count). All text, no emoji. */}
+              boost). Picking a word re-labels MY reaction but stays the same
+              unified like (one count). All text, no emoji. Unchanged by this
+              task except the trigger button below it. */}
           {paletteOpen && (
             <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
               {palette.map((w) => {
@@ -11506,7 +11507,8 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
             </div>
           )}
           {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
-              above the reaction row. Tap → the full "who reacted" sheet. */}
+              above the reaction row. Tap → the full "who reacted" sheet.
+              UNCHANGED by this task (Task 2 owns this block's color token). */}
           {likeFacepile.length > 0 && (() => {
             const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
             const fpLabel = fpNames.length
@@ -11523,39 +11525,82 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
               </button>
             );
           })()}
-          {/* actions — the reaction verb primary/heaviest; Comment + Share
-              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
-          {(() => {
-            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
-            return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
+          {/* action strip (graft, spec §7) — one row above a 1px ink-alpha
+              hairline. Five flex:1 cells, each ≥44×44px with an INVISIBLE hit
+              boundary (no circles, no borders on the cell itself). Boost is the
+              ONE fill — heat's single permitted fill per the Global Constraints
+              + spec §7: a 36px-tall squared chip (radius 6) centered inside its
+              cell, tinted bsTHexA(heat, 0.08) unreacted, solid heat filled when
+              reacted (role heat, NOT the app-wide t.ACCENT the old pill used).
+              Comment/Share/Send/Repost are bare monochrome glyph + mono count
+              at rest (bsTHexA(t.INK,0.55)) → t.INK on press; press feedback is
+              TRANSFORM-ONLY scale(0.97) (no color/background transition — the
+              Global Constraints' motion contract keeps first-view entrance
+              animation off interaction feedback). Long-press → expressive
+              palette (above) and every handler (applyReaction, openDetail,
+              bsSharePostExternal, setSendPostFor, bsRepostPost, the sample-post
+              toasts) are carried VERBATIM — presentation-only change. */}
+          <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 16, paddingTop: 12, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
             <button
+              aria-label={`${myExpr || cheer} · ${baseKudos + (liked ? 1 : 0)}`}
               onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
               onPointerUp={() => clearTimeout(lpTimerRef.current)}
               onPointerLeave={() => clearTimeout(lpTimerRef.current)}
               onContextMenu={(e) => e.preventDefault()}
               onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
-            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
-            <span style={{ marginLeft: 'auto' }} />
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, boxSizing: 'border-box', padding: '0 14px', borderRadius: 6, whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1, ...(liked ? { background: heat, color: '#fff' } : { background: bsTHexA(heat, 0.08), color: heat }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></span>
+            </button>
+            <button
+              aria-label={`Comments · ${commentCount}`}
+              onClick={() => openDetail('comments')}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('comment', 15)}<span>{commentCount}</span></button>
+            <button
+              aria-label="Share"
+              onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('share', 15)}</button>
+            <button
+              aria-label="Send privately"
+              onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('send', 15)}</button>
+            <button
+              aria-label="Repost"
+              onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('repost', 15)}</button>
           </div>
-            );
-          })()}
-          {/* followed comments — people I FOLLOW comment under the card by
-              default (modern row: facet avatar + aligned name/text); the rest
-              open in the full-screen activity page */}
-          {followedComments.length > 0 && (
+          {/* comments (graft, spec §8) — a COMMENTS · N eyebrow row with a
+              6×1.5px heat tick is the ONLY comments header now; it IS the
+              view-all affordance (tappable, ≥44px via padding) — the separate
+              "View all N comments ›" line is deleted. Renders whenever there's
+              at least one real comment (commentCount > 0), so a post with
+              comments nobody I follow wrote still shows the honest total and
+              still opens the full comments page. BSFeedComment rows + the
+              slice-of-2 pattern below it are UNCHANGED. */}
+          {commentCount > 0 && (
             <div style={{ marginTop: 11 }}>
-              {followedComments.slice(0, 2).map((c, i) => (
+              <button onClick={() => openDetail('comments')} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, width: '100%', padding: '11px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
+                <span aria-hidden style={{ display: 'inline-block', width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Comments · {commentCount} ›</span>
+              </button>
+              {followedComments.length > 0 && followedComments.slice(0, 2).map((c, i) => (
                 <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
               ))}
-              {commentCount > Math.min(2, followedComments.length) && (
-                <button onClick={() => openDetail('comments')} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 1, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {commentCount} comments ›</button>
-              )}
             </div>
           )}
           </div>
