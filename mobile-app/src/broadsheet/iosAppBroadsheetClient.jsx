@@ -7401,18 +7401,6 @@ function bsSpotifyEmbed(url) {
 }
 const BS_PROFILE_PROMPTS = ['Never skip', 'Pre-workout fuel', 'Currently chasing', 'Form check I love', 'My non-negotiable', 'Rest day looks like', 'A win this month', 'Training motto'];
 const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
-// Climb-graph background presets (profile_custom.climbBg) — gradient washes
-// rendered behind the public profile's ridgeline; visitors see the choice via
-// get_public_profile.custom. 'default' keeps the plain surface.
-const BS_CLIMB_BGS = [
-  { key: '',       label: 'Paper',  css: null },
-  { key: 'dawn',   label: 'Dawn',   css: 'linear-gradient(165deg, rgba(224,165,68,0.30), rgba(224,100,75,0.12) 55%, rgba(224,165,68,0.04) 92%)' },
-  { key: 'dusk',   label: 'Dusk',   css: 'linear-gradient(165deg, rgba(138,92,246,0.30), rgba(46,111,160,0.14) 60%, rgba(138,92,246,0.04) 92%)' },
-  { key: 'alpine', label: 'Alpine', css: 'linear-gradient(180deg, rgba(94,200,224,0.28), rgba(52,214,197,0.10) 55%, rgba(94,200,224,0.04) 92%)' },
-  { key: 'forest', label: 'Forest', css: 'linear-gradient(165deg, rgba(123,191,90,0.28), rgba(47,107,58,0.12) 60%, rgba(123,191,90,0.04) 92%)' },
-  { key: 'ember',  label: 'Ember',  css: 'linear-gradient(165deg, rgba(224,81,138,0.26), rgba(224,100,75,0.14) 55%, rgba(224,81,138,0.04) 92%)' },
-  { key: 'storm',  label: 'Storm',  css: 'linear-gradient(165deg, rgba(91,141,249,0.28), rgba(33,40,52,0.16) 60%, rgba(91,141,249,0.05) 92%)' },
-];
 const BS_PIN_KINDS = ['PR', 'Workout', 'Meal', 'Post', 'Win'];
 const BS_STAT_OPTIONS = [{ key: 'score', label: 'Shape Score' }, { key: 'tier', label: 'Tier' }, { key: 'streak', label: 'Day streak' }, { key: 'since', label: 'Member since' }, { key: 'lift', label: 'Top lift' }, { key: 'rating', label: 'Rating' }, { key: 'reviews', label: 'Reviews' }];
 const BS_PROFILE_LINKS = [
@@ -7429,7 +7417,7 @@ function bsLinkHref(key, val) {
   return 'https://' + (pre ? pre + v.replace(/^@/, '') : v);
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false, seen = false }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
   // full-bleed (side borders + radius dropped at the screen edges); typographic
@@ -7453,7 +7441,7 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
       <div style={{ marginBottom: 22 }}>
         {heroStats.length > 0 && (
           <div style={{ display: 'flex', gap: 18, paddingBottom: 14, marginBottom: 16, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
-            {heroStats.map((s) => <div key={s.k} style={{ flex: 1, minWidth: 0 }}><BSTLedgerStat INK={INK} label={s.label} value={String(s.value)} seen={false} figSize={22} /></div>)}
+            {heroStats.map((s) => <div key={s.k} style={{ flex: 1, minWidth: 0 }}><BSTLedgerStat INK={INK} label={s.label} value={String(s.value)} seen={seen} figSize={22} /></div>)}
           </div>
         )}
         {pinned && (
@@ -8208,7 +8196,10 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
   const [prompts, setPrompts] = useStateBSC(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: BS_PROFILE_PROMPTS[0], a: '' }]);
   const [coverUrl, setCoverUrl] = useStateBSC((init.cover && init.cover.image) || '');
   const [accent, setAccent] = useStateBSC(init.accent || '');
-  const [climbBg, setClimbBg] = useStateBSC(init.climbBg || '');
+  // climbBg is no longer a customizable surface (the wash was retired with the
+  // Route Card redesign); keep the stored value round-tripping so a member who
+  // set one before isn't stripped, but there's no picker for it anymore.
+  const climbBg = init.climbBg || '';
   const [pinKind, setPinKind] = useStateBSC((init.pinned && init.pinned.kind) || 'PR');
   const [pinTitle, setPinTitle] = useStateBSC((init.pinned && init.pinned.title) || '');
   const [pinNote, setPinNote] = useStateBSC((init.pinned && init.pinned.note) || '');
@@ -8306,21 +8297,6 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
             ))}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Climb background</span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-            {BS_CLIMB_BGS.map((b) => {
-              const on = (climbBg || '') === b.key;
-              return (
-                <button key={b.key || 'default'} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 5, cursor: 'pointer', border: `2px solid ${on ? INK : bsTHexA(INK, 0.18)}`, background: 'transparent', padding: 3 }}>
-                  <span style={{ display: 'block', height: 30, borderRadius: 3, background: b.css || bsTHexA(INK, 0.05), border: b.css ? 'none' : `1px dashed ${bsTHexA(INK, 0.25)}` }} />
-                  <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.55), fontWeight: 700 }}>{b.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.06em', color: bsTHexA(INK, 0.45) }}>The wash behind your Climb graph — everyone who views your profile sees it.</div>
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Headline stats · pick up to 3</span>
@@ -8792,6 +8768,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // ascent's stroke-dashoffset transition fires. Reduced motion → already drawn.
   const [heroSeen, setHeroSeen] = useStateBSC(bsSdReduced());
   React.useEffect(() => { if (heroSeen) return undefined; const r = requestAnimationFrame(() => setHeroSeen(true)); return () => cancelAnimationFrame(r); }, [heroSeen]);
+  // Per-tab seen map — a tab's station entrances play once, then a revisit
+  // renders the FINISHED state (no replay). The effect cleanup marks the tab
+  // seen on LEAVE, so the first visit's animation is never cut short.
+  const [seenTabs, setSeenTabs] = useStateBSC(new Set());
+  React.useEffect(() => () => { setSeenTabs((prev) => { if (prev.has(tab)) return prev; const n = new Set(prev); n.add(tab); return n; }); }, [tab]);
+  const tabFresh = !seenTabs.has(tab);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   useBSPresence();
@@ -9442,7 +9424,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 const ys = [H - 16, (H - 16) + (20 - (H - 16)) * npct, 20]; const xs = [22, W / 2, W - 22];
                 const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
                 const rgNow = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]}`;
-                const reduced = bsSdReduced();
+                const reduced = bsSdReduced() || !tabFresh; // revisit renders the finished route (no replay)
                 return (
                 <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
                   {/* whole route, dashed ink */}
@@ -9468,7 +9450,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {(goal || bio) && (
               <div style={{ marginBottom: 26 }}>
-                <div aria-hidden style={{ height: 2, marginBottom: 12, background: `linear-gradient(90deg, ${INK}, ${c} 70%, transparent)`, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
+                <div aria-hidden style={{ height: 2, marginBottom: 12, background: `linear-gradient(90deg, ${INK}, ${c} 70%, transparent)`, transformOrigin: 'left', ...((bsSdReduced() || !tabFresh) ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
                 <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>The why</div>
                 <div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 8, color: INK }}>{goal || bio}</div>
               </div>
@@ -9477,8 +9459,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'signals' && (() => {
               const reduced = bsSdReduced();
+              const play = tabFresh && !reduced; // entrances play once per profile open
               const hasTraj = !signedInSelf || !!(realSig && realSig.traj && realSig.traj.length >= 2);
-              const hasWeek = !signedInSelf || weekEff.some((v) => v > 0);
+              // A REAL present week renders (even an all-zero week — honest zeros
+              // are data, matching the streak); only a genuinely absent week redacts.
+              const hasWeek = !signedInSelf || !!(realSig && Array.isArray(realSig.week) && realSig.week.length);
               const discRows = disciplinesEff.map(([label, val]) => [label, String(Math.round(val * 100)), '']);
               const discPerf = disciplinesEff.map(([, val]) => Math.round(val * 100));
               const hasDisc = !signedInSelf || discPerf.some((v) => v > 0);
@@ -9499,7 +9484,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8 }}>Weekly momentum</div>
                     {hasWeek ? (<>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(6, (v / (maxWk || 1)) * 100)}%`, background: today ? c : bsTHexA(INK, 0.18), transformOrigin: 'bottom', ...(reduced ? null : { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` }) }} />; })}</div>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(6, (v / (maxWk || 1)) * 100)}%`, background: today ? c : bsTHexA(INK, 0.18), transformOrigin: 'bottom', ...(play ? { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` } : null) }} />; })}</div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 6.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{d}</div>)}</div>
                     </>) : <BSTRedact INK={INK} label="No sessions this week" />}
                   </div>
@@ -9514,7 +9499,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                       </div>
                     </div>
                     <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }} aria-hidden>
-                      <path d={sparkPath} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(reduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
+                      <path d={sparkPath} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(play ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' } : { strokeDashoffset: 0 }) }} />
                     </svg>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>16-wk recomp</div>
                   </div>
@@ -9542,7 +9527,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} ledger onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} ledger seen={tabFresh} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
               <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
