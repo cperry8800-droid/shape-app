@@ -9314,8 +9314,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      padding to span the whole screen (side borders + radius
                      dropped at the edges). The card's own age chip carries the
                      timing; author header hidden (the profile owns the identity). */
-                  <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
+                  <div key={a.key || i} style={{ margin: '0 -20px' }}>
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
                   </div>
                 ))}
               </div>
@@ -9970,8 +9970,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 /* Full-BLEED card — breaks out of the coach body's 22px side
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
-                <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -22px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor />
+                <div key={a.key || i} style={{ margin: '0 -22px' }}>
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} />
                 </div>
               ))}
             </div>
@@ -11241,7 +11241,7 @@ function useBSCardSheets() {
 // community feed builds it once per render, the profile builds a slim version
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
-function BSActivityCard({ a, ctx, hideAuthor = false }) {
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
   const {
     t, cardInk, muted, hair, card,
     actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
@@ -11258,6 +11258,21 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
     const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();
     const tc = isCoachAuthor ? bsTierColor(String(tierDisplay).toLowerCase()) : bsTierColor(realTier);
     const key = a.key || `${a.who}|${a.ago}`;
+    // Dispatch rail heat — role color, NOT tier (tier stays on the avatar ring
+    // only). Spec §1's literals: client teal + nutritionist gold are LIGHT/DARK
+    // pairs (the older roleColor() helper elsewhere in this file carries only
+    // the dark-paper gold; spec §1 overrides with the pair so heat reads on all
+    // 14 papers); trainer rust is one literal. Resolved from a.role, honest for
+    // both real + demo cards.
+    const heat = a.role === 'Trainer' ? '#c0533b' : a.role === 'Nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : (t.isLight ? '#0a8f87' : '#34d6c5');
+    // ONE useBSSdInView instance for the whole card (Global Constraint: one
+    // observer per card). railRef goes on the rail; railSeen gates the rail's
+    // own first-view growth below AND every later task's first-view animation
+    // (hero count-up, hero/separator rule draws, co-sign stamp) — later tasks
+    // consume this same [railRef, railSeen] pair, they do not call the hook again.
+    const [railRef, railSeen] = useBSSdInView();
+    const sdReduced = bsSdReduced();
+    React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
     // Seed from the post's live like state; local toggles override. The kudos
     // count from the row already includes my own like, so subtract the seed
     // before re-adding the local state (no double count).
@@ -11310,7 +11325,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
     const myCoSign = actCoSign[key] || null;
     const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
     const coSignIsMine = !!myCoSign;
-    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
+    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : '#c0533b') : null;
     // Phase 2 — the verb shown on the button is MY chosen expression when I've
     // reacted (long-press → pick), else the activity-default verb. `applyReaction`
     // is the single path: tapping (expr=null) toggles the like; picking an
@@ -11348,49 +11363,79 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
     return (
-      <div style={{ background: card, overflow: 'hidden' }}>
-        <div style={{ height: 1, background: tc }} />
-        <div style={{ padding: '10px 13px 11px' }}>
-          {/* author + activity type — or, when hideAuthor (profile feed), a slim
-              header: the type chip on the right + the relative time on the left
-              (the profile's own card chrome already owns the author identity). */}
-          {hideAuthor ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
-              {/* owner edit — only when the host supplies onEdit (profile) AND the
-                  card is a real published post; the community feed passes no onEdit,
-                  and demo/PR cards have no postId, so this stays profile-own-posts. */}
-              {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
-              <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
-            </div>
-          ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-            <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: cardInk, whiteSpace: 'nowrap' }}>{a.who}</button>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tc, border: `1px solid ${tc}80`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{tierDisplay}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
+      <div ref={railRef} style={{ position: 'relative' }}>
+        <div style={{ paddingLeft: 15 }}>
+          {/* per-post 2px heat rail — absolute, gradient fades down the card's
+              height (spec §1: top 4 → bottom 0 so the rail spans title → action
+              strip; 42% gradient stop), grows in on first view (bsSdGrowY, one
+              useBSSdInView per card from Step 2; pre-seen it holds scaleY(0) so
+              it never animates at mount while offscreen). aria-hidden:
+              decorative, carries no content. */}
+          <div aria-hidden style={{ position: 'absolute', left: 0, top: 4, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 42%, ${bsTHexA(t.INK, 0.1)} 78%, transparent)`, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
+          <div style={{ padding: '10px 13px 11px 0' }}>
+            {/* author + activity type — or, when hideAuthor (profile feed), a slim
+                header: the type tag on the right + the relative time on the left
+                (the profile's own card chrome already owns the author identity).
+                BOTH bordered chips die (spec §2 + the Deletes list name both
+                pills): one plain unboxed mono `PEAK · CLIENT` line replaces
+                them; the type tag reads as plain mono ink text with a heat
+                underline (graft); name is always t.INK (no tier tint on running
+                text — heat/tier are line-only per the Global Constraints). */}
+            {hideAuthor ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, color: muted, letterSpacing: '0.04em' }}>{a.ago}</span>
+                {/* owner edit — only when the host supplies onEdit (profile) AND the
+                    card is a real published post; the community feed passes no onEdit,
+                    and demo/PR cards have no postId, so this stays profile-own-posts. */}
+                {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
+                <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+            ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+              <BSFacetAvatar size={36} c={tc} initial={bsInitials(a.who)} name={a.who} photo={avatarPhoto} showRank={false} onClick={openCardProfile} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
+                </div>
+                <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
+              </div>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fff', background: tc, padding: '3px 6px', borderRadius: 4 }}>{typeLabel}</span>
-          </div>
-          )}
+            )}
           {/* HERO — activity name + the promoted primary metric. Tapping the
               title/metric/caption (or the route below) opens the full session-
               details page. */}
-          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: cardInk, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}</div>
-            {heroStat && (
-              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '0 9px', marginTop: 7 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: cardInk, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{heroStat[1]}</span>
-                {prDelta && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tc, background: `${tc}1f`, border: `1px solid ${tc}80`, padding: '3px 7px', borderRadius: 999, lineHeight: 1 }}>↑ {prDelta}</span>}
-                <span style={{ width: '100%', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, marginTop: 3 }}>{heroStat[0]}</span>
-              </div>
-            )}
+          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
+            {/* honest hero figure — posts with no hero stat skip this block
+                entirely (never a fabricated placeholder). Eyebrow sits ABOVE
+                the figure (Open Ledger order); split-unit + count-up + a heat
+                rule under the figure, gated on Task 1's one-shot railSeen flag
+                so it fires with the rest of the card's first-view entrance.
+                The PR delta is PLAIN ink — no heat, no animation (the heat
+                list is closed; the motion contract's animated elements are
+                the rail, the count, the two rules, and the co-sign stamp). */}
+            {heroStat && (() => {
+              const u = bsSdSplitUnit(heroStat[1]);
+              return (
+                <div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                      <BSSdCountUp text={u.num} run={railSeen} duration={750} delay={80} />
+                    </span>
+                    {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
+                    {prDelta && (
+                      <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.75), whiteSpace: 'nowrap' }}>↑ PR {prDelta}</span>
+                    )}
+                  </div>
+                  <div aria-hidden style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${heat}, ${bsTHexA(heat, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
+                </div>
+              );
+            })()}
             {/* caption — the human line, unchanged */}
-            {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: muted, margin: '7px 0 0' }}>{a.body}</p>}
+            {a.body && <p style={{ fontFamily: t.BODY, fontSize: 12.5, lineHeight: 1.35, color: bsTHexA(t.INK, 0.75), margin: '7px 0 0' }}>{a.body}</p>}
           </div>
           {/* Log-Activity media — photo · inline video / video-link card · link card.
               GUARDED by a.photo/a.video/a.link, so it's a zero-render no-op on the
@@ -11409,37 +11454,66 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
             </button>
           )}
-          {/* GPS route — the REAL polyline when the post carries points;
-              halftone tile in the member's tier color otherwise (endurance hero).
-              Tap opens the full session-details page. */}
+          {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
+              NOT modified; it runs full-bleed edge-to-edge: the outer
+              wrapper's negative margins cancel the rail gutter (15 left / 13
+              right, Task 1's shell) PLUS the page gutter (pagePad — t.padX on
+              the community feed; 0 on the profiles, whose row wrappers already
+              went full-bleed), and the wrapper's overflow:hidden clip + the
+              inner shim push the component's own marginTop:12 and 1px solid-
+              INK border outside the clip box — so the wrapper's 1px ink-alpha
+              hairlines top/bottom are the ONLY visible rules, with no side
+              borders: a printed-photo bleed. Routeless fallback collapses to
+              the Open Ledger redaction line (same pattern as the Session
+              Details page's own "GPS · Not recorded" — a 1px dashed rule
+              flexing both sides of centered mono text) instead of the old
+              halftone tile; honest data gate (`showRoute`) is unchanged —
+              still renders nothing at all when the post carries no route
+              signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ cursor: 'pointer' }}><BSActivityRoutePreview route={routeObj} /></div>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
+              <div style={{ margin: '-13px -1px -1px' }}>
+                <BSActivityRoutePreview route={routeObj} />
+              </div>
+            </div>
           ) : showRoute && (
-            <div onClick={() => openDetail('stats')} style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
-              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
+              <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px' }}>GPS · Not recorded</span>
+              <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
             </div>
           )}
           {/* The card stays a glance — the full metric readout lives on the
-              Session-details page (this link / tapping the hero opens it). */}
-          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 11, padding: '10px 0 0', borderTop: `1px solid ${hair}`, background: 'transparent', border: 0, cursor: 'pointer' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tc }}>Session details · full activity</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
+              Session-details page (this link / tapping the hero opens it).
+              Ink text + heat underline/chevron only (graft) — no borderTop
+              divider (the between-post ink→heat separator from Task 1 already
+              closes the section) and no button chrome; the 44px tap target
+              comes from invisible vertical padding, not a visible bar. */}
+          <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, marginTop: 11, padding: '14px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>Session details · full activity</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat }}>›</span>
           </button>
-          {/* coach co-sign — a solid role-colored badge so one coach co-sign reads
-              heavier than any peer reaction. Renders only on a real coach↔client
-              link (my own, or one stamped on the post); honest-absent otherwise */}
+          {/* coach co-sign → PRESS CREDIT (graft, binding over the base concept's
+              heat-text pill): no background fill at all — a 3px role-colored left
+              spine + a heat check glyph + the name in t.INK + the "co-signed ·
+              role" label in an ink-alpha (never a fill; the role color rides on
+              the spine + nowhere else). Renders only on a real coach↔client link
+              (my own, or one stamped on the post); honest-absent otherwise.
+              Handler + eligibility (coSignIsMine / coSign.byId / setOpenProfile
+              payload shape) carried verbatim from the prior pill. */}
           {coSign && (
-            <div style={{ marginTop: 11 }}>
-              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%', background: coSignColor, color: '#fff', border: 0, borderRadius: 999, padding: '4px 11px', boxSizing: 'border-box', cursor: 'pointer' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 900, lineHeight: 1, flexShrink: 0 }}>✓</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
+            <div style={{ marginTop: 11, ...(sdReduced ? null : railSeen ? { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' } : { opacity: 0 }) }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderLeft: `3px solid ${coSignColor}`, borderRadius: 0, padding: '2px 0 2px 10px', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: heat }}>✓</span>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
               </button>
             </div>
           )}
           {/* phase 2 — expressive palette (opens on a press-and-hold of the
-              reaction). Picking a word re-labels MY reaction but stays the same
-              unified like (one count). All text, no emoji. */}
+              boost). Picking a word re-labels MY reaction but stays the same
+              unified like (one count). All text, no emoji. Unchanged by this
+              task except the trigger button below it. */}
           {paletteOpen && (
             <div className="bs-hide-scroll" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 11, overflowX: 'auto' }}>
               {palette.map((w) => {
@@ -11452,59 +11526,114 @@ function BSActivityCard({ a, ctx, hideAuthor = false }) {
             </div>
           )}
           {/* followed-likers facepile — the people I FOLLOW who reacted, stacked
-              above the reaction row. Tap → the full "who reacted" sheet. */}
+              above the reaction row. Tap → the full "who reacted" sheet.
+              UNCHANGED by this task (Task 2 owns this block's color token). */}
           {likeFacepile.length > 0 && (() => {
             const fpNames = followedLikers.map((l) => l.name).filter(Boolean);
             const fpLabel = fpNames.length
               ? (followedLikers.length === 1 ? `${fpNames[0]} reacted` : `${fpNames[0].split(' ')[0]} + ${followedLikers.length - 1} you follow reacted`)
               : `${followedLikers.length} ${followedLikers.length === 1 ? 'person' : 'people'} you follow reacted`;
             return (
-              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12, background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <button onClick={() => setLikerSheetFor({ who: a.who, likers: allLikers })} style={{ display: 'flex', alignItems: 'center', gap: 9, minHeight: 44, width: '100%', marginTop: 12, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                   {likeFacepile.map((l, i) => (
                     <BSFacetAvatar key={i} size={22} c={bsTierColor(bsPostTier({ who: l.name || 'Shape' }))} initial={bsInitials(l.name || '?')} name={l.name || ''} photo={l.photo} showRank={false} />
                   ))}
                 </span>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{fpLabel} ›</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{fpLabel} ›</span>
               </button>
             );
           })()}
-          {/* actions — the reaction verb primary/heaviest; Comment + Share
-              secondary; Send + Repost de-emphasized (same pill/icon styles) */}
-          {(() => {
-            const actPill = (on, grow) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, boxSizing: 'border-box', padding: grow ? '0 14px' : 0, width: grow ? 'auto' : 34, flexShrink: 0, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', background: on ? tc : 'transparent', color: on ? '#fff' : muted, border: `1px solid ${on ? tc : hair}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1 });
-            return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 18 }}>
+          {/* action strip (graft, spec §7) — one row above a 1px ink-alpha
+              hairline. Five flex:1 cells, each ≥44×44px with an INVISIBLE hit
+              boundary (no circles, no borders on the cell itself). Boost is the
+              ONE fill — heat's single permitted fill per the Global Constraints
+              + spec §7: a 36px-tall squared chip (radius 6) centered inside its
+              cell, tinted bsTHexA(heat, 0.08) unreacted, solid heat filled when
+              reacted (role heat, NOT the app-wide t.ACCENT the old pill used).
+              Comment/Share/Send/Repost are bare monochrome glyph + mono count
+              at rest (bsTHexA(t.INK,0.55)) → t.INK on press; press feedback is
+              TRANSFORM-ONLY scale(0.97) (no color/background transition — the
+              Global Constraints' motion contract keeps first-view entrance
+              animation off interaction feedback). Long-press → expressive
+              palette (above) and every handler (applyReaction, openDetail,
+              bsSharePostExternal, setSendPostFor, bsRepostPost, the sample-post
+              toasts) are carried VERBATIM — presentation-only change. */}
+          <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 16, paddingTop: 12, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
             <button
+              aria-label={`${myExpr || cheer} · ${baseKudos + (liked ? 1 : 0)}`}
               onPointerDown={() => { lpFiredRef.current = false; clearTimeout(lpTimerRef.current); lpTimerRef.current = setTimeout(() => { lpFiredRef.current = true; setExprOpenKey(key); }, 420); }}
               onPointerUp={() => clearTimeout(lpTimerRef.current)}
               onPointerLeave={() => clearTimeout(lpTimerRef.current)}
               onContextMenu={(e) => e.preventDefault()}
               onClick={() => { if (lpFiredRef.current) { lpFiredRef.current = false; return; } applyReaction(null); }}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               title="Hold for more reactions"
-              style={{ ...actPill(liked, true), height: 38, fontSize: 10.5, fontWeight: 900, padding: '0 17px', ...(liked ? { background: t.ACCENT, color: '#fff', border: `1px solid ${t.ACCENT}` } : { background: `${t.ACCENT}14`, color: t.ACCENT, border: `1px solid ${t.ACCENT}` }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></button>
-            <button aria-label="Comments" onClick={() => openDetail('comments')} style={actPill(false, true)}>{bsFeedIcon('comment', 14)}<span>{commentCount}</span></button>
-            <button aria-label="Share" onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })} style={actPill(false, false)}>{bsFeedIcon('share', 15)}</button>
-            <span style={{ marginLeft: 'auto' }} />
-            <button aria-label="Send privately" onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }} style={actPill(false, false)}>{bsFeedIcon('send', 15)}</button>
-            <button aria-label="Repost" onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }} style={actPill(false, false)}>{bsFeedIcon('repost', 15)}</button>
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, boxSizing: 'border-box', padding: '0 14px', borderRadius: 6, whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1, ...(liked ? { background: heat, color: '#fff' } : { background: bsTHexA(heat, 0.08), color: heat }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></span>
+            </button>
+            <button
+              aria-label={`Comments · ${commentCount}`}
+              onClick={() => openDetail('comments')}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('comment', 15)}<span>{commentCount}</span></button>
+            <button
+              aria-label="Share"
+              onClick={() => bsSharePostExternal({ who: a.who, title, body: a.body, postId: a.postId || null })}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('share', 15)}</button>
+            <button
+              aria-label="Send privately"
+              onClick={() => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } setSendPostFor({ postId: a.postId, who: a.who, title, body: a.body }); }}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('send', 15)}</button>
+            <button
+              aria-label="Repost"
+              onClick={async () => { if (!a.postId) { window.__bsToast?.('Sample activity — engagement lights up on real ones.', 'info'); return; } try { await bsRepostPost({ postId: a.postId, who: a.who, title, body: a.body }); window.__bsToast?.('Reposted to your feed', 'ok'); } catch (e) { window.__bsToast?.('Could not repost.', 'error'); } }}
+              onPointerDownCapture={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.color = t.INK; }}
+              onPointerUpCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.color = bsTHexA(t.INK, 0.55); }}
+              style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: bsTHexA(t.INK, 0.55), transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>{bsFeedIcon('repost', 15)}</button>
           </div>
-            );
-          })()}
-          {/* followed comments — people I FOLLOW comment under the card by
-              default (modern row: facet avatar + aligned name/text); the rest
-              open in the full-screen activity page */}
-          {followedComments.length > 0 && (
+          {/* comments (graft, spec §8) — a COMMENTS · N eyebrow row with a
+              6×1.5px heat tick is the ONLY comments header now; it IS the
+              view-all affordance (tappable, ≥44px via padding) — the separate
+              "View all N comments ›" line is deleted. Renders whenever there's
+              at least one real comment (commentCount > 0), so a post with
+              comments nobody I follow wrote still shows the honest total and
+              still opens the full comments page. BSFeedComment rows + the
+              slice-of-2 pattern below it are UNCHANGED. */}
+          {commentCount > 0 && (
             <div style={{ marginTop: 11 }}>
-              {followedComments.slice(0, 2).map((c, i) => (
+              <button onClick={() => openDetail('comments')} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, width: '100%', padding: '11px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
+                <span aria-hidden style={{ display: 'inline-block', width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Comments · {commentCount} ›</span>
+              </button>
+              {followedComments.length > 0 && followedComments.slice(0, 2).map((c, i) => (
                 <BSFeedComment key={i} c={c} t={t} cardInk={cardInk} muted={muted} feedAvatars={feedAvatars} real={a.real} size={24} />
               ))}
-              {commentCount > Math.min(2, followedComments.length) && (
-                <button onClick={() => openDetail('comments')} style={{ background: 'transparent', border: 0, padding: 0, marginTop: 1, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted }}>View all {commentCount} comments ›</button>
-              )}
             </div>
           )}
+          </div>
         </div>
+        {/* ink→heat separator — the house 2px rule between dispatches (spec
+            §0): every card draws it at its own BOTTOM edge, suppressed on the
+            LAST card (isLast) so the feed doesn't end on a trailing rule. Sits
+            outside the 15px rail gutter → full content width. Drawn in-view
+            via bsSdDrawX, gated on the card's one railSeen flag (pre-seen it
+            holds scaleX(0) — never animates at mount while offscreen); reduced
+            motion renders it finished. */}
+        {!isLast && (
+          <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
+        )}
       </div>
     );
 }
@@ -12655,7 +12784,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} /></React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} /></React.Fragment>);
               })()}
             </div>
           ) : (

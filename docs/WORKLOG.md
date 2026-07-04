@@ -233,6 +233,58 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-03 — Feed activity cards: "Wire Dispatch" redesign (#1528)
+- **`BSActivityCard` rebuilt from a dark bordered rounded-rect into a zero-box
+  "dispatch" on a per-author heat rail** (spec
+  `docs/superpowers/specs/2026-07-03-feed-wire-dispatch-design.md`), serializing
+  the shipped Session Details "Open Ledger" language (#1523) at feed density:
+  card chrome (fill/border/radius/clip/top strip) deleted entirely; boundaries
+  now come only from the per-post heat rail, the ink→heat separator rule
+  between posts, and whitespace. Six critic grafts are binding overrides
+  (zero feed-card motion loops · co-sign as a press credit, not a filled pill ·
+  links/type-tag as ink text + heat underline only · GPS routes full-bleed ·
+  a comments eyebrow that IS the view-all · five flex `≥44px` action cells).
+- **Hero ledger**: title + trailing heat period, an eyebrow-above-figure hero
+  stat via the Open Ledger's own `bsSdSplitUnit` + `BSSdCountUp` (honest-absent
+  when a post carries no hero stat — never a fabricated figure), a heat rule
+  drawn under the figure on first view.
+- **Co-sign → press credit**: the solid rust/gold pill is gone; a coach
+  co-sign now reads as a 3px role-colored spine + a heat check glyph + the
+  name and "co-signed · role" label both in ink-alphas (never role-colored
+  running text) — reads heavier than a peer reaction with zero fill.
+  Eligibility/gating (`iAmAuthorsCoach`, honest-null absent a real coach↔client
+  link) unchanged.
+- **Route posts full-bleed**: `BSActivityRoutePreview` (component itself NOT
+  modified) now runs true edge-to-edge — a new `pagePad` prop (community feed
+  passes `t.padX`; the already-full-bleed profile rows pass 0) lets the card
+  cancel the page gutter on top of its own rail gutter, and a clip-wrapper +
+  shim push the component's own marginTop + 1px INK border outside the clip
+  so the wrapper's 1px ink-alpha hairlines top/bottom are the only visible
+  rules; the routeless fallback collapses from an 80px halftone tile to the
+  Open Ledger's own redaction line (a dashed rule flexing both sides of
+  centered mono `GPS · Not recorded`) — same honest-data gate as before
+  (renders nothing at all when the post carries no route signal).
+- **Motion**: one `useBSSdInView` observer per card (not per field) drives the
+  whole first-view sequence — rail grows → hero counts → hero/separator rules
+  draw → co-sign stamps — every animated style gated on BOTH `bsSdReduced()`
+  AND the card's one-shot seen flag (nothing animates at mount while
+  offscreen); audited zero infinite-loop animations anywhere in the card
+  (the old live-pulse breathing tick was a detail-page-only signature and
+  never shipped on the feed card).
+- **Cleanup**: removed the action-row's old circular-pill style helper and
+  the routeless halftone-tile gradient literal, both now fully unreferenced;
+  `hideAuthor` (profile-feed) variant keeps the identical rail/rule treatment
+  with no author block, verified in both the community feed and both profile
+  contexts.
+  Verified: JSX parse · PowerShell mobile build (exit 0) · full `npm test`
+  (382/382) · LF normalized. **On-device pass recommended** (Black/Sage/Cream
+  papers) before merge — a co-signed PR post, a run WITH a GPS route, a
+  routeless run, a photo post, and a plain note, each viewed in BOTH the
+  community feed and a profile feed (`hideAuthor`), confirming the rail/rule
+  rhythm between same-role posts, the invisible 44px action-strip targets,
+  and that reduced-motion renders every card in its finished state with zero
+  residual transform/opacity.
+
 ### 2026-07-03 — Client Home "Front Page" hybrid restructure (#1527)
 - **`BSClientHome` restructured from ~11 uniform bordered plates into the
   Front-Page hierarchy** (spec `docs/superpowers/specs/2026-07-03-home-front-page-hybrid-design.md`,
