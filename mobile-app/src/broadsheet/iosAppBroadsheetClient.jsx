@@ -2936,12 +2936,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               const notes = [];
               if (trainerBanner) notes.push({ role: 'trainer', text: trainerBanner.text, who: trainerBanner.provider_name || 'Jordan Chen', when: dayOf(trainerBanner) });
               if (nutriBanner) notes.push({ role: 'nutritionist', text: nutriBanner.text, who: nutriBanner.provider_name || 'Dr. Maya Patel', when: dayOf(nutriBanner) });
-              // No real notes yet: the sample-note fallback is signed-out preview
-              // ONLY (the fix — was unconditional before this task).
-              if (!notes.length && !bsHomeSignedIn) {
-                notes.push({ role: 'trainer', text: "You're 3 weeks in. The tempo is the point — slow eccentric on every press. Log your sleep, it's the lever.", who: 'Jordan Chen', when: 'Mon' });
-                notes.push({ role: 'nutritionist', text: "Three weeks of steady protein — it's working. Keep breakfast above 35g and we'll carry the momentum into the next block.", who: 'Dr. Maya Patel', when: 'Mon' });
-              }
+              // Real coach notes only — no sample-note fallback (owner call:
+              // the demo quotes are gone even in signed-out preview).
               if (!notes.length) return null;
               return (
                 <div style={{ padding: `12px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -10688,8 +10684,9 @@ function BSSdZoneCells({ zones, t, muted }) {
     </div>
   );
 }
-// Splits / working sets as LANDING BARS — each bar rises with a slight
-// overshoot, staggered; the best/PR bar lands last in the session's heat color
+// Splits / working sets as HORIZONTAL ledger bars (Strava-style rows): each
+// row = fixed label column · a bar drawing rightward (longer = faster/bigger)
+// · the figure on the right edge. The best/PR row lands in the session's heat
 // with a burst ring + a soft breathing halo. "RPE n" subs render as mini dials.
 function BSSdBars({ rows, perf, bestIdx, heat, t, muted }) {
   const [ref, seen] = useBSSdInView();
@@ -10700,56 +10697,46 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted }) {
   const rpeColor = (r) => (r >= 9 ? '#e0463c' : r >= 8 ? '#d8b25a' : '#34d6c5');
   return (
     <div ref={ref}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 132 }}>
-        {rows.map((r, i) => {
-          const barH = 24 + (perf[i] / pmax) * 88;
-          const best = i === bestIdx && rows.length > 1;
-          return (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', marginBottom: 6, whiteSpace: 'nowrap', opacity: seen ? 1 : 0, transition: `opacity 400ms ease ${i * 110 + 300}ms` }}>{r[1]}</span>
-              <div style={{ width: '100%', maxWidth: 38, height: barH, position: 'relative' }}>
-                <div style={{
-                  position: 'absolute', inset: 0, borderRadius: '3px 3px 0 0',
-                  background: best ? heat : bsTHexA(t.INK, 0.18),
-                  transformOrigin: 'bottom', transform: (seen || reduced) ? undefined : 'scaleY(0)',
-                  '--sd-glow': bsTHexA(heat, 0.5),
-                  animation: (seen && !reduced)
-                    ? (best
-                      ? `bsSdRise 560ms cubic-bezier(.25,.75,.35,1.12) ${i * 110}ms both, bsSdPrBreath 2.8s ease-in-out ${lastDelay + 700}ms infinite`
-                      : `bsSdRise 560ms cubic-bezier(.25,.75,.35,1.12) ${i * 110}ms both`)
-                    : 'none',
-                }} />
-                {best && seen && !reduced && (
-                  <span aria-hidden style={{ position: 'absolute', inset: 0, borderRadius: '3px 3px 0 0', '--sd-burst': bsTHexA(heat, 0.55), animation: `bsSdBurst 750ms ease-out ${lastDelay}ms both` }} />
-                )}
-              </div>
+      {rows.map((r, i) => {
+        const best = i === bestIdx && rows.length > 1;
+        const len = 24 + (perf[i] / pmax) * 76;
+        const rpe = rpeOf(r[2]);
+        const rest = String(r[2] || '').replace(/rpe\s*[\d.]+/i, '').replace(/^\s*·\s*|\s*·\s*$/g, '').trim();
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 0' }}>
+            <div style={{ width: 76, flexShrink: 0, minWidth: 0 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: best ? bsTHexA(t.INK, 0.75) : muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
+              {rest ? <div style={{ fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: bsTHexA(t.INK, best ? 0.55 : 0.4), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{rest}</div> : null}
             </div>
-          );
-        })}
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 9 }}>
-        {rows.map((r, i) => {
-          const rpe = rpeOf(r[2]);
-          const rest = String(r[2] || '').replace(/rpe\s*[\d.]+/i, '').replace(/^\s*·\s*|\s*·\s*$/g, '').trim();
-          return (
-            <div key={i} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[0]}</div>
-              {rpe != null ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 3 }}>
-                  <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden>
-                    <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
-                    <circle cx="10" cy="10" r="7.5" fill="none" stroke={rpeColor(rpe)} strokeWidth="3" strokeLinecap="round" pathLength={100}
-                      strokeDasharray={`${Math.max(4, Math.min(100, (rpe / 10) * 100))} 100`} transform="rotate(-90 10 10)" />
-                  </svg>
-                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? bsTHexA(t.INK, 0.75) : bsTHexA(t.INK, 0.45), whiteSpace: 'nowrap' }}>{rpe}{rest ? ` · ${rest}` : ''}</span>
-                </div>
-              ) : (
-                r[2] && <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === bestIdx ? bsTHexA(t.INK, 0.7) : bsTHexA(t.INK, 0.4), marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r[2]}</div>
+            <div aria-hidden style={{ flex: 1, position: 'relative', height: 10, minWidth: 0 }}>
+              <div style={{
+                position: 'absolute', left: 0, top: 0, bottom: 0, width: `${len}%`, borderRadius: '0 2px 2px 0',
+                background: best ? heat : bsTHexA(t.INK, 0.16),
+                transformOrigin: 'left', transform: (seen || reduced) ? undefined : 'scaleX(0)',
+                '--sd-glow': bsTHexA(heat, 0.5),
+                animation: (seen && !reduced)
+                  ? (best
+                    ? `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 110}ms both, bsSdPrBreath 2.8s ease-in-out ${lastDelay + 700}ms infinite`
+                    : `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 110}ms both`)
+                  : 'none',
+              }} />
+              {best && seen && !reduced && (
+                <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${len}%`, borderRadius: '0 2px 2px 0', '--sd-burst': bsTHexA(heat, 0.55), animation: `bsSdBurst 750ms ease-out ${lastDelay}ms both` }} />
               )}
             </div>
-          );
-        })}
-      </div>
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, minWidth: 58, justifyContent: 'flex-end' }}>
+              {rpe != null && (
+                <svg width="14" height="14" viewBox="0 0 20 20" aria-label={`RPE ${rpe}`}>
+                  <circle cx="10" cy="10" r="7.5" fill="none" stroke={bsTHexA(t.INK, 0.14)} strokeWidth="3" />
+                  <circle cx="10" cy="10" r="7.5" fill="none" stroke={rpeColor(rpe)} strokeWidth="3" strokeLinecap="round" pathLength={100}
+                    strokeDasharray={`${Math.max(4, Math.min(100, (rpe / 10) * 100))} 100`} transform="rotate(-90 10 10)" />
+                </svg>
+              )}
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', opacity: seen ? 1 : 0, transition: `opacity 400ms ease ${i * 110 + 220}ms` }}>{r[1]}</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -10798,7 +10785,11 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
   const [ref, seen] = useBSSdInView();
   const reduced = bsSdReduced();
   const paceRe = /pace|speed/i, hrRe = /\bhr\b|heart|bpm/i;
-  const unitSpan = (u, size) => (u ? <span style={{ fontFamily: t.MONO, fontSize: size, fontWeight: 700, color: bsTHexA(t.INK, 0.55), marginLeft: 4 }}>{u}</span> : null);
+  // Units sit in a fixed-width column (widest unit in the register, mono ch)
+  // so every numeral shares one right edge — bare figures reserve the gutter too.
+  const unitCh = (rows) => (rows || []).reduce((m, r) => Math.max(m, bsSdSplitUnit(r[1]).unit.length), 0);
+  const priUnitCh = unitCh(primary), secUnitCh = unitCh(secondary);
+  const unitSpan = (u, size, colCh) => (colCh ? <span style={{ display: 'inline-block', width: `${colCh}ch`, textAlign: 'left', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: size, fontWeight: 700, color: bsTHexA(t.INK, 0.55), marginLeft: 4 }}>{u}</span> : null);
   return (
     <div ref={ref}>
       {primary.map(([k, v], i) => {
@@ -10817,7 +10808,7 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
               <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '46%' }}>{k}</span>
               <span style={{ position: 'relative', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                 <BSSdCountUp text={u.num} run={seen} duration={800} delay={180 + i * 90} />
-                {unitSpan(u.unit, 10)}
+                {unitSpan(u.unit, 10, priUnitCh)}
               </span>
             </div>
             {needle && (
@@ -10850,7 +10841,7 @@ function BSSdLedger({ primary, secondary, heat, t, ghostFor, paceTrace, isRide }
                 <span aria-hidden style={{ flex: 1, margin: '0 8px', borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-3px)' }} />
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                   <BSSdCountUp text={u.num} run={seen} duration={650} delay={420 + Math.min(i, 9) * 55} />
-                  {unitSpan(u.unit, 8.5)}
+                  {unitSpan(u.unit, 8.5, secUnitCh)}
                 </span>
               </div>
             );
@@ -11076,9 +11067,9 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             {Array.isArray(d.zones) && d.zones.length > 0 && <BSSdZoneCells zones={d.zones} t={t} muted={muted} />}
           </>
         )}
-        {/* SPLITS — a real COLUMN chart so the trend reads at a glance: each
-            column's height tracks speed (faster = taller), the fastest in accent,
-            its pace above + segment label below. Falls back to load for strength. */}
+        {/* SPLITS — horizontal ledger bars (Strava-style rows): each bar draws
+            rightward tracking speed (faster = longer), the fastest in accent,
+            label left + pace on the right edge. Falls back to load for strength. */}
         {!isComments && d.breakdown && Array.isArray(d.breakdown.rows) && d.breakdown.rows.length > 0 && (() => {
           const rows = d.breakdown.rows;
           const paceVals = rows.map((r) => { const m = String(r[1]).match(/(\d+):(\d+)/); return m ? (+m[1]) * 60 + (+m[2]) : null; });
@@ -11095,13 +11086,33 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             </>
           );
         })()}
-        {/* CADENCE — steps/min over distance (y-axis spm + x-axis miles). */}
-        {!isComments && hasCadGraph && (
-          <>
-            {secHead('Cadence', cadStat ? headChip(`avg ${cadStat[1]}`) : null)}
-            <BSSdTrace vals={d.cadenceTrace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="cad" height={92} t={t} muted={muted} distanceMi={distanceMi} />
-          </>
-        )}
+        {/* CADENCE — per-mile averages as the same horizontal ledger bars as
+            Splits (owner call: no area chart here). Buckets the distance-uniform
+            trace by mile (segment buckets when distance is unknown/marathon+). */}
+        {!isComments && hasCadGraph && (() => {
+          const tr = d.cadenceTrace;
+          const miles = distanceMi ? Math.round(distanceMi) : 0;
+          const perMile = miles >= 2 && miles <= 15;
+          const nb = Math.max(2, Math.min(perMile ? miles : 6, tr.length));
+          const buckets = Array.from({ length: nb }, (_, b) => {
+            const s = Math.floor((b * tr.length) / nb), e = Math.max(s + 1, Math.floor(((b + 1) * tr.length) / nb));
+            const seg = tr.slice(s, e);
+            return seg.reduce((a, v) => a + v, 0) / seg.length;
+          });
+          const cadUnit = (cadStat && bsSdSplitUnit(cadStat[1]).unit) || 'spm';
+          const cRows = buckets.map((v, b) => [perMile ? `Mi ${b + 1}` : `Seg ${b + 1}`, `${Math.round(v)} ${cadUnit}`, '']);
+          // Cadence clusters tightly (e.g. 168–186), so bars spread on the
+          // min→max range — raw v/max would render every bar near-identical.
+          const mn = Math.min(...buckets), spread = Math.max(Math.max(...buckets) - mn, 1);
+          const cPerf = buckets.map((v) => (v - mn) + spread * 0.35);
+          const cBest = buckets.indexOf(Math.max(...buckets));
+          return (
+            <>
+              {secHead('Cadence', cadStat ? headChip(`avg ${cadStat[1]}`) : null)}
+              <BSSdBars rows={cRows} perf={cPerf} bestIdx={cBest} heat={heat} t={t} muted={muted} />
+            </>
+          );
+        })()}
         {/* ELEVATION — altitude profile over distance (y-axis ft + x-axis miles),
             in a slate tone so it reads as terrain. */}
         {!isComments && hasElevGraph && (
@@ -15984,7 +15995,7 @@ function BSProgressDoor({ onOpen, door = false }) {
 // Do not add a plate. If it can't be a row, it lives on a tab and gets at most a row-door.
 
 // BSSlateRow — one time-ordered run-sheet row inside TODAY'S SLATE. min-height 48px,
-// grid 50px time / 58px domain-tag / 1fr title / auto status / 20px control-or-chevron,
+// grid 50px time / 58px domain-tag / 1fr title / auto status / auto control-or-chevron,
 // 1px t.HAIR bottom rule. Whole row is a button ≥48px tall, Enter/Space-activatable,
 // press-flash t.PAPER2 120ms. `right` is undefined → chevron '›'; 'lead' → a
 // non-interactive mono "↑ LEAD" echo (no onOpen fires, no chevron); a ReactNode →
@@ -16029,7 +16040,10 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
       tabIndex={interactive ? 0 : undefined}
       aria-label={ariaLabel}
       style={{
-        display: 'grid', gridTemplateColumns: '50px 58px 1fr auto 20px', alignItems: 'center', gap: 8,
+        // Last track is auto, NOT fixed — the meal/habit ticks are 36px wide and
+        // a fixed track can't shrink below content, so 20px overflowed the row's
+        // right gutter and clipped the ticks at the screen edge.
+        display: 'grid', gridTemplateColumns: '50px 58px 1fr auto auto', alignItems: 'center', gap: 8,
         width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
