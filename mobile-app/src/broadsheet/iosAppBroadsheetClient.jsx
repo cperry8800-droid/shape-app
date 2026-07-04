@@ -9314,7 +9314,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      padding to span the whole screen (side borders + radius
                      dropped at the edges). The card's own age chip carries the
                      timing; author header hidden (the profile owns the identity). */
-                  <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
+                  <div key={a.key || i} style={{ margin: '0 -20px' }}>
                     <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
                   </div>
                 ))}
@@ -9970,7 +9970,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 /* Full-BLEED card — breaks out of the coach body's 22px side
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
-                <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -22px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
+                <div key={a.key || i} style={{ margin: '0 -22px' }}>
                   <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} />
                 </div>
               ))}
@@ -11325,7 +11325,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const myCoSign = actCoSign[key] || null;
     const coSign = myCoSign || (a.real ? (a.cosign || null) : (a.cosign || null));
     const coSignIsMine = !!myCoSign;
-    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? '#a07a2e' : '#c0533b') : null;
+    const coSignColor = coSign ? (String(coSign.role).toLowerCase() === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : '#c0533b') : null;
     // Phase 2 — the verb shown on the button is MY chosen expression when I've
     // reacted (long-press → pick), else the activity-default verb. `applyReaction`
     // is the single path: tapping (expr=null) toggles the like; picking an
@@ -11388,7 +11388,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                     card is a real published post; the community feed passes no onEdit,
                     and demo/PR cards have no postId, so this stays profile-own-posts. */}
                 {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
-                <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
+                <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
             ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
@@ -11400,13 +11400,13 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 </div>
                 <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
               </div>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
             )}
           {/* HERO — activity name + the promoted primary metric. Tapping the
               title/metric/caption (or the route below) opens the full session-
               details page. */}
-          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
+          <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail('stats'); } }} style={{ cursor: 'pointer' }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
             {/* honest hero figure — posts with no hero stat skip this block
                 entirely (never a fabricated placeholder). Eyebrow sits ABOVE
@@ -11471,7 +11471,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
               still renders nothing at all when the post carries no route
               signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.18)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
               <div style={{ margin: '-13px -1px -1px' }}>
                 <BSActivityRoutePreview route={routeObj} />
               </div>
@@ -12784,7 +12784,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={t.padX} /></React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} /></React.Fragment>);
               })()}
             </div>
           ) : (
