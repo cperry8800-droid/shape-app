@@ -7034,10 +7034,13 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   };
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
+  // Follow display state — computed before EITHER branch (the ledger variant
+  // reads it, so it must not sit in the temporal dead zone).
+  const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
   // ── Ledger variant (Terrain) — one mono stat line + line-only Follow/Message.
   if (ledger) {
     const seg = (n, label, onTap) => (
-      <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, background: 'transparent', border: 0, padding: '6px 0', margin: 0, cursor: 'pointer' }}>
+      <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, background: 'transparent', border: 0, padding: '13px 0', margin: 0, minHeight: 44, cursor: 'pointer' }}>
         <span style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 800, color: INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
         <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), lineHeight: 1 }}>{label}</span>
       </button>
@@ -7045,14 +7048,14 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     const dot = <span aria-hidden style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.3), padding: '0 8px' }}>·</span>;
     const followAction = !isSelf ? (
       <button onClick={onToggle} disabled={busy} style={{
-        flex: 'none', minHeight: 30, padding: fs === 'follow' ? '7px 12px' : '7px 2px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
+        flex: 'none', minHeight: 44, padding: fs === 'follow' ? '9px 12px' : '11px 2px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
         fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', border: 0,
         background: fs === 'follow' ? bsTHexA(c, 0.14) : 'transparent', borderRadius: fs === 'follow' ? 3 : 0,
         color: fs === 'requested' ? bsTHexA(INK, 0.55) : INK,
       }}>{fs === 'following' ? <>Following <span style={{ color: c }}>✓</span></> : fs === 'requested' ? 'Requested' : '＋ Follow'}</button>
     ) : null;
     const msgAction = (!isSelf && typeof onMessage === 'function') ? (
-      <button onClick={() => onMessage()} style={{ flex: 'none', minHeight: 30, padding: '7px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.75), borderBottom: `1px solid ${c}` }}>Message</button>
+      <button onClick={() => onMessage()} style={{ flex: 'none', minHeight: 44, padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.75), lineHeight: 1 }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>Message</span></button>
     ) : null;
     const statLine = (
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 2, justifyContent: center ? 'center' : 'flex-start' }}>
@@ -7060,7 +7063,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         {seg(stats.following, 'Following', () => openList('following'))}{dot}
         {seg(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
         {isSelf && reqCount > 0 && (
-          <button onClick={() => openList('requests')} style={{ marginLeft: 12, flex: 'none', padding: '6px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}` }}>{reqCount} request{reqCount === 1 ? '' : 's'} <span style={{ color: c }}>›</span></button>
+          <button onClick={() => openList('requests')} style={{ marginLeft: 12, flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{reqCount} request{reqCount === 1 ? '' : 's'} <span style={{ color: c }}>›</span></span></button>
         )}
       </div>
     );
@@ -7086,7 +7089,6 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // ── Follow / Message — instrument chips (clipped notch + spine), not static
   //    pills. The Follow chip "breathes" (a soft accent glow) until you follow;
   //    both give press feedback. Motion respects prefers-reduced-motion.
-  const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
   const faBase = {
     flex: 'none', position: 'relative', lineHeight: 1, minHeight: 28, padding: '8px 13px',
     clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', borderRadius: 3,
@@ -8447,8 +8449,8 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
 
   // ── Ledger variant (Terrain) — zero-box hairline rows, line-only heat. ──
   if (ledger) {
-    const glyph = (g, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ minWidth: 36, minHeight: 36, flexShrink: 0, background: 'transparent', border: 0, color: bsTHexA(INK, 0.55), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{g}</button>;
-    const openLink = (url) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), borderBottom: `1px solid ${accent}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>Open ↗</a>;
+    const glyph = (g, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ minWidth: 44, minHeight: 44, flexShrink: 0, background: 'transparent', border: 0, color: bsTHexA(INK, 0.55), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{g}</button>;
+    const openLink = (url) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, textDecoration: 'none', flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), whiteSpace: 'nowrap' }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>Open ↗</span></a>;
     return (
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -8456,14 +8458,14 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
             <span aria-hidden style={{ width: 6, height: 1.5, background: accent }} />
             <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Your library' : 'Music'}</div>
           </div>
-          {isSelf && <button onClick={() => setAdding(true)} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${accent}` }}>＋ Add playlist</button>}
+          {isSelf && <button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>＋ Add playlist</span></button>}
         </div>
         {items === null ? (
           <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Loading…</div>
         ) : items.length === 0 ? (
           <div style={{ marginTop: 12 }}>
             <BSTRedact INK={INK} label={isSelf ? 'No playlists yet' : 'No public playlists'} />
-            {isSelf && <div style={{ display: 'flex', justifyContent: 'center' }}><button onClick={() => setAdding(true)} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${accent}` }}>＋ Add your first</button></div>}
+            {isSelf && <div style={{ display: 'flex', justifyContent: 'center' }}><button onClick={() => setAdding(true)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK }}><span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>＋ Add your first</span></button></div>}
           </div>
         ) : (
           <div style={{ marginTop: 6 }}>
@@ -8480,7 +8482,7 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
                 <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 6, marginLeft: 52 }}>
                   {isSelf ? (
                     <>
-                      <button onClick={() => togglePublic(pl)} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>{pl.is_public ? <><span style={{ color: accent }}>◉</span> Public</> : '○ Private'}</button>
+                      <button onClick={() => togglePublic(pl)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>{pl.is_public ? <><span style={{ color: accent }}>◉</span> Public</> : '○ Private'}</button>
                       <span style={{ marginLeft: 'auto' }} />
                       {glyph('✉', 'Send to member', () => { if (!pl.is_public) { window.__bsToast?.('Make it public first to share.', 'info'); return; } setSendFor(pl); })}
                       {glyph('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
@@ -8665,8 +8667,8 @@ function BSActivityLogCta({ isSelf, accent, onClick, ledger = false, INK = '#f2e
   if (ledger) {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={onClick} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${accent}` }}>
-          ＋ Log activity
+        <button onClick={onClick} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: '11px 0', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: INK }}>
+          <span style={{ borderBottom: `1px solid ${accent}`, paddingBottom: 1 }}>＋ Log activity</span>
         </button>
       </div>
     );
@@ -8735,7 +8737,7 @@ function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20 }) {
     <div style={{ position: 'sticky', top: 0, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
       <div style={{ display: 'flex' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
-          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0 11px', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>
+          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '15px 0 13px', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>
             {tb.label}
             {on && <span aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: -1, height: 2, background: heat, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
           </button>
@@ -9398,9 +9400,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               {climbTabs.length > 1 && (
                 <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
-                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', padding: '6px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', borderBottom: on ? `1px solid ${c}` : '1px solid transparent' }}>{s.label}</button>
+                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{s.label}</span></button>
                   ); })}
-                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" title="Customize climb" style={{ flex: 'none', minWidth: 30, minHeight: 30, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" title="Customize climb" style={{ flex: 'none', minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>}
                 </div>
@@ -9409,11 +9411,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <div style={{ margin: '2px 0 16px', paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
                     <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Show on your climb</div>
-                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 0', borderBottom: `1px solid ${c}` }}>Done</button>}
+                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>Done</span></button>}
                   </div>
                   <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     {CLIMB_SOURCES.map((s) => { const on = climbShown.includes(s.key); return (
-                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ padding: '5px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', borderBottom: on ? `1px solid ${c}` : '1px solid transparent' }}>{on ? '✓ ' : '＋ '}{s.label}</button>
+                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{on ? '✓ ' : '＋ '}{s.label}</span></button>
                     ); })}
                   </div>
                 </div>
