@@ -15,7 +15,7 @@ Every task's requirements implicitly include this section.
 - **Zero-box rule:** the card container (background fill, border, radius, overflow clip, 1px top color strip) is DELETED. Boundaries come only from the ink→heat separator rule, the per-post rail, and whitespace.
 - **Heat = line-only** (post-graft placements ONLY): the rail · the title period · the hero rule · the type-tag underline · the co-sign ✓ (spine = role color) · the details-link underline + chevron · the comments-eyebrow tick · the boost cell tint/fill · the separator rule terminus. Heat NEVER colors running text, names, bylines, stat values, or any background beyond the boost fill. Text = `t.INK` alphas (1.0/.75/.7/.55/.45/.08).
 - **✦ Grafts are binding overrides:** zero infinite loops on feed cards (NO breathing tick); co-sign = press credit (3px role spine + heat ✓, name AND label ink-alphas); links/type-tag = ink text + heat underline only; route posts = `BSActivityRoutePreview` full-bleed with 1px top/bottom hairlines (component NOT modified); comments = `COMMENTS · N ›` eyebrow with 6×1.5px heat tick (the eyebrow IS the view-all; no separate line); action strip = five flex:1 cells each ≥44×44px, invisible boundaries, boost = 36px visible chip centered in its ≥44px cell, squared radius 6, transform-only scale(0.97) press.
-- **Motion contract:** ONE `useBSSdInView` observer per card. On first view: rail grows (`bsSdGrowY` 900ms) → hero counts (`BSSdCountUp` 750ms) → hero + separator rules draw (`bsSdDrawX`) → co-sign stamps (`bsSdStamp`). Every animated style uses `...(reduced ? null : {animation})` with `bsSdReduced()`; reduced motion = finished state. No new keyframes unless a required one doesn't exist (then it goes inside the reduced-motion media block of the injected CSS).
+- **Motion contract:** ONE `useBSSdInView` observer per card. On first view: rail grows (`bsSdGrowY` 900ms) → hero counts (`BSSdCountUp` 750ms) → hero + separator rules draw (`bsSdDrawX`) → co-sign stamps (`bsSdStamp`). Every animated style is gated on BOTH flags — the canonical spread is `...(sdReduced ? null : railSeen ? { animation: '…' } : { <pre-state> })` (pre-state = `scaleY(0)`/`scaleX(0)`/`opacity: 0`) — so nothing animates at mount while offscreen (feed cards mount inside a `.map`) and `bsSdReduced()` renders the finished state. No new keyframes unless a required one doesn't exist (then it goes inside the reduced-motion media block of the injected CSS).
 - **Honest data:** real counts only; posts with no hero stat skip the figure block (never fabricate); route redaction line only for the routeless flag; captions never invent fields.
 - **Behavior-identical interactions:** react/boost (tap toggle + long-press expressive palette), comments open, share, send, repost, co-sign tap, details tap-through, profile taps — handlers carried VERBATIM. `hideAuthor` profile-feed variant keeps working (same rail/rule treatment, no author block).
 - **Shared components untouched:** `BSFacetAvatar`, `BSFeedComment`, `BSActivityRoutePreview`, `bsFeedIcon` (may gain size props ONLY if a task explicitly says so — default no).
@@ -43,12 +43,20 @@ Every task's requirements implicitly include this section.
   setLikerSheetFor, setSendPostFor, feedApplyReaction, onEdit}`; `useBSSdInView`,
   `bsSdReduced`, `bsSdGrowY`/`bsSdDrawX` keyframes, `bsInjectSessionDetailCss`,
   `BSFacetAvatar`, `bsInitials`, `bsTHexA`.
-- Produces: **`const [railRef, railSeen] = useBSSdInView();`** — the ONE
-  `useBSSdInView` instance for the whole card, hoisted at the top of
-  `BSActivityCard`'s body (before any early return). `railRef` goes on the rail's
-  wrapping element; `railSeen` gates every later task's first-view animation
-  (hero count-up, co-sign stamp, etc.) — later tasks read this pair, they do not
-  create their own. `BSActivityCard` gains one new prop, **`isLast = false`**
+- Produces: **`const heat = …`** — the author-ROLE color local (client teal
+  `t.isLight ? '#0a8f87' : '#34d6c5'`, trainer rust `#c0533b`, nutritionist gold
+  `t.isLight ? '#a07a2e' : '#d8b25a'`), resolved ONCE at the top of
+  `BSActivityCard` (Step 2). This is the `heat` every heat placement in this
+  plan reads — Tasks 2–4 consume it, they never re-resolve it. The pre-existing
+  `tc` (the author's TIER color, `bsTierColor(realTier)`) survives but after
+  this plan is consumed ONLY where tier is the signal: the avatar ring `c={tc}`
+  and the `openDetail` payload. Also produces **`const [railRef, railSeen] =
+  useBSSdInView();`** — the ONE `useBSSdInView` instance for the whole card,
+  hoisted at the top of `BSActivityCard`'s body (before any early return).
+  `railRef` goes on the rail's wrapping element; `railSeen` gates EVERY
+  first-view animation in the card (rail grow, hero count-up, hero + separator
+  rule draws, co-sign stamp) — later tasks read this pair, they do not create
+  their own. `BSActivityCard` gains one new prop, **`isLast = false`**
   (default false — every existing call site keeps working with no separator
   suppressed until updated in this task's Step 4).
 
@@ -73,7 +81,8 @@ Confirms the two blocks this step touches:
        <div style={{ height: 1, background: tc }} />
        <div style={{ padding: '10px 13px 11px' }}>
    ```
-   (closing tags at the bottom of the function: `</div></div></div>);`)
+   (closing tags at the bottom of the function: exactly TWO closing `</div>`
+   before the final `);` — verified in source; Step 4 replaces them)
 
 2. **The author row** — both the `hideAuthor` branch and the normal branch,
    verbatim from the current file:
@@ -124,17 +133,20 @@ Locate this exact snippet — the destructure + tier/role derivation at the top 
 ```
 
 Replace with (adds `heat` resolution — the same role-color pattern the file
-already uses elsewhere, e.g. `const roleColor = (r) => r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : teal;` —
-and hoists the single `useBSSdInView` pair the whole card + all later tasks
-share):
+already uses elsewhere (cf. the `roleColor()` helper near the session-details
+page), upgraded to spec §1's light/dark pairs for client teal + nutritionist
+gold — and hoists the single `useBSSdInView` pair the whole card + all later
+tasks share):
 
 ```jsx
     const key = a.key || `${a.who}|${a.ago}`;
-    // Dispatch rail heat — role color, NOT tier (tier stays on the avatar ring +
-    // tier chip only). Same three literals as every other role-color site in this
-    // file (co-sign badge, roleColor() helper): client teal · trainer rust ·
-    // nutritionist gold. Resolved from a.role, honest for both real + demo cards.
-    const heat = a.role === 'Trainer' ? '#c0533b' : a.role === 'Nutritionist' ? '#a07a2e' : (t.isLight ? '#0a8f87' : '#34d6c5');
+    // Dispatch rail heat — role color, NOT tier (tier stays on the avatar ring
+    // only). Spec §1's literals: client teal + nutritionist gold are LIGHT/DARK
+    // pairs (the older roleColor() helper elsewhere in this file carries only
+    // the dark-paper gold; spec §1 overrides with the pair so heat reads on all
+    // 14 papers); trainer rust is one literal. Resolved from a.role, honest for
+    // both real + demo cards.
+    const heat = a.role === 'Trainer' ? '#c0533b' : a.role === 'Nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : (t.isLight ? '#0a8f87' : '#34d6c5');
     // ONE useBSSdInView instance for the whole card (Global Constraint: one
     // observer per card). railRef goes on the rail; railSeen gates the rail's
     // own first-view growth below AND every later task's first-view animation
@@ -194,38 +206,33 @@ right before the hero block's opening comment):
 ```
 
 Replace with the zero-box dispatch shell — rail (absolute, gradient fading down,
-grows on first view via the hoisted `[railRef, railSeen]`), the ink→heat
-separator rule (rendered as each card's own TOP rule — see the comment for why,
-suppressed on `isLast` per this task's chosen mechanism for "no rule after the
-last post"), a `paddingLeft:15` rail gutter for all content, and the
-chips-to-mono / ink-text / heat-underline author-row conversion (graft, spec
-§2):
+grows on first view via the hoisted `[railRef, railSeen]`), a `paddingLeft:15`
+rail gutter for all content, and the chips-to-mono / ink-text / heat-underline
+author-row conversion (graft, spec §2). **NOTE: this replacement opens THREE
+wrapping divs** (`railRef` wrapper → 15px rail gutter → inner padding) where the
+old shell opened TWO — the third close, plus the between-post separator (a
+BOTTOM rule, suppressed on `isLast`), is supplied by Step 4's replacement of the
+function's closing tags. The JSX is intentionally unbalanced between Step 3 and
+Step 4; both land before Step 5's parse gate:
 
 ```jsx
     return (
       <div ref={railRef} style={{ position: 'relative' }}>
-        {/* ink→heat separator rule — rendered as THIS card's own TOP edge, not a
-            trailing rule after the previous card. Mechanism chosen because "last
-            card" isn't knowable from inside BSActivityCard (all three call sites
-            map over an array with `i`/length available, but that isn't threaded
-            in as a prop until this task's Step 4) — a leading rule per card,
-            suppressed on the FIRST card via CSS `:not(:first-child)` would need a
-            sibling selector this inline-style architecture doesn't have, so the
-            suppression instead happens on `isLast` (passed the array's own
-            i === length-1) which is the cleaner one-prop wire: every card except
-            the LAST draws a bottom separator (still visually "between posts", it
-            just lives on the card above the gap rather than the one below it).
-            Reduced motion: bsSdDrawX is fully gated behind Step 2's sdReduced. */}
         <div style={{ paddingLeft: 15 }}>
           {/* per-post 2px heat rail — absolute, gradient fades down the card's
-              height, grows in on first view (bsSdGrowY, one useBSSdInView per
-              card from Step 2). aria-hidden: decorative, carries no content. */}
-          <div aria-hidden style={{ position: 'absolute', left: 0, top: 6, bottom: 6, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 45%, ${bsTHexA(t.INK, 0.1)} 78%, transparent)`, ...(sdReduced || railSeen ? null : { transformOrigin: 'top', transform: 'scaleY(0)' }), ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : null) }} />
+              height (spec §1: top 4 → bottom 0 so the rail spans title → action
+              strip; 42% gradient stop), grows in on first view (bsSdGrowY, one
+              useBSSdInView per card from Step 2; pre-seen it holds scaleY(0) so
+              it never animates at mount while offscreen). aria-hidden:
+              decorative, carries no content. */}
+          <div aria-hidden style={{ position: 'absolute', left: 0, top: 4, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${heat}, ${bsTHexA(heat, 0.35)} 42%, ${bsTHexA(t.INK, 0.1)} 78%, transparent)`, ...(sdReduced ? null : railSeen ? { transformOrigin: 'top', animation: 'bsSdGrowY 900ms cubic-bezier(.4,0,.2,1) both' } : { transformOrigin: 'top', transform: 'scaleY(0)' }) }} />
           <div style={{ padding: '10px 13px 11px 0' }}>
             {/* author + activity type — or, when hideAuthor (profile feed), a slim
-                header: the type chip on the right + the relative time on the left
+                header: the type tag on the right + the relative time on the left
                 (the profile's own card chrome already owns the author identity).
-                Chips are gone: type reads as plain mono ink text with a heat
+                BOTH bordered chips die (spec §2 + the Deletes list name both
+                pills): one plain unboxed mono `PEAK · CLIENT` line replaces
+                them; the type tag reads as plain mono ink text with a heat
                 underline (graft); name is always t.INK (no tier tint on running
                 text — heat/tier are line-only per the Global Constraints). */}
             {hideAuthor ? (
@@ -235,7 +242,7 @@ chips-to-mono / ink-text / heat-underline author-row conversion (graft, spec
                     card is a real published post; the community feed passes no onEdit,
                     and demo/PR cards have no postId, so this stays profile-own-posts. */}
                 {onEdit && a.postId && <button aria-label="Edit activity" onClick={() => onEdit(a)} style={{ marginLeft: 'auto', flexShrink: 0, background: 'transparent', border: `1px solid ${hair}`, borderRadius: 999, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: muted, fontFamily: t.MONO, fontSize: 11, lineHeight: 1, padding: 0 }}>✎</button>}
-                <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
+                <span style={{ marginLeft: (onEdit && a.postId) ? 0 : 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
               </div>
             ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
@@ -243,47 +250,50 @@ chips-to-mono / ink-text / heat-underline author-row conversion (graft, spec
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <button onClick={openCardProfile} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.DISPLAY, fontWeight: 800, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{a.who}</button>
-                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, border: `1px solid ${hair}`, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}>{a.role || 'Client'}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), lineHeight: 1, whiteSpace: 'nowrap' }}>{tierDisplay} · {(a.role || 'Client').toUpperCase()}</span>
                 </div>
                 <div style={{ fontFamily: t.MONO, fontSize: 8, color: muted, marginTop: 2, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.ago} ago · {a.city}</div>
               </div>
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
+              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2, lineHeight: 1 }}>{typeLabel}</span>
             </div>
             )}
 ```
 
 Notes on this replacement:
-- **Tier chip is deleted** (`tierDisplay` badge with the `tc`-colored border) —
-  per spec §2 "chips die → plain mono PEAK-CLIENT text; name always `t.INK`; type
-  tag = ink text + 1px heat underline." The role chip (`a.role || 'Client'`) is
-  KEPT as-is (still a bordered mono chip, `muted`/`hair`) — the spec's chip
-  deletion targets the **tier** chip + the type-tag treatment, not the role
-  label; `tierDisplay`/`tc` remain used elsewhere in the function (the avatar
-  ring `c={tc}`, the co-sign spine, the hero PR delta) so they stay defined —
-  this step only stops rendering the tier chip inline in the author row.
-  `tierDisplay` becomes temporarily unused-in-this-block but is still consumed
-  later in the same function (co-sign / hero), so no dead-variable warning.
-- **Type-tag treatment**: was a solid `tc`-filled pill with white text; now ink
-  text with a heat-colored 1px bottom border (the "1px heat underline" graft) —
-  same pattern as the Session Details page's PR-delta underline
-  (`borderBottom: '1px solid ${heat}'`).
+- **BOTH chip pills are deleted** — the `tc`-bordered tier chip AND the
+  `muted`/`hair`-bordered role chip — per spec §2 ("Bordered tier/role chips
+  die: plain mono `PEAK · CLIENT` 7px/800/0.12em `bsTHexA(t.INK,.55)`") and the
+  spec's Deletes list, which names both pills. Their replacement is the single
+  unboxed mono span above
+  (`{tierDisplay} · {(a.role || 'Client').toUpperCase()}`, fontSize 7 / 800 /
+  '0.12em' / `bsTHexA(t.INK, 0.55)`, no border, no padding, no background).
+  `tierDisplay` is the card's EXISTING tier-label local — verified in source:
+  `const tierDisplay = isCoachAuthor ? bsCoachTier(realTier) : String(realTier).toUpperCase();`
+  — so tier identity survives, just unboxed (the `textTransform: 'uppercase'`
+  normalizes the coach-ladder names). `tc` (tier COLOR) remains consumed ONLY
+  by the avatar ring `c={tc}` and the `openDetail` payload — no heat placement
+  reads it anywhere in this plan.
+- **Type-tag treatment**: was a solid `tc`-filled pill with white text; now
+  mono 7.5px/800/'0.14em' uppercase `bsTHexA(t.INK, 0.7)` with a heat-colored
+  1px bottom border (spec §2's graft: "ink text with a heat underline only —
+  heat never fills or colors the label text").
 - **`hideAuthor` variant kept working**: both branches still render (time +
-  optional edit + type-tag on `hideAuthor`; avatar + name + role chip + type-tag
-  on the normal path) — only the tier chip removal and type-tag restyle apply to
-  both, so the rail/rule treatment is identical whether or not the author block
-  shows.
+  optional edit + type-tag on `hideAuthor`; avatar + name + tier·role mono
+  line + type-tag on the normal path) — the `hideAuthor` branch never carried the
+  chips, so only the type-tag restyle applies there; the rail/rule treatment is
+  identical whether or not the author block shows.
 - **`BSFacetAvatar` + all profile taps kept verbatim** — `size={36}`, `c={tc}`
-  (tier still colors the avatar ring — only running/chip text lost tier tint),
-  `onClick={openCardProfile}` untouched.
+  (tier still colors the avatar ring — the one place tier color remains
+  visible), `onClick={openCardProfile}` untouched.
 - Do **not** touch anything from the hero block onward (`{/* HERO — activity
   name + the promoted primary metric. ... */}` through the end of the function)
   — those blocks still sit inside the new `<div style={{ padding: '10px 13px 11px 0' }}>`
-  wrapper opened above; their own closing tags are unchanged, so the function's
-  final `</div></div></div>);` becomes `</div></div></div>);` (one fewer level
-  removed at the top — the old shell had two wrapping divs
-  `background/overflow` + `padding`, the new shell has `railRef` wrapper +
-  `paddingLeft:15` gutter + `padding` inner — same nesting depth, so the
-  existing closing-tag count at the bottom of the function does not change).
+  wrapper opened above. **This replacement opens THREE wrapping divs where the
+  old shell opened TWO** (the original function ends with exactly two closing
+  `</div>` before its final `);` — verified in source), so after this step the
+  JSX is one `</div>` short. Step 4's replacement of the closing tags supplies
+  the third close plus the between-post separator. Do not "fix" the imbalance
+  here.
 
 ---
 
@@ -302,7 +312,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
 ```
 
 Locate the very end of the function — the closing tags after the comments
-block (the last three closing `</div>` before the function's final `);`):
+block (the last TWO closing `</div>` before the function's final `);` — this is
+the ORIGINAL two-div ending; Step 3 deliberately left the new three-div shell
+one close short):
 
 ```jsx
         </div>
@@ -311,23 +323,43 @@ block (the last three closing `</div>` before the function's final `);`):
 }
 ```
 
-Replace with (adds the bottom ink→heat separator, drawn via `bsSdDrawX` on
-first view, suppressed on the last card in the list):
+Replace with (closes all THREE of Step 3's wrappers — inner padding, rail
+gutter, then the `railRef` wrapper — and adds the between-post ink→heat
+separator BETWEEN the gutter close and the `railRef` close, so the rule spans
+the FULL content width, OUTSIDE the 15px rail gutter, per spec §0; suppressed
+on the last card in the list):
 
 ```jsx
+          </div>
         </div>
-        {/* ink→heat separator — the boundary between this post and the next.
-            Suppressed on the LAST card in the list (isLast) so the feed doesn't
-            end on a trailing rule; every other card draws it. Terminus is heat
-            per the Global Constraints ("the separator rule terminus" is a
-            heat-line placement); the rest of the rule fades to a bare hairline. */}
+        {/* ink→heat separator — the house 2px rule between dispatches (spec
+            §0): every card draws it at its own BOTTOM edge, suppressed on the
+            LAST card (isLast) so the feed doesn't end on a trailing rule. Sits
+            outside the 15px rail gutter → full content width. Drawn in-view
+            via bsSdDrawX, gated on the card's one railSeen flag (pre-seen it
+            holds scaleX(0) — never animates at mount while offscreen); reduced
+            motion renders it finished. */}
         {!isLast && (
-          <div aria-hidden style={{ height: 1, marginTop: 11, background: `linear-gradient(90deg, ${bsTHexA(t.INK, 0.1)}, ${bsTHexA(t.INK, 0.1)} 70%, ${heat})`, transformOrigin: 'left', ...(sdReduced ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' }) }} />
+          <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
         )}
       </div>
     );
 }
 ```
+
+Separator notes:
+- **This is the house recipe** (spec §0, binding): height 2,
+  `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, margins
+  `'26px 0 24px'`, drawn via `bsSdDrawX` 700ms. The same rule already ships in
+  this file on the Session Details section heads (grep
+  `` linear-gradient(90deg, ${t.INK} `` — the detail-page copy reads
+  `${heat} 70%)` without the transparent terminus; spec §0's feed version adds
+  it). Do not substitute a 1px hairline or a reversed gradient.
+- **The 26/24 margins are load-bearing** — the spec's Risks section hangs the
+  dispatch-to-dispatch rhythm on them. If on-device the inner wrapper's own
+  `paddingBottom: 11` reads as double-counted space above the rule, reduce
+  THAT wrapper padding (e.g. `'10px 13px 0 0'`), never the separator's 26/24
+  margins.
 
 Now wire `isLast` at all three call sites (the only places that know the
 array/index — this is the mechanism this task chose for "no rule after the
@@ -483,7 +515,7 @@ sed -i 's/\r$//' mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
 ```
 git add mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
 git commit -m "$(cat <<'EOF'
-feat(feed): dispatch shell — kill the card box, add heat rail + separator (#task1)
+feat(feed): dispatch shell — kill the card box, add heat rail + separator
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
@@ -501,22 +533,30 @@ No push.
 **Interfaces:**
 - Consumes (unchanged, carried verbatim from the current card — do not touch): `title`,
   `heroStat`, `prDelta`, `a.body`, `openDetail`, `coSign`/`coSignColor`/`coSignIsMine`,
-  `iAmAuthorsCoach`, `setOpenProfile`, `bsMyName()`, `bsInitials()`, `tc` (the card's
-  resolved role/tier heat color — this task's `heat` local is just `tc`, matching the
-  card's existing naming; no new heat-resolution logic). Consumes the primitives named in
-  the Global Constraints (`bsSdSplitUnit`, `BSSdCountUp`, `bsSdSplitUnit`'s output shape
-  `{num, unit}`) and — from Task 1 — the card's single `useBSSdInView()` pair (ref + `seen`)
-  and the `sdReduced` flag, already in scope at the top of `BSActivityCard`'s function body
-  before this task's JSX runs. This task does not call `useBSSdInView()` itself (one
-  observer per card, owned by Task 1).
+  `iAmAuthorsCoach`, `setOpenProfile`, `bsMyName()`, `bsInitials()`. Consumes **`heat`** —
+  Task 1's role-color local (client teal pair / trainer rust `#c0533b` / nutritionist
+  gold pair, resolved ONCE in Task 1 Step 2) — at every heat placement this task touches
+  (title trailing period, hero rule, details-link underline + chevron, co-sign ✓ glyph).
+  `heat` is NOT the same variable as `tc`: `tc` is the author's TIER color and after this
+  plan is consumed only by the avatar ring and the `openDetail` payload — this task must
+  not write `tc` into any style. Consumes the primitives named in the Global Constraints
+  (`bsSdSplitUnit`, `BSSdCountUp`, `bsSdSplitUnit`'s output shape `{num, unit}`) and —
+  from Task 1 — the card's single `[railRef, railSeen]` pair and the `sdReduced` flag,
+  already in scope at the top of `BSActivityCard`'s function body before this task's JSX
+  runs. This task does not call `useBSSdInView()` itself (one observer per card, owned by
+  Task 1).
 - Produces: no new exported functions. The hero block renders a title line (serif, heat
   trailing period), an eyebrow-above-figure hero stat (only when `heroStat` exists), a 2px
-  heat rule under the figure gated on the Task-1 `seen` flag, and the body caption below.
-  The details link renders as ink text + heat underline/chevron (real `<button>`, ≥44px tap
-  target via invisible padding, no `borderTop`). The co-sign renders as a 3px role-colored
-  left spine + heat check glyph + name (`t.INK`) + label (ink-alpha), `bsSdStamp` entrance.
-  The reactions facepile line renders as one continuous mono sentence, no chrome (structure
-  only — the facepile avatars themselves are untouched, per Global Constraints).
+  heat rule under the figure gated on Task 1's `railSeen` flag, and the body caption below.
+  The PR delta renders as PLAIN ink-alpha text (`bsTHexA(t.INK, 0.75)`, no underline, no
+  animation — it is not on the spec's closed heat list and not one of the motion
+  contract's animated elements). The details link renders as `bsTHexA(t.INK, 0.7)` mono
+  text + heat underline/chevron (real `<button>`, ≥44px tap target via invisible padding,
+  no `borderTop`). The co-sign renders as a 3px role-colored left spine + heat check
+  glyph + name (`t.INK`) + label (ink-alpha) on a ≥44px target, `bsSdStamp` entrance
+  gated on `railSeen`. The reactions facepile line renders as one continuous mono sentence, no
+  chrome (structure only — the facepile avatars themselves are untouched, per Global
+  Constraints).
 
 ---
 
@@ -544,12 +584,15 @@ Replace it with:
 
 ```jsx
           <div onClick={() => openDetail('stats')} role="button" tabIndex={0} aria-label="Open session details" style={{ cursor: 'pointer' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: tc }}>.</span>}</div>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 800, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{title}{/[.!?]$/.test(String(title || '')) ? null : <span style={{ color: heat }}>.</span>}</div>
             {/* honest hero figure — posts with no hero stat skip this block
                 entirely (never a fabricated placeholder). Eyebrow sits ABOVE
                 the figure (Open Ledger order); split-unit + count-up + a heat
-                rule under the figure, gated on Task 1's one-shot seen flag so
-                it fires with the rest of the card's first-view entrance. */}
+                rule under the figure, gated on Task 1's one-shot railSeen flag
+                so it fires with the rest of the card's first-view entrance.
+                The PR delta is PLAIN ink — no heat, no animation (the heat
+                list is closed; the motion contract's animated elements are
+                the rail, the count, the two rules, and the co-sign stamp). */}
             {heroStat && (() => {
               const u = bsSdSplitUnit(heroStat[1]);
               return (
@@ -557,16 +600,14 @@ Replace it with:
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                      <BSSdCountUp text={u.num} run={sdSeen} duration={750} delay={80} />
+                      <BSSdCountUp text={u.num} run={railSeen} duration={750} delay={80} />
                     </span>
                     {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(t.INK, 0.55) }}>{u.unit}</span> : null}
                     {prDelta && (
-                      <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${tc}`, paddingBottom: 2, whiteSpace: 'nowrap', ...(sdReduced ? null : { animation: 'bsSdFadeUp 420ms ease 480ms both' }) }}>
-                        <span style={{ color: tc }}>↑</span> PR {prDelta}
-                      </span>
+                      <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.75), whiteSpace: 'nowrap' }}>↑ PR {prDelta}</span>
                     )}
                   </div>
-                  <div aria-hidden style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${tc}, ${bsTHexA(tc, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : { animation: sdSeen ? 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) both' : 'none' }) }} />
+                  <div aria-hidden style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${heat}, ${bsTHexA(heat, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
                 </div>
               );
             })()}
@@ -578,32 +619,32 @@ Replace it with:
 Notes on this replacement:
 - `title` color changed from `cardInk` to `t.INK` and gained the heat trailing-period
   convention (mirrors the Open Ledger detail hero verbatim — `/[.!?]$/.test(...)` guard, a
-  `tc`-colored period appended only when the title has no terminal punctuation).
+  `heat`-colored period appended only when the title has no terminal punctuation; `heat`
+  is Task 1's role-color local, never `tc`).
 - The old flat 30px hero-stat value is gone; the replacement is the eyebrow-above-figure
   ledger line using `bsSdSplitUnit` + `BSSdCountUp` at `min(34px,9vw)` (Open Ledger's own
   hero is `min(50px,12.5vw)` — this is deliberately smaller, a feed skimmed at speed, not
   the focused detail page) + the mono unit at `bsTHexA(t.INK,0.55)`.
-- `BSSdCountUp`'s `run` prop is wired to `sdSeen` (Task 1's in-view flag) so the count only
-  animates once the card has actually scrolled into view — consistent with "hero counts"
-  firing after "rail grows" in the Global Constraints' motion sequence. `BSSdCountUp`
-  itself already no-ops to the finished value under `bsSdReduced()` internally (see its
-  definition — `animatable = run && target != null && !bsSdReduced()`), so no extra
-  reduced-motion branching is needed here for the counter itself.
-- The 2px heat rule under the figure only fires its `bsSdDrawX` animation once `sdSeen` is
-  true (`animation: sdSeed ? '...' : 'none'`) — before that it sits at `scaleX(0)` implicitly
-  via the keyframe's own 0% state not applying until the animation starts, so on initial
-  paint (pre-intersection) the rule is invisible until it draws; reduced motion always
-  skips the animation and the rule renders at full width immediately (no `transform`
-  override needed since `scaleX(1)` is the CSS default with no animation applied).
-- `prDelta`'s badge changed from the old solid-fill teal pill to the ink-text +
-  heat-underline convention (graft: "the ink-text + heat-underline convention extended to
-  every link/label Wire Dispatch had colored in heat") — text `t.INK`, only the `↑` glyph
-  and the `borderBottom` are heat (`tc`).
+- `BSSdCountUp`'s `run` prop is wired to `railSeen` (Task 1's in-view flag) so the count
+  only animates once the card has actually scrolled into view — consistent with "hero
+  counts" firing after "rail grows" in the Global Constraints' motion sequence.
+  `BSSdCountUp` itself already no-ops to the finished value under `bsSdReduced()`
+  internally (see its definition — `animatable = run && target != null && !bsSdReduced()`),
+  so no extra reduced-motion branching is needed here for the counter itself.
+- The 2px heat rule under the figure follows the canonical seen-gated pattern —
+  `...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX …' } : { transform: 'scaleX(0)' })`.
+  Pre-intersection it holds `scaleX(0)` EXPLICITLY (an `animation: 'none'` fallback would
+  paint the rule at full width before the draw, and a mount-time animation would finish
+  offscreen — feed cards mount inside a `.map`); once `railSeen` flips it draws; reduced
+  motion skips the animation and the rule renders at full width immediately.
+- **The PR delta is plain ink and NOT animated**: the old solid-fill teal pill becomes
+  bare mono text at `bsTHexA(t.INK, 0.75)` — the value AND the `↑` glyph in the same
+  ink-alpha, no heat underline, no `bsSdFadeUp`, no entrance of its own. The spec's heat
+  list is closed (a PR-delta underline/glyph is not on it) and the motion contract's
+  animated elements are exactly the rail grow, the hero count, the hero + separator rule
+  draws, and the co-sign stamp — the delta is not one of them.
 - Caption alpha raised from `muted` to `bsTHexA(t.INK, 0.75)` per spec section 3 ("slightly
   more present than muted since there's no card fill competing for attention").
-- If Task 1's variable names differ from `sdSeen`/`sdReduced` assumed here, rename these two
-  references to match Task 1's actual locals before running this step — the card must still
-  end up with exactly one `useBSSdInView()` call total (Task 1 owns it).
 
 - [ ] **Step 2: Replace the "Session details · full activity" link (drop the borderTop bar, keep the real button + 44px target)**
 
@@ -628,8 +669,8 @@ Replace it with:
               closes the section) and no button chrome; the 44px tap target
               comes from invisible vertical padding, not a visible bar. */}
           <button onClick={() => openDetail('stats')} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, marginTop: 11, padding: '14px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, borderBottom: `1px solid ${tc}`, paddingBottom: 2 }}>Session details · full activity</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: tc }}>›</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>Session details · full activity</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, color: heat }}>›</span>
           </button>
 ```
 
@@ -638,8 +679,9 @@ Notes:
   sit left-aligned as one inline unit (matches "SESSION DETAILS · FULL ACTIVITY ›" reading
   as a single link, not a full-width bar with the chevron pinned right).
 - `borderTop` removed entirely (was the visible divider bar this graft retires).
-- Label text color changed `tc` → `t.INK`; heat now carries only the underline (`borderBottom`)
-  + the chevron glyph color — the line-only-heat discipline.
+- Label text color changed `tc` → `bsTHexA(t.INK, 0.7)` (spec §4's mono ink-alpha `.7`);
+  heat now carries only the underline (`borderBottom`) + the chevron glyph color — the
+  line-only-heat discipline. Both read Task 1's `heat` role-color local, never `tc`.
 - `minHeight: 44` + `padding: '14px 0'` replaces the old `padding: '10px 0 0'` — this is the
   accessible tap target growing via invisible padding, not new chrome. Handler
   (`onClick={() => openDetail('stats')}`) is carried verbatim — same `openDetail('stats')`
@@ -676,9 +718,9 @@ Replace it with:
               Handler + eligibility (coSignIsMine / coSign.byId / setOpenProfile
               payload shape) carried verbatim from the prior pill. */}
           {coSign && (
-            <div style={{ marginTop: 11, ...(sdReduced ? null : { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' }) }}>
-              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', background: 'transparent', color: t.INK, border: 0, borderLeft: `3px solid ${coSignColor}`, borderRadius: 0, padding: '2px 0 2px 10px', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: tc }}>✓</span>
+            <div style={{ marginTop: 11, ...(sdReduced ? null : railSeen ? { animation: 'bsSdStamp 480ms cubic-bezier(.2,1.1,.3,1) 180ms both' } : { opacity: 0 }) }}>
+              <button type="button" onClick={() => { const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || undefined; const nm = coSignIsMine ? bsMyName() : coSign.name; setOpenProfile({ who: nm, kind: String(coSign.role).toLowerCase() === 'nutritionist' ? 'NUTRI' : 'TRAINER', userId: coSignIsMine ? myUid : (coSign.byId || undefined), init: bsInitials(nm), public: true }); }} style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: '100%', minHeight: 44, background: 'transparent', color: t.INK, border: 0, borderLeft: `3px solid ${coSignColor}`, borderRadius: 0, padding: '2px 0 2px 10px', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 900, lineHeight: 1, flexShrink: 0, color: heat }}>✓</span>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{coSignIsMine ? 'You' : coSign.name}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap', flexShrink: 0 }}>co-signed · {String(coSign.role).toLowerCase() === 'nutritionist' ? 'Nutritionist' : 'Coach'}</span>
               </button>
@@ -688,15 +730,23 @@ Replace it with:
 
 Notes:
 - The `bsSdStamp` entrance is on the wrapping `<div>`, matching the Open Ledger detail
-  page's own co-sign stamp usage exactly (same keyframe, same easing) — gated on
-  `sdReduced` from Task 1, delay tuned to `180ms` (feed cards fire this earlier in their
-  local sequence than the full detail page's `560ms`, since the feed card's overall
+  page's own co-sign stamp usage exactly (same keyframe, same easing) — gated on BOTH
+  `sdReduced` AND Task 1's `railSeen` (pre-seen the credit holds `opacity: 0`, so the
+  stamp fires when the card actually enters view — feed cards mount offscreen inside a
+  `.map`, and a mount-gated animation would finish before anyone saw it; reduced motion
+  renders the finished state). Delay tuned to `180ms` (feed cards fire this earlier in
+  their local sequence than the full detail page's `560ms`, since the feed card's overall
   entrance is compressed relative to a full-page boot).
-- The heat (`tc`) now appears ONLY on the check glyph color and the 3px `borderLeft`
-  spine color is `coSignColor` (the role color: rust for trainer, gold for nutritionist —
-  unchanged variable, carried verbatim) — this is the graft's explicit split: **spine =
-  role color**, **check = heat**, matching Global Constraints' line-only-heat placement
-  list ("the co-sign ✓ (spine = role color)").
+- The heat (`heat`, Task 1's role-color local — never `tc`) now appears ONLY on the check
+  glyph color, and the 3px `borderLeft` spine color is `coSignColor` (the role color:
+  rust for trainer, gold for nutritionist — unchanged variable, carried verbatim) — this
+  is the graft's explicit split: **spine = role color**, **check = heat**, matching
+  Global Constraints' line-only-heat placement list ("the co-sign ✓ (spine = role
+  color)").
+- **`minHeight: 44` added to the button** (alongside its existing `display: 'flex',
+  alignItems: 'center'`) — the press credit is a tappable action like every sibling
+  action in this plan, so it gets the ≥44px target via invisible padding, not chrome
+  (the visible spine/text stay exactly the spec's press-credit line).
 - Name is `t.DISPLAY`/800/`t.INK` (was white-on-fill); label is `bsTHexA(t.INK, 0.55)` (was
   `opacity:0.85` white-on-fill) — both text colors now resolve from ink-alphas per the
   graft ("name AND label ink-alphas").
@@ -804,12 +854,14 @@ feat(feed): hero ledger, ink+heat links, and co-sign press credit on activity ca
 Converts BSActivityCard's title/hero-stat/body block to the Open Ledger's
 split-unit + count-up hero figure (eyebrow above the figure, honest-absent
 when no hero stat, a heat rule under the figure gated on the card's one-shot
-in-view flag), retires the "Session details" full-width tap bar in favor of
-ink text + a heat underline/chevron real button, converts the co-sign pill
-to a 3px role-spine + heat check-glyph press credit (name + label in ink
-alphas), and de-chromes the reactions facepile label to a plain ink-alpha
-mono line — all per the Wire Dispatch + Sports Desk grafts spec. Handlers,
-gating, and data reads carried verbatim; zero behavior change.
+in-view flag; PR delta as plain ink text — no heat, no animation), retires
+the "Session details" full-width tap bar in favor of ink-alpha text + a heat
+underline/chevron real button, converts the co-sign pill to a 3px role-spine
++ heat check-glyph press credit (name + label in ink alphas, 44px target,
+stamp gated on the in-view flag), and de-chromes the reactions facepile
+label to a plain ink-alpha mono line — all per the Wire Dispatch + grafts
+spec. Handlers, gating, and data reads carried verbatim; zero behavior
+change.
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
@@ -833,15 +885,18 @@ Do **not** push.
   `bsSharePostExternal`, `bsRepostPost`, `window.__bsToast`, `followedComments`,
   `BSFeedComment`, `feedAvatars`, `a.real`, `cardInk`. Consumes `bsFeedIcon(name, size)`
   (unchanged signature — glyph geometry itself is NOT modified, only its container/color
-  treatment). Consumes from Task 1 the hoisted `[railRef, railSeen]` pair (read here as
-  `railSeen`) and `sdReduced`; consumes from Task 1 the `heat` local (this task's `${accent}`
-  in the Global Constraints/spec language is the SAME variable already named `heat` at the
-  top of the function — no second heat/accent resolution is introduced). This task does not
-  call `useBSSdInView()` itself (one observer per card, owned by Task 1).
+  treatment). Consumes from Task 1 the hoisted `[railRef, railSeen]` pair and `sdReduced`
+  (this task adds no entrance animation of its own — press feedback is plain interaction
+  CSS); consumes from Task 1 the **`heat`** local — spec §7's boost-cell tint/fill
+  ("heat's single permitted fill") resolves from THIS role-color local:
+  `bsTHexA(heat, 0.08)` unreacted, solid `heat` reacted. `t.ACCENT` (the app-wide accent
+  the old pill used) is NOT consumed by this task, and no second heat/accent resolution
+  is introduced. This task does not call `useBSSdInView()` itself (one observer per card,
+  owned by Task 1).
 - Produces: no new exported functions. The action strip renders as one row of five
   `flex:1` cells (Boost · Comment · Share · Send · Repost), each with an invisible
   `minHeight:44` hit area; Boost is a 36px visible squared chip centered in its cell
-  (tinted unreacted, filled accent reacted); the other four are bare monochrome glyph +
+  (heat-tinted unreacted, heat-filled reacted); the other four are bare monochrome glyph +
   mono count/no-count, ink-alpha at rest → `t.INK` on press, `scale(0.97)` transform-only
   press feedback. The comments block renders a single tappable `COMMENTS · N ›` eyebrow
   row (with a 6×1.5px heat tick) in place of the old separate `View all N comments ›`
@@ -964,13 +1019,12 @@ Replace it with:
           {/* action strip (graft, spec §7) — one row above a 1px ink-alpha
               hairline. Five flex:1 cells, each ≥44×44px with an INVISIBLE hit
               boundary (no circles, no borders on the cell itself). Boost is the
-              ONE fill: a 36px-tall squared chip (radius 6) centered inside its
-              cell — tinted `${t.ACCENT}14` unreacted, solid t.ACCENT filled when
-              reacted (boost is display-verb + count, not role heat — same
-              t.ACCENT token the prior pill used, carried verbatim, so "one tap
-              boosts the post" reads identically to before). Comment/Share/Send/
-              Repost are bare monochrome glyph + mono count at rest
-              (bsTHexA(t.INK,0.55)) → t.INK on press; press feedback is
+              ONE fill — heat's single permitted fill per the Global Constraints
+              + spec §7: a 36px-tall squared chip (radius 6) centered inside its
+              cell, tinted bsTHexA(heat, 0.08) unreacted, solid heat filled when
+              reacted (role heat, NOT the app-wide t.ACCENT the old pill used).
+              Comment/Share/Send/Repost are bare monochrome glyph + mono count
+              at rest (bsTHexA(t.INK,0.55)) → t.INK on press; press feedback is
               TRANSFORM-ONLY scale(0.97) (no color/background transition — the
               Global Constraints' motion contract keeps first-view entrance
               animation off interaction feedback). Long-press → expressive
@@ -990,7 +1044,7 @@ Replace it with:
               onPointerLeaveCapture={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
               title="Hold for more reactions"
               style={{ flex: 1, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', transition: 'transform 120ms cubic-bezier(.4,0,.2,1)' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, boxSizing: 'border-box', padding: '0 14px', borderRadius: 6, whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1, ...(liked ? { background: t.ACCENT, color: '#fff' } : { background: `${t.ACCENT}14`, color: t.ACCENT }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 36, boxSizing: 'border-box', padding: '0 14px', borderRadius: 6, whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1, ...(liked ? { background: heat, color: '#fff' } : { background: bsTHexA(heat, 0.08), color: heat }) }}>{bsFeedIcon('react', 14)}<span>{myExpr || cheer} · {baseKudos + (liked ? 1 : 0)}</span></span>
             </button>
             <button
               aria-label={`Comments · ${commentCount}`}
@@ -1032,13 +1086,15 @@ Notes on this replacement:
   five equal `flex:1` cells already distribute the row evenly, so no spacer element
   is needed.
 - **Boost cell is the one visible chip** (spec §7 / Global Constraints: "the ONE
-  fill"): the boost `<button>` itself stays invisible/transparent and 44px tall (the
-  hit target); a nested `<span>` inside it is the actual **36px-tall visible chip**,
-  `borderRadius:6` (squared, not the old `999` pill), tinted `${t.ACCENT}14` when
-  unreacted and solid `t.ACCENT` fill + white text when `liked` — this is **exactly
-  the same conditional + the same `t.ACCENT` token** the prior pill used
-  (`liked ? {background:t.ACCENT,color:'#fff'} : {background:`${t.ACCENT}14`,
-  color:t.ACCENT}`), just moved from the outer interactive element onto an inner
+  fill" — **heat's single permitted fill**): the boost `<button>` itself stays
+  invisible/transparent and 44px tall (the hit target); a nested `<span>` inside it
+  is the actual **36px-tall visible chip**, `borderRadius:6` (squared, not the old
+  `999` pill), tinted `bsTHexA(heat, 0.08)` when unreacted and solid `heat` fill +
+  white text when `liked`. This intentionally REPLACES the old pill's `t.ACCENT`
+  token with Task 1's `heat` role-color local — the binding heat list names the
+  boost cell tint/fill as a heat placement, so the fill follows the author's role
+  color, never the app-wide accent. Same `liked ? filled : tinted` conditional
+  shape as before, moved from the outer interactive element onto an inner
   decorative chip so the outer element can be the full 44px invisible cell. Verb +
   count text (`{myExpr || cheer} · {baseKudos + (liked?1:0)}`) and the `bsFeedIcon
   ('react',14)` glyph are carried verbatim.
@@ -1081,11 +1137,11 @@ Notes on this replacement:
   the `async`/`await bsRepostPost({...})` + success/error toast on Repost — every
   argument object literal, every guard clause, and every toast string are copied
   character-for-character from the block being replaced.
-- `bsFeedIcon` glyph sizes are unchanged (`14` boost, `15` comment/share/send/repost
-  — note the prior code had `bsFeedIcon('comment', 14)`; this task keeps it at `14`
-  for Comment consistent with Boost, and `15` for Share/Send/Repost, matching the
-  prior file's own existing size split exactly — no glyph-geometry change, sizes
-  copied from the original block verbatim per cell).
+- `bsFeedIcon` glyph sizes: **Comment moves 14 → 15** per spec §7 ("bare monochrome
+  glyph 15px" for the four bare cells — the replacement above renders
+  `bsFeedIcon('comment', 15)`); Share/Send/Repost were already 15 and stay 15;
+  Boost keeps its prior 14 inside the visible chip (copied from the old pill
+  verbatim). No glyph-geometry change — `bsFeedIcon`'s signature is untouched.
 
 ---
 
@@ -1124,7 +1180,7 @@ Replace it with:
           {commentCount > 0 && (
             <div style={{ marginTop: 11 }}>
               <button onClick={() => openDetail('comments')} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, width: '100%', padding: '11px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
-                <span aria-hidden style={{ display: 'inline-block', width: 6, height: 1.5, background: tc, flexShrink: 0 }} />
+                <span aria-hidden style={{ display: 'inline-block', width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
                 <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Comments · {commentCount} ›</span>
               </button>
               {followedComments.length > 0 && followedComments.slice(0, 2).map((c, i) => (
@@ -1137,10 +1193,11 @@ Replace it with:
 Notes on this replacement:
 - **`COMMENTS · N ›` eyebrow with a 6×1.5px heat tick** — mono 7.5px/800/0.18em
   uppercase `bsTHexA(t.INK, 0.55)`, exactly per spec §8; the tick is a plain
-  `aria-hidden` decorative `<span>` (`width:6, height:1.5, background: tc`), matching
-  the same small-tick convention Open Ledger uses for its own section-head ticks
-  (`tc` here is the same per-card role-heat local Task 1 introduced/kept — this task
-  does not resolve heat a second time).
+  `aria-hidden` decorative `<span>` (`width:6, height:1.5, background: heat`),
+  matching the same small-tick convention Open Ledger uses for its own section-head
+  ticks. `heat` is Task 1's role-color local — the comments-eyebrow tick is on the
+  binding heat list; `tc` (the TIER color) is NOT used here, and this task does not
+  resolve heat a second time.
 - **The eyebrow IS the view-all affordance** — one real `<button>`,
   `onClick={() => openDetail('comments')}` (the exact same handler the deleted "View
   all N comments ›" line used), `minHeight:44` + `padding:'11px 0'` for the ≥44px tap
@@ -1219,7 +1276,8 @@ feat(feed): flex-cell action strip + comments eyebrow on activity cards
 
 Converts BSActivityCard's action row to five flex:1 cells (each >=44x44px,
 invisible boundaries) with the boost reaction as the one 36px squared chip
-fill (tinted unreacted / solid accent reacted) and Comment/Share/Send/Repost
+fill (heat-tinted unreacted / heat-filled reacted — role heat, the single
+permitted fill) and Comment/Share/Send/Repost
 as bare monochrome glyphs + ink-alpha counts that darken to full ink on
 press, all with transform-only scale(0.97) press feedback; long-press
 expressive palette and every action handler carried verbatim. Replaces the
@@ -1255,28 +1313,36 @@ Do **not** push.
 
 **Files:**
 - Modify: `mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx` — `BSActivityCard`'s
-  GPS-route block only (the routed/routeless branch that sits between the coach-
-  attribution block and the "Session details · full activity" link). No other
-  block in the function is edited by this task.
+  GPS-route block (the routed/routeless branch that sits between the coach-
+  attribution block and the "Session details · full activity" link), the function
+  signature (gains `pagePad = 0`), and the SAME three call sites Task 1 already
+  touched for `isLast` (each gains a `pagePad` prop). No other block in the
+  function is edited by this task.
 - Modify: `docs/WORKLOG.md` — one new dated changelog entry inserted above the
   current top entry.
 
 **Interfaces:**
-- Consumes (verbatim, unchanged): `routeObj`, `showRoute`, `openDetail`, `tc`
-  (still the card's resolved role/tier heat — Tasks 1–3 use both the `heat`
-  local from Task 1's Step 2 and the pre-existing `tc`; this task's route block
-  uses `tc` exactly as the current file does today, since the spec's graft
-  targets ONLY the container treatment, not a heat-source change), `t.INK`,
+- Consumes (verbatim, unchanged): `routeObj`, `showRoute`, `openDetail`, `t.INK`,
   `bsTHexA`, `BSActivityRoutePreview` (component — **not modified**, per spec
-  §9 and the Global Constraints' "Shared components untouched" list). Consumes
-  Task 1's single `[railRef, railSeen]` / `sdReduced` pair only insofar as
-  verifying it (Step 3 of this task) — this task adds no new animation and
-  therefore calls `useBSSdInView()` zero times.
-- Produces: no new exported functions, no new props. The route block renders
-  full-bleed (edge-to-edge past both the rail gutter and the page gutter) with
-  1px top/bottom hairlines when `routeObj` exists; a centered dashed redaction
-  line (`GPS · NOT RECORDED`) when `showRoute` is true and `routeObj` is null;
-  nothing when neither is true (unchanged honest-data gate).
+  §9 and the Global Constraints' "Shared components untouched" list; it renders
+  its own `marginTop: 12` + `border: '1px solid ${t.INK}'` on all four sides —
+  verified in source — which Step 3's clip-shim cancels from the OUTSIDE).
+  Neither `tc` (tier color) nor `heat` appears in the route block — the
+  replacement's rules are ink-alpha hairlines and the redaction line is
+  ink-alphas only. Consumes Task 1's single `[railRef, railSeen]` / `sdReduced`
+  pair only insofar as auditing it (Step 4 of this task) — this task adds no
+  new animation and therefore calls `useBSSdInView()` zero times.
+- Produces: **`pagePad = 0`** — one new prop on `BSActivityCard` (default 0):
+  the horizontal page-gutter width (px) the full-bleed route must cancel IN
+  ADDITION to the card's own rail gutter. The community feed passes `t.padX`
+  (its cards sit inside the tab body's side padding); both profile feeds pass
+  `0` (their full-bleed row wrappers already cancelled the tab bodies' 20/22px
+  side padding, so no page gutter remains — verified in source). The route
+  block renders full-bleed (edge-to-edge past both the rail gutter and
+  `pagePad`) with 1px ink-alpha hairlines top/bottom when `routeObj` exists; a
+  centered dashed redaction line (`GPS · NOT RECORDED`) when `showRoute` is
+  true and `routeObj` is null; nothing when neither is true (unchanged
+  honest-data gate).
 
 ---
 
@@ -1308,94 +1374,88 @@ branch):
 
 ---
 
-- [ ] **Step 2: Confirm the two gutter values this task must break out of**
+- [ ] **Step 2: Confirm the gutters + the component's own box (verify live — don't trust these numbers blind)**
 
 Per spec §9 (graft, binding): *"`BSActivityRoutePreview` runs full-bleed
 edge-to-edge (negative margins out of the rail gutter and the page gutter)…
-a printed-photo bleed."* Two gutters stack between the route preview and the
-screen edge, and both must be cancelled with negative margins:
+a printed-photo bleed."* Three geometry facts feed Step 3 — each was verified
+against source at plan time; re-verify live before writing the numbers:
 
-1. **The rail gutter** — Task 1's `paddingLeft: 15` on the card's own content
-   wrapper (`<div style={{ padding: '10px 13px 11px 0' }}>` sitting inside
-   `<div style={{ paddingLeft: 15 }}>`, per Task 1 Step 3). Total left inset
-   from the card's own chrome: `15` (rail gutter) `+ 13` (the inner wrapper's
-   own left padding is `0` — Task 1's replacement already zeroed it to
-   `'10px 13px 11px 0'`, i.e. **top 10 / right 13 / bottom 11 / left 0** — so
-   the card-local left inset is `15px` and the card-local right inset is
-   `13px`). Confirm this by re-reading Task 1's Step 3 output in the live file
-   (`grep -n "paddingLeft: 15" mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx`)
-   before writing the negative margin below — if a later task changed these
-   numbers, use the live values, not `15`/`13`.
-2. **The page gutter** — the side padding of whichever screen renders the
-   card. The **community feed** wraps its card list in
-   `<div style={{ padding: '4px 0 84px', ... }}>` (no side padding of its own;
-   the side gutter one level up is the tab body's `t.padX` — grep
-   `padding: '4px 0 84px'` to confirm no intervening side padding was added
-   between this task's predecessors and this step) — so on the community
-   feed, "the page gutter" is `t.padX` (theme density token: 24 relaxed / 20
-   standard / 16 dense — never hardcode a literal, read `t.padX` from `useBS()`
-   the same way the rest of the file does). The **member profile feed** and
-   **coach profile feed** wrap each card in a fixed-margin div (Task 1 Step 4,
-   verbatim, unchanged by this task):
-   ```jsx
-   <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-   ```
-   (member profile, `-20px`) and
-   ```jsx
-   <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -22px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-   ```
-   (coach profile, `-22px`) — these wrappers have ALREADY cancelled the tab
-   body's own side padding for the whole card (that's what the negative
-   margin on the wrapper does), so from `BSActivityCard`'s own point of view
-   in both profile contexts the "page gutter" it still needs to escape is
-   **zero** — the wrapper already put the card flush to the screen edge. Only
-   the **rail gutter** (`15px`/`13px`) remains for the route preview to cancel
-   in the profile contexts; in the **community feed** the route preview must
-   cancel BOTH the rail gutter AND `t.padX`, since nothing upstream of
-   `BSActivityCard` there has already gone full-bleed.
-   Since `BSActivityCard` cannot see which context it's in from a prop, and a
-   single fixed negative-margin pair cannot correctly cancel `t.padX` (variable)
-   in one context while cancelling `0` in another, **this task's negative
-   margin targets the rail gutter only** (`marginLeft: -15, marginRight: -13`,
-   read live per the note above) — this is the honest, context-agnostic
-   "full-bleed out of the rail" the spec explicitly calls out
-   (*"negative margins out of the rail gutter **and** the page gutter"*): the
-   rail-gutter cancellation is `BSActivityCard`'s own responsibility and is
-   identical in every context; going further and also cancelling `t.padX`
-   is **out of scope for this task** because it would require a new prop
-   threaded through all three call sites (a task-boundary decision, not a
-   silent partial fix) — call this out as the one deviation from a literal
-   reading of spec §9 in this task's summary. The profile contexts already
-   read as fully edge-to-edge today (their wrapper cancelled `t.padX`
-   already), so in practice two of the three contexts get a true edge-to-edge
-   bleed from this task alone; the community feed gets bled to the rail edge
-   (past the card's own internal gutter) but not past `t.padX` without a
-   follow-up prop.
+1. **The card's own gutters** — Task 1's shell gives content a `15px` LEFT
+   inset (the rail gutter, `paddingLeft: 15`) and a `13px` RIGHT inset (the
+   inner wrapper's `padding: '10px 13px 11px 0'` — top 10 / right 13 /
+   bottom 11 / left 0). Confirm with
+   `grep -n "paddingLeft: 15" mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx`
+   — if a later change moved these numbers, use the live values, not `15`/`13`.
+2. **The page gutter** — context-dependent, which is exactly why it arrives as
+   the new **`pagePad`** prop instead of a hardcoded literal:
+   - **Community feed**: the card list container is
+     `<div style={{ padding: '4px 0 84px', ... }}>` (no side padding of its
+     own — verified in source); the side gutter one level up is the tab
+     body's `t.padX` (theme density token: 24 relaxed / 20 standard / 16
+     dense — never hardcode a literal). The call site passes
+     `pagePad={t.padX}` (`t` is already in scope there — `BSClientFeed` calls
+     `useBS()`).
+   - **Member + coach profile feeds**: each card is wrapped in the profile's
+     own full-bleed row div (verified in source):
+     ```jsx
+     <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
+     ```
+     (member profile, `-20px`; coach profile is the same with `-22px`) —
+     these wrappers have ALREADY cancelled the tab bodies' 20/22px side
+     padding, so from `BSActivityCard`'s point of view no page gutter
+     remains → both profile call sites pass `pagePad={0}`.
+3. **The component's own box** — `BSActivityRoutePreview` renders (verified in
+   source): `marginTop: 12` and `border: '1px solid ${t.INK}'` on all four
+   sides. Step 3's clip-shim cancels exactly these from the outside:
+   `-13px` top = the component's 12px margin + 1px top border; `-1px`
+   sides/bottom = the border. If the component's numbers ever change,
+   re-derive the shim (`shim top = component marginTop + border width`,
+   `shim sides/bottom = border width`) — never edit the component itself.
 
 ---
 
-- [ ] **Step 3: Replace the route block**
+- [ ] **Step 3: Add `pagePad`, replace the route block, wire the three call sites**
 
-Locate the exact snippet from Step 1 and replace it with the full-bleed
-routed preview + the redaction-line routeless fallback (component NOT
-modified — only the wrapping `div`'s own margin/border changes; `showRoute`'s
-honest-data gate is carried verbatim, unchanged):
+First the function signature (as Task 1 left it) — locate:
+
+```jsx
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
+```
+
+Replace with:
+
+```jsx
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
+```
+
+Then locate the exact route snippet from Step 1 and replace it with the
+clip-wrapped full-bleed preview + the redaction-line routeless fallback
+(component NOT modified — the wrapper + shim do all the work from the
+outside; `showRoute`'s honest-data gate is carried verbatim, unchanged):
 
 ```jsx
           {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
-              NOT modified; it now runs full-bleed, breaking out of the rail
-              gutter (marginLeft cancels Task 1's paddingLeft:15; marginRight
-              cancels the card's own right inset) with 1px ink-alpha hairlines
-              top/bottom in place of the component's default border — a
-              printed-photo bleed. Routeless fallback collapses to the Open
-              Ledger redaction line (same pattern as the Session Details page's
-              own "GPS · Not recorded" — a 1px dashed rule flexing both sides
-              of centered mono text) instead of the old halftone tile; honest
-              data gate (`showRoute`) is unchanged — still renders nothing at
-              all when the post carries no route signal whatsoever. */}
+              NOT modified; it runs full-bleed edge-to-edge: the outer
+              wrapper's negative margins cancel the rail gutter (15 left / 13
+              right, Task 1's shell) PLUS the page gutter (pagePad — t.padX on
+              the community feed; 0 on the profiles, whose row wrappers already
+              went full-bleed), and the wrapper's overflow:hidden clip + the
+              inner shim push the component's own marginTop:12 and 1px solid-
+              INK border outside the clip box — so the wrapper's 1px ink-alpha
+              hairlines top/bottom are the ONLY visible rules, with no side
+              borders: a printed-photo bleed. Routeless fallback collapses to
+              the Open Ledger redaction line (same pattern as the Session
+              Details page's own "GPS · Not recorded" — a 1px dashed rule
+              flexing both sides of centered mono text) instead of the old
+              halftone tile; honest data gate (`showRoute`) is unchanged —
+              still renders nothing at all when the post carries no route
+              signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ marginTop: 12, marginLeft: -15, marginRight: -13, borderTop: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, cursor: 'pointer' }}>
-              <BSActivityRoutePreview route={routeObj} />
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.18)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
+              <div style={{ margin: '-13px -1px -1px' }}>
+                <BSActivityRoutePreview route={routeObj} />
+              </div>
             </div>
           ) : showRoute && (
             <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
@@ -1406,29 +1466,74 @@ honest-data gate is carried verbatim, unchanged):
           )}
 ```
 
+Then wire `pagePad` at the three call sites (the same three Task 1 touched —
+locate each by the `isLast` text Task 1 left behind).
+
+**Site 1 — community feed** (locate this exact snippet):
+
+```jsx
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} /></React.Fragment>);
+```
+
+Replace with:
+
+```jsx
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={t.padX} /></React.Fragment>);
+```
+
+**Site 2 — member (Terrain) profile feed** (locate this exact snippet):
+
+```jsx
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} />
+```
+
+Replace with:
+
+```jsx
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
+```
+
+**Site 3 — coach (Signal) profile feed** (locate this exact snippet):
+
+```jsx
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} />
+```
+
+Replace with:
+
+```jsx
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} />
+```
+
 Notes on this replacement:
 - **`BSActivityRoutePreview` is untouched** — same single prop
-  (`route={routeObj}`), same internal markup/SVG/halftone-grid/pin styling.
-  Only the wrapping `<div>`'s own style object changed: `cursor: 'pointer'`
-  kept (tap-through to `openDetail('stats')` carried verbatim), `marginTop`
-  raised from the old tile's `9` to `12` (matches the hero-rule-to-caption
-  rhythm elsewhere in the card), and the component's own `border` (currently
-  `1px solid t.INK` on all four sides, set inside `BSActivityRoutePreview`
-  itself) is **overridden from the outside** by the wrapper's `borderTop`/
-  `borderBottom` only — the component's internal full border still paints,
-  but because this task does not touch the component, the correct fix is
-  cancelling the component's own left/right border optically via the
-  negative-margin bleed sitting flush against the screen edge (or the
-  profile wrapper's edge), which visually reads as "no side borders" per the
-  spec even though the component's internal 1px border technically still
-  exists on its own box at the extreme edge — this is the one place the "no
-  side borders" instruction is satisfied by geometry (bleeding the border
-  itself off past the readable content area) rather than by a CSS override,
-  because the component is explicitly out of scope for modification. If a
-  future on-device pass finds the component's own left/right border still
-  visibly readable at the bleed edge, that is a `BSActivityRoutePreview`
-  change and is explicitly OUT OF SCOPE for this task (raise it as a
-  follow-up, do not fix it here).
+  (`route={routeObj}`), same internal markup/SVG/grid/pin styling. The
+  component's own `marginTop: 12` + four-sided `border: '1px solid ${t.INK}'`
+  (verified in source) are cancelled ENTIRELY from the outside by the
+  clip-shim: `margin: '-13px -1px -1px'` — the `-13` top = the 12px margin +
+  1px top border, the `-1px` sides/bottom push the border past the wrapper's
+  `overflow: 'hidden'` clip edge — so the solid INK border never paints. The
+  wrapper's own 1px `bsTHexA(t.INK, 0.18)` top/bottom hairlines become the
+  ONLY visible rules, and there are no side borders at all. This satisfies
+  spec §9's "no side borders" with a real clip, not an optical hope; no
+  doubled bottom rule, no orphaned top hairline floating 12px above the
+  component's box.
+- **True edge-to-edge in every context**: `marginLeft: -(15 + pagePad)` /
+  `marginRight: -(13 + pagePad)` cancels the card's own gutters (15 left /
+  13 right, from Task 1's shell) plus whatever page gutter the call site
+  reports. Community feed: `pagePad = t.padX` → the bleed crosses the tab
+  body's side padding to the true screen edge. Profiles: `pagePad = 0` → the
+  card's containing wrapper is already flush to the screen edge, so
+  cancelling the card's own gutters alone reaches it. (Implementation note:
+  the findings' decision text wrote the wrapper's right margin as
+  `-pagePad`; the card's own 13px right inset must also be cancelled for the
+  bleed to reach the right screen edge — the `−13` was already part of the
+  original rail-gutter escape — so the implemented right margin is
+  `-(13 + pagePad)`.)
+- `cursor: 'pointer'` + `onClick={() => openDetail('stats')}` carried
+  verbatim — same tap-through as the rest of the card's affordances. The
+  wrapper's `marginTop: 12` preserves the block's rhythm (the shim cancelled
+  the component's own 12, so the wrapper re-supplies it).
 - **Routeless fallback**: the old 80px halftone tile (radial-gradient dot
   pattern + "GPS route" label chip) is fully deleted. The replacement is
   copied from the Session Details "Open Ledger" page's own honest-null
@@ -1489,21 +1594,28 @@ its own contract):
    ```
    and confirm every hit inside `BSActivityCard` traces back to the two Step-2
    declarations, not a fresh call.
-3. **The sequence order matches the Global Constraints' motion contract** —
-   reading top to bottom in the function, confirm: the rail's `bsSdGrowY`
-   (Task 1) appears before the hero's `BSSdCountUp` (Task 2), which appears
-   before the hero rule's `bsSdDrawX` (Task 2) and the between-post separator's
-   `bsSdDrawX` (Task 1), which appears before the co-sign's `bsSdStamp`
-   (Task 2). This is already true by construction (each task inserted its
-   animation in the JSX position matching its visual position top-to-bottom
-   in the card), so this check should PASS with no edit — it is a
-   confirmation, not a new ordering mechanism.
-4. **Every animated inline style is reduced-gated** — grep every `animation:`
-   occurrence inside the function body and confirm each is wrapped in the
-   `...(sdReduced ? null : { animation: '...' })` (or, for the rail's initial
-   `scaleY(0)` pre-seen state, the equivalent `sdReduced || railSeen ? null :
-   {...}` guard from Task 1 Step 3) spread — never a bare `animation:` sitting
-   unconditionally in a style object:
+3. **The full contract sequence hangs off the ONE observer** — the motion
+   contract's animated elements are exactly five styles in four stages:
+   rail grow (`bsSdGrowY`, Task 1) → hero count (`BSSdCountUp run={railSeen}`,
+   Task 2) → hero rule + between-post separator draws (`bsSdDrawX`, Tasks 2 +
+   1 — note the separator's JSX sits at the very BOTTOM of the card, after
+   the co-sign, so JSX order is NOT the sequencing mechanism) → co-sign stamp
+   (`bsSdStamp`, Task 2). Confirm all five styles gate on the SAME `railSeen`
+   flag and fire together on first view; the perceived sequence comes from
+   each animation's own duration/delay (900ms grow · 750ms count · 700–900ms
+   draws · 480ms + 180ms-delay stamp), exactly like the Open Ledger page.
+   Also confirm the PR delta and the routeless redaction line carry NO
+   animation of their own — they are not in the contract.
+4. **Every animated inline style is BOTH reduced-gated AND seen-gated** —
+   grep every `animation:` occurrence inside the function body and confirm
+   each follows the canonical pattern
+   `...(sdReduced ? null : railSeen ? { animation: '...' } : { <pre-state> })`
+   where the pre-state is `{ transform: 'scaleY(0)' }` for the rail,
+   `{ transform: 'scaleX(0)' }` for the two rules, and `{ opacity: 0 }` for
+   the co-sign stamp — never a bare `animation:` sitting unconditionally in a
+   style object, and never an animation gated ONLY on `sdReduced` (feed cards
+   mount offscreen inside a `.map`; a mount-time animation would finish
+   before the card is ever visible):
    ```
    grep -n "animation:" mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
    ```
@@ -1566,9 +1678,10 @@ a test) must NOT be deleted.
    grep -n "radial-gradient(circle at 30% 30%" mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
    ```
    Expected: zero matches after Step 3 (was exactly one, this block, before).
-3. **The old tier-chip / filled-type-pill JSX** — already deleted by Task 1
-   Step 3 (tier chip) and Task 1's type-tag restyle (filled pill → ink text +
-   heat underline). Confirm no dead style object survives under a name like
+3. **The old tier-chip / role-chip / filled-type-pill JSX** — already deleted
+   by Task 1 Step 3 (BOTH chip pills → the one plain mono `PEAK · CLIENT`
+   line) and Task 1's type-tag restyle (filled pill → ink text + heat
+   underline). Confirm no dead style object survives under a name like
    `chipStyle`/`pillStyle` anywhere in `BSActivityCard`:
    ```
    grep -n "chipStyle\|pillStyle" mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx
@@ -1578,9 +1691,10 @@ a test) must NOT be deleted.
    this check should already pass with zero matches file-wide; if it does
    not, that is pre-existing code elsewhere and out of scope, not this
    card's cleanup).
-4. **`cardInk`** (from `ctx`) — Task 1/2 replaced every `cardInk` reference
-   inside `BSActivityCard`'s own JSX with `t.INK` (per the Global Constraints,
-   "Text = `t.INK` alphas"). Confirm zero remaining uses of the destructured
+4. **`cardInk`** (from `ctx`) — Tasks 1/2 replaced the `cardInk` reads they
+   touched with `t.INK` (per the Global Constraints, "Text = `t.INK` alphas");
+   other blocks (the media/video/link cards, the `BSFeedComment` props) may
+   still read it. Confirm zero remaining uses of the destructured
    `cardInk` INSIDE this function before considering it for removal from the
    destructure list — but do **not** remove it from the `ctx` destructure
    itself unless this grep also comes back clean for the "no activity yet"
@@ -1697,16 +1811,20 @@ replaces with the real PR number received from the controller):
   Eligibility/gating (`iAmAuthorsCoach`, honest-null absent a real coach↔client
   link) unchanged.
 - **Route posts full-bleed**: `BSActivityRoutePreview` (component itself NOT
-  modified) now bleeds past the card's own rail gutter with 1px ink-alpha
-  hairlines top/bottom instead of a boxed tile; the routeless fallback
-  collapses from an 80px halftone tile to the Open Ledger's own redaction
-  line (a dashed rule flexing both sides of centered mono `GPS · Not
-  recorded`) — same honest-data gate as before (renders nothing at all when
-  the post carries no route signal).
+  modified) now runs true edge-to-edge — a new `pagePad` prop (community feed
+  passes `t.padX`; the already-full-bleed profile rows pass 0) lets the card
+  cancel the page gutter on top of its own rail gutter, and a clip-wrapper +
+  shim push the component's own marginTop + 1px INK border outside the clip
+  so the wrapper's 1px ink-alpha hairlines top/bottom are the only visible
+  rules; the routeless fallback collapses from an 80px halftone tile to the
+  Open Ledger's own redaction line (a dashed rule flexing both sides of
+  centered mono `GPS · Not recorded`) — same honest-data gate as before
+  (renders nothing at all when the post carries no route signal).
 - **Motion**: one `useBSSdInView` observer per card (not per field) drives the
   whole first-view sequence — rail grows → hero counts → hero/separator rules
-  draw → co-sign stamps — every animated style reduced-motion-gated via
-  `bsSdReduced()`; audited zero infinite-loop animations anywhere in the card
+  draw → co-sign stamps — every animated style gated on BOTH `bsSdReduced()`
+  AND the card's one-shot seen flag (nothing animates at mount while
+  offscreen); audited zero infinite-loop animations anywhere in the card
   (the old live-pulse breathing tick was a detail-page-only signature and
   never shipped on the feed card).
 - **Cleanup**: removed the action-row's old circular-pill style helper and
@@ -1744,18 +1862,21 @@ sed -i 's/\r$//' mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx docs/WORKL
 ```
 git add mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx docs/WORKLOG.md
 git commit -m "$(cat <<'EOF'
-feat(feed): full-bleed route treatment, motion audit, and dead-chrome cleanup on activity cards
+feat(feed): edge-to-edge route bleed, motion audit, and dead-chrome cleanup on activity cards
 
-BSActivityRoutePreview now runs full-bleed out of the card's rail gutter
-with 1px ink-alpha hairlines top/bottom (component itself untouched); the
+BSActivityRoutePreview now runs full-bleed edge-to-edge via a new pagePad
+prop (community feed passes t.padX; the already-full-bleed profile rows
+pass 0) — a clip-wrapper + shim cancel the component's own marginTop and
+push its 1px INK border outside the clip (component itself untouched), so
+1px ink-alpha hairlines top/bottom are the only visible rules; the
 routeless fallback collapses from the old halftone tile to the Open
 Ledger's own dashed redaction line (GPS · Not recorded), same honest-data
 gate. Audited the full card: exactly one useBSSdInView observer drives
-rail-grow -> hero-count -> rule-draw -> co-sign-stamp, every animated
-style reduced-gated, zero infinite-loop animations anywhere in the card.
-Removed the now-orphaned action-pill style helper and halftone gradient
-literal left behind by the redesign. Adds the WORKLOG entry for the whole
-Wire Dispatch redesign.
+rail-grow -> hero-count -> rule-draws -> co-sign-stamp, every animated
+style reduced-gated AND seen-gated, zero infinite-loop animations anywhere
+in the card. Removed the now-orphaned action-pill style helper and
+halftone gradient literal left behind by the redesign. Adds the WORKLOG
+entry for the whole Wire Dispatch redesign.
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
