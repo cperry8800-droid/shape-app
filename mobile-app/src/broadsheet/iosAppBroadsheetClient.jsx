@@ -6565,8 +6565,8 @@ async function bsOpenMemberConversation(person, closeOverlay) {
 // in their chat right now (the thread renders a "Live boost" eyebrow), instead
 // of waiting for the completed activity to post. Quick phrases are one-tap sends.
 const BS_BOOST_PHRASES = {
-  workout: ['Finish strong →', 'One more rep.', 'Strong — keep going.', 'Respect the work.'],
-  cooking: ['Chef mode — respect.', 'Fuel the work.', 'Plate it clean.', 'Meal prep counts.'],
+  workout: ["Let's go!", 'Nice!', 'Love it!', 'One more rep.', 'Finish strong →', 'Strong — keep going.', 'Respect the work.'],
+  cooking: ['What are you making?', 'Send a pic →', 'Looks good already.', 'Chef mode — respect.', 'Fuel the work.', 'Plate it clean.'],
 };
 function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const t = useBS();
