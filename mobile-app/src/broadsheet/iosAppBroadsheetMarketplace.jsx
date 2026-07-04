@@ -581,8 +581,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
               size={34}
               c={(window.bsMyTierColor && window.bsMyTierColor()) || '#8a8f98'}
               initial={(window.bsMyInitials && window.bsMyInitials()) || 'A'}
-              photo={(typeof window !== 'undefined' && window.ShapeIdentity && window.ShapeIdentity.photo) || undefined}
+              name={(window.bsMyName && window.bsMyName()) || undefined}
+              photo={(window.bsMyPhoto && window.bsMyPhoto()) || undefined}
               live={!!(window.bsAmLive && window.bsAmLive())}
+              activity={window.bsMyActivity && window.bsMyActivity()}
               showRank={false}
               onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }}
             />
@@ -594,7 +596,7 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
           <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: teal }} />
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>The classifieds</span>
         </div>
-        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
           Find your<br /><span style={{ fontStyle: 'italic', color: teal }}>coach.</span>
         </h1>
       </div>
