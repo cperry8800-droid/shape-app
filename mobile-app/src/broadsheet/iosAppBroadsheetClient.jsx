@@ -6960,8 +6960,12 @@ function bsInjectFollowChipCss() {
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips' }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
+  // 'ledger' = the Terrain "Route Card" treatment (zero-box, line-only heat):
+  // one mono stat line, Follow as a heat-tint chip / Message as ink+underline.
+  // Default 'chips' keeps the shipped instrument-chip look (coach Signal profile).
+  const ledger = variant === 'ledger';
   // On your OWN profile `person.userId` is often absent — resolve it from the
   // signed-in session so the followers/following block still shows for you.
   const uid = userId || (isSelf ? ((window.ShapeAuth?.getCachedState?.() || {}).user?.id || null) : null);
@@ -7030,6 +7034,49 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   };
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
   if (!uid && !name) return null;
+  // ── Ledger variant (Terrain) — one mono stat line + line-only Follow/Message.
+  if (ledger) {
+    const seg = (n, label, onTap) => (
+      <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, background: 'transparent', border: 0, padding: '6px 0', margin: 0, cursor: 'pointer' }}>
+        <span style={{ fontFamily: SERIF, fontSize: 13, fontWeight: 800, color: INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
+        <span style={{ fontFamily: MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), lineHeight: 1 }}>{label}</span>
+      </button>
+    );
+    const dot = <span aria-hidden style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.3), padding: '0 8px' }}>·</span>;
+    const followAction = !isSelf ? (
+      <button onClick={onToggle} disabled={busy} style={{
+        flex: 'none', minHeight: 30, padding: fs === 'follow' ? '7px 12px' : '7px 2px', cursor: busy ? 'default' : 'pointer', lineHeight: 1,
+        fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', border: 0,
+        background: fs === 'follow' ? bsTHexA(c, 0.14) : 'transparent', borderRadius: fs === 'follow' ? 3 : 0,
+        color: fs === 'requested' ? bsTHexA(INK, 0.55) : INK,
+      }}>{fs === 'following' ? <>Following <span style={{ color: c }}>✓</span></> : fs === 'requested' ? 'Requested' : '＋ Follow'}</button>
+    ) : null;
+    const msgAction = (!isSelf && typeof onMessage === 'function') ? (
+      <button onClick={() => onMessage()} style={{ flex: 'none', minHeight: 30, padding: '7px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.75), borderBottom: `1px solid ${c}` }}>Message</button>
+    ) : null;
+    const statLine = (
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 2, justifyContent: center ? 'center' : 'flex-start' }}>
+        {seg(stats.followers, 'Followers', () => openList('followers'))}{dot}
+        {seg(stats.following, 'Following', () => openList('following'))}{dot}
+        {seg(postsShown, 'Posts', () => onOpenPosts && onOpenPosts())}
+        {isSelf && reqCount > 0 && (
+          <button onClick={() => openList('requests')} style={{ marginLeft: 12, flex: 'none', padding: '6px 0', cursor: 'pointer', background: 'transparent', border: 0, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}` }}>{reqCount} request{reqCount === 1 ? '' : 's'} <span style={{ color: c }}>›</span></button>
+        )}
+      </div>
+    );
+    return (
+      <div>
+        {title ? (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: '1 1 0', minWidth: 0, overflowWrap: 'break-word' }}>{title}</div>
+            {(followAction || msgAction) && <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>{followAction}{msgAction}</div>}
+          </div>
+        ) : ((followAction || msgAction) && <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: center ? 'center' : 'flex-start', marginBottom: 8 }}>{followAction}{msgAction}</div>)}
+        <div style={{ marginTop: title ? 10 : 0 }}>{statLine}</div>
+        {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
+      </div>
+    );
+  }
   const statBtn = (n, label, onTap) => (
     <button onClick={onTap} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
       <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1 }}>{Math.max(0, Number(n) || 0)}</span>
@@ -7112,18 +7159,26 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
 // the hero's climb as the you-are-here marker); just the type column, full
 // width: "{TIER} TIER · {N} WEEK STREAK" eyebrow → serif name → "@handle ·
 // goal" + the followers/following counts on one meta row.
-function BSProfileIdentityHead({ name, handle, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
+function BSProfileIdentityHead({ name, handle, sub, goal, tierName, c, streak, photo, userId, isSelf, INK = '#f2ede4', BG = '#100d0a', onOpenProfile, coach = false, onOpenPosts, onMessage = null }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+  const reduced = bsSdReduced();
+  // Route Card identity head — the rail's origin. Eyebrow demotes to ink-alphas
+  // (identity is weight, not color); the serif name's period is the head's only
+  // heat mark; a 2px heat rule draws under the block on mount.
   return (
-    <div style={{ paddingBottom: 13, marginBottom: 2, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontFamily: MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
-        <span style={{ color: c, fontWeight: 800 }}>{tierName} Tier</span>
-        {streak ? <><span style={{ color: bsTHexA(INK, 0.4) }}>·</span><span style={{ color: '#c0533b' }}>{streak} week streak</span></> : null}
+    <div style={{ paddingBottom: 13 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontFamily: MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800, color: bsTHexA(INK, 0.55) }}>
+        <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: c, marginRight: 1 }} />
+        <span>{tierName} Tier</span>
+        {streak ? <><span style={{ color: bsTHexA(INK, 0.3) }}>·</span><span>{streak} week streak</span></> : null}
       </div>
-      <div style={{ marginTop: 7 }}>
-        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} embedded ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage}
-          title={<h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: 0 }}>{name}<span style={{ color: c }}>.</span></h1>} />
+      <h1 style={{ fontFamily: SERIF, fontSize: 27, fontWeight: 500, color: INK, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '7px 0 5px' }}>{name}<span style={{ color: c }}>.</span></h1>
+      {(handle || sub) && <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{[handle, sub].filter(Boolean).join(' · ')}</div>}
+      <div style={{ marginTop: 12 }}>
+        <BSFollowBlock userId={userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach={coach} variant="ledger" ownerPhoto={photo} onOpenProfile={onOpenProfile} onOpenPosts={onOpenPosts} onMessage={onMessage}
+          title={<span style={{ display: 'none' }} />} />
       </div>
+      <div aria-hidden style={{ height: 2, marginTop: 12, background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
     </div>
   );
 }
@@ -7374,7 +7429,7 @@ function bsLinkHref(key, val) {
   return 'https://' + (pre ? pre + v.replace(/^@/, '') : v);
 }
 // Render block — the song, prompts, and social links a member added.
-function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0 }) {
+function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed = 0, ledger = false }) {
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
   // bleed = the host body's side padding: boxed pieces break out of it to run
   // full-bleed (side borders + radius dropped at the screen edges); typographic
@@ -7391,6 +7446,52 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   const empty = !embed && !prompts.length && !links.length && !pinned && !heroStats.length;
   if (empty && !isSelf) return null;
   const Kick = ({ children }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
+  // ── Ledger variant (Terrain) — zero-box registers, line-only heat. ──
+  if (ledger) {
+    if (empty) return null;
+    return (
+      <div style={{ marginBottom: 22 }}>
+        {heroStats.length > 0 && (
+          <div style={{ display: 'flex', gap: 18, paddingBottom: 14, marginBottom: 16, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+            {heroStats.map((s) => <div key={s.k} style={{ flex: 1, minWidth: 0 }}><BSTLedgerStat INK={INK} label={s.label} value={String(s.value)} seen={false} figSize={22} /></div>)}
+          </div>
+        )}
+        {pinned && (
+          <div style={{ marginBottom: 16, borderLeft: `3px solid ${c}`, paddingLeft: 12 }}>
+            <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Pinned · {pinned.kind || 'Highlight'}</div>
+            <div style={{ fontFamily: SERIF, fontSize: 18, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 6, color: INK }}>{pinned.title}</div>
+            {pinned.note && <p style={{ fontFamily: SANS, fontSize: 13, lineHeight: 1.5, color: bsTHexA(INK, 0.7), margin: '6px 0 0' }}>{pinned.note}</p>}
+            {pinned.metric && <div style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 8 }}>{pinned.metric}</div>}
+          </div>
+        )}
+        {embed && (
+          <div style={{ marginBottom: prompts.length || links.length ? 18 : 0 }}>
+            <Kick>{(cu.song && cu.song.label) ? cu.song.label : 'Profile song'}</Kick>
+            <div style={{ marginTop: 8, ...bx, borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` }}>
+              <iframe title="Profile song" src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: 'block', border: 0 }} />
+            </div>
+          </div>
+        )}
+        {prompts.length > 0 && (
+          <div style={{ marginBottom: links.length ? 18 : 0 }}>
+            {prompts.map((p, i) => (
+              <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{p.q}</div>
+                <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.25, marginTop: 6, color: bsTHexA(INK, 0.9) }}>{p.a}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {links.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', paddingTop: 4 }}>
+            {links.map(([l, v]) => { const href = bsLinkHref(l.key, v); return (
+              <a key={l.key} href={href} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{l.label} <span style={{ color: c }}>↗</span></a>
+            ); })}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div style={{ marginBottom: 26 }}>
       {heroStats.length > 0 && (
@@ -8330,7 +8431,7 @@ function BSLivingTabs({ tabs, active, onPick, c, INK, BG, pad = 0 }) {
 // someone else's profile — save their public playlist into your own library.
 function bsProviderColor(p) { return p === 'apple' ? '#fa243c' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
 function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
-function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0 }) {
+function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = false }) {
   const t = useBS();
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
   const muted = bsTHexA(INK, 0.55), hair = bsTHexA(INK, 0.1);
@@ -8368,6 +8469,64 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0 }) {
     try { await window.ShapePlaylists.remove(pl.id); } catch (e) { load(); }
   };
 
+  // ── Ledger variant (Terrain) — zero-box hairline rows, line-only heat. ──
+  if (ledger) {
+    const glyph = (g, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ minWidth: 36, minHeight: 36, flexShrink: 0, background: 'transparent', border: 0, color: bsTHexA(INK, 0.55), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{g}</button>;
+    const openLink = (url) => <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), borderBottom: `1px solid ${accent}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>Open ↗</a>;
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span aria-hidden style={{ width: 6, height: 1.5, background: accent }} />
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Your library' : 'Music'}</div>
+          </div>
+          {isSelf && <button onClick={() => setAdding(true)} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${accent}` }}>＋ Add playlist</button>}
+        </div>
+        {items === null ? (
+          <div style={{ padding: '18px 2px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <BSTRedact INK={INK} label={isSelf ? 'No playlists yet' : 'No public playlists'} />
+            {isSelf && <div style={{ display: 'flex', justifyContent: 'center' }}><button onClick={() => setAdding(true)} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${accent}` }}>＋ Add your first</button></div>}
+          </div>
+        ) : (
+          <div style={{ marginTop: 6 }}>
+            {items.map((pl) => (
+              <div key={pl.id} style={{ padding: '12px 0', borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ width: 40, height: 40, flexShrink: 0, overflow: 'hidden', background: pl.cover ? `center/cover no-repeat url(${pl.cover})` : bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.1)}`, color: bsTHexA(INK, 0.55), display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, textDecoration: 'none' }}>{pl.cover ? '' : '♪'}</a>
+                  <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 800, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                    <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{bsProviderLabel(pl.provider)}{pl.track_count ? ` · ${pl.track_count} tracks` : ''}{isSelf ? (pl.is_public ? ' · Public' : ' · Private') : ''}</div>
+                  </a>
+                  {openLink(pl.url)}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 6, marginLeft: 52 }}>
+                  {isSelf ? (
+                    <>
+                      <button onClick={() => togglePublic(pl)} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>{pl.is_public ? <><span style={{ color: accent }}>◉</span> Public</> : '○ Private'}</button>
+                      <span style={{ marginLeft: 'auto' }} />
+                      {glyph('✉', 'Send to member', () => { if (!pl.is_public) { window.__bsToast?.('Make it public first to share.', 'info'); return; } setSendFor(pl); })}
+                      {glyph('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      {glyph('×', 'Remove', () => removeIt(pl))}
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ marginLeft: 'auto' }} />
+                      {glyph('＋', 'Save to my library', () => saveToLibrary(pl))}
+                      {glyph('↗', 'Share', () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {adding && <BSAddPlaylistSheet c={accent} INK={INK} BG={BG} onClose={() => setAdding(false)} onAdded={() => { setAdding(false); load(); }} />}
+        {sendFor && <BSPostSendSheet post={{ playlist: { name: sendFor.name, url: sendFor.url, provider: sendFor.provider }, title: sendFor.name, body: bsProviderLabel(sendFor.provider) }} onClose={() => setSendFor(null)} c={accent} INK={INK} BG={BG} />}
+      </div>
+    );
+  }
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
@@ -8522,14 +8681,90 @@ function BSAddPlaylistSheet({ onClose, onAdded, c, INK, BG }) {
 
 // Owner-only "＋ Log activity" CTA — shared by both profile feeds (there's no
 // section label anymore; the Activity tab names the feed).
-function BSActivityLogCta({ isSelf, accent, onClick }) {
+function BSActivityLogCta({ isSelf, accent, onClick, ledger = false, INK = '#f2ede4' }) {
   if (!isSelf) return null;
   const MONO = "'JetBrains Mono', monospace";
+  // ledger = the Terrain "Route Card" treatment: ink text + a 1px heat underline
+  // (no pill). Default keeps the tinted pill (coach Signal profile).
+  if (ledger) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClick} style={{ minHeight: 30, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${accent}` }}>
+          ＋ Log activity
+        </button>
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bsTHexA(accent, 0.12), border: `1px solid ${bsTHexA(accent, 0.45)}`, color: accent, borderRadius: 999, padding: '6px 12px', cursor: 'pointer', fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
         ＋ Log activity
       </button>
+    </div>
+  );
+}
+
+// ── Terrain profile "Route Card" primitives ─────────────────────────────────
+// The member profile serializes the Open Ledger / Wire Dispatch language: zero
+// boxes, tier color as this surface's HEAT (line-only, closed placement list),
+// ledger typography, self-drawing linework, honest-absent redaction lines. Heat
+// never colors running text — every glyph resolves from t.INK alphas so AA holds
+// on all 14 papers. Spec: docs/superpowers/specs/2026-07-04-terrain-profile-route-card-design.md
+const BST_MONO = "'JetBrains Mono', monospace";
+const BST_SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif";
+// A rail "station" head — a 6×1.5px heat tick + a mono uppercase eyebrow, with
+// an optional right-aligned meta note. Draws no box.
+function BSTStationHead({ heat, INK, label, meta }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 13 }}>
+      <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: heat }} />
+      <span style={{ fontFamily: BST_MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{label}</span>
+      {meta ? <span style={{ marginLeft: 'auto', fontFamily: BST_MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), whiteSpace: 'nowrap' }}>{meta}</span> : null}
+    </div>
+  );
+}
+// Honest-absent line: a 1px dashed rule flexing both sides of a centered mono
+// label ("LIFTS · NOT ON RECORD"). No tint, no radius — the redaction template.
+function BSTRedact({ INK, label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', margin: '4px 0 6px' }} aria-label={label}>
+      <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(INK, 0.22)}` }} />
+      <span style={{ fontFamily: BST_MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), padding: '0 8px' }}>{label}</span>
+      <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(INK, 0.22)}` }} />
+    </div>
+  );
+}
+// Eyebrow-above-figure ledger stat (the Open Ledger hero-stat pattern). Counts
+// the numeric part up on `seen`; the unit is split into a mono column so figures
+// across a row can share one right edge.
+function BSTLedgerStat({ INK, label, value, seen, figSize = 30, delay = 0, align = 'left' }) {
+  const u = bsSdSplitUnit(value);
+  return (
+    <div style={{ textAlign: align }}>
+      <div style={{ fontFamily: BST_MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 3, justifyContent: align === 'right' ? 'flex-end' : 'flex-start' }}>
+        <span style={{ fontFamily: BST_SERIF, fontSize: figSize, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
+          {seen ? <BSSdCountUp text={u.num} duration={780} delay={delay} /> : u.num}
+        </span>
+        {u.unit ? <span style={{ fontFamily: BST_MONO, fontSize: 11, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>{u.unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+// Typographic tab index (Terrain only — Signal keeps BSLivingTabs). Sticky on a
+// solid paper fill with a 1px ink hairline; the active label carries a 2px heat
+// underline that draws in. Real ≥44px buttons.
+function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20 }) {
+  return (
+    <div style={{ position: 'sticky', top: 0, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+      <div style={{ display: 'flex' }}>
+        {tabs.map((tb) => { const on = active === tb.key; return (
+          <button key={tb.key} onClick={() => onPick(tb.key)} style={{ flex: 1, minWidth: 0, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0 11px', fontFamily: BST_MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? INK : bsTHexA(INK, 0.45) }}>
+            {tb.label}
+            {on && <span aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: -1, height: 2, background: heat, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
+          </button>
+        ); })}
+      </div>
     </div>
   );
 }
@@ -8541,14 +8776,22 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const onMsg = hasMessage ? onMessage : () => {};
   const tTheme = useBS();
   // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
-  // light paper makes the profile light). TEAL accent is constant.
-  const BG = tTheme.PAPER_BG, INK = tTheme.INK, TEAL = tTheme.isLight ? '#0a8f87' : '#34d6c5';
+  // light paper makes the profile light). Heat = the member's TIER color (`c`).
+  const BG = tTheme.PAPER_BG, INK = tTheme.INK;
   const SERIF = "'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
   const [custom, setCustom] = useStateBSC(null);
   const [showCustomizer, setShowCustomizer] = useStateBSC(false);
   const [followProfile, setFollowProfile] = useStateBSC(null); // tapped a follower/following → push their profile
+  // The Route Card reuses the Open Ledger keyframes (rail grow, rule draw, pop,
+  // stamp, breath, line-draw) — inject them so the profile's motion plays even
+  // when the session-detail page was never opened this session.
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
+  // Hero zone boots on mount (above the fold): flip after one frame so the
+  // ascent's stroke-dashoffset transition fires. Reduced motion → already drawn.
+  const [heroSeen, setHeroSeen] = useStateBSC(bsSdReduced());
+  React.useEffect(() => { if (heroSeen) return undefined; const r = requestAnimationFrame(() => setHeroSeen(true)); return () => cancelAnimationFrame(r); }, [heroSeen]);
   const activityRef = React.useRef(null); // Posts stat → scroll to the activity section
   const openPosts = () => { setTab('activity'); setTimeout(() => { try { activityRef.current && activityRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 60); };
   useBSPresence();
@@ -8599,7 +8842,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const goal = (!isPrivate && ((live && live.goal) || person.goal)) || null;
   const bio = (!isPrivate && ((custom && custom.bio) || (live && live.bio) || person.bio)) || null;
   const tierName = String(tierKey).charAt(0).toUpperCase() + String(tierKey).slice(1);
-  const seed = (() => { let n = 0; const s = String(name); for (let i = 0; i < s.length; i++) n = (n + s.charCodeAt(i) * (i + 1)) % 99991; return n + 7; })();
   // Illustrative living-identity data (wire to real logs later).
   const streak = 14;
   const disciplines = [['Strength', 0.82], ['Endurance', 0.64], ['Consistency', 0.91], ['Recovery', 0.73]];
@@ -8683,13 +8925,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // filtered to this profile's owner — see feedEff below.)
   // Ridgeline hero fields (illustrative — wire to real program/coach/goal later).
   const progressPct = 84, summit = goal || '1.5× bodyweight';
-  const block = 'Week 6 of 12', program = 'Hypertrophy Block II', startLabel = "Feb ’25 — start";
+  const block = 'Week 6 of 12', program = 'Hypertrophy Block II';
   const coachName = 'Maya Okafor', coachInit = 'MO';
-  const Kick = ({ children, col }) => <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: col || bsTHexA(INK, 0.5), fontWeight: 600 }}>{children}</span>;
   const maxTraj = Math.max(...trajEff), minTraj = Math.min(...trajEff);
   const sparkPath = trajEff.map((v, i) => [(i / (trajEff.length - 1)) * 150, 34 - ((v - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3]).map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
   const maxWk = Math.max(...weekEff) || 1;
-  const card = { background: bsTHexA(INK, 0.04), border: `1px solid ${bsTHexA(INK, 0.08)}`, borderRadius: 14 };
   const { photo, fileRef, onPick } = useBSProfilePhoto(person, isSelf);
   // On your OWN profile the climb is wired to real data, and you can choose what
   // it tracks: body weight (goal + weigh-ins), Shape Score (→ next tier), or day
@@ -9038,135 +9278,107 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           </div>
         </div>
       )}
-      {/* Identity heading — tier/streak + name + handle·goal + follows, above the
-          hero box. No avatar up here: the facet avatar rides the hero's climb.
-          On the Me page the masthead is right above, so no separating rule. */}
-      <div style={{ margin: '16px 18px 0', paddingTop: meMode ? 4 : 14, borderTop: meMode ? 'none' : `1px solid ${bsTHexA(INK, 0.12)}` }}>
-        <BSProfileIdentityHead name={name} handle={handle} goal={goal} tierName={tierName} c={c} streak={streakEff}
-          photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-          userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
-          onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
-      </div>
-      {/* TERRAIN hero — ascent-profile card: you-are-here on the climb (facet
-          avatar). FULL-BLEED: spans the whole screen width (no side gutters). */}
-      <div style={{ padding: '10px 0 0' }}>
-        {(() => {
-          const W = 330, H = 178;
-          const base = [10, H - 26], peak = [W - 26, 34];
-          const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 40}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
-          // Clamp the you-are-here marker so it tracks progress but never climbs
-          // into the summit-flag corner (where it overlapped + clipped the card).
-          const hp = Math.max(0.06, Math.min(heroPct, 0.66));
-          const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
-          return (
-          <div style={{ position: 'relative' }}>
-            {/* instrument-plate frame around the whole hero — matches the two plates inside it */}
-            <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 17px) 0, 100% 17px, 100% 100%, 0 100%)', background: bsTHexA(c, 0.45) }} />
-            <div aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c, zIndex: 3 }} />
-            <div aria-hidden style={{ position: 'absolute', right: 7, bottom: 7, width: 9, height: 9, borderRight: `1.5px solid ${c}`, borderBottom: `1.5px solid ${c}`, opacity: 0.7, zIndex: 3 }} />
-            <div style={{ position: 'relative', zIndex: 1, margin: 1.25, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', overflow: 'hidden', background: `linear-gradient(180deg, ${bsTHexA((custom && custom.accent) || c, 0.16)}, ${bsTHexA(INK, 0.02)}), ${BG}` }}>
-            {custom && custom.cover && custom.cover.image && (
-              <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: H, zIndex: 0 }}>
-                <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
-                <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${bsTHexA('#100d0a', 0.2)}, ${bsTHexA('#100d0a', 0.55)} 70%, ${bsTHexA('#100d0a', 0.9)})` }} />
-              </div>
-            )}
-            {/* preserveAspectRatio="none": the ridge stretches to the card's real
-                width, so the %-positioned HTML overlays (you-are-here badge,
-                level pills) stay aligned with the drawn geometry at full-bleed. */}
-            <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block', position: 'relative' }}>
-              <defs><linearGradient id={`asc${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.5)} /><stop offset="100%" stopColor={bsTHexA(c, 0.04)} /></linearGradient></defs>
-              {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
-              <path d={`${ridge} L ${peak[0]} ${H} L ${base[0]} ${H} Z`} fill={`url(#asc${seed})`} />
-              <path d={ridge} fill="none" stroke={bsTHexA(INK, 0.4)} strokeWidth="1.5" />
-              <path d={ridge} fill="none" stroke={TEAL} strokeWidth="2.5" strokeDasharray={`${heroPct * 360} 999`} strokeLinecap="round" />
-              <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 22} stroke={bsTHexA(INK, 0.6)} strokeWidth="1.5" />
-              <path d={`M ${peak[0]} ${peak[1] - 22} l 16 5 l -16 5 z`} fill={'#e0644b'} />
-              <circle cx={peak[0]} cy={peak[1]} r="3.5" fill={'#e0644b'} />
-              <circle cx={base[0]} cy={base[1]} r="3.5" fill={bsTHexA(INK, 0.5)} />
-            </svg>
-            {/* you-are-here FACET badge — positioned in SVG px (not card %) so it
-                never slides onto the identity strip below */}
-            <div style={{ position: 'absolute', left: `max(8px, calc(${(here.x / W) * 100}% - 32px))`, top: `${here.y - 74}px` }}>
-              <BSFacetAvatar size={64} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
-              <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6, whiteSpace: 'nowrap', fontFamily: SANS, fontSize: 10, fontWeight: 700, letterSpacing: '0.01em', color: TEAL, background: bsTHexA(BG, 0.88), border: `1px solid ${bsTHexA(TEAL, 0.3)}`, padding: '3px 9px', borderRadius: 999 }}>{heroPctLabel}%</div>
+      {/* ── Route Card — identity head + ascent hero + coach credit + score,
+          threaded on the tier-heat rail. The rail terminates at the tab index
+          below (the feed's role-heat rails are the only rails past it). ── */}
+      <div style={{ position: 'relative' }}>
+        <div aria-hidden style={{ position: 'absolute', left: 8, top: meMode ? 8 : 18, bottom: 0, width: 2, borderRadius: 1, background: `linear-gradient(180deg, ${c}, ${bsTHexA(c, 0.35)} 40%, ${bsTHexA(INK, 0.12)} 75%, transparent)`, ...(bsSdReduced() ? null : { transformOrigin: 'top', animation: 'bsSdGrowY 1000ms cubic-bezier(.4,0,.2,1) 120ms both' }) }} />
+        <div style={{ position: 'relative', padding: meMode ? '10px 20px 0' : '14px 20px 0' }}>
+          <BSProfileIdentityHead name={name} handle={handle} sub={[pronouns, city].filter(Boolean).join(' · ')} goal={goal} tierName={tierName} c={c} streak={streakEff}
+            photo={avPhoto || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
+            userId={person.userId} isSelf={isSelf} INK={INK} BG={BG} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
+            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
+        </div>
+        {/* ASCENT — the self-drawing ridge, inked straight on the paper (no box).
+            preserveAspectRatio="none" so the %-positioned overlays stay aligned. */}
+        <div style={{ padding: '14px 0 2px' }}>
+          {custom && custom.cover && custom.cover.image && (
+            <div style={{ height: 116, marginBottom: 6, borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}`, overflow: 'hidden' }}>
+              <img src={custom.cover.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
-            {/* current level (base) + next level (by the summit flag, top-right) */}
-            <div style={{ position: 'absolute', left: 12, top: H - 22, fontFamily: MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7), background: bsTHexA(BG, 0.78), padding: '3px 10px', borderRadius: 999 }}>{curLevel}</div>
-            <div style={{ position: 'absolute', left: `${(peak[0] / W) * 100}%`, transform: 'translateX(-50%)', top: 42, fontFamily: MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTierColor(String(nextLevel || curLevel).toLowerCase()), textAlign: 'center', whiteSpace: 'nowrap', background: bsTHexA(BG, 0.8), border: `1px solid ${bsTHexA(bsTierColor(String(nextLevel || curLevel).toLowerCase()), 0.4)}`, padding: '3px 10px', borderRadius: 999 }}>{nextLevel || curLevel}</div>
-            {/* identity strip */}
-            <div style={{ padding: '12px 14px', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                {/* identity header above owns the name — the hero carries the handle */}
-                <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, letterSpacing: '0.01em', color: INK, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{handle}</div>
-                <div style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.55), marginTop: 5 }}>{[pronouns, city].filter(Boolean).join(' · ')}</div>
-              </div>
-              <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: c, whiteSpace: 'nowrap' }}>{tierName}</span>
-              </div>
-            </div>
-            {/* coached-by band */}
-            {showCoachBand && (
-            <div style={{ padding: '0 14px 14px' }}>
-              <BSPlate c={TEAL} notch={12} bracket pad="9px 12px">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: TEAL }}>{blockEff}</div>
-                  <div style={{ fontFamily: SANS, fontSize: 13.5, color: bsTHexA(INK, 0.85), marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{programEff}</div>
+          )}
+          {(() => {
+            const W = 330, H = 150;
+            const base = [12, H - 22], peak = [W - 22, 26];
+            const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 34}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
+            const hp = Math.max(0.06, Math.min(heroPct, 0.66));
+            const here = { x: base[0] + (peak[0] - base[0]) * hp, y: base[1] + (peak[1] - base[1]) * hp };
+            const reduced = bsSdReduced();
+            return (
+              <div style={{ position: 'relative' }}>
+                <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden style={{ display: 'block' }}>
+                  {[0, 1, 2, 3].map((i) => <line key={i} x1="0" y1={(i + 1) * H / 5} x2={W} y2={(i + 1) * H / 5} stroke={bsTHexA(INK, 0.06)} strokeWidth="1" />)}
+                  {/* base ridge = the whole route, dashed ink */}
+                  <path d={ridge} fill="none" stroke={bsTHexA(INK, 0.3)} strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+                  {/* earned segment = heat, drawing itself to heroPct on mount */}
+                  <path d={ridge} fill="none" stroke={c} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" pathLength={1}
+                    strokeDasharray={`${heroPct} 1`} style={{ strokeDashoffset: heroSeen ? 0 : heroPct, transition: reduced ? 'none' : 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 400ms' }} />
+                  {/* summit flag (heat) + hollow ink start square */}
+                  <line x1={peak[0]} y1={peak[1]} x2={peak[0]} y2={peak[1] - 18} stroke={c} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                  <path d={`M ${peak[0]} ${peak[1] - 18} l 13 4 l -13 4 z`} fill={c} />
+                  <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.55)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+                </svg>
+                {/* you-are-here facet (the page's one breathing loop) + 43% readout */}
+                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 23px))`, top: `${(here.y / H) * 100}%`, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ borderRadius: '50%', ...(reduced ? null : { '--sd-glow': bsTHexA(c, 0.45), animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1150ms both, bsSdPrBreath 3.2s ease-in-out 1750ms infinite' }) }}>
+                    <BSFacetAvatar size={46} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
+                  </div>
+                  <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{heroPctLabel}%</span>
                 </div>
-                {showCoachLink && <>
-                <div style={{ width: 1, alignSelf: 'stretch', background: bsTHexA(INK, 0.12) }} />
-                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 999, flex: 'none', background: bsTHexA(TEAL, 0.18), border: `1px solid ${bsTHexA(TEAL, 0.5)}`, color: TEAL, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{coachInitEff}</div>
-                  <div><div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45) }}>Coached by</div><div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 2, whiteSpace: 'nowrap' }}>{coachNameEff} <span style={{ color: bsTHexA(INK, 0.4) }}>›</span></div></div>
+                {/* base + summit level labels — bare mono (no pills, no tier text) */}
+                <span style={{ position: 'absolute', left: 20, bottom: 2, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{curLevel}</span>
+                <span style={{ position: 'absolute', right: 12, top: 6, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>{nextLevel || curLevel}</span>
+              </div>
+            );
+          })()}
+        </div>
+        {/* coach press credit + Shape Score register — at the gutter, on the rail */}
+        <div style={{ padding: '0 20px' }}>
+          {showCoachBand && (
+            <div style={{ padding: '10px 0 14px', ...(bsSdReduced() ? null : { animation: 'bsSdStamp 460ms cubic-bezier(.2,1.1,.3,1) 1500ms both' }) }}>
+              {(!signedInSelf || hasRealProgram) && <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), marginBottom: showCoachLink ? 7 : 0 }}>{blockEff} · <span style={{ color: bsTHexA(INK, 0.7) }}>{programEff}</span></div>}
+              {showCoachLink && (
+                <button onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })} aria-label={`View ${coachNameEff}'s profile`} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', background: 'transparent', border: 0, borderLeft: `3px solid ${(coachReal && coachReal.role) === 'nutritionist' ? '#a07a2e' : '#c0533b'}`, padding: '2px 0 2px 10px', cursor: 'pointer', textAlign: 'left' }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 999, flex: 'none', background: bsTHexA(INK, 0.06), color: bsTHexA(INK, 0.7), display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 9, fontWeight: 800 }}>{coachInitEff}</div>
+                  <span style={{ color: c, fontFamily: MONO, fontWeight: 900, fontSize: 11 }}>✓</span>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ fontFamily: SANS, fontWeight: 800, fontSize: 12.5, color: INK }}>{coachNameEff}</span>
+                    <span style={{ display: 'block', fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55), marginTop: 1 }}>coached by · {(coachReal && coachReal.role) === 'nutritionist' ? 'nutritionist' : 'trainer'}</span>
+                  </span>
+                  <span style={{ color: c, fontFamily: MONO, fontSize: 12 }}>›</span>
                 </button>
-                </>}
-                </div>
-              </BSPlate>
+              )}
             </div>
-            )}
-            {/* Shape Score band — merged into the header (points + to-next + the four
-                composite bars). The tier, climb % and next level already live above. */}
-            {meMode && isSelf && (() => {
-              const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
-              const pts = score != null ? score : (signedInSelf ? 0 : 1284);
-              let si = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) si = k;
-              const nextT = TH[si + 1] || null;
-              const toNextPts = nextT ? nextT[1] - pts : 0;
-              // Composite bars are demo for the signed-out preview; a signed-in
-              // account shows REAL pillars (honest '—' when a pillar is too sparse
-              // to score), from the /api/client/score composite.
-              const _comp = (selfScore && selfScore.composite) || {};
-              const cats = signedInSelf
-                ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
-                : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
-              return (
-                <div style={{ padding: '0 14px 14px' }} data-tour="hero-me">
-                  <BSPlate c={c} notch={12} bracket pad="11px 12px" onClick={onOpenScore} role="button" tabIndex={0} ariaLabel="Open your Shape Score" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.85), fontWeight: 900 }}>Shape Score</span>
-                        <span style={{ fontFamily: SERIF, fontSize: 22, fontWeight: tTheme.W.display, letterSpacing: '-0.03em', color: INK, lineHeight: 0.9 }}>{pts.toLocaleString()}<span style={{ fontFamily: MONO, fontSize: 8.5, color: bsTHexA(INK, 0.45), marginLeft: 3 }}>pts</span></span>
-                      </div>
-                      <span style={{ flex: 'none', fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, fontWeight: 700 }}>{nextT ? `${toNextPts.toLocaleString()} to ${nextT[0]}` : 'Top of the ladder'}</span>
-                    </div>
-                    <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {cats.map(([k, v]) => (
-                        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                          <div style={{ width: 70, fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.6), fontWeight: 600 }}>{k}</div>
-                          <div style={{ flex: 1, height: 4, borderRadius: 999, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}><div style={{ width: `${v == null ? 0 : v}%`, height: '100%', background: TEAL, borderRadius: 999 }} /></div>
-                          <div style={{ width: 20, textAlign: 'right', fontFamily: MONO, fontSize: 9.5, color: bsTHexA(INK, 0.7), fontWeight: 700 }}>{v == null ? '—' : v}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </BSPlate>
+          )}
+          {meMode && isSelf && (() => {
+            const TH = [['Base', 0], ['Tempo', 750], ['Form', 2000], ['Peak', 5000], ['Legend', 15000]];
+            const pts = score != null ? score : (signedInSelf ? 0 : 1284);
+            let si = 0; for (let k = 0; k < TH.length; k++) if (pts >= TH[k][1]) si = k;
+            const nextT = TH[si + 1] || null;
+            const toNextPts = nextT ? nextT[1] - pts : 0;
+            // Composite pillars: real signed-in (honest '—' when too sparse to
+            // score), demo for the signed-out preview.
+            const _comp = (selfScore && selfScore.composite) || {};
+            const cats = signedInSelf
+              ? [['Train', _comp.train ?? null], ['Nutrition', _comp.nutrition ?? null], ['Recovery', _comp.recovery ?? null], ['Consistency', _comp.consistency ?? null]]
+              : [['Train', 88], ['Nutrition', 74], ['Recovery', 62], ['Consistency', 92]];
+            const compRows = cats.map(([k, v]) => [k, v == null ? '—' : String(v), '']);
+            const compPerf = cats.map(([, v]) => (v == null ? 0 : Number(v)));
+            const bestIdx = compPerf.some((v) => v > 0) ? compPerf.indexOf(Math.max(...compPerf)) : -1;
+            return (
+              <div data-tour="hero-me" role="button" tabIndex={0} onClick={onOpenScore} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenScore && onOpenScore(); } }} style={{ padding: '4px 0 16px', cursor: 'pointer' }}>
+                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Shape Score</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 3 }}>
+                  <span style={{ fontFamily: SERIF, fontSize: 40, fontWeight: 700, color: INK, letterSpacing: '-0.04em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}><BSSdCountUp text={String(pts)} duration={780} delay={180} /></span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>pts</span>
+                  <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 2, whiteSpace: 'nowrap' }}>{nextT ? `${toNextPts.toLocaleString()} to ${nextT[0]}` : 'Top of the ladder'} <span style={{ color: c }}>›</span></span>
                 </div>
-              );
-            })()}
-            </div>
-          </div>
-          );
-        })()}
+                <div aria-hidden style={{ height: 2, margin: '11px 0 12px', background: `linear-gradient(90deg, ${c}, ${bsTHexA(c, 0.25)} 55%, transparent)`, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 900ms cubic-bezier(.4,0,.2,1) 350ms both' }) }} />
+                <BSSdBars rows={compRows} perf={compPerf} bestIdx={bestIdx} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still />
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
       {/* The goal / Shape-steps / Progress utility cards moved to the HOME tab —
@@ -9174,14 +9386,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
 
       <div style={{ flex: 1, padding: '12px 20px 24px' }}>
         {isPrivate ? (
-          <div style={{ ...card, padding: '18px 20px', display: 'flex', gap: 12, alignItems: 'flex-start', margin: '0 -20px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-            <span aria-hidden style={{ fontSize: 16 }}>🔒</span>
-            <div style={{ fontFamily: SANS, fontSize: 14, color: bsTHexA(INK, 0.7), lineHeight: 1.5 }}>{live && live.visibility === 'friends' ? `${first} shares their terrain with friends — connect to see the full climb.` : `${first} keeps their terrain private — only their name and tier are shown.`}</div>
+          <div style={{ margin: '4px 0 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 12px' }} aria-hidden>
+              <span style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(INK, 0.22)}` }} />
+              <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), padding: '0 8px' }}>Private record</span>
+              <span style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(INK, 0.22)}` }} />
+            </div>
+            <div style={{ fontFamily: SERIF, fontSize: 16, fontStyle: 'italic', color: bsTHexA(INK, 0.7), lineHeight: 1.5, textAlign: 'center' }}>{live && live.visibility === 'friends' ? `${first} shares their terrain with friends — connect to see the full climb.` : `${first} keeps their terrain private.`}</div>
           </div>
         ) : (
           <>
             <div ref={activityRef} />
-            <BSLivingTabs c={c} INK={INK} BG={BG} pad={20} active={tab} onPick={setTab} tabs={[
+            <BSTerrainTabs heat={c} INK={INK} BG={BG} pad={20} active={tab} onPick={setTab} tabs={[
               { key: 'activity', label: 'Activity' },
               { key: 'signals', label: 'Signals' },
               { key: 'climb', label: 'Climb' },
@@ -9189,121 +9405,148 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
-                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={20} />
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={20} ledger />
               </div>
             )}
             {tab === 'climb' && (<>
-            {/* THE CLIMB — start → now → summit ridgeline (the goal at the top) */}
+            {/* THE CLIMB — the ascent inked straight on the paper (no box, no
+                wash). Heat route draws start → now; target stays a hollow circle. */}
             <div style={{ marginBottom: 28 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14, gap: 10 }}>
-                <Kick>The climb</Kick>
-                <span style={{ fontFamily: MONO, fontSize: 10, color: bsTHexA(INK, 0.5), whiteSpace: 'nowrap' }}>Member since {since}</span>
-              </div>
+              <BSTStationHead heat={c} INK={INK} label="The climb" meta={`Member since ${since}`} />
               {climbTabs.length > 1 && (
-                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
+                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
                   {climbTabs.map((s) => { const on = activeClimb === s.key; return (
-                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.6), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{s.label}</button>
+                    <button key={s.key} onClick={() => pickClimb(s.key)} style={{ flex: 'none', padding: '6px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap', borderBottom: on ? `1px solid ${c}` : '1px solid transparent' }}>{s.label}</button>
                   ); })}
-                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" title="Customize climb" style={{ flex: 'none', width: 28, height: 27, borderRadius: 999, border: `1px solid ${climbCustomizing ? TEAL : bsTHexA(INK, 0.18)}`, background: climbCustomizing ? bsTHexA(TEAL, 0.14) : 'transparent', color: climbCustomizing ? TEAL : bsTHexA(INK, 0.6), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label="Customize climb" title="Customize climb" style={{ flex: 'none', minWidth: 30, minHeight: 30, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>}
                 </div>
               )}
               {isSelf && (climbTabs.length <= 1 || climbCustomizing) && (
-                <div style={{ marginBottom: 14, border: `1px solid ${bsTHexA(INK, 0.12)}`, borderRadius: 13, padding: '12px 13px', background: bsTHexA(INK, 0.02) }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.55) }}>Show on your climb</div>
-                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ background: 'transparent', border: 0, color: TEAL, fontFamily: MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 0 }}>Done</button>}
+                <div style={{ margin: '2px 0 16px', paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Show on your climb</div>
+                    {climbTabs.length > 1 && <button onClick={() => setClimbCustomizing(false)} style={{ background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '6px 0', borderBottom: `1px solid ${c}` }}>Done</button>}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     {CLIMB_SOURCES.map((s) => { const on = climbShown.includes(s.key); return (
-                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${on ? TEAL : bsTHexA(INK, 0.18)}`, background: on ? bsTHexA(TEAL, 0.14) : 'transparent', color: on ? TEAL : bsTHexA(INK, 0.45), fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{on ? '✓ ' : '+ '}{s.label}</button>
+                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ padding: '5px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', borderBottom: on ? `1px solid ${c}` : '1px solid transparent' }}>{on ? '✓ ' : '＋ '}{s.label}</button>
                     ); })}
                   </div>
                 </div>
               )}
-              {/* The graph + level labels sit on the owner's chosen wash
-                  (profile_custom.climbBg) — visitors get it via the public RPC. */}
-              <div style={{ position: 'relative' }}>
               {(() => {
-                const bg = BS_CLIMB_BGS.find((b) => b.key === ((custom && custom.climbBg) || '')) || BS_CLIMB_BGS[0];
-                return bg.css ? <div aria-hidden style={{ position: 'absolute', inset: '-8px -8px -4px', borderRadius: 16, background: bg.css, pointerEvents: 'none' }} /> : null;
-              })()}
-              {(() => {
-                // The "now" dot height tracks the selected aspect's progress (pct),
-                // so the ridgeline visibly adjusts when you switch Climb tabs.
-                const W = 320, H = 132; const npct = Math.max(0.05, Math.min(0.95, pct || 0));
-                const ys = [H - 18, (H - 18) + (22 - (H - 18)) * npct, 22]; const xs = [24, W / 2, W - 24];
+                // The "now" dot height tracks the selected aspect's progress (pct).
+                const W = 320, H = 128; const npct = Math.max(0.05, Math.min(0.95, pct || 0));
+                const ys = [H - 16, (H - 16) + (20 - (H - 16)) * npct, 20]; const xs = [22, W / 2, W - 22];
                 const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+                const rgNow = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]}`;
+                const reduced = bsSdReduced();
                 return (
                 <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
-                  <defs><linearGradient id={`tdr${seed}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={bsTHexA(c, 0.3)} /><stop offset="100%" stopColor={bsTHexA(c, 0)} /></linearGradient></defs>
-                  <path d={`${rg} L ${xs[2]} ${H} L ${xs[0]} ${H} Z`} fill={`url(#tdr${seed})`} />
-                  <path d={rg} fill="none" stroke={bsTHexA(INK, 0.25)} strokeWidth="1.5" strokeDasharray="3 4" />
-                  {arc.map((a, i) => { const liveDot = a[2] === 'now', target = a[2] === 'target'; return (
-                    <g key={i}>
-                      <circle cx={xs[i]} cy={ys[i]} r={liveDot ? 6 : 4.5} fill={liveDot ? TEAL : target ? 'none' : c} stroke={target ? c : 'none'} strokeWidth={target ? 2 : 0} />
-                      {liveDot && <circle cx={xs[i]} cy={ys[i]} r={11} fill="none" stroke={TEAL} strokeWidth="1" opacity="0.5" />}
-                    </g>
-                  ); })}
+                  {/* whole route, dashed ink */}
+                  <path d={rg} fill="none" stroke={bsTHexA(INK, 0.25)} strokeWidth="1.5" strokeDasharray="4 4" />
+                  {/* earned start → now, heat, self-drawing */}
+                  <path d={rgNow} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(reduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 1100ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
+                  {/* hollow ink start square · heat now dot (pops) · hollow heat target */}
+                  <rect x={xs[0] - 4} y={ys[0] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.5)} strokeWidth="1.5" />
+                  <circle cx={xs[1]} cy={ys[1]} r="5" fill={c} style={reduced ? null : { transformOrigin: `${xs[1]}px ${ys[1]}px`, animation: 'bsSdPop 320ms cubic-bezier(.2,1.1,.3,1) 1350ms both' }} />
+                  <circle cx={xs[2]} cy={ys[2]} r="4.5" fill="none" stroke={c} strokeWidth="1.5" />
                 </svg>
                 );
               })()}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
                 {arc.map((a, i) => (
                   <div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', color: a[2] === 'now' ? TEAL : bsTHexA(INK, 0.5) }}>{a[0]}</div>
-                    <div style={{ fontFamily: SANS, fontSize: 12, color: bsTHexA(INK, 0.85), marginTop: 4 }}>{a[1]}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{a[0]}</div>
+                    <div style={{ fontFamily: SANS, fontSize: 12.5, color: bsTHexA(INK, 0.85), marginTop: 4 }}>{a[1]}</div>
                   </div>
                 ))}
               </div>
-              </div>
             </div>
 
-            {(goal || bio) && <div style={{ background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.22)}`, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '16px 20px', margin: '0 -20px 26px' }}><Kick col={c}>⛰ Why</Kick><div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.15, marginTop: 8 }}>{goal || bio}</div></div>}
+            {(goal || bio) && (
+              <div style={{ marginBottom: 26 }}>
+                <div aria-hidden style={{ height: 2, marginBottom: 12, background: `linear-gradient(90deg, ${INK}, ${c} 70%, transparent)`, transformOrigin: 'left', ...(bsSdReduced() ? null : { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) 200ms both' }) }} />
+                <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>The why</div>
+                <div style={{ fontFamily: SERIF, fontSize: 21, fontStyle: 'italic', letterSpacing: '-0.01em', lineHeight: 1.2, marginTop: 8, color: INK }}>{goal || bio}</div>
+              </div>
+            )}
             </>)}
 
-            {tab === 'signals' && (<>
-            <div style={{ marginBottom: 28 }}>
-              <Kick>Living signals</Kick>
-              <div style={{ display: 'flex', gap: 9, margin: '12px -20px 0' }}>
-                <div style={{ flex: 'none', width: 96, background: bsTHexA(c, 0.08), border: `1px solid ${bsTHexA(c, 0.25)}`, borderLeft: `2.5px solid ${c}`, borderRadius: 5, padding: '13px 14px' }}>
-                  <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: '-0.02em', lineHeight: 1 }}>{streakEff}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 6 }}>Day streak</div>
+            {tab === 'signals' && (() => {
+              const reduced = bsSdReduced();
+              const hasTraj = !signedInSelf || !!(realSig && realSig.traj && realSig.traj.length >= 2);
+              const hasWeek = !signedInSelf || weekEff.some((v) => v > 0);
+              const discRows = disciplinesEff.map(([label, val]) => [label, String(Math.round(val * 100)), '']);
+              const discPerf = disciplinesEff.map(([, val]) => Math.round(val * 100));
+              const hasDisc = !signedInSelf || discPerf.some((v) => v > 0);
+              const discBest = hasDisc ? discPerf.indexOf(Math.max(...discPerf)) : -1;
+              const hasLifts = !signedInSelf || liftsEff.some(([, v]) => v !== '—');
+              return (<>
+              {/* LIVING SIGNALS — day streak + weekly momentum, then trajectory */}
+              <div style={{ marginBottom: 26 }}>
+                <BSTStationHead heat={c} INK={INK} label="Living signals" meta={hasWeek ? 'today ↑' : null} />
+                <div style={{ display: 'flex', gap: 22, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 'none' }}>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Day streak</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
+                      <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{streakEff}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>days</span>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginBottom: 8 }}>Weekly momentum</div>
+                    {hasWeek ? (<>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 34 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(6, (v / (maxWk || 1)) * 100)}%`, background: today ? c : bsTHexA(INK, 0.18), transformOrigin: 'bottom', ...(reduced ? null : { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` }) }} />; })}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: MONO, fontSize: 6.5, fontWeight: 700, color: bsTHexA(INK, 0.4) }}>{d}</div>)}</div>
+                    </>) : <BSTRedact INK={INK} label="No sessions this week" />}
+                  </div>
                 </div>
-                <div style={{ flex: 1, ...card, padding: '13px 14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 9 }}><span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Weekly momentum</span><span style={{ fontFamily: MONO, fontSize: 10, color: TEAL }}>today ↑</span></div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 30 }}>{weekEff.map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(8, (v / maxWk) * 100)}%`, background: i === weekEff.length - 2 ? TEAL : bsTHexA(c, 0.5), borderRadius: 2 }} />)}</div>
-                </div>
+                {hasTraj ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 16, paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}>
+                    <div style={{ flex: 'none' }}>
+                      <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>Trajectory</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
+                        <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{trajDeltaLb > 0 ? '+' : '−'}{Math.abs(trajDeltaLb)}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>lb</span>
+                      </div>
+                    </div>
+                    <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }} aria-hidden>
+                      <path d={sparkPath} fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(reduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
+                    </svg>
+                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>16-wk recomp</div>
+                  </div>
+                ) : <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(INK, 0.08)}` }}><BSTRedact INK={INK} label="Trajectory · no weigh-ins yet" /></div>}
               </div>
-              <div style={{ margin: '9px -20px 0', ...card, borderRadius: 0, borderLeft: 0, borderRight: 0, padding: '13px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ flex: 'none' }}><div style={{ fontFamily: SERIF, fontSize: 22, letterSpacing: '-0.02em', color: TEAL }}>{trajDeltaLb > 0 ? '+' : '−'}{Math.abs(trajDeltaLb)} lb</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>Trajectory</div></div>
-                <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }}><path d={sparkPath} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <div style={{ fontFamily: SANS, fontSize: 11, color: bsTHexA(INK, 0.5), flex: 'none' }}>16-wk recomp</div>
-              </div>
-            </div>
 
-            <div style={{ marginBottom: 28 }}>
-              <Kick>Disciplines · strata</Kick>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-                {disciplinesEff.map(([label, val], i) => { const col = i === disciplinesEff.length - 1 ? TEAL : c; return (
-                  <div key={label}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}><span style={{ fontFamily: SANS, fontSize: 13, color: bsTHexA(INK, 0.85) }}>{label}</span><span style={{ fontFamily: MONO, fontSize: 11, color: bsTHexA(INK, 0.5) }}>{Math.round(val * 100)}</span></div><div style={{ height: 7, borderRadius: 4, background: bsTHexA(INK, 0.08), overflow: 'hidden' }}><div style={{ height: '100%', width: `${val * 100}%`, background: `linear-gradient(90deg, ${bsTHexA(col, 0.5)}, ${col})`, borderRadius: 4 }} /></div></div>
-                ); })}
+              <div style={{ marginBottom: 26 }}>
+                <BSTStationHead heat={c} INK={INK} label="Disciplines · strata" />
+                {hasDisc ? <BSSdBars rows={discRows} perf={discPerf} bestIdx={discBest} heat={c} t={tTheme} muted={bsTHexA(INK, 0.55)} still /> : <BSTRedact INK={INK} label="Not enough logged yet" />}
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: 9, margin: '0 -20px 28px' }}>
-              {liftsEff.map(([label, val]) => <div key={label} style={{ flex: 1, ...card, borderRadius: 13, padding: '14px 8px', textAlign: 'center' }}><div style={{ fontFamily: SERIF, fontSize: 24, letterSpacing: '-0.02em' }}>{val}</div><div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5), marginTop: 5 }}>{label}</div></div>)}
-            </div>
-            </>)}
+              <div style={{ marginBottom: 28 }}>
+                <BSTStationHead heat={c} INK={INK} label="Key lifts" />
+                {hasLifts ? liftsEff.map(([label, val]) => { const u = bsSdSplitUnit(String(val)); return (
+                  <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 0' }}>
+                    <span style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.45), flex: 'none' }}>{label}</span>
+                    <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(INK, 0.22)}`, transform: 'translateY(-3px)' }} />
+                    <span style={{ fontFamily: SANS, fontWeight: 700, fontSize: 15, color: INK, fontVariantNumeric: 'tabular-nums', flex: 'none' }}>{u.num}</span>
+                    {u.unit ? <span style={{ fontFamily: MONO, fontSize: 9, color: bsTHexA(INK, 0.55), flex: 'none', width: 16 }}>{u.unit}</span> : null}
+                  </div>
+                ); }) : <BSTRedact INK={INK} label="Lifts · not on record" />}
+              </div>
+              </>);
+            })()}
 
             {tab === 'activity' && (
             <div>
-              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
-              <BSActivityLogCta isSelf={isSelf} accent={TEAL} onClick={() => setShowLog(true)} />
+              <BSProfileExtras custom={custom} c={c} INK={INK} BG={BG} isSelf={isSelf} bleed={20} ledger onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: 'Tier', value: tierName }, streak: { label: 'Day streak', value: streakEff }, since: { label: 'Member since', value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || 'Top lift', value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
+              <BSActivityLogCta isSelf={isSelf} accent={c} INK={INK} onClick={() => setShowLog(true)} ledger />
               <div style={{ marginTop: isSelf ? 12 : 0 }}>
                 {feedEff.length === 0 && (
-                  <div style={{ ...card, padding: '15px 20px', margin: '0 -20px', borderRadius: 0, borderLeft: 0, borderRight: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em', color: bsTHexA(INK, 0.55) }}>{isSelf ? 'Nothing logged yet — tap ＋ Log activity to post your first update.' : 'No activity yet.'}</div>
+                  <BSTRedact INK={INK} label={isSelf ? 'Nothing logged yet' : 'No activity on record'} />
                 )}
                 {feedEff.map((a, i) => (
                   /* Full-BLEED card — breaks out of the tab body's 20px side
@@ -9328,10 +9571,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setFollowProfile(p), actLikes, actExpr })}
 
-      {/* dock — Message others (edit + privacy live in the header / settings now) */}
-      {!isSelf && (
-        <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', padding: '14px 18px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 32%)` }}>
-          <button onClick={() => onMsg(person)} style={{ width: '100%', minHeight: 48, borderRadius: 999, background: TEAL, color: '#04201d', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message {first} →</button>
+      {/* dock — Message others (the record's closing line: ink + heat underline,
+          no solid fill; edit + privacy live in the header / settings now) */}
+      {!isSelf && hasMessage && (
+        <div style={{ position: 'sticky', bottom: 0, flex: '0 0 auto', borderTop: `1px solid ${bsTHexA(INK, 0.08)}`, padding: '14px 20px calc(16px + env(safe-area-inset-bottom, 0px))', background: `linear-gradient(180deg, transparent, ${BG} 28%)` }}>
+          <button onClick={() => onMsg(person)} style={{ width: '100%', minHeight: 48, background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 3 }}>Message {first} <span style={{ color: c }}>→</span></span>
+          </button>
         </div>
       )}
     </div>
@@ -10495,6 +10741,7 @@ function bsInjectSessionDetailCss() {
       @keyframes bsSdStamp { 0% { opacity: 0; transform: scale(1.55) rotate(-3deg); } 62% { transform: scale(0.96) rotate(0.6deg); } 100% { opacity: 1; transform: none; } }
       @keyframes bsSdPop { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
       @keyframes bsSdGrowY { 0% { transform: scaleY(0); } 100% { transform: scaleY(1); } }
+      @keyframes bsSdDrawLine { from { stroke-dashoffset: var(--sd-len, 1); } to { stroke-dashoffset: 0; } }
     }
   `;
   document.head.appendChild(el);
@@ -10688,7 +10935,11 @@ function BSSdZoneCells({ zones, t, muted }) {
 // row = fixed label column · a bar drawing rightward (longer = faster/bigger)
 // · the figure on the right edge. The best/PR row lands in the session's heat
 // with a burst ring + a soft breathing halo. "RPE n" subs render as mini dials.
-function BSSdBars({ rows, perf, bestIdx, heat, t, muted }) {
+function BSSdBars({ rows, perf, bestIdx, heat, t, muted, still = false }) {
+  // `still` suppresses the best-row breathing halo (the one infinite loop) — used
+  // on surfaces that spend their loop budget elsewhere (the Terrain profile keeps
+  // its single loop on the ascent avatar), so the best bar still bursts once but
+  // never breathes. Session Details / feed leave it off (breath kept).
   const [ref, seen] = useBSSdInView();
   const reduced = bsSdReduced();
   const pmax = Math.max(...perf, 1);
@@ -10715,7 +10966,7 @@ function BSSdBars({ rows, perf, bestIdx, heat, t, muted }) {
                 transformOrigin: 'left', transform: (seen || reduced) ? undefined : 'scaleX(0)',
                 '--sd-glow': bsTHexA(heat, 0.5),
                 animation: (seen && !reduced)
-                  ? (best
+                  ? (best && !still
                     ? `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 110}ms both, bsSdPrBreath 2.8s ease-in-out ${lastDelay + 700}ms infinite`
                     : `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 110}ms both`)
                   : 'none',
