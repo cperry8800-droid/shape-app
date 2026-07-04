@@ -281,28 +281,26 @@ function MktAvatar({ c, size = 44 }) {
   );
 }
 
-function MktPill({ label, on, onClick, teal }) {
-  const t = useBS();
-  return (
-    <button onClick={onClick} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
-      border: `1.5px solid ${on ? teal : t.RULE}`,
-      background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
-      color: on ? teal : t.INK70,
-      fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
-    }}>{label}</button>
-  );
-}
+// "The Classifieds" (wave 7 — see the 2026-07-04 progress/marketplace spec):
+// heat = each coach's ROLE (trainer rust / nutritionist gold), line-only —
+// 3px spines on feature + listing rows and portrait frame edges. Page chrome
+// keeps the teal brand accent (hero italic, section ticks, tab underline);
+// role-colored TEXT demotes to ink. The old MktPill role pills died with the
+// typographic index in the screen render.
 
 function MktSectionHead({ kicker, title, action, onAction, teal }) {
   const t = useBS();
   return (
     <div style={{ padding: `0 ${t.padX}px`, marginBottom: 12, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>{kicker}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: teal }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{kicker}</span>
+        </div>
         <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
       </div>
       {action ? (
-        <button onClick={onAction} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{action} →</button>
+        <button onClick={onAction} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>{action} →</button>
       ) : null}
     </div>
   );
@@ -311,13 +309,14 @@ function MktSectionHead({ kicker, title, action, onAction, teal }) {
 function MktTrackRow({ n, title, meta, right, onClick, first }) {
   const t = useBS();
   return (
-    <button onClick={onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 12, alignItems: 'baseline', padding: '13px 0', borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{String(n).padStart(2, '0')}</span>
+    <button onClick={onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '12px 0', borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
+      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}>{String(n).padStart(2, '0')}</span>
       <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</span>
-        <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{meta}</span>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{title}</span>
+        <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{meta}</span>
       </span>
-      <span style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.INK70, fontWeight: 700, whiteSpace: 'nowrap' }}>{right}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 14 }} />
+      <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{right}</span>
     </button>
   );
 }
@@ -336,49 +335,50 @@ function mktCoachTier(c) {
   const color = (window.bsTierColor ? window.bsTierColor(String(name).toLowerCase()) : mktRoleColor(c)) || mktRoleColor(c);
   return { name, color, prof };
 }
+// M2 "Masthead" portrait cell — a duotone-framed portrait with a role spine on
+// the frame edge, serif byline, mono dateline, one stat line. The gradient card
+// + tier-colored text died with the Classifieds pass; tier reads as ink text.
 function MktCoachCard({ c, onOpen, photo }) {
   const t = useBS();
   const isNutri = getPublicProfileKind(c) === 'nutritionist';
-  const { name: tierName, color: tierColor, prof } = mktCoachTier(c);
-  const Facet = window.BSFacetAvatar;
+  const role = mktRoleColor(c);
+  const { name: tierName } = mktCoachTier(c);
   return (
-    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${t.RULE}`, borderRadius: 15, overflow: 'hidden', background: `linear-gradient(165deg, ${tierColor}24, ${t.PAPER2} 58%)`, padding: 13, display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {Facet ? <Facet size={38} c={tierColor} initial={mktInitials(c.name)} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={38} />}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-          <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tierName} · {isNutri ? 'Nutritionist' : 'Trainer'}</div>
-        </div>
-      </div>
-      <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12, lineHeight: 1.35, color: t.INK70, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 32 }}>{c.bio || prof.headline}</div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.04em' }}>
-        <span style={{ color: tierColor }}>★ {formatCoachRating10(c)}</span>
-        <span style={{ color: t.INK50 }}>${c.rate}/mo</span>
-      </div>
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: 0 }}>
+      <span style={{ display: 'block', position: 'relative', height: 122, border: `1px solid ${t.INK}24`, background: t.PAPER2, overflow: 'hidden' }}>
+        {photo
+          ? <img src={photo} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.82)' }} />
+          : <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK50 }}>{mktInitials(c.name)}</span>}
+        <span aria-hidden style={{ position: 'absolute', inset: 5, border: `1px solid ${t.PAPER}55`, pointerEvents: 'none' }} />
+        <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: role }} />
+      </span>
+      <span style={{ display: 'block', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+      <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isNutri ? 'Nutritionist' : 'Trainer'} · {tierName}</span>
+      <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>★ {formatCoachRating10(c)} · ${c.rate}/mo</span>
     </button>
   );
 }
 
-function MktRow({ c, onOpen, photo }) {
+// Classifieds listing row — role spine, mono index, serif name, a dot leader
+// running to the rate figure. Dense on purpose: portraits live on the feature
+// + featured cells; the listings are the paper's want-ads. Role is named in
+// the meta line (never color-only).
+function MktRow({ c, onOpen, n }) {
   const t = useBS();
-  const { name: tierName, color: tierColor } = mktCoachTier(c);
-  const Facet = window.BSFacetAvatar;
+  const role = mktRoleColor(c);
+  const isNutri = getPublicProfileKind(c) === 'nutritionist';
+  const { name: tierName } = mktCoachTier(c);
   return (
-    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '46px 1fr auto', gap: 13, alignItems: 'center', padding: 14, borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${tierColor}14, ${t.PAPER2} 58%)` }}>
-      {Facet ? <Facet size={46} c={tierColor} initial={mktInitials(c.name)} photo={photo} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={c} size={46} />}
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-          <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: tierColor, border: `1px solid ${tierColor}66`, borderRadius: 3, padding: '1px 5px', lineHeight: 1 }}>{tierName}</span>
-        </div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getPrimaryCredential(c)} · {mktShortLoc(c.loc)}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, color: t.INK70, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{c.bio}</div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 19, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1 }}>${c.rate}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>/mo</div>
-        <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: tierColor }}>★ {formatCoachRating10(c)}</div>
-      </div>
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, position: 'relative', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '12px 0 12px 12px', borderTop: `1px solid ${t.HAIR}` }}>
+      <span aria-hidden style={{ position: 'absolute', left: 0, top: 9, bottom: 9, width: 3, background: role }} />
+      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700 }}>{String(n).padStart(2, '0')}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isNutri ? 'Nutritionist' : 'Trainer'} · {getPrimaryCredential(c)} · {mktShortLoc(c.loc)} · {tierName}</span>
+      </span>
+      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK50 }}>★ {formatCoachRating10(c)}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}47`, transform: 'translateY(-3px)', minWidth: 12 }} />
+      <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>${c.rate}<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50 }}>/mo</span></span>
     </button>
   );
 }
@@ -569,25 +569,33 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
           ) : null}
           </div>
         </div>
-        <h1 style={{ margin: '14px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
+        {/* The Classifieds eyebrow — the marketplace is the paper's listings section */}
+        <div style={{ margin: '16px 0 0', display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: teal }} />
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>The classifieds</span>
+        </div>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.04em', color: t.INK }}>
           Find your<br /><span style={{ fontStyle: 'italic', color: teal }}>coach.</span>
         </h1>
       </div>
 
-      {/* Search */}
+      {/* Search — an underline, not a pill (Classifieds pass) */}
       <div style={{ padding: `18px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '13px 16px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
-          <span style={{ fontSize: 14, color: t.INK50 }}>⌕</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 2px', borderBottom: `1.5px solid ${t.INK}4d` }}>
+          <span aria-hidden style={{ fontSize: 14, color: t.INK50 }}>⌕</span>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Coaches, plans, playlists…" style={{ flex: 1, border: 0, outline: 'none', background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, letterSpacing: '-0.005em', padding: 0, minWidth: 0 }} />
-          {query ? <button onClick={() => setQuery('')} style={{ border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: 0 }}>×</button> : null}
+          {query ? <button onClick={() => setQuery('')} aria-label="Clear search" style={{ border: 0, background: 'transparent', color: t.INK50, cursor: 'pointer', fontSize: 17, lineHeight: 1, padding: '0 4px' }}>×</button> : null}
         </div>
       </div>
 
-      {/* Role pills — wrap so all are visible (no horizontal scroll) */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: `16px ${t.padX}px ${catList ? 10 : 18}px` }}>
-        {pills.map((p) => (
-          <MktPill key={p} label={p} on={pill === p && !(p === 'All' && forceList)} onClick={() => pickPill(p)} teal={teal} />
-        ))}
+      {/* Role index — typographic tabs on a hairline, teal (page-chrome) underline */}
+      <div style={{ margin: `12px ${t.padX}px ${catList ? 10 : 14}px`, display: 'flex', borderBottom: `1px solid ${t.INK}17` }}>
+        {pills.map((p) => { const on = pill === p && !(p === 'All' && forceList); return (
+          <button key={p} onClick={() => pickPill(p)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 0 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : t.INK50 }}>
+            {p}
+            {on && <span aria-hidden style={{ position: 'absolute', left: '20%', right: '20%', bottom: -1, height: 2, background: teal }} />}
+          </button>
+        ); })}
       </div>
 
       {/* Category sub-filters — role-specific dropdowns (compact) */}
@@ -625,50 +633,59 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
 
       {browsing ? (
         <>
-          <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? 'Everyone' : pill)} title={`${list.length} ${list.length === 1 ? 'coach' : 'coaches'}`} teal={teal} />
-          <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {list.map((c) => <MktRow key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
+          <MktSectionHead kicker={cat && cat !== 'All Categories' ? cat : (pill === 'All' ? 'Everyone' : pill)} title={`${list.length} on the books`} teal={teal} />
+          <div style={{ padding: `0 ${t.padX}px`, display: 'flex', flexDirection: 'column' }}>
+            {list.map((c, i) => <MktRow key={c.id} c={c} n={i + 1} onOpen={() => setOpen(c)} />)}
             {list.length === 0 ? <div style={{ padding: '20px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>No coaches match that — try a different filter.</div> : null}
           </div>
         </>
       ) : (
         <>
-          {/* Coach of the week — a mini living-profile preview */}
+          {/* Coach of the week — the front-page FEATURE: a role-spined notice with
+              a framed portrait (M2 graft), serif byline + role-heat period, italic
+              pull quote, inline ledger stats, the tracklist, an underlined action. */}
           {cotw && cotwProfile ? (() => {
-            const ct = mktCoachTier(cotw); const tierColor = ct.color;
+            const ct = mktCoachTier(cotw);
+            const role = mktRoleColor(cotw);
             const isN = getPublicProfileKind(cotw) === 'nutritionist';
-            const Facet = window.BSFacetAvatar;
+            const photo = coachPhoto(cotw);
             return (
             <div style={{ padding: `0 ${t.padX}px` }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal }}>Coach of the week</div>
-              <div onClick={() => setOpen(cotw)} style={{ cursor: 'pointer', marginTop: 8, borderRadius: 16, border: `1px solid ${tierColor}40`, overflow: 'hidden', background: `linear-gradient(160deg, ${tierColor}2e, ${t.PAPER2} 60%)`, padding: 14 }}>
-                {/* hero row — facet avatar (real photo when available) + name + tier */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {Facet ? <Facet size={50} c={tierColor} initial={mktInitials(cotw.name)} photo={coachPhoto(cotw)} showRank={false} BG={t.PAPER} INK={'#fff'} /> : <MktAvatar c={cotw} size={50} />}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: teal }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Feature · Coach of the week</span>
+              </div>
+              <div onClick={() => setOpen(cotw)} role="button" tabIndex={0} onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); setOpen(cotw); } }} style={{ cursor: 'pointer', marginTop: 10, position: 'relative', paddingLeft: 13 }}>
+                <span aria-hidden style={{ position: 'absolute', left: 0, top: 2, bottom: 2, width: 3, background: role }} />
+                <div style={{ display: 'flex', gap: 13 }}>
+                  <span style={{ display: 'block', position: 'relative', width: 96, height: 118, flexShrink: 0, border: `1px solid ${t.INK}24`, background: t.PAPER2, overflow: 'hidden' }}>
+                    {photo
+                      ? <img src={photo} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'saturate(0.82)' }} />
+                      : <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK50 }}>{mktInitials(cotw.name)}</span>}
+                    <span aria-hidden style={{ position: 'absolute', inset: 5, border: `1px solid ${t.PAPER}55`, pointerEvents: 'none' }} />
+                  </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cotw.name}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: tierColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name} · {isN ? 'Nutritionist' : 'Trainer'} · {mktShortLoc(cotw.loc)}</div>
-                  </div>
-                  <span style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, background: tierColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700 }}>→</span>
-                </div>
-                {/* quote */}
-                <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK70 }}>“{cotw.bio}”</div>
-                {/* stat row */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 12 }}>
-                  {[['★ ' + formatCoachRating10(cotw), 'Rating'], [(cotw.clients || 0) + '+', 'Clients'], [(cotw.years || 1) + 'y', 'Experience']].map(([v, l]) => (
-                    <div key={l} style={{ borderRadius: 11, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '9px 6px', textAlign: 'center' }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{v}</div>
-                      <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.05 }}>{cotw.name}<span style={{ color: role }}>.</span></div>
+                    <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isN ? 'Nutritionist' : 'Trainer'} · {ct.name} · {mktShortLoc(cotw.loc)}</div>
+                    <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.35, letterSpacing: '-0.01em', color: t.INK70, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{cotw.bio}”</div>
+                    <div style={{ display: 'flex', gap: 22, marginTop: 10 }}>
+                      {[['Rating', '★ ' + formatCoachRating10(cotw)], ['Clients', (cotw.clients || 0) + '+'], ['Years', String(cotw.years || 1)]].map(([l, v]) => (
+                        <div key={l}>
+                          <div style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
+                          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
                 {/* tracklist */}
-                <div style={{ marginTop: 13, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
+                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>Tracklist</div>
                 <div style={{ marginTop: 1 }}>
                   {cotwProfile.packages.slice(0, 3).map((p, i) => (
                     <MktTrackRow key={p.name} n={i + 1} title={p.name} meta={`${p.unit === '/ month' ? 'Monthly' : 'One-time'} · ${p.perks.length} included`} right={p.price} first={i === 0} onClick={() => setOpen(cotw)} />
                   ))}
                 </div>
+                <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>See the profile →</div>
               </div>
             </div>
             );
@@ -676,8 +693,8 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
 
           {/* Featured this week — 2-up grid */}
           <div style={{ marginTop: 26 }}>
-            <MktSectionHead kicker="Featured" title="This week" action="See all" onAction={() => setForceList(true)} teal={teal} />
-            <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <MktSectionHead kicker="On the roster" title="This week" action="See all" onAction={() => setForceList(true)} teal={teal} />
+            <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 14px' }}>
               {featuredWeek.map((c) => <MktCoachCard key={c.id} c={c} photo={coachPhoto(c)} onOpen={() => setOpen(c)} />)}
             </div>
           </div>
@@ -690,9 +707,10 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
             const live = Array.isArray(marketPlans) ? marketPlans : [];
             const all = live.length ? live : BSM_DEMO_PLANS;
             const tabPlans = all.filter((p) => p.tab === planTab).slice(0, 8);
-            const tabPill = (on) => ({ flex: 'none', padding: '6px 13px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap',
-              border: `1px solid ${on ? teal : t.RULE}`, background: on ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent',
-              color: on ? teal : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' });
+            // Mono underline toggles (the rounded pills died with the Classifieds pass).
+            const tabPill = (on) => ({ flex: 'none', minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap',
+              borderBottom: `2px solid ${on ? teal : 'transparent'}`, padding: '6px 2px 8px',
+              color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' });
             return (
             <div style={{ marginTop: 28 }}>
               <MktSectionHead kicker="From coaches" title="What's hot" teal={teal} />
@@ -716,13 +734,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat }) {
             );
           })()}
 
-          {/* Coach apply CTAs — both roles, side by side (discovery view only) */}
-          <div style={{ margin: `26px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+          {/* Coach apply CTAs — zero-box notices on an AMBER recruiting spine
+              (semantic accent, line-only; text demoted to ink). Discovery view only. */}
+          <div style={{ margin: `28px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             {[{ role: 'trainer', label: 'trainer' }, { role: 'nutritionist', label: 'nutritionist' }].map((b) => (
-              <button key={b.role} onClick={() => setApplyRole(b.role)} style={{ textAlign: 'left', cursor: 'pointer', borderRadius: 13, border: `1.5px solid ${t.AMBER}`, background: t.PAPER2, padding: '11px 12px' }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.AMBER }}>Coaches</div>
-                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.12 }}>Apply to be a <span style={{ fontStyle: 'italic', color: t.AMBER }}>{b.label}.</span></div>
-                <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.AMBER }}>Apply →</div>
+              <button key={b.role} onClick={() => setApplyRole(b.role)} style={{ position: 'relative', textAlign: 'left', cursor: 'pointer', border: 0, background: 'transparent', padding: '2px 0 2px 11px', minHeight: 44 }}>
+                <span aria-hidden style={{ position: 'absolute', left: 0, top: 2, bottom: 2, width: 3, background: t.AMBER }} />
+                <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Coaches</div>
+                <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.15 }}>Apply to be a <span style={{ fontStyle: 'italic' }}>{b.label}.</span></div>
+                <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, textDecoration: 'underline', textUnderlineOffset: 3 }}>Apply →</div>
               </button>
             ))}
           </div>
