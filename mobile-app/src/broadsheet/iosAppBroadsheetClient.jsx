@@ -2687,7 +2687,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               ))}
             </div>
           )}
-          {todayDirective.leadMeal && (
+          {todayDirective.leadMeal && todayDirective.leadMeal.kcal > 0 && (
             <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50, fontWeight: 600 }}>
               {todayDirective.leadMeal.kcal} kcal · {todayDirective.leadMeal.p}P · {todayDirective.leadMeal.c}C · {todayDirective.leadMeal.f}F
             </div>
@@ -2703,9 +2703,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         </BSPlate>
       )}
 
-      {/* The day's plan beneath the move. The section header shows only on
-          non-today views — the "Your move" hero owns the single "Today" narrative. */}
-      {selIdx !== todayIdx && <BSSection title={upNextLabel} />}
+      {/* The day's plan beneath the move. The slate header below (its kicker
+          shows upNextLabel on non-today views) is the single label surface now —
+          the old BSSection duplicate here was removed (Roll-up c). */}
 
       {/* TODAY'S SLATE — one time-ordered run-sheet. Admission test: "is this
           scheduled to happen TODAY?" Rows, not cards. Anti-accretion: a future
@@ -2808,11 +2808,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         } else {
           rows.push({
             key: 'slate-training',
-            time: fmtAt(WORKOUT_AT),
-            _sortAt: WORKOUT_AT,
+            time: '',
+            _sortAt: undefined,
             tag: 'TRAINING', tagColor: t.GREEN,
             title: 'Active recovery',
-            status: 'Rest day · an easy walk and 10 min of mobility keeps the streak alive',
+            status: 'Rest day · easy walk + mobility',
             right: undefined,
             onOpen: undefined,
             ariaLabel: 'Active recovery, rest day',
@@ -2890,7 +2890,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             <div style={{ padding: `0 ${t.padX}px 4px` }}>
               <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)`, marginBottom: 4 }} />
             </div>
-            <div>
+            <div data-tour="hero-habits">
               {sortedRows.length === 0 ? (
                 <div style={{ padding: `10px ${t.padX}px 16px`, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>Nothing scheduled for today.</div>
               ) : sortedRows.map((r, i) => (
@@ -10519,6 +10519,7 @@ function bsInjectBsHomeCss() {
     @media (prefers-reduced-motion: no-preference) {
       @keyframes bsHomeRowIn { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
       @keyframes bsHomeIndexIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+      @keyframes bsHomeSliverIn { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
     }
   `;
   document.head.appendChild(el);
@@ -15899,7 +15900,7 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
       aria-label={ariaLabel}
       style={{
         display: 'grid', gridTemplateColumns: '50px 58px 1fr auto 20px', alignItems: 'center', gap: 8,
-        width: '100%', minHeight: 48, boxSizing: 'border-box', padding: '6px 0',
+        width: '100%', minHeight: 48, boxSizing: 'border-box', padding: `6px ${t.padX}px`,
         border: 0, borderBottom: `1px solid ${t.HAIR}`, background: pressed ? t.PAPER2 : 'transparent',
         transition: 'background 120ms ease', textAlign: 'left', cursor: interactive ? 'pointer' : 'default',
         font: 'inherit', color: 'inherit',
@@ -15914,7 +15915,7 @@ function BSSlateRow({ time, tag, tagColor, title, status, right, onOpen, ariaLab
       <span style={{ minWidth: 0, overflow: 'hidden' }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
       </span>
-      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right' }}>{status || ''}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', textAlign: 'right', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{status || ''}</span>
       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
         {isLead ? (
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: t.INK50, whiteSpace: 'nowrap' }}>↑ LEAD</span>
@@ -15944,7 +15945,7 @@ function BSIndexRow({ label, figure, status, due, done, onOpen }) {
       style={{
         display: 'grid', gridTemplateColumns: '86px 1fr auto 18px', alignItems: 'center', gap: 8,
         width: '100%', height: 44, boxSizing: 'border-box', border: 0, background: 'transparent',
-        padding: 0, textAlign: 'left', cursor: interactive ? 'pointer' : 'default', font: 'inherit', color: 'inherit',
+        padding: `0 ${t.padX}px`, textAlign: 'left', cursor: interactive ? 'pointer' : 'default', font: 'inherit', color: 'inherit',
       }}
     >
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{label}</span>
@@ -16033,7 +16034,7 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
       </span>
       {hasPct && (
         <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: bsTHexA(t.INK, 0.08) }}>
-          <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: accent, ...(reduced ? null : { transition: 'width 400ms cubic-bezier(.4,0,.2,1)' }) }} />
+          <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, pct))}%`, background: accent, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsHomeSliverIn 400ms cubic-bezier(.4,0,.2,1) both' }) }} />
         </span>
       )}
     </button>
