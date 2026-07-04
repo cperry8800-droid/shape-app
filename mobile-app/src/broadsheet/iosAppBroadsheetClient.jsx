@@ -9315,7 +9315,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      dropped at the edges). The card's own age chip carries the
                      timing; author header hidden (the profile owns the identity). */
                   <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -20px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} />
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
                   </div>
                 ))}
               </div>
@@ -9971,7 +9971,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
                 <div key={a.key || i} style={{ ...card, overflow: 'hidden', margin: '0 -22px 12px', borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} />
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} />
                 </div>
               ))}
             </div>
@@ -11241,7 +11241,7 @@ function useBSCardSheets() {
 // community feed builds it once per render, the profile builds a slim version
 // (real reactions + share/repost; full detail/likers/send via useBSCardSheets).
 // `hideAuthor` swaps the author header for a slim type-chip + time row (profile).
-function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
+function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 0 }) {
   const {
     t, cardInk, muted, hair, card,
     actLikes, actComments, actCmtOpen, actDetailsOpen, actCoSign, actExpr,
@@ -11454,14 +11454,33 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false }) {
               <span style={{ fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, color: cardInk, whiteSpace: 'nowrap' }}>{coachLine}{coachProgram ? <span style={{ color: muted, fontWeight: 400 }}> · {coachProgram}</span> : null} ›</span>
             </button>
           )}
-          {/* GPS route — the REAL polyline when the post carries points;
-              halftone tile in the member's tier color otherwise (endurance hero).
-              Tap opens the full session-details page. */}
+          {/* GPS route ✦ (graft, spec §9) — BSActivityRoutePreview itself is
+              NOT modified; it runs full-bleed edge-to-edge: the outer
+              wrapper's negative margins cancel the rail gutter (15 left / 13
+              right, Task 1's shell) PLUS the page gutter (pagePad — t.padX on
+              the community feed; 0 on the profiles, whose row wrappers already
+              went full-bleed), and the wrapper's overflow:hidden clip + the
+              inner shim push the component's own marginTop:12 and 1px solid-
+              INK border outside the clip box — so the wrapper's 1px ink-alpha
+              hairlines top/bottom are the ONLY visible rules, with no side
+              borders: a printed-photo bleed. Routeless fallback collapses to
+              the Open Ledger redaction line (same pattern as the Session
+              Details page's own "GPS · Not recorded" — a 1px dashed rule
+              flexing both sides of centered mono text) instead of the old
+              halftone tile; honest data gate (`showRoute`) is unchanged —
+              still renders nothing at all when the post carries no route
+              signal whatsoever. */}
           {routeObj ? (
-            <div onClick={() => openDetail('stats')} style={{ cursor: 'pointer' }}><BSActivityRoutePreview route={routeObj} /></div>
+            <div onClick={() => openDetail('stats')} style={{ overflow: 'hidden', borderTop: `1px solid ${bsTHexA(t.INK, 0.18)}`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.18)}`, marginTop: 12, marginLeft: -(15 + pagePad), marginRight: -(13 + pagePad), cursor: 'pointer' }}>
+              <div style={{ margin: '-13px -1px -1px' }}>
+                <BSActivityRoutePreview route={routeObj} />
+              </div>
+            </div>
           ) : showRoute && (
-            <div onClick={() => openDetail('stats')} style={{ position: 'relative', marginTop: 9, height: 80, borderRadius: 11, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${tc}33`, background: `radial-gradient(circle at 30% 30%, ${tc}cc 0 1.3px, transparent 1.7px) 0 0/9px 9px, linear-gradient(135deg, ${tc}3a, ${tc}12)` }}>
-              <span style={{ position: 'absolute', left: 9, bottom: 7, fontFamily: t.MONO, fontSize: 7, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#fff', background: 'rgba(0,0,0,0.45)', padding: '2px 5px', borderRadius: 3 }}>GPS route</span>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0 2px' }} aria-label="GPS not recorded">
+              <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45), padding: '0 8px' }}>GPS · Not recorded</span>
+              <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${bsTHexA(t.INK, 0.25)}` }} />
             </div>
           )}
           {/* The card stays a glance — the full metric readout lives on the
@@ -12765,7 +12784,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} /></React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={t.padX} /></React.Fragment>);
               })()}
             </div>
           ) : (
