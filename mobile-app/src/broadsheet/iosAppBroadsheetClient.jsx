@@ -16879,20 +16879,25 @@ function BSStrengthCard({ onOpen }) {
   const lifts = (data && Array.isArray(data.lifts)) ? data.lifts : [];
   const lead = lifts[0] || null;
   const sm = lead ? bsStrengthStatusMeta(lead.status, t, tier) : null;
+  // Field Ledger chrome (single consumer — the Progress Training tab): the
+  // bordered card died → a zero-box station row on a hairline; the tier-colored
+  // eyebrow demoted to ink (the heat tick carries the tier). Data/hook verbatim;
+  // the status label keeps its SEMANTIC status color.
   return (
-    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(tier, 0.6)}`, background: bsTHexA(t.INK, 0.03), padding: 14, marginBottom: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: tier }}>STRENGTH · ESTIMATED 1RM</div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.INK50 }}>View strength →</div>
+    <button onClick={onOpen} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', border: 0, borderBottom: `1px solid ${bsTHexA(t.INK, 0.09)}`, background: 'transparent', padding: '2px 0 13px', marginBottom: 20, minHeight: 44 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span aria-hidden style={{ flex: 'none', width: 6, height: 1.5, background: tier }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>Strength · Estimated 1RM</span>
+        <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>View →</span>
       </div>
       {lead ? (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
-          <span style={{ fontFamily: t.BODY, fontSize: 14, fontWeight: 700, color: t.INK }}>{lead.name}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, color: t.INK, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{lead.currentE1rm != null ? Math.round(lead.currentE1rm) : '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}> {lead.unit}</span></span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 9 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{lead.name}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 800, color: t.INK, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{lead.currentE1rm != null ? Math.round(lead.currentE1rm) : '—'}<span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}> {lead.unit}</span></span>
           {sm && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: sm.color }}>{sm.label}</span>}
         </div>
       ) : (
-        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 8 }}>Log sets with weight & reps to track your estimated max.</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, marginTop: 9 }}>Log sets with weight & reps to track your estimated max.</div>
       )}
     </button>
   );
@@ -22224,10 +22229,11 @@ const BSPROG_DEMO = {
       { lift: 'Overhead Press', value: 135, unit: 'lb', prev: 125, deltaPct: 8 },
     ],
     volumeByDay: [2400, 0, 3120, 4100, 0, 3890, 0, 2680, 2860, 0, 4280, 0, 3140, 0],
+    // No per-muscle colors — the Field Ledger draws the split as heat bars.
     muscleSplit: [
-      { name: 'Quads', pct: 22, color: '#34d6c5' }, { name: 'Back', pct: 21, color: '#e07856' },
-      { name: 'Chest', pct: 17, color: '#f4b860' }, { name: 'Hamstrings', pct: 14, color: '#7ed4ff' },
-      { name: 'Shoulders', pct: 12, color: '#b390f5' }, { name: 'Arms', pct: 9, color: '#f582a0' }, { name: 'Core', pct: 5, color: '#a3e09a' },
+      { name: 'Quads', pct: 22 }, { name: 'Back', pct: 21 },
+      { name: 'Chest', pct: 17 }, { name: 'Hamstrings', pct: 14 },
+      { name: 'Shoulders', pct: 12 }, { name: 'Arms', pct: 9 }, { name: 'Core', pct: 5 },
     ],
     recentSessions: [
       { title: 'Upper push', durationMin: 48, volumeLb: 3140, avgRpe: 7.5, exercises: 6, prCount: 0, focus: 'Bench, OHP' },
@@ -22271,34 +22277,44 @@ const BSPROG_EMPTY = {
     week: [], loggedDays7: 0, adherentDays7: 0, currentStreak: 0, longestStreak: 0, topFoods: [], hydration7d: [],
   },
 };
+// Series carry no colors anymore — the Field Ledger draws every trend in the
+// page's one heat (the member's tier); the 9-color palette died with wave 6.
 const BSPROG_TREND_TABS = [
-  { k: 'weight', label: 'Weight', unit: 'lb', color: '#34d6c5', fmt: (v) => Math.round(v) },
-  { k: 'bodyFat', label: 'Body fat', unit: '%', color: '#7ed4ff', fmt: (v) => v.toFixed(1) },
-  { k: 'strength', label: 'Strength', unit: 'lb', color: '#e8b14a', fmt: (v) => Math.round(v) },
-  { k: 'restingHr', label: 'Resting HR', unit: 'bpm', color: '#d2693f', fmt: (v) => Math.round(v) },
-  { k: 'sleep', label: 'Sleep', unit: 'h', color: '#a86bc4', fmt: (v) => v.toFixed(1) },
-  { k: 'hrv', label: 'HRV', unit: 'ms', color: '#9be3a8', fmt: (v) => Math.round(v) },
-  { k: 'volume', label: 'Volume', unit: 'min', color: '#f5a0c8', fmt: (v) => Math.round(v) },
-  { k: 'protein', label: 'Protein', unit: 'g', color: '#ffb46b', fmt: (v) => Math.round(v) },
-  { k: 'hydration', label: 'Hydration', unit: 'L', color: '#6ec8ff', fmt: (v) => v.toFixed(1) },
+  { k: 'weight', label: 'Weight', unit: 'lb', fmt: (v) => Math.round(v) },
+  { k: 'bodyFat', label: 'Body fat', unit: '%', fmt: (v) => v.toFixed(1) },
+  { k: 'strength', label: 'Strength', unit: 'lb', fmt: (v) => Math.round(v) },
+  { k: 'restingHr', label: 'Resting HR', unit: 'bpm', fmt: (v) => Math.round(v) },
+  { k: 'sleep', label: 'Sleep', unit: 'h', fmt: (v) => v.toFixed(1) },
+  { k: 'hrv', label: 'HRV', unit: 'ms', fmt: (v) => Math.round(v) },
+  { k: 'volume', label: 'Volume', unit: 'min', fmt: (v) => Math.round(v) },
+  { k: 'protein', label: 'Protein', unit: 'g', fmt: (v) => Math.round(v) },
+  { k: 'hydration', label: 'Hydration', unit: 'L', fmt: (v) => v.toFixed(1) },
 ];
 function bsProgSeriesVals(s) { return (Array.isArray(s) ? s : []).map((x) => (x && typeof x === 'object' ? x.value : x)).filter((v) => Number.isFinite(Number(v))).map(Number); }
+// Field Ledger trace — line-only: hairline grid, a single SELF-DRAWING stroke
+// in the page heat (pathLength/dashoffset on first view, the ridge trick), a
+// heat end-dot. The old gradient area fill died with wave 6; the empty state
+// is the standard redaction line, never a boxed banner.
 function BSProgChart({ points, color, h = 150 }) {
   const t = useBS();
+  const [ref, seen] = useBSSdInView();
+  const reduced = bsSdReduced();
   const vals = bsProgSeriesVals(points);
-  if (vals.length < 2) return <div style={{ padding: '40px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Not enough data yet.</div>;
+  if (vals.length < 2) return <BSTRedact INK={t.INK} label="Trend · not enough logged" />;
   const W = 320, H = h, pad = 14, mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length;
   const pts = vals.map((v, i) => [pad + (i / (n - 1)) * (W - pad * 2), H - pad - ((v - mn) / span) * (H - pad * 2)]);
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-  const area = `${line} L${pts[n - 1][0].toFixed(1)},${H - pad} L${pts[0][0].toFixed(1)},${H - pad} Z`;
-  const gid = `bsprog-${color.replace('#', '')}`;
+  const end = pts[n - 1];
+  const drawn = seen || reduced;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-      <defs><linearGradient id={gid} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.26" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
-      {[0, 0.5, 1].map((g) => <line key={g} x1={pad} x2={W - pad} y1={pad + g * (H - pad * 2)} y2={pad + g * (H - pad * 2)} stroke={t.HAIR} strokeWidth="1" />)}
-      <path d={area} fill={`url(#${gid})`} />
-      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <div ref={ref}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+        {[0, 0.5, 1].map((g) => <line key={g} x1={pad} x2={W - pad} y1={pad + g * (H - pad * 2)} y2={pad + g * (H - pad * 2)} stroke={t.HAIR} strokeWidth="1" />)}
+        <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" pathLength={1}
+          strokeDasharray="1 1" style={{ strokeDashoffset: drawn ? 0 : 1, transition: reduced ? 'none' : 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 150ms' }} />
+        <circle cx={end[0]} cy={end[1]} r="3" fill={color} style={{ opacity: drawn ? 1 : 0, transition: reduced ? 'none' : 'opacity 300ms ease 1150ms' }} />
+      </svg>
+    </div>
   );
 }
 // Phase 2 prototype — the client "what's next" directive, from the shared signal
@@ -22335,16 +22351,20 @@ function BSClientNextPlate() {
     return () => { on = false; };
   }, []);
   if (d == null) return null; // brief async — no flash
+  // THE VERDICT — the Field Ledger lead: heat-tick eyebrow, one serif verdict
+  // line with a heat period, mono sub. Same engine-fed data + honest gating as
+  // the old plate (goalBrief → milestone → "Log a weigh-in."); zero box.
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  const headline = String(d.headline || '').replace(/\.\s*$/, '');
   return (
-    <div style={{ padding: `8px ${t.padX}px 0` }}>
-      <BSPlate c={teal} tick pad="14px 16px">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <BSEyebrow color={teal}>{d.eyebrow}</BSEyebrow>
-          {d.demo && <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Example</span>}
-        </div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.15, color: t.INK }}>{d.headline}</div>
-        {d.sub && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{d.sub}</div>}
-      </BSPlate>
+    <div style={{ padding: `10px ${t.padX}px 0` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span aria-hidden style={{ flex: 'none', width: 10, height: 2, background: heat }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>{d.eyebrow}</span>
+        {d.demo && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Example</span>}
+      </div>
+      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.14, color: t.INK }}>{headline}<span style={{ color: heat }}>.</span></div>
+      {d.sub && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{d.sub}</div>}
     </div>
   );
 }
@@ -22368,14 +22388,16 @@ function BSWeekendsCard({ isSelf }) {
 
   const dims = data.dimensions || {};
   const present = ['nutrition', 'habits'].map((k) => [k, dims[k]]).filter(([, d]) => d);
+  // Field Ledger: the plate died — a zero-box station on the page heat (tier).
+  // The flagged gap figure keeps RUST as a semantic state color (state, not
+  // identity — the same exception the waitlist spines hold).
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || (t.isLight ? '#0a8f87' : '#34d6c5');
   if (data.status === 'building' || !present.length) {
     return (
-      <div style={{ marginBottom: 18 }}>
-        <BSPlate c={t.ACCENT}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>WEEKENDS</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, marginTop: 4 }}>Still learning your weekend pattern.</div>
-          <div style={{ fontSize: 12, color: t.INK70, marginTop: 6 }}>A few more weekends of logging and this fills in.</div>
-        </BSPlate>
+      <div style={{ marginBottom: 22 }}>
+        <BSTStationHead heat={heat} INK={t.INK} label="Weekends" />
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', color: t.INK }}>Still learning your weekend pattern.</div>
+        <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, marginTop: 5 }}>A few more weekends of logging and this fills in.</div>
       </div>
     );
   }
@@ -22386,36 +22408,35 @@ function BSWeekendsCard({ isSelf }) {
     ? (present.find(([k]) => k === data.worstDimension) || null)
     : null;
   const label = (k) => (k === 'nutrition' ? 'Nutrition' : 'Habits');
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const headline = flagged
     ? `Your weekends run ${Math.round(flagged[1].gapPp)} pts under your weekdays on ${label(flagged[0]).toLowerCase()}.`
     : 'Your weekends hold steady with your weekdays.';
 
   return (
-    <div style={{ marginBottom: 18 }}>
-      <BSPlate c={flagged ? teal : t.ACCENT}>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>WEEKENDS</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, color: t.INK, marginTop: 4 }}>{headline}</div>
-        <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-          {present.map(([k, d]) => (
-            <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'baseline' }}>
-              <span style={{ fontSize: 13, color: t.INK }}>{label(k)}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-                wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}%
-              </span>
-              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-                {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}
-              </span>
-            </div>
-          ))}
-        </div>
-        {flagged && <div style={{ fontSize: 12, color: t.INK70, marginTop: 8 }}>Closing that gap is your easiest win this month.</div>}
-      </BSPlate>
+    <div style={{ marginBottom: 22 }}>
+      <BSTStationHead heat={heat} INK={t.INK} label="Weekends" meta={flagged ? 'Pattern flagged' : 'Holding steady'} />
+      <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.3, color: t.INK }}>{headline}</div>
+      <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+        {present.map(([k, d], i) => (
+          <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'baseline', paddingTop: i ? 8 : 0, borderTop: i ? `1px solid ${bsTHexA(t.INK, 0.09)}` : 0 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.75) }}>{label(k)}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+              wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}%
+            </span>
+            <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+              {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}
+            </span>
+          </div>
+        ))}
+      </div>
+      {flagged && <div style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70, marginTop: 9 }}>Closing that gap is your easiest win this month.</div>}
     </div>
   );
 }
 
-function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) {
+// The `embedded` (Me → Stats) mode died with the Route Card profile — both
+// remaining consumers are full-page. Full chrome only.
+function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [tab, setTab] = useStateBSC(initialTab);
@@ -22444,17 +22465,57 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const TR = { ...PB.train, ...(train || {}), stats: { ...PB.train.stats, ...((train && train.stats) || {}) } };
   const NU = { ...PB.nutri, ...(nutri || {}), targets: { ...PB.nutri.targets, ...((nutri && nutri.targets) || {}) }, today: { ...PB.nutri.today, ...((nutri && nutri.today) || {}) } };
 
-  // Instrument plate language: squared section cards with an accent spine;
-  // KPI tiles match the Me-page progress grid (squared, per-stat spine).
-  const card = { borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${bsTHexA(teal, 0.55)}`, background: bsTHexA(t.INK, 0.03), padding: 14 };
-  const Eyebrow = ({ children }) => <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, marginBottom: 10 }}>{children}</div>;
-  const kpiGrid = (cards) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
-      {cards.map((c, i) => (
-        <div key={i} style={{ borderRadius: 5, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderLeft: `3px solid ${teal}`, background: bsTHexA(t.INK, 0.04), padding: '12px 13px' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{c.k}</div>
-          <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK70, marginTop: 8 }}>{c.l}</div>
-          {c.sub && <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{c.sub}</div>}
+  // Field Ledger language (wave 6): heat = the member's TIER color, line-only —
+  // zero-box stations on hairline rules, eyebrow-above-figure registers,
+  // dot-leader rows, redaction lines for every empty case. Keyframes are
+  // injected HERE (the Terrain lesson — never rely on another surface mounting).
+  const heat = (typeof bsMyTierColor === 'function' && bsMyTierColor()) || teal;
+  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); }, []);
+  const reduced = bsSdReduced();
+  // One-shot in-view observers — one per animated station (per tab; unmounted
+  // tabs simply never observe, and a revisit renders the finished state).
+  const [oRegRef, oRegSeen] = useBSSdInView();
+  const [tRegRef, tRegSeen] = useBSSdInView();
+  const [tVolRef, tVolSeen] = useBSSdInView();
+  const [tMusRef, tMusSeen] = useBSSdInView();
+  const [nRegRef, nRegSeen] = useBSSdInView();
+  const [nMacRef, nMacSeen] = useBSSdInView();
+  const [nWkRef, nWkSeen] = useBSSdInView();
+  const hair = bsTHexA(t.INK, 0.09);
+  const leader = <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)', minWidth: 16 }} />;
+  // Plain render FUNCTIONS (never inline components — a per-render component
+  // identity would remount the subtree and replay entrances on every state change).
+  const station = (label, meta, children, mb = 24) => (
+    <div style={{ marginBottom: mb }}>
+      <BSTStationHead heat={heat} INK={t.INK} label={label} meta={meta} />
+      {children}
+    </div>
+  );
+  const registers = (items, ref, seen) => (
+    <div ref={ref} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 16px', margin: '2px 0 26px' }}>
+      {items.map((it, i) => (
+        <div key={it.label}>
+          <BSTLedgerStat INK={t.INK} label={it.label} value={it.value} seen={seen} figSize={26} delay={i * 90} />
+          {it.sub ? (
+            <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>
+              {it.glyph ? <span role="img" aria-label={it.glyph === '▾' ? 'down' : 'up'} style={{ color: heat }}>{it.glyph} </span> : null}{it.sub}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+  // Horizontal ledger bars: label (ink) · heat fill drawing rightward · figure.
+  const barRows = (rows, ref, seen) => (
+    <div ref={ref}>
+      {rows.map((r, i) => (
+        <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
+          <span style={{ width: 86, flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</span>
+          <span aria-hidden style={{ flex: 1, position: 'relative', height: 8, minWidth: 0 }}>
+            <span style={{ position: 'absolute', inset: 0, background: bsTHexA(t.INK, 0.07) }} />
+            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.max(2, Math.min(100, r.pct * 100))}%`, background: heat, transformOrigin: 'left', transform: (seen || reduced) ? undefined : 'scaleX(0)', animation: (seen && !reduced) ? `bsSdDrawX 560ms cubic-bezier(.4,0,.2,1) ${i * 90}ms both` : 'none' }} />
+          </span>
+          <span style={{ flexShrink: 0, minWidth: 54, textAlign: 'right', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', opacity: (seen || reduced) ? 1 : 0, transition: `opacity 400ms ease ${i * 90 + 200}ms` }}>{r.fig}</span>
         </div>
       ))}
     </div>
@@ -22468,89 +22529,92 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const latest = trendVals.length ? trendVals[trendVals.length - 1] : null;
   const first = trendVals.length ? trendVals[0] : null;
   const delta = latest != null && first != null ? latest - first : null;
+  const oRegs = [
+    { label: 'Bodyweight', value: wc(kpis.weightChange), sub: kpis.weightLatest != null ? `Now ${Math.round(kpis.weightLatest)} lb` : null },
+    { label: 'Body fat', value: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', sub: kpis.bodyFatFirst != null ? `From ${kpis.bodyFatFirst.toFixed(1)}%` : null },
+    { label: 'Resting HR', value: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', sub: kpis.restingHrDelta != null ? `${Math.abs(kpis.restingHrDelta)} vs prior wk` : null, glyph: kpis.restingHrDelta != null && kpis.restingHrDelta !== 0 ? (kpis.restingHrDelta < 0 ? '▾' : '▴') : null },
+    { label: 'Sleep', value: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', sub: '30-day avg' },
+    { label: 'Weekly points', value: ana && ana.kpis && ana.kpis.weekly_points != null ? `${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}` : '—', sub: 'This week' },
+  ];
   const overallView = (
     <div>
-      {kpiGrid([
-        { k: wc(kpis.weightChange), l: 'Bodyweight change', sub: kpis.weightLatest != null ? `now ${Math.round(kpis.weightLatest)} lb` : null },
-        { k: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', l: 'Body fat', sub: kpis.bodyFatFirst != null ? `from ${kpis.bodyFatFirst.toFixed(1)}%` : null },
-        { k: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', l: 'Resting HR', sub: kpis.restingHrDelta != null ? `${kpis.restingHrDelta > 0 ? '+' : kpis.restingHrDelta < 0 ? '−' : ''}${Math.abs(kpis.restingHrDelta)} vs prior wk` : null },
-        { k: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', l: 'Sleep', sub: '30-day avg' },
-        { k: ana && ana.kpis && ana.kpis.weekly_points != null ? `${ana.kpis.weekly_points >= 0 ? '+' : ''}${ana.kpis.weekly_points}` : '—', l: 'Weekly points', sub: 'this week' },
-      ])}
+      {registers(oRegs, oRegRef, oRegSeen)}
       <BSWeekendsCard isSelf={signedIn} />
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Trends</Eyebrow>
-        <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 12 }}>
-          {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, borderRadius: 4, padding: '6px 11px', cursor: 'pointer', border: `1px solid ${on ? `${x.color}66` : t.RULE}`, borderLeft: on ? `3px solid ${x.color}` : `1px solid ${t.RULE}`, background: on ? `${x.color}1f` : 'transparent', color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{x.label}</button>; })}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{activeTrend.label}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginLeft: 6 }}>{activeTrend.unit}</span></div>
-          {latest != null && <div style={{ textAlign: 'right' }}><span style={{ fontFamily: t.DISPLAY, fontSize: 22, color: activeTrend.color, letterSpacing: '-0.02em' }}>{activeTrend.fmt(latest)}</span><div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, marginTop: 2 }}>{delta == null ? '' : `${delta > 0 ? '+' : delta < 0 ? '−' : ''}${activeTrend.fmt(Math.abs(delta))} since start`}</div></div>}
-        </div>
-        <BSProgChart points={trendVals} color={activeTrend.color} />
-      </div>
-      <div style={card}>
-        <Eyebrow>Personal records · from your sets</Eyebrow>
-        {(O.prs || []).map((p, i) => (
-          <div key={i} onClick={() => setStrengthOpen({})} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0, cursor: 'pointer' }}>
-            <div>
-              <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{p.move}</div>
-              {p.e1rm != null && <div style={{ fontFamily: t.MONO, fontSize: 9, color: teal, marginTop: 2 }}>≈ {Math.round(p.e1rm)} {p.unit} e1RM</div>}
-            </div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, letterSpacing: '-0.01em' }}>{Math.round(p.best)} {p.unit}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>{p.bestReps != null ? '× ' + p.bestReps : ''}</div>
+      {station('The trend', activeTrend.unit ? activeTrend.unit.toUpperCase() : null, (
+        <>
+          <div className="bs-hide-scroll" style={{ display: 'flex', gap: 16, overflowX: 'auto', marginBottom: 4 }}>
+            {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return (
+              <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, position: 'relative', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45) }}>
+                {x.label}
+                {on && <span aria-hidden style={{ position: 'absolute', left: 2, right: 2, bottom: 9, height: 2, background: heat, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
+              </button>
+            ); })}
           </div>
-        ))}
+          {latest != null && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 4 }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 800, color: t.INK, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{activeTrend.fmt(latest)}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{activeTrend.unit}</span>
+              {delta != null && delta !== 0 && (
+                <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>
+                  <span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: heat }}>{delta < 0 ? '▾' : '▴'}</span> {activeTrend.fmt(Math.abs(delta))} since start
+                </span>
+              )}
+            </div>
+          )}
+          <BSProgChart points={trendVals} color={heat} />
+        </>
+      ))}
+      {station('Personal records', 'From your sets', (O.prs || []).length ? (O.prs || []).map((p, i) => (
+        <div key={i} role="button" tabIndex={0} onClick={() => setStrengthOpen({})} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStrengthOpen({}); } }} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0, cursor: 'pointer' }}>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{p.move}</span>
+          {p.e1rm != null && <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3, letterSpacing: '0.04em' }}>≈ {Math.round(p.e1rm)} {p.unit} e1RM</span>}
+        </span>
+        {leader}
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Math.round(p.best)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{p.unit}</span></span>
+        {p.bestReps != null && <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: bsTHexA(t.INK, 0.55), whiteSpace: 'nowrap' }}>× {p.bestReps}</span>}
       </div>
+      )) : <BSTRedact INK={t.INK} label="Lifts · not on record" />)}
       {/* Measurements — latest per site + change since first log (live only) */}
-      {measRows.length > 0 && (
-        <div style={{ ...card, marginTop: 18 }}>
-          <Eyebrow>Measurements · from your check-ins</Eyebrow>
-          {(() => {
-            const bySite = new Map();
-            measRows.forEach((r) => {
-              const e = bySite.get(r.site) || { first: r, last: r };
-              if (String(r.measured_on) < String(e.first.measured_on)) e.first = r;
-              if (String(r.measured_on) >= String(e.last.measured_on)) e.last = r;
-              bySite.set(r.site, e);
-            });
-            const label = { waist: 'Waist', hips: 'Hips', chest: 'Chest', arm: 'Upper arm', thigh: 'Thigh', calf: 'Calf', neck: 'Neck', shoulders: 'Shoulders' };
-            return [...bySite.entries()].map(([site, e], i) => {
-              const delta = +(Number(e.last.value) - Number(e.first.value)).toFixed(1);
-              return (
-                <div key={site} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-                  <div style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{label[site] || site}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>{Number(e.last.value)} {e.last.unit}</div>
-                  <div style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : delta < 0 ? teal : t.AMBER, fontVariantNumeric: 'tabular-nums' }}>{delta === 0 ? '—' : `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`}</div>
-                </div>
-              );
-            });
-          })()}
-        </div>
-      )}
+      {measRows.length > 0 && station('Measurements', 'From your check-ins', (() => {
+        const bySite = new Map();
+        measRows.forEach((r) => {
+          const e = bySite.get(r.site) || { first: r, last: r };
+          if (String(r.measured_on) < String(e.first.measured_on)) e.first = r;
+          if (String(r.measured_on) >= String(e.last.measured_on)) e.last = r;
+          bySite.set(r.site, e);
+        });
+        const label = { waist: 'Waist', hips: 'Hips', chest: 'Chest', arm: 'Upper arm', thigh: 'Thigh', calf: 'Calf', neck: 'Neck', shoulders: 'Shoulders' };
+        return [...bySite.entries()].map(([site, e], i) => {
+          const delta = +(Number(e.last.value) - Number(e.first.value)).toFixed(1);
+          return (
+            <div key={site} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{label[site] || site}</span>
+              {leader}
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(e.last.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{e.last.unit}</span></span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: delta < 0 ? heat : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
+            </div>
+          );
+        });
+      })())}
       {/* Progress photos — date-stamped front/side/back timeline (live only) */}
-      {photoRows.length > 0 && (
-        <div style={{ ...card, marginTop: 18 }}>
-          <Eyebrow>Progress photos</Eyebrow>
-          {(() => {
+      {photoRows.length > 0 && station('Progress photos', null, (() => {
             const byDate = new Map();
             photoRows.forEach((p) => { const l = byDate.get(p.taken_on) || []; l.push(p); byDate.set(p.taken_on, l); });
             return [...byDate.entries()].slice(0, 6).map(([d, list], i) => (
-              <div key={d} style={{ padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+              <div key={d} style={{ padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 7 }}>{new Date(d).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 7 }}>
                   {['front', 'side', 'back'].map((pose) => {
                     const ph = list.find((x) => x.pose === pose);
                     return ph
-                      ? <a key={pose} href={ph.url} target="_blank" rel="noreferrer" style={{ display: 'block', height: 96, borderRadius: 6, background: `url(${ph.url}) center/cover`, border: `1px solid ${t.RULE}` }} aria-label={`${pose} photo`} />
-                      : <div key={pose} style={{ height: 96, borderRadius: 6, border: `1px dashed ${t.HAIR}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{pose}</div>;
+                      ? <a key={pose} href={ph.url} target="_blank" rel="noreferrer" style={{ display: 'block', height: 96, borderRadius: 4, background: `url(${ph.url}) center/cover`, border: `1px solid ${t.RULE}` }} aria-label={`${pose} photo`} />
+                      : <div key={pose} style={{ height: 96, borderRadius: 4, border: `1px dashed ${t.HAIR}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{pose}</div>;
                   })}
                 </div>
               </div>
             ));
-          })()}
-        </div>
-      )}
+          })())}
     </div>
   );
 
@@ -22558,148 +22622,130 @@ function BSClientProgress({ onBack, initialTab = 'overall', embedded = false }) 
   const ts = TR.stats || {};
   const volDays = (TR.volumeByDay || []).map((d) => (d && typeof d === 'object' ? d.v : d)).map(Number);
   const maxVol = Math.max(1, ...volDays);
+  const tRegs = [
+    { label: 'Workouts logged', value: String(ts.completedCount ?? 0) },
+    { label: 'This week', value: String(ts.thisWeekCount ?? 0) },
+    { label: 'Volume 7d', value: ((ts.volume7dLb ?? 0) / 1000).toFixed(1) + 'k lb' },
+    { label: 'Avg RPE', value: ts.avgRpe != null ? String(ts.avgRpe) : '—' },
+  ];
   const trainingView = (
     <div>
       <BSStrengthCard onOpen={() => setStrengthOpen({})} />
-      {kpiGrid([
-        { k: String(ts.completedCount ?? 0), l: 'Workouts logged' },
-        { k: String(ts.thisWeekCount ?? 0), l: 'This week' },
-        { k: ((ts.volume7dLb ?? 0) / 1000).toFixed(1) + 'k', l: 'Volume 7d (lb)' },
-        { k: ts.avgRpe != null ? String(ts.avgRpe) : '—', l: 'Avg RPE' },
-      ])}
-      {TR.weeklyFocus && (
-        <div style={{ ...card, marginBottom: 18, borderColor: `${teal}44`, background: `${teal}10` }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', color: teal, marginBottom: 6 }}>THIS WEEK · {String(TR.weeklyFocus.week || '').toUpperCase()}</div>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginBottom: 6 }}>{TR.weeklyFocus.primary}</div>
-          <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{TR.weeklyFocus.note}</div>
-        </div>
-      )}
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Volume trend · 14 days</Eyebrow>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 110 }}>
-          {volDays.map((v, i) => { const hgt = v ? Math.max(6, (v / maxVol) * 100) : 3; const today = i === volDays.length - 1; return <div key={i} style={{ flex: 1, height: `${hgt}%`, minHeight: 3, borderRadius: 3, background: v ? (today ? teal : `${teal}88`) : t.HAIR }} />; })}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTop: `1px solid ${t.HAIR}` }}>
-          {[['Streak', `${ts.currentStreak ?? 0}d`], ['Total vol', `${((ts.totalVolumeLb || 0) / 1000).toFixed(1)}k`], ['Avg RPE', String(ts.avgRpe ?? '—')]].map((m, i) => (
-            <div key={i}><div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m[0]}</div><div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK, marginTop: 3 }}>{m[1]}</div></div>
-          ))}
-        </div>
-      </div>
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Personal records</Eyebrow>
-        {(TR.prs || []).map((p, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-            <div><div style={{ fontFamily: t.BODY, fontSize: 13, fontWeight: 600, color: t.INK }}>{p.lift}</div><div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginTop: 2 }}>was {p.prev}{p.unit}</div></div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 18, color: t.INK }}>{p.value}<span style={{ fontSize: 10, color: t.INK50 }}>{p.unit}</span></div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: teal, border: `1px solid ${teal}66`, borderLeft: `3px solid ${teal}`, borderRadius: 3, padding: '3px 8px', background: `${teal}14` }}>+{Number(p.deltaPct).toFixed(1)}%</div>
+      {registers(tRegs, tRegRef, tRegSeen)}
+      {TR.weeklyFocus && station(`This week · ${TR.weeklyFocus.week || ''}`, null, (
+        <>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{TR.weeklyFocus.primary}</div>
+          <div style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45, marginTop: 5 }}>{TR.weeklyFocus.note}</div>
+        </>
+      ))}
+      {station('Volume · 14 days', null, (
+        <>
+          {volDays.length ? (
+            <div ref={tVolRef} style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 96 }}>
+              {volDays.map((v, i) => { const hgt = v ? Math.max(6, (v / maxVol) * 100) : 3; const today = i === volDays.length - 1; return (
+                <div key={i} style={{ flex: 1, height: `${hgt}%`, minHeight: 3, background: v ? (today ? heat : bsTHexA(heat, 0.4)) : bsTHexA(t.INK, 0.07), transformOrigin: 'bottom', transform: (tVolSeen || reduced) ? undefined : 'scaleY(0)', animation: (tVolSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 40}ms both` : 'none' }} />
+              ); })}
+            </div>
+          ) : <BSTRedact INK={t.INK} label="Volume · nothing logged" />}
+          <div style={{ display: 'flex', gap: 28, marginTop: 12, paddingTop: 11, borderTop: `1px solid ${hair}` }}>
+            <BSTLedgerStat INK={t.INK} label="Streak" value={`${ts.currentStreak ?? 0}d`} seen={tVolSeen} figSize={18} />
+            <BSTLedgerStat INK={t.INK} label="Total vol" value={`${((ts.totalVolumeLb || 0) / 1000).toFixed(1)}k lb`} seen={tVolSeen} figSize={18} delay={90} />
+            <BSTLedgerStat INK={t.INK} label="Avg RPE" value={String(ts.avgRpe ?? '—')} seen={tVolSeen} figSize={18} delay={180} />
           </div>
-        ))}
-      </div>
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Muscle split · 14 days</Eyebrow>
-        <div style={{ display: 'flex', height: 12, borderRadius: 999, overflow: 'hidden', marginBottom: 14 }}>
-          {(TR.muscleSplit || []).map((m, i) => <div key={i} style={{ width: m.pct + '%', background: m.color }} />)}
+        </>
+      ))}
+      {station('Personal records', null, (TR.prs || []).length ? (TR.prs || []).map((p, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{p.lift}</span>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3 }}>was {p.prev}{p.unit}</span>
+          </span>
+          {leader}
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{p.value} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{p.unit}</span></span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: bsTHexA(t.INK, 0.7), whiteSpace: 'nowrap' }}><span aria-hidden style={{ color: heat }}>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-          {(TR.muscleSplit || []).map((m, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: m.color, flexShrink: 0 }} /><span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}>{m.name}</span><span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, marginLeft: 'auto' }}>{m.pct}%</span></div>
-          ))}
-        </div>
-      </div>
-      <div style={card}>
-        <Eyebrow>Recent sessions</Eyebrow>
-        {(TR.recentSessions || []).map((s, i) => (
-          <div key={i} style={{ padding: '11px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{s.title}</span>{s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: teal, border: `1px solid ${teal}66`, borderRadius: 3, padding: '1px 5px' }}>PR ×{s.prCount}</span>}</div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 5, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{(s.volumeLb / 1000).toFixed(1)}k lb</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
+      )) : <BSTRedact INK={t.INK} label="PRs · not on record" />)}
+      {station('Muscle split', '14 days', (TR.muscleSplit || []).length
+        ? barRows((TR.muscleSplit || []).map((m) => ({ label: m.name, pct: (m.pct || 0) / Math.max(1, ...(TR.muscleSplit || []).map((x) => x.pct || 0)), fig: `${m.pct}%` })), tMusRef, tMusSeen)
+        : <BSTRedact INK={t.INK} label="Split · nothing logged" />)}
+      {station('Recent sessions', null, (TR.recentSessions || []).length ? (TR.recentSessions || []).map((s, i) => (
+        <div key={i} style={{ padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{s.title}</span>
+            {s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.7) }}><span aria-hidden style={{ color: heat }}>▴</span> PR ×{s.prCount}</span>}
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{(s.volumeLb / 1000).toFixed(1)}k lb</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
+        </div>
+      )) : <BSTRedact INK={t.INK} label="Sessions · none yet" />)}
     </div>
   );
 
   // ---------- NUTRITION ----------
   const today = NU.today || {}, targets = NU.targets || {};
-  const macroBar = (label, color, cur, tgt) => { const pct = tgt ? Math.min(100, Math.round((cur / tgt) * 100)) : 0; return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}><span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK }}>{label}</span><span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{cur != null ? Math.round(cur) : '—'}{tgt ? ` / ${Math.round(tgt)}` : ''}</span></div>
-      <div style={{ height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 999 }} /></div>
-    </div>
-  ); };
+  const macroRow = (label, cur, tgt) => ({ label, pct: tgt ? Math.min(1, (cur || 0) / tgt) : 0, fig: `${cur != null ? Math.round(cur) : '—'}${tgt ? ` / ${Math.round(tgt)}` : ''}` });
   const wk = NU.week || []; const maxCal = Math.max(1, ...wk.map((d) => d.calories || 0), targets.calories || 0);
   const maxHyd = Math.max(1, ...(NU.hydration7d || []), 3);
+  const nRegs = [
+    { label: 'Calories today', value: today.calories ? today.calories.toLocaleString() : '—', sub: targets.calories ? `Of ${targets.calories.toLocaleString()}` : null },
+    { label: 'Protein', value: today.protein != null ? today.protein + 'g' : '—', sub: targets.protein ? `Of ${targets.protein}g` : null },
+    { label: 'Days logged', value: `${NU.loggedDays7 || 0}/7`, sub: 'This week' },
+    { label: 'Adherent days', value: `${NU.adherentDays7 || 0}/7`, sub: 'Macros hit' },
+  ];
   const nutritionView = (
     <div>
-      {kpiGrid([
-        { k: today.calories ? today.calories.toLocaleString() : '—', l: 'Calories today', sub: targets.calories ? `of ${targets.calories.toLocaleString()}` : null },
-        { k: today.protein != null ? today.protein + 'g' : '—', l: 'Protein', sub: targets.protein ? `of ${targets.protein}g` : null },
-        { k: `${NU.loggedDays7 || 0}/7`, l: 'Days logged', sub: 'this week' },
-        { k: `${NU.adherentDays7 || 0}/7`, l: 'Adherent days', sub: 'macros hit' },
-      ])}
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Today vs target</Eyebrow>
-        {macroBar('Calories', teal, today.calories, targets.calories)}
-        {macroBar('Protein', '#e8b14a', today.protein, targets.protein)}
-        {macroBar('Carbs', '#7ed4ff', today.carbs, targets.carbs)}
-        {macroBar('Fat', '#f582a0', today.fat, targets.fat)}
-      </div>
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Calories · this week</Eyebrow>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
-          {wk.map((d, i) => { const hgt = d.calories ? Math.max(6, (d.calories / maxCal) * 100) : 3; return <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, justifyContent: 'flex-end', height: '100%' }}><div style={{ width: '100%', height: `${hgt}%`, minHeight: 3, borderRadius: 3, background: d.logged ? (d.adherent ? teal : `${teal}66`) : t.HAIR }} /><span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i] || ''}</span></div>; })}
+      {registers(nRegs, nRegRef, nRegSeen)}
+      {station('Today vs target', null, barRows([
+        macroRow('Calories', today.calories, targets.calories),
+        macroRow('Protein', today.protein, targets.protein),
+        macroRow('Carbs', today.carbs, targets.carbs),
+        macroRow('Fat', today.fat, targets.fat),
+      ], nMacRef, nMacSeen))}
+      {station('Calories · this week', null, wk.length ? (
+        <div ref={nWkRef} style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 88 }}>
+          {wk.map((d, i) => { const hgt = d.calories ? Math.max(6, (d.calories / maxCal) * 100) : 3; return (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, justifyContent: 'flex-end', height: '100%' }}>
+              <div style={{ width: '100%', height: `${hgt}%`, minHeight: 3, background: d.logged ? (d.adherent ? heat : bsTHexA(heat, 0.4)) : bsTHexA(t.INK, 0.07), transformOrigin: 'bottom', transform: (nWkSeen || reduced) ? undefined : 'scaleY(0)', animation: (nWkSeen && !reduced) ? `bsSdGrowY 480ms cubic-bezier(.4,0,.2,1) ${i * 50}ms both` : 'none' }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50 }}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i] || ''}</span>
+            </div>
+          ); })}
         </div>
-      </div>
-      <div style={{ ...card, marginBottom: 18 }}>
-        <Eyebrow>Hydration · 7 days (L)</Eyebrow>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 70 }}>
-          {(NU.hydration7d || []).map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(4, (v / maxHyd) * 100)}%`, minHeight: 3, borderRadius: 3, background: v ? '#6ec8ff' : t.HAIR }} />)}
+      ) : <BSTRedact INK={t.INK} label="Week · nothing logged" />)}
+      {station('Hydration · 7 days', 'L', (NU.hydration7d || []).length ? (
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 56 }}>
+          {(NU.hydration7d || []).map((v, i) => <div key={i} style={{ flex: 1, height: `${Math.max(4, (v / maxHyd) * 100)}%`, minHeight: 3, background: v ? bsTHexA(heat, 0.55) : bsTHexA(t.INK, 0.07) }} />)}
         </div>
-      </div>
-      <div style={card}>
-        <Eyebrow>Most-logged foods</Eyebrow>
-        {(NU.topFoods || []).map((f, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-            <span style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK }}>{f.name}</span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{f.count}× {f.avgKcal ? `· ~${f.avgKcal} kcal` : ''}</span>
-          </div>
-        ))}
-      </div>
+      ) : <BSTRedact INK={t.INK} label="Hydration · not tracked" />)}
+      {station('Most-logged foods', null, (NU.topFoods || []).length ? (NU.topFoods || []).map((f, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '9px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
+          <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK }}>{f.name}</span>
+          {leader}
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: bsTHexA(t.INK, 0.6), fontVariantNumeric: 'tabular-nums' }}>{f.count}×{f.avgKcal ? ` · ~${f.avgKcal} kcal` : ''}</span>
+        </div>
+      )) : <BSTRedact INK={t.INK} label="Foods · nothing logged" />)}
     </div>
   );
 
   const TABS = [['overall', 'Overall'], ['training', 'Training'], ['nutrition', 'Nutrition']];
-  // Instrument segment rail (same anatomy as the profile tab rail): active tab
-  // sits on an accent-tinted plate with a top tick.
+  // Typographic index (Field Ledger): bare mono labels on a hairline, the active
+  // tab carries a 2px heat underline that draws in. Deliberately NOT sticky —
+  // BSDetailHeader already owns the sticky top on this page.
   const tabRow = (
-    <div style={{ display: 'flex', gap: 6, background: bsTHexA(t.INK, 0.05), border: `1px solid ${bsTHexA(t.INK, 0.1)}`, borderRadius: 7, padding: 4 }}>
+    <div style={{ display: 'flex', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
       {TABS.map(([k, l]) => { const on = tab === k; return (
-        <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: '9px 6px', borderRadius: 5, border: 0, cursor: 'pointer', position: 'relative', overflow: 'hidden', background: on ? bsTHexA(teal, 0.16) : 'transparent', color: on ? teal : bsTHexA(t.INK, 0.55), fontFamily: t.MONO, fontSize: 9.5, fontWeight: on ? 800 : 600, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          {on && <span aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: teal }} />}
+        <button key={k} onClick={() => setTab(k)} style={{ flex: 1, minWidth: 0, minHeight: 44, position: 'relative', background: 'transparent', border: 0, cursor: 'pointer', padding: '14px 0 12px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45) }}>
           {l}
+          {on && <span aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: -1, height: 2, background: heat, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
         </button>
       ); })}
     </div>
   );
   const tabBody = tab === 'overall' ? overallView : tab === 'training' ? trainingView : nutritionView;
-  // Embedded (inside the Me profile's Stats tab): no page chrome / header / footer.
-  // Provide the (dark) theme so every descendant useBS() renders on the dark surface.
-  if (embedded) {
-    const Provider = (typeof window !== 'undefined' && window.BSContext && window.BSContext.Provider);
-    const body = (
-      <div style={{ position: 'relative' }}>
-        {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
-        {tabRow}
-        <div style={{ marginTop: 16 }}>{tabBody}</div>
-      </div>
-    );
-    return Provider ? <Provider value={t}>{body}</Provider> : body;
-  }
   return (
     <BSPage>
       {strengthOpen && <BSStrengthHistory focusKey={strengthOpen.key || null} onClose={() => setStrengthOpen(null)} />}
       <BSDetailHeader onBack={onBack} eyebrow="Strength · body · recovery" kicker="Your progress" title={<>Progress.</>} />
       <BSClientNextPlate />
-      <div style={{ padding: `12px ${t.padX}px 0` }}>{tabRow}</div>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>{tabRow}</div>
       <div style={{ padding: `18px ${t.padX}px 28px` }}>{tabBody}</div>
       <BSFooter right="Progress" />
     </BSPage>
