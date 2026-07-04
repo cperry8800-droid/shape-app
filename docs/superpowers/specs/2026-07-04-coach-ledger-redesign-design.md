@@ -68,9 +68,11 @@ AMBER` per booking type) **dies** — type reads as named mono text.
    CLIENTS · 5 FLAGGED →"). The NEED-YOU register always shows the TRUE total,
    not the budgeted subset.
 
-The same budget philosophy governs the Case File: **one directive, one
-action, at most three evidence lines**; every station holds ONE register row
-plus ONE visual max;
+The same budget philosophy governs the Case File: the LEAD is **one
+directive, one action, at most three evidence lines**; each station below
+leads with at most one register **row-group** plus one visual (a row-group
+may hold several registers — the CHECK-IN 6-mini-register grid and the SLEEP
+register pair each count as their station's single row-group/visual);
 full history lives one tap deeper (HISTORY → / LOG → / the check-in page).
 
 ### Motion contract
@@ -181,8 +183,9 @@ tour anchors don't move. All current props (`goCalendar`, `goRadio`,
 
 `useBSProRoster(role)` already consumes `window.ShapeSignals.triageLive` — the
 ranked, scored roster. A new **pure module** (below) turns that + the day's
-bookings into `{ lead, inlineWires, wireSection, demoted, registers }` under
-the three rules. The verdict template and severity naming reuse
+bookings into the budget split `{ lead, leadAnchor, inline, wires, demoted }`
+(one canonical shape — see the module contract, which is authoritative) plus
+the day-shape values the registers read, under the three rules. The verdict template and severity naming reuse
 `bsRosterSeverity` / the triage directive strings — **no new intelligence,
 wiring only.**
 
@@ -308,16 +311,26 @@ tabs · phase chips · the big bordered metric card + `StatCard` boxes ·
 
 ## New pure module — `mobile-app/src/services/proLedger.mjs` (+ tests)
 
-Pure, tz-free, unit-tested (house pattern: `homeSlate.mjs`, `sessionLedger.mjs`):
+Pure, tz-free, unit-tested (house pattern: `homeSlate.mjs`, `sessionLedger.mjs`).
+**This contract is canonical** — the implementation plan's tests pin these
+exact shapes (post-review unification; earlier drafts drifted):
 
-- `bsProAttentionBudget(rankedTriage, bookings, { max = 3 })` →
-  `{ lead, inlineWires, wireRows, demotedIds }` — implements the anchor +
-  budget rules; lead subject excluded from wires; deterministic tie-break.
-- `bsProDayShape(bookings, now)` → `{ sessions, openHours, gaps[], nowSlot,
-  next, countdownLabel }` — gap (≥90 min) + open-hour (≥60 min) computation,
-  NOW placement, `{X}H {Y}M UNTIL {name}` / `DAY CLEAR` labels.
-- `bsProLeadVerdict(role, dayShape, topTriage, signedIn)` → the verdict
-  string (templates above; demo narratives pass through for signed-out).
+- `bsProAttentionBudget(triage, bookings, max = 3)` →
+  `{ lead, leadAnchor, inline[], wires[], demoted[] }` — implements the
+  anchor + budget rules; the lead (rank #1) is never re-listed; anchoring is
+  clientId-first, else EXACT lowercase name equality (never substring);
+  `inline` rows carry `bookingIdx`.
+- `bsProDayShape(bookings, now?)` → `{ sessions, gaps[], openHours|null,
+  nowSlot, countdown }` — gap (≥90 min) + open-hour (≥60 min, whole hours,
+  null under 2 bookings) computation, NOW placement, `{X}H {Y}M UNTIL {NAME}`
+  / `{M}M UNTIL {NAME}` / `DAY CLEAR` labels.
+- `bsProLeadVerdict({ signedIn, sessions, firstLabel, top })` → the verdict
+  string (templates above); returns `null` signed-out (demo narratives are
+  authored at the call site).
+- `bsProMin` / `bsProHourLabel` / `bsProGapLabel` /
+  `bsProDurationFromSub(sub)` — time parsing + ledger labels; durations are
+  parsed from the booking `sub` strings (`'· 60m'`) because no `durationMin`
+  field exists upstream on demo or calendar rows.
 
 Tests: budget caps + no-double-listing, demotion beyond max, gap/open-hour
 edges (0/1 bookings, back-to-back, overnight guard), countdown labels,
