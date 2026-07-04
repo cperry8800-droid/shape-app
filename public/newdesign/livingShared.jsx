@@ -470,7 +470,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
           const buyable = !owner && o.planId && o.providerId && !o.free && o.price !== "Listed";
           const buyProps = buyable ? { role: "button", tabIndex: 0, "aria-label": `Buy ${o.name} · ${o.price}`, onClick: () => buyPlan(o), onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); buyPlan(o); } } } : {};
           return (
-            <div key={i} {...buyProps} style={{ padding: "13px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none", cursor: buyable ? "pointer" : "default" }}>
+            <div key={o.planId || o.name || o.kind + i} {...buyProps} style={{ padding: "13px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none", cursor: buyable ? "pointer" : "default" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.45), marginBottom: 4 }}>{o.kind}</div>
@@ -486,7 +486,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
               {o.media && o.media.length > 0 && (
                 <div style={{ marginTop: 10, display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
                   {o.media.slice(0, 8).map((m, j) => (
-                    <div key={j} style={{ position: "relative", flex: "none", width: 66, height: 66, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
+                    <div key={m.url || j} style={{ position: "relative", flex: "none", width: 66, height: 66, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
                       {m.type === "video"
                         ? <video src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline preload="metadata" />
                         : <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
