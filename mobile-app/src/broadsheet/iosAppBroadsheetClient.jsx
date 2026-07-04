@@ -3029,7 +3029,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               : `${Math.max(0, stepsToday.goal - stepsToday.val).toLocaleString()} to go`;
         return (
           <>
-            <div className="bs-hide-scroll" style={{ display: 'flex', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px`, paddingRight: `calc(${t.padX}px + 12px)`, overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: `4px ${t.padX}px 12px ${t.padX}px` }}>
               <BSShelfDoor c={teal} eyebrow="Steps" figure={stepsFigure} status={stepsStatus} pct={stepsToday.hasData && stepsToday.todayKnown ? stepsToday.pct : undefined} onOpen={openStepsDoor} />
               <BSMeGoalCard c={teal} onOpen={() => setGoalsPage(true)} door />
               <BSProgressDoor onOpen={() => setHomeProgressPage(true)} door />
@@ -16374,7 +16374,8 @@ function BSHomeBulletin({ label, detail, onOpen }) {
   );
 }
 
-// BSShelfDoor — one compact door (~112w×64h) in the horizontal shelf. Native
+// BSShelfDoor — one door in the INSIDE. shelf (fills its grid column, 82h; the
+// shelf is a 2×2 grid, no horizontal scroll). Native
 // button (DOM order = VoiceOver order); `figure` may be a ReactNode (e.g. the
 // PROGRESS 4-tick row). `pct` (0–100), when a number, draws a 2px bottom
 // progress sliver at that width. Press feedback scale(0.97) 120ms; the scale
@@ -16395,24 +16396,24 @@ function BSShelfDoor({ c, eyebrow, figure, status, pct, onOpen }) {
       type="button" onClick={onOpen} aria-label={[eyebrow, ariaFigure, status].filter(Boolean).join(' ')}
       onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerLeave={() => setPressed(false)}
       style={{
-        position: 'relative', flex: '0 0 auto', width: 112, height: 64, boxSizing: 'border-box',
-        scrollSnapAlign: 'start', borderRadius: 6, border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.03),
-        padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        position: 'relative', width: '100%', height: 82, boxSizing: 'border-box',
+        borderRadius: 8, border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.03),
+        padding: '11px 13px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         textAlign: 'left', cursor: 'pointer', overflow: 'hidden',
         transform: pressed ? 'scale(0.97)' : 'scale(1)',
         ...(reduced ? null : { transition: 'transform 120ms ease' }),
       }}
     >
-      <span aria-hidden style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 10px 10px 0', borderColor: `transparent ${accent} transparent transparent`, opacity: 0.7 }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>
+      <span aria-hidden style={{ position: 'absolute', top: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 12px 12px 0', borderColor: `transparent ${accent} transparent transparent`, opacity: 0.7 }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, minWidth: 0 }}>
         {typeof figure === 'string' || typeof figure === 'number'
-          ? <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{figure}</span>
+          ? <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{figure}</span>
           : figure}
       </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status}</span>
-        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: accent, marginLeft: 'auto' }}>›</span>
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status}</span>
+        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: accent, marginLeft: 'auto' }}>›</span>
       </span>
       {hasPct && (
         <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: bsTHexA(t.INK, 0.08) }}>
