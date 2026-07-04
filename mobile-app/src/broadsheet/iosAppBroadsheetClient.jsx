@@ -6565,8 +6565,8 @@ async function bsOpenMemberConversation(person, closeOverlay) {
 // in their chat right now (the thread renders a "Live boost" eyebrow), instead
 // of waiting for the completed activity to post. Quick phrases are one-tap sends.
 const BS_BOOST_PHRASES = {
-  workout: ['Finish strong →', 'One more rep.', 'Strong — keep going.', 'Respect the work.'],
-  cooking: ['Chef mode — respect.', 'Fuel the work.', 'Plate it clean.', 'Meal prep counts.'],
+  workout: ["Let's go!", 'Nice!', 'Love it!', 'One more rep.', 'Finish strong →', 'Strong — keep going.', 'Respect the work.'],
+  cooking: ['What are you making?', 'Send a pic →', 'Looks good already.', 'Chef mode — respect.', 'Fuel the work.', 'Plate it clean.'],
 };
 function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
   const t = useBS();
@@ -9303,9 +9303,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <rect x={base[0] - 4} y={base[1] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.55)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
                 </svg>
                 {/* you-are-here facet (the page's one breathing loop) + 43% readout */}
-                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 23px))`, top: `${(here.y / H) * 100}%`, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ position: 'absolute', left: `max(4px, calc(${(here.x / W) * 100}% - 30px))`, top: `${(here.y / H) * 100}%`, transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                   <div style={{ borderRadius: '50%', ...(reduced ? null : { '--sd-glow': bsTHexA(c, 0.45), animation: 'bsSdPop 400ms cubic-bezier(.2,1.1,.3,1) 1150ms both, bsSdPrBreath 3.2s ease-in-out 1750ms infinite' }) }}>
-                    <BSFacetAvatar size={46} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
+                    <BSFacetAvatar size={60} c={c} initial={bsInitials(name)} name={name} photo={avPhoto} live={isSelf ? bsAmLive() : bsIsUserOnline(person.userId)} activity={isSelf ? bsMyActivity() : bsUserActivity(person.userId)} BG={BG} INK={INK} />
                   </div>
                   <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', color: INK, borderBottom: `1px solid ${c}`, paddingBottom: 1, whiteSpace: 'nowrap' }}>{heroPctLabel}%</span>
                 </div>
@@ -9982,15 +9982,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         </>
         )}
 
-        {/* Followers / following / follow — centered row (the coach's name/tier
-            sit centered below the sigil, so just the follow stats live up here). */}
-        <div style={{ marginTop: 18 }}>
-          <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
-            ownerPhoto={photo || (live && live.avatar) || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
-            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts}
-            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
-        </div>
-
         {/* the instrument — outer heptagon = progress to next tier, inner rings = contributions */}
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', marginTop: 18 }}>
           <BSSignalSigil week={week} rings={sigilRings} progress={sigilToNext} c={c} teal={TEAL} ink={INK} size={240} />
@@ -10014,6 +10005,15 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             <span>{handle}</span>{pronouns ? <><span style={{ opacity: 0.4 }}>·</span><span>{pronouns}</span></> : null}<span style={{ opacity: 0.4 }}>·</span><span>{city}</span>
           </div>
           <div style={{ marginTop: 9 }}><span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: c }}>{roleLabel}</span></div>
+        </div>
+
+        {/* Followers / following / follow — centered row riding with the name block
+            (moved from above the sigil so the instrument opens the page). */}
+        <div style={{ marginTop: 14 }}>
+          <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} coach center
+            ownerPhoto={photo || (live && live.avatar) || (isSelf ? (bsMyPhoto() || undefined) : undefined)}
+            onOpenProfile={setReviewerProfile} onOpenPosts={openPosts}
+            onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
         </div>
 
         {/* hero stat — FULL-BLEED: spans the whole screen width */}
