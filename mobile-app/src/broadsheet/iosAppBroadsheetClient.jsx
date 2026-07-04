@@ -2812,7 +2812,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             _sortAt: undefined,
             tag: 'TRAINING', tagColor: t.GREEN,
             title: 'Active recovery',
-            status: 'Rest day · easy walk + mobility',
+            status: 'Rest day · walk + mobility',
             right: undefined,
             onOpen: undefined,
             ariaLabel: 'Active recovery, rest day',
@@ -10503,9 +10503,8 @@ function bsInjectSessionDetailCss() {
 }
 // ── Home "Front Page" — injected keyframes ────────────────────────────────
 // Slate rows stagger in (opacity + 4px rise); the INSIDE. index block fades as
-// one quiet unit; door slivers draw 0→pct via a plain CSS `width` transition
-// on BSShelfDoor's own sliver span (Task 2's shipped body — no keyframe needed
-// for that, so none is defined here — see Step 4). Only due-ticks pulse
+// one quiet unit; door slivers draw 0→pct via the bsHomeSliverIn keyframe
+// (scaleX from the left) on BSShelfDoor's sliver span. Only due-ticks pulse
 // (reuses the shared BSPlate tick keyframe — no new pulse here). All wrapped
 // in the reduced-motion media query per the #1518 pattern; every consumer
 // additionally gates its own inline `animation` with
