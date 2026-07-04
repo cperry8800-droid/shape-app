@@ -159,15 +159,21 @@ changelog whenever something ships.
 
 ## Changelog
 
-> **Latest session handoff: [`docs/HANDOFF-2026-07-03.md`](HANDOFF-2026-07-03.md)** —
-> **Quick read-only security pass** over the delta since the last full audit (0 P1 / 0 P2 /
-> 1 P3 — gitleaks-should-be-required; no report file, no P1/P2), plus two UI fixes: the website
-> Shape Score ladder's first-tier **"Start" label now takes the tier color** (sage chip on Raw,
-> `score.jsx?v=17`) and the **month-calendar masthead avatar shows the real self avatar** (was a
-> stale hardcoded "A" in preview — now `bsMyInitials/TierColor/Photo` like every other header).
-> Merged without review per the owner's call. ⚠ Local mobile Vite build blocked this session by
-> Windows Application Control on the reinstalled oxide native binary (CI Linux build unaffected —
-> see the handoff).
+> **Latest session handoff: [`docs/HANDOFF-2026-07-04.md`](HANDOFF-2026-07-04.md)** —
+> **The redesign wave, all shipped live**: Session Details "Open Ledger" (#1523 + #1525 gutter),
+> the Home **"Front Page" hybrid** (#1527), the feed **"Wire Dispatch"** rebuild (#1528, spec
+> #1526), and a four-fix **polish batch** from owner screenshots (#1529 — aligned ledger stat
+> columns · Splits + Cadence → horizontal Strava-style bars · Home slate right-edge clip fix ·
+> demo coach-notes removed). Full review gauntlet each time (adversarially-verified plans,
+> per-task gates, whole-branch reviews, CodeRabbit on the feature PRs). Open: on-device passes
+> (Black/Sage/Cream) + the feed/Home chrome follow-up lists — see the handoff.
+>
+> (Prior: [`docs/HANDOFF-2026-07-03.md`](HANDOFF-2026-07-03.md) —
+> **Quick read-only security pass** over the delta since the last full audit (0 P1 / 0 P2 / 1 P3)
+> plus two UI fixes: the Score ladder's first-tier "Start" label takes the tier color
+> (`score.jsx?v=17`) and the month-calendar masthead avatar shows the real self avatar. Merged
+> without review per the owner's call; local mobile build was blocked by Windows Application
+> Control on the oxide native binary — CI's Linux build unaffected.
 >
 > (Prior: [`docs/HANDOFF-2026-07-02.md`](HANDOFF-2026-07-02.md) —
 > Per-coach **waiting room** (#1495) — members join an at-capacity coach's list, the coach
@@ -232,6 +238,26 @@ changelog whenever something ships.
 > cleared security advisor. Pro also unblocks branch databases (isolated staging test
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
+
+### 2026-07-04 — Session-details + Home polish batch (#1529)
+- Four owner-screenshot fixes in one pass:
+  - **Summary ledger columns line up** — units sit in a fixed-width mono column per
+    register (`ch`-sized to the widest unit; bare figures reserve the same gutter), so
+    every numeral in the Open Ledger summary shares one right edge.
+  - **Mile Splits → horizontal ledger bars** (Strava-style rows): fixed label column ·
+    bar drawing rightward (faster = longer, `bsSdDrawX` staggered) · figure on the
+    right edge; the best row keeps the heat fill + burst + breathing halo; RPE
+    mini-dials ride the figure cell. Applies to every breakdown (mile splits / ride
+    intervals / working sets) — replaces the vertical landing columns.
+  - **Cadence → the same horizontal bars** — per-mile averages bucketed from the
+    distance-uniform trace (`Seg n` labels when distance is unknown or 15+ mi), spread
+    on the min→max range so tightly-clustered spm still shows variation. Replaces the
+    cadence area chart; the GRAPH-TYPE RULE entry below is superseded on this point.
+  - **Home**: slate rows no longer clip their right edge (the 36px meal/habit ticks sat
+    in a fixed 20px grid track — now `auto`); the demo Jordan/Maya coach-notes block is
+    removed entirely (real coach notes only, even in signed-out preview).
+- Verified: JSX parse · PowerShell mobile build exit 0 · 382/382 tests · LF normalized.
+  Merged on CI green per the owner's call (CodeRabbit wait skipped for this batch only).
 
 ### 2026-07-03 — Feed activity cards: "Wire Dispatch" redesign (#1528)
 - **`BSActivityCard` rebuilt from a dark bordered rounded-rect into a zero-box

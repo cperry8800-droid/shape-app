@@ -732,14 +732,26 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       section: 'Activity session-details graphs (2026-06-15)',
       items: [
         { label: 'GRAPH-TYPE RULE (per activity, documented in WORKLOG): primary velocity = Pace (run/walk/hike) · Pace/100m (swim) · Speed mph (ride); Power (W) is its own chart when a power meter is present', status: 'done' },
-        { label: 'Strava-style axis-labeled AREA charts (y-axis ticks + mile markers + gridlines) for Pace/Speed · Heart rate · Cadence · Elevation · Power — each renders ONLY when its real series exists (honest-absent)', status: 'done' },
+        { label: 'Strava-style axis-labeled AREA charts (y-axis ticks + mile markers + gridlines) for Pace/Speed · Heart rate · Elevation · Power — each renders ONLY when its real series exists (honest-absent). (Cadence moved to horizontal bars in #1529)', status: 'done' },
         { label: 'Heart rate = bpm area chart + time-in-zone labeled bars (Z1–Z5); applies to ANY activity incl. strength/lifting', status: 'done' },
-        { label: 'Splits = column chart (mile splits / ride intervals / working sets); Summary = mains (hero Distance · Time · Avg pace/speed · Avg HR · Calories); leftover scalars → Output grid', status: 'done' },
+        { label: 'Splits + Cadence = HORIZONTAL ledger bars since #1529 (Strava-style rows: label / bar drawing rightward, faster or best = longer + heat / figure right; cadence = per-mile averages bucketed from the trace); Summary = the Open Ledger two-register summary (#1523)', status: 'done' },
         { label: 'LIVE DATA: Strava sync pulls heartrate+cadence+altitude+velocity_smooth+watts+distance in ONE streams call/new activity → metrics.{hrTrace,cadenceTrace,elevTrace,paceTrace,powerTrace}; velocity converted per sport (mph / sec-per-100m / sec-per-mile)', status: 'done' },
         { label: 'Charts resampled EVENLY BY DISTANCE (cumulative distance stream) → x-axis mile markers are exact; time-uniform fallback for indoor/no-distance activities', status: 'done' },
         { label: 'Stream fetch capped per sync (STREAM_CAP=24) + NEW posts only — stays under Strava rate limit', status: 'done' },
         { label: 'WHOOP activities show zones + stats only (no per-second streams — honestly trace-less); demo cards are the signed-out fallback only', status: 'done' },
         { label: 'Website parity: dashboard Community feed activity posts open a Session-details modal (dashboardCommunity.jsx — same axis-labeled charts + GRAPH-TYPE RULE, driven by community_posts.metrics; demo run card included)', status: 'done' },
+      ],
+    },
+    {
+      section: 'Redesign wave: Session Details · Home · Feed (2026-07-03/04)',
+      items: [
+        { label: 'Session Details "Open Ledger" (#1523 + #1525): unboxed hero on a 2px heat rail, self-drawing GPS route inked on the paper, two-register summary ledger + pace needle band, honest GPS-not-recorded redaction line; left gutter tightened + full page width', status: 'done' },
+        { label: 'Client Home "Front Page" hybrid (#1527): 0-2 bulletins → exactly ONE lead plate (todayDirective) → TODAY\'S SLATE time-ordered run-sheet (meals · training · ≤3 habits · coach items/notes) → INSIDE. serif index + 4-door shelf; demo-notes leak fixed', status: 'done' },
+        { label: 'Feed "Wire Dispatch" (#1528, spec #1526): BSActivityCard rebuilt ZERO-BOX on a per-author heat rail — role-color heat line-only (closed placement list), co-sign press credit, five flex ≥44px action cells + 36px heat boost chip, COMMENTS · N eyebrow IS the view-all, full-bleed routes via clip-wrapper + pagePad, profile feeds unboxed, one in-view observer per card, zero feed motion loops', status: 'done' },
+        { label: 'Polish batch (#1529): summary-ledger stat columns share one right edge (fixed-width mono unit column); Splits + Cadence → horizontal Strava-style bars; Home slate right-edge clip fix (last grid track auto); demo coach-notes block removed', status: 'done' },
+        { label: 'On-device passes (Black/Sage/Cream papers): Home (rest day, >3 habits, long coach cue) · Session Details (run/ride/strength) · Feed (GPS route post, routeless run, no-hero post, trainer + nutritionist co-sign, hideAuthor profiles, reduced-motion finished state)', status: 'manual' },
+        { label: 'Feed chrome follow-ups: "Programmed by" coach chip still a 999px bordered pill; media video/link tiles use a tier-color background tint (outside sanctioned tc placements); 22px edit circle sub-44 target', status: 'pending' },
+        { label: 'Home cleanup follow-ups: BSMeGoalCard plate/compact + BSProgressDoor caller-less branches; unused stepPts; slate double-sort; narrower hero-habits tour anchor', status: 'pending' },
       ],
     },
     {
