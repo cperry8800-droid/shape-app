@@ -396,7 +396,7 @@ const LV_PRIV_ORDER = ["public", "circle", "private"];
 // Categorized services — distinctive filing-card tabs that physically
 // connect into the panel below (a card-index, not a generic tab bar).
 const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
-function LvServices({ d, light, ink, c, owner, onReviews }) {
+function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, reviewCount }) {
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
   // back to the demo offerings when the coach hasn't published any.
   const [real, setReal] = React.useState(null);
@@ -442,43 +442,42 @@ function LvServices({ d, light, ink, c, owner, onReviews }) {
   const list = cat === "All" ? offerings : offerings.filter(o => o.kind === cat);
   const label = (k) => k === "All" ? "All" : (LV_CAT[k] || k);
   const count = (k) => k === "All" ? offerings.length : offerings.filter(o => o.kind === k).length;
-  const panelBg = hexA(ink, 0.045);
+  const idx = (on) => ({ background: "transparent", border: 0, cursor: "pointer", whiteSpace: "nowrap", flex: "none", position: "relative", padding: "6px 2px 9px", fontFamily: lvMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: on ? ink : hexA(ink, 0.45) });
+  // Prefer the LIVE review avg/count (passed from LvCoachBlocks) so the rate-card
+  // rating never drifts from what the Reviews tab actually shows.
+  const shownRating = ratingAvg != null ? ratingAvg : d.rating;
+  const shownReviewCount = reviewCount != null ? reviewCount : d.reviewCount;
+  const reviewsBtn = { cursor: onReviews ? "pointer" : "default", textDecoration: onReviews ? "underline" : "none", textUnderlineOffset: 2, color: ink, background: "transparent", border: 0, padding: 0, font: "inherit" };
+  const ratingMeta = <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>★ {shownRating}/10 · {onReviews ? <button type="button" onClick={onReviews} style={reviewsBtn}>{shownReviewCount} reviews</button> : <span>{shownReviewCount} reviews</span>}</span>;
   return (
     <div style={{ marginTop: 30 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
-        <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>{d.offerLabel}</div>
-        <div style={{ fontFamily: lvMono, fontSize: 10, color: c }}>★ {d.rating}/10 · <span onClick={onReviews} style={{ cursor: onReviews ? "pointer" : "default", textDecoration: onReviews ? "underline" : "none", textUnderlineOffset: 2 }}>{d.reviewCount} reviews</span></div>
-      </div>
-      {/* filing tabs */}
-      <div className="lv-tabrow" style={{ display: "flex", gap: 4, alignItems: "flex-end", paddingLeft: 2, position: "relative", zIndex: 2, overflowX: "auto", scrollbarWidth: "none" }}>
+      {stHead ? stHead(d.offerLabel, ratingMeta) : <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 13 }}>{d.offerLabel}</div>}
+      {/* category index — mono labels with a heat underline (was filing-card tabs) */}
+      <div className="lv-tabrow" style={{ display: "flex", gap: 18, alignItems: "flex-end", overflowX: "auto", scrollbarWidth: "none", borderBottom: `1px solid ${hexA(ink, 0.08)}`, marginBottom: 4 }}>
         {cats.map((k) => {
           const on = cat === k;
           return (
-            <button key={k} onClick={() => setCat(k)} style={{
-              fontFamily: lvMono, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", whiteSpace: "nowrap", flex: "none",
-              padding: on ? "9px 11px 13px" : "7px 11px 9px", marginBottom: on ? -2 : 0,
-              borderRadius: "9px 9px 0 0", border: `1px solid ${hexA(ink, on ? 0.0 : 0.09)}`, borderBottom: "none",
-              background: on ? panelBg : hexA(ink, 0.02), color: on ? c : hexA(ink, 0.5),
-              boxShadow: on ? `inset 0 2px 0 ${c}` : "none", transition: "padding .15s",
-            }}>{label(k)}<span style={{ marginLeft: 5, color: hexA(ink, on ? 0.5 : 0.35) }}>{count(k)}</span></button>
+            <button key={k} type="button" onClick={() => setCat(k)} style={idx(on)}>
+              {label(k)}<span style={{ marginLeft: 5, color: hexA(ink, on ? 0.45 : 0.3) }}>{count(k)}</span>
+              {on && <span aria-hidden="true" style={{ position: "absolute", left: 2, right: 2, bottom: -1, height: 2, background: c }} />}
+            </button>
           );
         })}
       </div>
-      {/* panel */}
-      <div style={{ background: panelBg, border: `1px solid ${hexA(ink, 0.09)}`, borderRadius: "0 12px 12px 12px", padding: 8, position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {list.map((o, i) => {
-            const buyable = !owner && o.planId && o.providerId && !o.free && o.price !== "Listed";
-            return (
-            <div key={i} onClick={buyable ? () => buyPlan(o) : undefined} style={{ padding: "12px 13px", borderRadius: 10, border: `1px solid ${o.free ? hexA(c, 0.3) : hexA(ink, 0.08)}`, background: o.free ? hexA(c, 0.08) : hexA(ink, 0.03), cursor: buyable ? "pointer" : "default" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* rate-card rows — zero-box dot-leader rows (name · leader · price) */}
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {list.map((o, i) => {
+          const buyable = !owner && o.planId && o.providerId && !o.free && o.price !== "Listed";
+          const buyProps = buyable ? { role: "button", tabIndex: 0, "aria-label": `Buy ${o.name} · ${o.price}`, onClick: () => buyPlan(o), onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); buyPlan(o); } } } : {};
+          return (
+            <div key={o.planId || o.name || o.kind + i} {...buyProps} style={{ padding: "13px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none", cursor: buyable ? "pointer" : "default" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: c, background: hexA(c, 0.12), padding: "3px 6px", borderRadius: 5 }}>{o.kind}</span>
-                    <span style={{ fontFamily: lvSerif, fontSize: 17, letterSpacing: "-0.01em", color: ink }}>{o.name}</span>
-                  </div>
-                  <div style={{ fontFamily: lvSans, fontSize: 12, color: hexA(ink, 0.55), marginTop: 5 }}>{o.sub}</div>
+                  <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.45), marginBottom: 4 }}>{o.kind}</div>
+                  <div style={{ fontFamily: lvSerif, fontSize: 17, letterSpacing: "-0.01em", color: ink }}>{o.name}</div>
+                  <div style={{ fontFamily: lvSans, fontSize: 12, color: hexA(ink, 0.55), marginTop: 4 }}>{o.sub}</div>
                 </div>
+                <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${hexA(ink, 0.28)}`, transform: "translateY(-5px)", minWidth: 18, alignSelf: "center" }} />
                 <div style={{ textAlign: "right", flex: "none" }}>
                   <div style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: o.free ? c : ink }}>{o.price}<span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.45) }}>{o.unit || ""}</span></div>
                   <div style={{ fontFamily: lvMono, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: c, marginTop: 3 }}>{buyable ? "Buy →" : "Book →"}</div>
@@ -487,7 +486,7 @@ function LvServices({ d, light, ink, c, owner, onReviews }) {
               {o.media && o.media.length > 0 && (
                 <div style={{ marginTop: 10, display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
                   {o.media.slice(0, 8).map((m, j) => (
-                    <div key={j} style={{ position: "relative", flex: "none", width: 66, height: 66, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
+                    <div key={m.url || j} style={{ position: "relative", flex: "none", width: 66, height: 66, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
                       {m.type === "video"
                         ? <video src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline preload="metadata" />
                         : <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
@@ -499,9 +498,8 @@ function LvServices({ d, light, ink, c, owner, onReviews }) {
             </div>
             );
           })}
-        </div>
       </div>
-      <div style={{ fontFamily: lvSans, fontSize: 11.5, color: hexA(ink, 0.45), marginTop: 10, textAlign: "center" }}>Usually replies {d.responds}</div>
+      <div style={{ fontFamily: lvSans, fontSize: 11.5, color: hexA(ink, 0.45), marginTop: 12, textAlign: "left" }}>Usually replies {d.responds}</div>
     </div>
   );
 }
@@ -565,8 +563,18 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const showReviews = view !== "coaching";
   const c = tierOf(d).color;
   const ink = light ? "#1a1612" : LV_INK;
-  const card = { background: hexA(ink, 0.04), border: `1px solid ${hexA(ink, 0.09)}`, borderRadius: 14 };
-  const kick = (t) => <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 13 }}>{t}</div>;
+  // Ledger station head (zero-box): heat tick + mono eyebrow (+ meta) over a 2px
+  // ink→heat rule. Self-contained here (livingShared loads before livingDesktop).
+  const stHead = (label, meta) => (
+    <div style={{ marginBottom: 15 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <span aria-hidden="true" style={{ flex: "none", width: 8, height: 2, background: c }} />
+        <span style={{ fontFamily: lvMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.55) }}>{label}</span>
+        {meta ? <span style={{ marginLeft: "auto" }}>{meta}</span> : null}
+      </div>
+      <div aria-hidden="true" style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${hexA(ink, 0.5)}, ${hexA(c, 0.7)} 55%, transparent)` }} />
+    </div>
+  );
   // Storefront: the profile is the listing. Resolve the coach's provider (for the
   // subscription checkout) + live reviews — the same data the marketplace used.
   const first = d.first || String(d.name || "").split(/\s+/)[0] || "Coach";
@@ -599,60 +607,63 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   return (
     <div>
       {showCoaching && <React.Fragment>
-      {/* Work with {first} — storefront CTA */}
+      {/* Work with {first} — storefront CTA (zero-box; the Subscribe/Book buttons
+          stay solid — the ledger bends for money) */}
       {!owner && (
-        <div style={{ ...card, padding: "20px 22px", marginTop: 4 }}>
-          <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: c }}>Work with {first}</div>
-          <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em", marginTop: 9 }}>Monthly coaching · <span style={{ color: c }}>{monthlyPrice}/mo</span></div>
-          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 999, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
-            <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 999, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
+        <div style={{ marginTop: 4 }}>
+          {stHead(`Work with ${first}`)}
+          <div style={{ fontFamily: lvSerif, fontSize: 24, letterSpacing: "-0.01em" }}>Monthly coaching · <span style={{ color: c }}>{monthlyPrice}/mo</span></div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16, maxWidth: 420 }}>
+            <button onClick={subscribe} style={{ flex: 1, padding: "13px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Subscribe</button>
+            <button onClick={openChat} style={{ flex: 1, padding: "13px", borderRadius: 8, border: `1px solid ${hexA(ink, 0.4)}`, background: "transparent", color: ink, cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Book intro · Free</button>
           </div>
         </div>
       )}
-      {/* Certifications */}
+      {/* Certifications — zero-box ledger rows */}
       <div style={{ marginTop: 30 }}>
-        {kick("Certifications")}
-        <div style={{ ...card, padding: 4 }}>
-          {d.certs.map((cert, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderTop: i ? `1px solid ${hexA(ink, 0.07)}` : "none" }}>
-              <span style={{ fontFamily: lvMono, fontSize: 12, letterSpacing: "0.03em", color: c, minWidth: 78 }}>{cert.abbr}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: lvSans, fontSize: 13, color: hexA(ink, 0.85) }}>{cert.body}</div>
-                <div style={{ fontFamily: lvMono, fontSize: 9.5, color: hexA(ink, 0.45), marginTop: 2 }}>{cert.year}</div>
-              </div>
-              {cert.verified
-                ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: lvMono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: LV_TEAL }}><SpVerifiedDot /> Verified</span>
-                : <span style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: hexA(ink, 0.4) }}>Pending</span>}
+        {stHead("Certifications")}
+        {(d.certs || []).length ? (d.certs || []).map((cert, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none" }}>
+            <span style={{ fontFamily: lvMono, fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", color: ink, minWidth: 92 }}>{cert.abbr}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: lvSans, fontSize: 13, color: hexA(ink, 0.85) }}>{cert.body}</div>
+              <div style={{ fontFamily: lvMono, fontSize: 9.5, color: hexA(ink, 0.45), marginTop: 2 }}>{cert.year}</div>
             </div>
-          ))}
-        </div>
+            {cert.verified
+              ? <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: lvMono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: LV_TEAL }}><SpVerifiedDot /> Verified</span>
+              : <span style={{ fontFamily: lvMono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: hexA(ink, 0.4) }}>Pending</span>}
+          </div>
+        )) : (
+          <div style={{ display: "flex", alignItems: "center", margin: "6px 0" }} aria-label="Certifications · none listed"><span aria-hidden="true" style={{ flex: 1, borderTop: `1px dashed ${hexA(ink, 0.2)}` }} /><span style={{ fontFamily: lvMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: hexA(ink, 0.42), padding: "0 12px" }}>None listed</span><span aria-hidden="true" style={{ flex: 1, borderTop: `1px dashed ${hexA(ink, 0.2)}` }} /></div>
+        )}
       </div>
 
-      {/* Services & prices — categorized via filing-card tabs */}
-      <LvServices d={d} light={light} ink={ink} c={c} card={card} owner={owner} onReviews={onReviews} />
+      {/* Services & prices — categorized via filing-card tabs. Live review avg/count
+          passed so the rate-card rating matches the Reviews tab (honest data). */}
+      <LvServices d={d} light={light} ink={ink} c={c} stHead={stHead} owner={owner} onReviews={onReviews}
+        ratingAvg={reviewsAvg != null ? reviewsAvg : d.rating}
+        reviewCount={liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount} />
       </React.Fragment>}
 
-      {/* Reviews — its own tab */}
+      {/* Reviews — its own tab; zero-box entries on hairlines (press clippings) */}
       {showReviews && <div style={{ marginTop: showCoaching ? 30 : 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 13 }}>
-          <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5) }}>Reviews</div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-            <span style={{ fontFamily: lvSerif, fontSize: 22, letterSpacing: "-0.02em", color: ink }}>{reviewsAvg != null ? reviewsAvg : d.rating}</span>
-            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount} reviews</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {stHead("Reviews", (
+          <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+            <span style={{ fontFamily: lvSerif, fontSize: 20, letterSpacing: "-0.02em", color: ink }}>{reviewsAvg != null ? reviewsAvg : d.rating}</span>
+            <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>/10 · ★ {liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount}</span>
+          </span>
+        ))}
+        <div style={{ display: "flex", flexDirection: "column" }}>
           {reviewItems.map((r, i) => (
-            <div key={i} style={{ ...card, padding: "13px 15px" }}>
+            <div key={i} style={{ padding: "14px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <a href={r.authorId ? ("MemberProfile.html?u=" + encodeURIComponent(r.authorId)) : ("MemberProfile.html?name=" + encodeURIComponent(r.name) + "&role=client")} style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
                   <div style={{ width: 30, height: 30, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${r.hue} 40% 34%), hsl(${r.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: lvSerif, fontSize: 12, color: "#f2ede4" }}>{r.initials}</div>
-                  <span style={{ fontFamily: lvSans, fontSize: 13, fontWeight: 500, color: ink, textDecoration: "underline", textUnderlineOffset: 2 }}>{r.name}</span>
+                  <span style={{ fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: hexA(ink, 0.8), textDecoration: "underline", textUnderlineOffset: 3 }}>{r.name}</span>
                 </a>
-                <span style={{ marginLeft: "auto", fontFamily: lvMono, fontSize: 10, color: c }}>{r.stars10}/10</span>
+                <span style={{ marginLeft: "auto", fontFamily: lvMono, fontSize: 11, fontWeight: 700, color: ink }}>{r.stars10}/10</span>
               </div>
-              <p style={{ fontFamily: lvSerif, fontSize: 14, fontStyle: "italic", lineHeight: 1.45, color: hexA(ink, 0.82), margin: "10px 0 0", textWrap: "pretty" }}>“{r.body}”</p>
+              <p style={{ fontFamily: lvSerif, fontSize: 14, fontStyle: "italic", lineHeight: 1.45, color: hexA(ink, 0.82), margin: "10px 0 0 40px", paddingLeft: 11, borderLeft: `1px solid ${hexA(ink, 0.18)}`, textWrap: "pretty" }}>“{r.body}”</p>
             </div>
           ))}
         </div>
