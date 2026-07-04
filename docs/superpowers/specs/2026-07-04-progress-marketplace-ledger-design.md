@@ -32,7 +32,7 @@ teal accent on eyebrows/figures, the **9-color trend-series palette**
 (`BSPROG_TREND_TABS` colors), the 4 macro-bar colors, the 7-color muscle-split
 palette, the teal delta chips, and the tinted weekly-focus card.
 
-### Structure (full page + `embedded` Me→Stats mode, identical body)
+### Structure (full page — the dead `embedded` Me→Stats mode is REMOVED in this wave; both remaining consumers are full-page)
 
 1. **Header** — `BSDetailHeader` unchanged (standard chrome).
 2. **THE VERDICT** (replaces `BSClientNextPlate`'s `BSPlate`, keeps its exact
@@ -149,5 +149,6 @@ WORKLOG + War Room updated with the second PR.
 - `BSStrengthCard` restyle — single consumer verified before chrome changes.
 - Classifieds row density at 320px — leaders must flex, rows must not wrap
   their rate column; ≥44px hit targets on every row.
-- The Me→Stats `embedded` mode shares the body — dark-palette provider and
-  both mounts must be checked after the restyle.
+- ~~The Me→Stats `embedded` mode shares the body~~ — resolved at build time:
+  the `embedded` mode had NO remaining consumer (it died with the Route Card
+  profile) and was removed as dead code; both live mounts are full-page.

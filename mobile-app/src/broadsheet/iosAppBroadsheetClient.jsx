@@ -22498,7 +22498,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
           <BSTLedgerStat INK={t.INK} label={it.label} value={it.value} seen={seen} figSize={26} delay={i * 90} />
           {it.sub ? (
             <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.45) }}>
-              {it.glyph ? <span style={{ color: heat }}>{it.glyph} </span> : null}{it.sub}
+              {it.glyph ? <span role="img" aria-label={it.glyph === '▾' ? 'down' : 'up'} style={{ color: heat }}>{it.glyph} </span> : null}{it.sub}
             </div>
           ) : null}
         </div>
@@ -22556,7 +22556,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{activeTrend.unit}</span>
               {delta != null && delta !== 0 && (
                 <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.55) }}>
-                  <span style={{ color: heat }}>{delta < 0 ? '▾' : '▴'}</span> {activeTrend.fmt(Math.abs(delta))} since start
+                  <span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: heat }}>{delta < 0 ? '▾' : '▴'}</span> {activeTrend.fmt(Math.abs(delta))} since start
                 </span>
               )}
             </div>
@@ -22592,7 +22592,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{label[site] || site}</span>
               {leader}
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(e.last.value)} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{e.last.unit}</span></span>
-              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span style={{ color: delta < 0 ? heat : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: delta === 0 ? t.INK50 : bsTHexA(t.INK, 0.7), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{delta === 0 ? '—' : <><span role="img" aria-label={delta < 0 ? 'down' : 'up'} style={{ color: delta < 0 ? heat : undefined }}>{delta < 0 ? '▾' : '▴'}</span> {Math.abs(delta)}</>}</span>
             </div>
           );
         });
@@ -22662,7 +22662,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
           </span>
           {leader}
           <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{p.value} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{p.unit}</span></span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: bsTHexA(t.INK, 0.7), whiteSpace: 'nowrap' }}><span style={{ color: heat }}>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: bsTHexA(t.INK, 0.7), whiteSpace: 'nowrap' }}><span aria-hidden style={{ color: heat }}>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
         </div>
       )) : <BSTRedact INK={t.INK} label="PRs · not on record" />)}
       {station('Muscle split', '14 days', (TR.muscleSplit || []).length
@@ -22672,7 +22672,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <div key={i} style={{ padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{s.title}</span>
-            {s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.7) }}><span style={{ color: heat }}>▴</span> PR ×{s.prCount}</span>}
+            {s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.7) }}><span aria-hidden style={{ color: heat }}>▴</span> PR ×{s.prCount}</span>}
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{(s.volumeLb / 1000).toFixed(1)}k lb</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
         </div>
