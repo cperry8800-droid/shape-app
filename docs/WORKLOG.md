@@ -239,6 +239,52 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-04 — Terrain profile "Route Card" redesign (#1531 spec · #1532 build)
+- **The mobile member profile (`BSTerrainProfile`) serialized into the Open Ledger /
+  Wire Dispatch language** — wave 4 of the July redesign (after Session Details #1523,
+  Home #1527, Feed #1528). Owner brief: "less static, more alive, less analog, more
+  modern · not basic · unique but simple." Direction picked from a 2-concept adversarial
+  round + an animated preview; spec `docs/superpowers/specs/2026-07-04-terrain-profile-route-card-design.md`.
+- **Every box dies.** The page threads on a **2px tier-color rail** — tier is THIS
+  surface's heat (declared per-surface like Session Details' intensity + the feed's
+  author-role), **line-only on a closed placement list**; all tier-colored TEXT demotes
+  to ink-alphas, and the constant-teal accent + rust `#e0644b`/`#c0533b` literals are
+  deleted. Identity / coach / score / signals / lifts become **ledger typography**:
+  - **Hero**: the instrument-plate + coached-by/score `BSPlate`s are gone → a railed zone
+    with a **self-drawing ascent ridge** (heat stroke drawing start→heroPct via a
+    dashoffset transition; the 64px facet avatar rides the you-are-here point and carries
+    the page's **one** breathing loop — `bsSdPrBreath`), an ink-alpha tier eyebrow, a
+    **Wire-Dispatch press-credit** coach line (3px ROLE-colored spine, heat ✓/›), and an
+    eyebrow-above-figure **Shape Score** register (`BSSdCountUp` + horizontal `BSSdBars`,
+    new `still` prop suppresses the best-row breath so there's no second loop).
+  - **Tabs** → a typographic index with a drawn active underline (new `BSTerrainTabs`).
+  - **SIGNALS / CLIMB / MUSIC / ACTIVITY** → zero-box registers: two-column living signals
+    with staggered micro-bars, a self-drawing trajectory spark + climb route (new
+    `bsSdDrawLine` keyframe), disciplines via `BSSdBars`, **dot-leader** key lifts, and
+    honest **redaction lines** for every absent case (no lifts / no weigh-ins / empty week
+    / no playlists / no activity). A per-tab `seen` map (marked on tab LEAVE) plays each
+    station's entrance once — a revisit renders the finished state.
+- **Shared components prop-gated so the coach Signal profile is byte-identical**:
+  `BSFollowBlock variant='ledger'`, `BSProfileExtras`/`BSProfilePlaylists`/`BSActivityLogCta`
+  `ledger`, `BSSdBars` `still`. `BSProfileIdentityHead` is Terrain-only (rewritten). Deleted
+  the retired `climbBg` wash + its dead customizer picker (+ `BS_CLIMB_BGS`) and the dead
+  `Kick`/`card`/`seed`/`TEAL`/`startLabel` locals.
+- **Review gauntlet**: a whole-branch adversarial review before the PR (1 Major + 3 Minor,
+  all fixed — dead customizer control, honest-zero week rendering floor ticks, entrance-replay
+  seen-map, activity count-up) → CodeRabbit on the PR caught a **Critical** the branch review
+  missed: `fs` (follow state) was read in the new ledger branch but declared as a `const`
+  below it, so a VISITOR opening another member's profile hit a temporal-dead-zone
+  ReferenceError (self/meMode short-circuited past it, so build + tests were green) — moved
+  `fs` above the branch; also restored ≥44px hit targets on every zero-box ledger control.
+  Both CodeRabbit threads auto-resolved + the Codex duplicate resolved.
+- Squash-merged `3e625a1d` (#1532), CI green (Web · Mobile · gitleaks); branch kept.
+  Verified per commit: JSX parse · PowerShell mobile build · 382/382 tests · LF. **On-device
+  pass recommended** (Black/Sage/Cream papers; self / visitor / private / signed-out demo;
+  reduced motion = finished state) — the dashoffset ridge draw + tier-line legibility on
+  tinted stock are device-only proofs. **Follow-up**: the coach **Signal** profile
+  (`BSSignalCoachProfile`) is the ready-made next wave — same rail/stations/ledger/redaction
+  grammar with the coach-ladder tier as heat; the shared components already carry the variants.
+
 ### 2026-07-04 — Session-details + Home polish batch (#1529)
 - Four owner-screenshot fixes in one pass:
   - **Summary ledger columns line up** — units sit in a fixed-width mono column per
