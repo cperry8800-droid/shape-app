@@ -79,9 +79,9 @@ function DLeader() {
 }
 // The tier rail that threads the tab content — a 2px heat line at the left of the
 // centered content column (desktop-scoped analog of the mobile continuous rail).
-function DRail({ c, children, max = 1240, padY = "14px 0" }) {
+function DRail({ c, children, max = 1240, padTop = 14, padBottom = 0 }) {
   return (
-    <div style={{ maxWidth: max, margin: "0 auto", padding: `${padY.split(" ")[0]} 40px ${padY.split(" ")[1] || "0"}` }}>
+    <div style={{ maxWidth: max, margin: "0 auto", padding: `${padTop}px 40px ${padBottom}px` }}>
       <div style={{ position: "relative", paddingLeft: 22 }}>
         <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
         {children}
@@ -318,7 +318,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
 function SignalsBand({ d }) {
   const c = tierOf(d).color;
   return (
-    <DRail c={c} padY="44px 0">
+    <DRail c={c} padTop={44}>
       <DStationHead c={c} label="Living signals" meta="This week" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 30, alignItems: "end" }} className="dk-3up">
         <DLedgerStat c={c} label="Current streak" value={d.streak} delta="△ days" figSize={46} />
@@ -429,12 +429,12 @@ function ClimbBlock({ d, owner }) {
       {tabs.length > 1 && (
         <div style={{ display: "flex", gap: 18, marginBottom: 16, flexWrap: "wrap", alignItems: "center", borderBottom: `1px solid ${dHexA(LV_INK, 0.08)}` }}>
           {tabs.map((s) => { const on = active === s.key; return (
-            <button key={s.key} onClick={() => pick(s.key)} style={idx(on)}>
+            <button key={s.key} type="button" onClick={() => pick(s.key)} style={idx(on)}>
               {s.label}
               {on && <span aria-hidden="true" style={{ position: "absolute", left: 2, right: 2, bottom: -1, height: 2, background: c }} />}
             </button>
           ); })}
-          {owner && <button onClick={() => setCustom((v) => !v)} style={{ ...pill(custom), marginLeft: "auto" }}>⚙ Customize</button>}
+          {owner && <button type="button" onClick={() => setCustom((v) => !v)} style={{ ...pill(custom), marginLeft: "auto" }}>⚙ Customize</button>}
         </div>
       )}
       {owner && (tabs.length <= 1 || custom) && (
@@ -664,7 +664,7 @@ function DesktopTabs({ direction, tab, setTab, c }) {
         {tabs.map(([k, label]) => {
           const on = tab === k;
           return (
-            <button key={k} role="tab" aria-selected={on} onClick={() => setTab(k)} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "12px 2px 13px", color: on ? LV_INK : dHexA(LV_INK, 0.45), fontFamily: dMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+            <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setTab(k)} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "12px 2px 13px", color: on ? LV_INK : dHexA(LV_INK, 0.45), fontFamily: dMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
               {label}
               {on && <span aria-hidden="true" style={{ position: "absolute", left: 2, right: 2, bottom: -1, height: 2, background: c }} />}
             </button>
@@ -790,7 +790,7 @@ function ProfileExtras({ d, owner }) {
   if (empty && !owner) return null;
   return (
     <div style={{ marginBottom: 22 }}>
-      {owner && <button onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 18, padding: "10px 16px", borderRadius: 10, border: `1px dashed ${dHexA(c, 0.5)}`, background: "transparent", color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
+      {owner && <button type="button" onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 18, padding: "10px 16px", borderRadius: 10, border: `1px dashed ${dHexA(c, 0.5)}`, background: "transparent", color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
       {heroStats.length > 0 && (
         <div style={{ display: "flex", gap: 34, marginBottom: 26 }}>
           {heroStats.map((s) => <DLedgerStat key={s.k} c={c} label={s.label} value={s.value} figSize={28} />)}
@@ -818,7 +818,7 @@ function ProfileExtras({ d, owner }) {
           {prompts.length > 0 && (
             <div style={{ marginBottom: links.length ? 22 : 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "18px 34px" }} className="dk-feed">
               {prompts.map((p, i) => (
-                <div key={i} style={{ position: "relative", paddingLeft: 13 }}>
+                <div key={p.q || i} style={{ position: "relative", paddingLeft: 13 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 2, background: dHexA(c, 0.5) }} />
                   <div style={{ fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{p.q}</div>
                   <div style={{ fontFamily: dSerif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.2, marginTop: 7 }}>{p.a}</div>

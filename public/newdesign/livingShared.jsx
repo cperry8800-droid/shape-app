@@ -396,7 +396,7 @@ const LV_PRIV_ORDER = ["public", "circle", "private"];
 // Categorized services — distinctive filing-card tabs that physically
 // connect into the panel below (a card-index, not a generic tab bar).
 const LV_CAT = { Workout: "Workouts", Program: "Programs", Coaching: "Coaching", Consult: "Consults", "Meal plan": "Plans" };
-function LvServices({ d, light, ink, c, owner, onReviews, stHead }) {
+function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, reviewCount }) {
   // Real published catalogue (coach_plans) keyed by the coach's user id; falls
   // back to the demo offerings when the coach hasn't published any.
   const [real, setReal] = React.useState(null);
@@ -443,7 +443,12 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead }) {
   const label = (k) => k === "All" ? "All" : (LV_CAT[k] || k);
   const count = (k) => k === "All" ? offerings.length : offerings.filter(o => o.kind === k).length;
   const idx = (on) => ({ background: "transparent", border: 0, cursor: "pointer", whiteSpace: "nowrap", flex: "none", position: "relative", padding: "6px 2px 9px", fontFamily: lvMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: on ? ink : hexA(ink, 0.45) });
-  const ratingMeta = <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>★ {d.rating}/10 · <span onClick={onReviews} style={{ cursor: onReviews ? "pointer" : "default", textDecoration: onReviews ? "underline" : "none", textUnderlineOffset: 2, color: ink }}>{d.reviewCount} reviews</span></span>;
+  // Prefer the LIVE review avg/count (passed from LvCoachBlocks) so the rate-card
+  // rating never drifts from what the Reviews tab actually shows.
+  const shownRating = ratingAvg != null ? ratingAvg : d.rating;
+  const shownReviewCount = reviewCount != null ? reviewCount : d.reviewCount;
+  const reviewsBtn = { cursor: onReviews ? "pointer" : "default", textDecoration: onReviews ? "underline" : "none", textUnderlineOffset: 2, color: ink, background: "transparent", border: 0, padding: 0, font: "inherit" };
+  const ratingMeta = <span style={{ fontFamily: lvMono, fontSize: 10, color: hexA(ink, 0.5) }}>★ {shownRating}/10 · {onReviews ? <button type="button" onClick={onReviews} style={reviewsBtn}>{shownReviewCount} reviews</button> : <span>{shownReviewCount} reviews</span>}</span>;
   return (
     <div style={{ marginTop: 30 }}>
       {stHead ? stHead(d.offerLabel, ratingMeta) : <div style={{ fontFamily: lvMono, fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: hexA(ink, 0.5), marginBottom: 13 }}>{d.offerLabel}</div>}
@@ -452,7 +457,7 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead }) {
         {cats.map((k) => {
           const on = cat === k;
           return (
-            <button key={k} onClick={() => setCat(k)} style={idx(on)}>
+            <button key={k} type="button" onClick={() => setCat(k)} style={idx(on)}>
               {label(k)}<span style={{ marginLeft: 5, color: hexA(ink, on ? 0.45 : 0.3) }}>{count(k)}</span>
               {on && <span aria-hidden="true" style={{ position: "absolute", left: 2, right: 2, bottom: -1, height: 2, background: c }} />}
             </button>
@@ -463,8 +468,9 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead }) {
       <div style={{ display: "flex", flexDirection: "column" }}>
         {list.map((o, i) => {
           const buyable = !owner && o.planId && o.providerId && !o.free && o.price !== "Listed";
+          const buyProps = buyable ? { role: "button", tabIndex: 0, "aria-label": `Buy ${o.name} · ${o.price}`, onClick: () => buyPlan(o), onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); buyPlan(o); } } } : {};
           return (
-            <div key={i} onClick={buyable ? () => buyPlan(o) : undefined} style={{ padding: "13px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none", cursor: buyable ? "pointer" : "default" }}>
+            <div key={i} {...buyProps} style={{ padding: "13px 0", borderTop: i ? `1px solid ${hexA(ink, 0.08)}` : "none", cursor: buyable ? "pointer" : "default" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: lvMono, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: hexA(ink, 0.45), marginBottom: 4 }}>{o.kind}</div>
@@ -632,8 +638,11 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
         )}
       </div>
 
-      {/* Services & prices — categorized via filing-card tabs */}
-      <LvServices d={d} light={light} ink={ink} c={c} stHead={stHead} owner={owner} onReviews={onReviews} />
+      {/* Services & prices — categorized via filing-card tabs. Live review avg/count
+          passed so the rate-card rating matches the Reviews tab (honest data). */}
+      <LvServices d={d} light={light} ink={ink} c={c} stHead={stHead} owner={owner} onReviews={onReviews}
+        ratingAvg={reviewsAvg != null ? reviewsAvg : d.rating}
+        reviewCount={liveReviews && liveReviews.length ? liveReviews.length : d.reviewCount} />
       </React.Fragment>}
 
       {/* Reviews — its own tab; zero-box entries on hairlines (press clippings) */}
