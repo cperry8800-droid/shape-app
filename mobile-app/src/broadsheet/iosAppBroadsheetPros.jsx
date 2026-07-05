@@ -1650,106 +1650,189 @@ function BSProAvatarButton({ size = 38 }) {
   const open = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
   return <BSFacetAvatar size={size} c={bsTierColor(tier)} initial={bsProMeInit()} photo={photo} live={live} showRank={false} onClick={open} />;
 }
+// The Client Index — the roster serialized into the Open Ledger / Wire
+// Dispatch grammar (spec §B). Zero-box: a search underline, a typographic
+// filter index (phase filters + a rust ⚑ NEEDS YOU item), a serif verdict,
+// a NEEDS YOU station of full wire rows, a compact ON TRACK station (first 5
+// + a dot-leader expander), and a PAST redaction toggle. Every piece of the
+// original state/logic (query/filter/needsYou/roster/counts/onOpen) is kept
+// verbatim — only the markup changed. Rows stagger in one-shot (30ms);
+// roster carries ZERO infinite loops (the spec's loop rule).
 function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBS();
+  const heat = bsProHeat(t, role);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
+
+  // Window-kit consumption (Open Ledger kit, exposed by the client bundle) —
+  // same null-guarded read-off-window pattern as BSProToday.
+  const StationHead = typeof window !== 'undefined' ? window.BSTStationHead : null;
+  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
+  const useSdInView = typeof window !== 'undefined' ? window.useBSSdInView : null;
+  const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
+  React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
+  const [needsRef, needsSeen] = useSdInView ? useSdInView() : [null, true];
+  const [trackRef, trackSeen] = useSdInView ? useSdInView() : [null, true];
+
+  const [expanded, setExpanded] = useStateBSP(false);
+
+  const goGrowRoster = () => { try { window.dispatchEvent(new CustomEvent('shape:openProSettings')); } catch (e) {} };
+
+  const SEVCOL = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' };
+  const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
+  const needsRows = rows.filter((r) => r.sig.rank <= 1);
+  const onTrackRows = rows.filter((r) => r.sig.rank > 1 && r.sig.sev !== 'past');
+  const k = needsRows.length;
+  const m = onTrackRows.length;
+  const trackShown = expanded ? onTrackRows : onTrackRows.slice(0, 5);
+  const trackMore = onTrackRows.length - trackShown.length;
+
   return (
     <BSPage>
-      {/* Standard page header — logo + Vol·No row, mono kicker, display title
-          (same formatting as the chat/home pages; no more custom serif header). */}
-      <BSPageHeader
-        kicker={newThisMonth > 0 ? `${activeCount} Active · +${newThisMonth} this month` : `${activeCount} Active`}
-        title="Your clients."
-        trailing={<span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}<BSProAvatarButton size={(typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34} /></span>}
-      />
-      <div style={{ padding: `0 ${t.padX}px 24px` }}>
-        {/* Search */}
-        <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 9, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 14px' }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+      {/* §B.1 Header — mast row + THE ROSTER eyebrow + serif "Your clients."
+          (heat italic accent) + mono right meta + ＋ ADD (≥44px). */}
+      {bsProMastRow()}
+      <div style={{ padding: `10px ${t.padX}px 0`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>
+            THE ROSTER <span style={{ color: `${t.INK}80` }}>· {activeCount} ACTIVE{newThisMonth > 0 ? ` · +${newThisMonth} THIS MO` : ''}</span>
+          </div>
+          <div data-tour="hero-clients" style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK, lineHeight: 1.05 }}>
+            Your <i style={{ color: heat, fontStyle: 'italic' }}>clients.</i>
+          </div>
         </div>
-        {/* Filter — a single "Needs you" toggle + PHASE chips. Status is already
-            shown by the section grouping + summary line below, so it isn't
-            re-cut here (no ON TRACK / NEEDS EYES / NEW chips). */}
-        <div style={{ marginTop: 11, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          <button onClick={() => setNeedsYou(!needsYou)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${needsYou ? teal : t.RULE}`, background: needsYou ? `${teal}1c` : 'transparent', color: needsYou ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>NEEDS YOU</button>
-          {filters.map(f => {
-            const on = filter === f.k;
-            return <button key={f.k} onClick={() => setFilter(f.k)} style={{ borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{f.label}</button>;
-          })}
-        </div>
-        {/* Active / Past toggle */}
-        <div style={{ marginTop: 11, display: 'flex', gap: 6 }}>
-          {[['active', `Active · ${activeCount}`], ['past', `Past · ${pastCount}`]].map(([k, label]) => {
-            const on = roster === k;
-            return <button key={k} onClick={() => setRoster(k)} style={{ flex: 1, borderRadius: 999, padding: '9px 6px', cursor: 'pointer', border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</button>;
-          })}
-        </div>
-        {/* Triage-led list — sorted at-risk first, grouped (Needs you → New →
-            On track → Past), each row leading with ONE directive (what to do) +
-            a severity spine/pill. Program/streak detail moves to the client
-            page; the page LEADS with a verdict, like the Today triage feed. */}
-        {(() => {
-          const SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
-          const bucketOf = (sig) => (sig.rank <= 1 ? 'Needs you' : sig.sev === 'new' ? 'New' : sig.sev === 'past' ? 'Past' : 'On track');
-          const bucketCol = (b) => (b === 'Needs you' ? SEVCOL.red : b === 'New' ? teal : b === 'Past' ? t.INK50 : SEVCOL.green);
-          const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
-          const needsYou = rows.filter((r) => r.sig.rank <= 1).length;
-          const onTrack = rows.filter((r) => r.sig.sev === 'green').length;
-          const newN = rows.filter((r) => r.sig.sev === 'new').length;
-          const counts = rows.reduce((m, r) => { const b = bucketOf(r.sig); m[b] = (m[b] || 0) + 1; return m; }, {});
+        <button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, minWidth: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>＋ ADD</button>
+      </div>
+
+      {/* §B.2 Underline search */}
+      <div style={{ margin: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1.5px solid ${t.INK}4d`, paddingBottom: 8 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>⌕</span>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${totalCount} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
+      </div>
+
+      {/* §B.3 Typographic filter index — role phase filters + ⚑ NEEDS YOU last;
+          active = ink + 2px TEAL underline (page chrome, per §B item 3 — heat
+          stays reserved for identity, not the active-filter indicator). */}
+      <div style={{ margin: `0 ${t.padX}px`, display: 'flex', alignItems: 'center', gap: 16, borderBottom: `1px solid ${t.INK}12`, overflowX: 'auto' }} className="bs-hide-scroll">
+        {filters.map((f) => {
+          const on = filter === f.k;
           return (
-            <>
-              {/* Verdict — the page's lead directive (who needs you, at a glance) */}
-              {rows.length > 0 && (
-                <div data-tour="hero-clients" style={{ marginTop: 14, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', color: needsYou ? SEVCOL.red : SEVCOL.green }}>
-                    {needsYou ? `${needsYou} ${needsYou === 1 ? 'needs' : 'need'} you` : 'All clear'}
-                  </span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                    · {onTrack} on track{newN ? ` · ${newN} new` : ''}
-                  </span>
-                </div>
-              )}
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column' }}>
-                {rows.length === 0 && (
-                  <div style={{ padding: '22px 2px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>No matching clients.</div>
-                )}
-                {rows.map(({ c, sig }, i) => {
-                  const b = bucketOf(sig);
-                  const showHeader = i === 0 || bucketOf(rows[i - 1].sig) !== b;
-                  const col = SEVCOL[sig.sev] || t.AMBER;
-                  const actionable = sig.rank <= 2;
-                  return (
-                    <React.Fragment key={`${c.n}-${i}`}>
-                      {showHeader && (
-                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: i ? '15px 2px 7px' : '6px 2px 7px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bucketCol(b) }}>{b}</span>
-                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{counts[b]}</span>
-                        </div>
-                      )}
-                      <button onClick={() => onOpen(c)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 12, alignItems: 'center', border: 0, borderLeft: `3px solid ${col}`, borderTop: (!showHeader && i) ? `1px solid ${t.HAIR}` : 0, background: 'transparent', padding: '13px 4px 13px 11px' }}>
-                        <BSFacetAvatar size={42} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.1 }}>{c.n}</div>
-                          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.02em', color: actionable ? col : t.INK50, lineHeight: 1.3 }}>{sig.directive}</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
-                            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', color: t.RUST, border: `1px solid ${t.RUST}66`, borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>WKND −{Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp))}</span>
-                          )}
-                          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: col, border: `1px solid ${col}`, borderRadius: 999, padding: '5px 9px', whiteSpace: 'nowrap' }}>{sig.label}</span>
-                          <span style={{ color: t.INK50, fontSize: 16, lineHeight: 1 }}>›</span>
-                        </div>
-                      </button>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            </>
+            <button key={f.k} type="button" onClick={() => setFilter(f.k)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: on ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap' }}>{f.label}</button>
           );
-        })()}
+        })}
+        <button type="button" onClick={() => setNeedsYou(!needsYou)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: needsYou ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: needsYou ? t.INK : '#c0533b', whiteSpace: 'nowrap' }}>⚑ NEEDS YOU</button>
+      </div>
+
+      <div style={{ padding: `0 ${t.padX}px 24px` }}>
+        {/* §B.4 Verdict — serif 16/600 + heat period; k = flagged, m = on-track. */}
+        {rows.length > 0 && (
+          <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, lineHeight: 1.35, color: t.INK }}>
+            {k > 0 ? `${k} need you — the other ${m} are holding` : `All ${m} holding — nobody needs you today`}
+            <span style={{ color: heat }}>.</span>
+          </div>
+        )}
+        {rows.length === 0 && (
+          <div style={{ marginTop: 22, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>NO MATCHING CLIENTS</span>
+            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+          </div>
+        )}
+
+        {/* §B.5 NEEDS YOU station — full wire rows (only when k > 0). */}
+        {k > 0 && (
+          <div ref={needsRef} style={{ marginTop: 20 }}>
+            {StationHead && <StationHead heat="#c0533b" INK={t.INK} label={`NEEDS YOU · ${k}`} />}
+            <div style={{ display: 'grid', gap: 2 }}>
+              {needsRows.map(({ c, sig }, i) => {
+                const sevKey = sig.sev === 'red' ? 'red' : sig.sev === 'amber' ? 'amber' : 'new';
+                const sevWord = sig.sev === 'red' ? 'FLAG' : sig.sev === 'amber' ? 'WATCH' : 'NEW';
+                const col = SEVCOL[sevKey];
+                return (
+                  <button
+                    key={`needs-${c.n}-${i}`}
+                    type="button"
+                    onClick={() => onOpen(c)}
+                    style={{
+                      width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 12, alignItems: 'center',
+                      border: 0, borderLeft: `3px solid ${col}`, background: 'transparent', minHeight: 52, padding: '11px 4px 11px 11px',
+                      ...(sdReduced ? null : needsSeen ? { animation: `bsSdFadeUp 380ms cubic-bezier(.4,0,.2,1) ${i * 30}ms both` } : { opacity: 0 }),
+                    }}
+                  >
+                    <BSFacetAvatar size={42} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.15 }}>{c.n}</div>
+                      <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 11.5, color: t.INK70, lineHeight: 1.35 }}>{sig.directive}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                      {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
+                        <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', color: t.RUST, whiteSpace: 'nowrap' }}>WKND −{Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp))}</span>
+                      )}
+                      <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: col, whiteSpace: 'nowrap' }}>{sevWord} · {c.r || sig.label}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* §B.6 ON TRACK station — compact quiet rows, first 5 then a
+            dot-leader expander. */}
+        {onTrackRows.length > 0 && (
+          <div ref={trackRef} style={{ marginTop: 20, ...(sdReduced ? null : trackSeen ? { animation: 'bsSdFadeUp 380ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
+            {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`ON TRACK · ${onTrackRows.length}`} />}
+            <div style={{ display: 'grid', gap: 1 }}>
+              {trackShown.map(({ c, sig }, i) => (
+                <button
+                  key={`track-${c.n}-${i}`}
+                  type="button"
+                  onClick={() => onOpen(c)}
+                  style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '4px 1fr auto', gap: 11, alignItems: 'center', border: 0, background: 'transparent', minHeight: 44, padding: '9px 4px' }}
+                >
+                  <span aria-hidden style={{ width: 4, height: 4, borderRadius: 999, background: `${t.INK}30`, justifySelf: 'center' }} />
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.n}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{[c.r, c.streak ? `${c.streak}D` : null].filter(Boolean).join(' · ')}</span>
+                </button>
+              ))}
+            </div>
+            {trackMore > 0 && (
+              <button type="button" onClick={() => setExpanded(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 4px 0', textAlign: 'left' }}>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{trackMore} MORE ON TRACK</span>
+                <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK }}>SHOW ›</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* §B.7 PAST — redaction-row toggle flipping the existing active/past
+            roster state. */}
+        <div style={{ marginTop: 22 }}>
+          <button type="button" onClick={() => setRoster(roster === 'past' ? 'active' : 'past')} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
+            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>
+              {roster === 'past' ? `← BACK TO ACTIVE` : `PAST CLIENTS · ${pastCount} ›`}
+            </span>
+            <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+          </button>
+        </div>
+
+        {/* §B.8 Signed-in empty roster — redaction line + Grow your roster →. */}
+        {totalCount === 0 && (
+          <div style={{ marginTop: 20 }}>
+            {Redact ? <Redact INK={t.INK} label="NO CLIENTS YET" /> : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>NO CLIENTS YET</span>
+                <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.INK}4d` }} />
+              </div>
+            )}
+            <button type="button" onClick={goGrowRoster} style={{ display: 'block', margin: '10px auto 0', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>
+              <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>Grow your roster →</span>
+            </button>
+          </div>
+        )}
       </div>
       <BSFooter left={footerLeft} right={footerRight} />
     </BSPage>
