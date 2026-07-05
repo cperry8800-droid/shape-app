@@ -1195,6 +1195,15 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const [wireRef, wireSeen] = useSdInView ? useSdInView() : [null, true];
   const [insideRef, insideSeen] = useSdInView ? useSdInView() : [null, true];
 
+  // NOW tick — heat dot + "NOW hh:mm — {countdown}". One markup, two sites: inline at
+  // the current rail slot, or as a trailing line when the day is clear (nowSlot 'end').
+  const nowTick = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
+      <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
+    </div>
+  );
+
   if (schedFor) return <BSProScheduleSession client={schedFor} role={role} clientUid={schedFor.userId} onBack={() => setSchedFor(null)} />;
 
   return (
@@ -1317,7 +1326,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             // keys off the RAW booking index — so the density fold (≥10 bookings
             // collapses `done` entries into one row) must not re-index `i`.
             const indexed = bookings.map((b, rawIdx) => ({ b, rawIdx }));
-            const visible = bookings.length >= 10 ? indexed.filter(({ b }) => b.state !== 'done') : indexed;
+            // Density fold hides `done` rows on ≥10-booking days — but keep any done row
+            // that anchors a gap so its OPEN divider (still counted in openHours) renders.
+            const gapAnchors = new Set(dayShape.gaps.map((g) => g.afterIdx));
+            const visible = bookings.length >= 10 ? indexed.filter(({ b, rawIdx }) => b.state !== 'done' || gapAnchors.has(rawIdx)) : indexed;
             return visible.map(({ b, rawIdx }) => {
               const done = b.state === 'done';
               const isNext = b.state === 'next' || b.state === 'live';
@@ -1339,12 +1351,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                       {sevWord && <span style={{ color: sevColor }}> · ⚑ {sevWord}</span>}
                     </div>
                   </div>
-                  {dayShape.nowSlot === rawIdx && isToday && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
-                      <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
-                      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
-                    </div>
-                  )}
+                  {dayShape.nowSlot === rawIdx && isToday && nowTick}
                   {gap && (
                     <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '8px 0', margin: '2px 0' }}>
                       <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}4d` }}>{bsProGapLabel(gap.startMin, gap.endMin)}</span>
@@ -1357,12 +1364,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           {/* Trailing NOW line — dayShape.nowSlot === 'end' means the coach is past
               every booking today; the loop above only matches a numeric rawIdx, so
               this end-of-day tick renders after the last rail entry. */}
-          {dayShape.nowSlot === 'end' && isToday && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
-              <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
-            </div>
-          )}
+          {dayShape.nowSlot === 'end' && isToday && nowTick}
           {bookings.length === 0 && coachSignedIn && (
             Redact ? <Redact INK={t.INK} label="NOTHING BOOKED — OPEN HOURS" /> : (
               <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '10px 0' }}>
