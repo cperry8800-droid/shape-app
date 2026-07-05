@@ -20487,6 +20487,11 @@ const BS_TIMEZONES = (() => {
   return ['America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'America/Anchorage', 'Pacific/Honolulu', 'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Athens', 'Africa/Johannesburg', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney', 'Pacific/Auckland', 'UTC'];
 })();
 
+// Text-size tiers — one source for the Settings pills AND the current-size
+// subtitle, so a renamed/added tier can't desync the two.
+const BS_TEXT_SIZE_OPTS = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
+function bsTextSizeLabel(key) { return (BS_TEXT_SIZE_OPTS.find(([k]) => k === (key || 'medium')) || BS_TEXT_SIZE_OPTS[1])[1]; }
+
 function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
   const r = useBSRadio();
@@ -21810,15 +21815,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ))}
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>Text size</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[['small','Small'],['medium','Medium'],['large','Large']].map(([k, l]) => (
+      </div>
+      )}
+
+      {/* TEXT SIZE — its own section: the app-wide reading scale (moved out of the
+          collapsed Appearance block for discoverability; scales the whole UI via the
+          surface `zoom`, so layout stays proportional at every size). */}
+      <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Accessibility</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Text size</div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Scales the whole app · {bsTextSizeLabel(tweaks.textScaleKey)}</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+          {BS_TEXT_SIZE_OPTS.map(([k, l]) => (
             <Pill key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{l}</Pill>
           ))}
         </div>
-
       </div>
-      )}
 
       {/* SHAPE RADIO */}
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

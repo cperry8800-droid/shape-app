@@ -239,6 +239,25 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-05 — Text size → its own Settings section + text-scale formatting review (#1548)
+
+- **Made the app-wide "Text size" control its own Settings section** (shared
+  `BSSettings`, so client + coach). It was buried at the bottom of the
+  collapsed-by-default "Appearance" block; now it's an always-visible section
+  (`Accessibility` eyebrow · **Text size** · "Scales the whole app · {current}"
+  + the Small/Medium/Large pills) between Appearance and Shape Radio. Display
+  weight stays in Appearance.
+- **Reviewed formatting at Small/Medium/Large across pages.** The scale is a
+  single CSS `zoom` on the shared `#bs-phone-surface` (0.9 / 1.0 / 1.12), so the
+  WHOLE UI scales proportionally — there is no per-page scaling logic that could
+  let one page break. Verified live (Home, Eat, the Radio prompt) at all three
+  sizes: proportional scaling, content fills the frame width exactly, no
+  horizontal clipping; small fits more, large fits less (expected). Minor,
+  non-breaking notes (left as-is): two hero numbers use `min(…px, Nvw)` so they
+  don't track the zoom; sheet `maxHeight:Nvh` caps are viewport-relative (they
+  just scroll a touch sooner at large).
+- Verified: JSX parse · PowerShell mobile build exit 0 · `npm test` (392/392) · LF.
+
 ### 2026-07-05 — Client broadsheet polish: trend tabs wrap · profile Follow/Message below counts (#1547)
 
 - Two owner-screenshot layout fixes in `iosAppBroadsheetClient.jsx` (no data/
