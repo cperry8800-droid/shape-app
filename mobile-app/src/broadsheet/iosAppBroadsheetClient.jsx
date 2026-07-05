@@ -21810,15 +21810,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           ))}
         </div>
 
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 12, marginBottom: 6, fontWeight: 800 }}>Text size</div>
-        <div style={{ display: 'flex', gap: 6 }}>
+      </div>
+      )}
+
+      {/* TEXT SIZE — its own section: the app-wide reading scale (moved out of the
+          collapsed Appearance block for discoverability; scales the whole UI via the
+          surface `zoom`, so layout stays proportional at every size). */}
+      <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
+        <BSEyebrow color={t.ACCENT}>Accessibility</BSEyebrow>
+        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>Text size</div>
+        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Scales the whole app · {({ small: 'Small', medium: 'Medium', large: 'Large' })[tweaks.textScaleKey || 'medium']}</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
           {[['small','Small'],['medium','Medium'],['large','Large']].map(([k, l]) => (
             <Pill key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}>{l}</Pill>
           ))}
         </div>
-
       </div>
-      )}
 
       {/* SHAPE RADIO */}
       <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
