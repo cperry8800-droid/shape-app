@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
-import { bsProMin, bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
+import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
 // (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
@@ -978,7 +978,6 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const isNutri = role === 'nutritionist';
   const heat = bsProHeat(t, role);
   const [selDay, setSelDay] = useStateBSP(bsProWeek().dates[(new Date().getDay() + 6) % 7].getDate());
-  const [ticker, setTicker] = useStateBSP(null);
 
   // Window-kit consumption (Task 1's Open Ledger kit, exposed on window by the
   // client bundle). Null-guarded — the client bundle may not have loaded yet.
@@ -988,18 +987,6 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const useSdInView = typeof window !== 'undefined' ? window.useBSSdInView : null;
   const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
   React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
-
-  // Live ticker — pulled from /api/{trainer|nutritionist}/analytics so the
-  // masthead matches the coach's actual roster, programs, and today's bookings.
-  React.useEffect(() => {
-    let cancelled = false;
-    const endpoint = isNutri ? '/api/nutritionist/analytics' : '/api/trainer/analytics';
-    fetch(endpoint, { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled && d && (isNutri ? d.isNutritionist : d.isTrainer) && d.ticker) setTicker(d.ticker); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [isNutri]);
 
   // Real schedule — the coach's own calendar events for the visible week
   // (ShapeCalendar). Keyed by YYYY-MM-DD; used when signed in + has events, else demo.
@@ -1172,6 +1159,18 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     .sort((a, b) => (a.sig.rank ?? 9) - (b.sig.rank ?? 9))
     .map(({ c, sig }) => ({ clientId: c.userId || null, name: c.n, severity: sig.sev, directive: sig.directive || sig.label || '' }));
   const budget = bsProAttentionBudget(triageRows, bookingsWithDuration);
+  // Demoted-client rail anchoring — SAME clientId-first / exact-name-match rule
+  // bsProAttentionBudget uses internally (never substring/.includes()), so a
+  // demoted client who IS booked today still gets their ⚑ mark on that rail row.
+  const normName = (s) => String(s || '').trim().toLowerCase();
+  const demotedAnchorFor = (rawIdx) => {
+    const b = bookingsWithDuration[rawIdx];
+    if (!b) return null;
+    return budget.demoted.find((dt) => (
+      (dt.clientId && b.clientId && dt.clientId === b.clientId) ||
+      (normName(dt.name) && (normName(b.client) === normName(dt.name) || normName(b.title) === normName(dt.name)))
+    )) || null;
+  };
   const leadVerdict = coachSignedIn
     ? bsProLeadVerdict({ signedIn: true, sessions: bookings.length, firstLabel: bsProHourLabel(first && first.time), top: budget.lead })
     : demoLead.copy;
@@ -1312,39 +1311,58 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}80` }}>{bookings.filter((b) => b.state === 'done').length} DONE ✓</div>
             </div>
           )}
-          {(bookings.length >= 10 ? bookings.filter((b) => b.state !== 'done') : bookings).map((b, i) => {
-            const done = b.state === 'done';
-            const isNext = b.state === 'next' || b.state === 'live';
-            const typeWord = b.tag || 'SESSION';
-            const inlineFlag = budget.inline.find((x) => x.bookingIdx === i);
-            const sevWord = inlineFlag ? FLAG_WORDS[inlineFlag.severity] : null;
-            const sevColor = inlineFlag ? { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' }[inlineFlag.severity] : null;
-            const gap = dayShape.gaps.find((g) => g.afterIdx === i);
-            return (
-              <React.Fragment key={i}>
-                <div style={{ position: 'relative', minHeight: 44, padding: '6px 0 10px' }}>
-                  <span style={{ position: 'absolute', left: -44, top: 8, width: 26, textAlign: 'right', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: done ? `${t.INK}4d` : `${t.INK}b3`, textDecoration: done ? 'line-through' : 'none' }}>{bsProHourLabel(b.time)}</span>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: done ? t.INK50 : t.INK, textDecoration: done ? 'line-through' : 'none' }}>{b.title}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                    {isNext ? <span style={{ color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{typeWord}</span> : typeWord}
-                    {' · '}{b.sub}{done ? ' · DONE' : ''}{isNext && <span style={{ color: heat }}> · ↑ NEXT</span>}
-                    {sevWord && <span style={{ color: sevColor }}> · ⚑ {sevWord}</span>}
+          {(() => {
+            // Raw-index preservation: every downstream reference (dayShape.nowSlot,
+            // dayShape.gaps[].afterIdx, budget.inline[].bookingIdx, demoted-anchor)
+            // keys off the RAW booking index — so the density fold (≥10 bookings
+            // collapses `done` entries into one row) must not re-index `i`.
+            const indexed = bookings.map((b, rawIdx) => ({ b, rawIdx }));
+            const visible = bookings.length >= 10 ? indexed.filter(({ b }) => b.state !== 'done') : indexed;
+            return visible.map(({ b, rawIdx }) => {
+              const done = b.state === 'done';
+              const isNext = b.state === 'next' || b.state === 'live';
+              const typeWord = b.tag || 'SESSION';
+              const inlineFlag = budget.inline.find((x) => x.bookingIdx === rawIdx);
+              const demotedFlag = !inlineFlag ? demotedAnchorFor(rawIdx) : null;
+              const flagHit = inlineFlag || demotedFlag;
+              const sevWord = flagHit ? FLAG_WORDS[flagHit.severity] : null;
+              const sevColor = flagHit ? { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' }[flagHit.severity] : null;
+              const gap = dayShape.gaps.find((g) => g.afterIdx === rawIdx);
+              return (
+                <React.Fragment key={rawIdx}>
+                  <div style={{ position: 'relative', minHeight: 44, padding: '6px 0 10px' }}>
+                    <span style={{ position: 'absolute', left: -44, top: 8, width: 26, textAlign: 'right', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: done ? `${t.INK}4d` : `${t.INK}b3`, textDecoration: done ? 'line-through' : 'none' }}>{bsProHourLabel(b.time)}</span>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: done ? t.INK50 : t.INK, textDecoration: done ? 'line-through' : 'none' }}>{b.title}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                      {isNext ? <span style={{ color: t.INK, borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{typeWord}</span> : typeWord}
+                      {' · '}{b.sub}{done ? ' · DONE' : ''}{isNext && <span style={{ color: heat }}> · ↑ NEXT</span>}
+                      {sevWord && <span style={{ color: sevColor }}> · ⚑ {sevWord}</span>}
+                    </div>
                   </div>
-                </div>
-                {dayShape.nowSlot === i && isToday && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
-                    <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
-                  </div>
-                )}
-                {gap && (
-                  <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '8px 0', margin: '2px 0' }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}4d` }}>{bsProGapLabel(gap.startMin, gap.endMin)}</span>
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
+                  {dayShape.nowSlot === rawIdx && isToday && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
+                      <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
+                      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
+                    </div>
+                  )}
+                  {gap && (
+                    <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '8px 0', margin: '2px 0' }}>
+                      <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: `${t.INK}4d` }}>{bsProGapLabel(gap.startMin, gap.endMin)}</span>
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            });
+          })()}
+          {/* Trailing NOW line — dayShape.nowSlot === 'end' means the coach is past
+              every booking today; the loop above only matches a numeric rawIdx, so
+              this end-of-day tick renders after the last rail entry. */}
+          {dayShape.nowSlot === 'end' && isToday && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0 10px' }}>
+              <span aria-hidden style={{ width: 9, height: 9, borderRadius: 999, background: heat, flexShrink: 0, ...(liveBulletinShown || sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: heat }}>NOW {bsNowHHMM()} — {dayShape.countdown}</span>
+            </div>
+          )}
           {bookings.length === 0 && coachSignedIn && (
             Redact ? <Redact INK={t.INK} label="NOTHING BOOKED — OPEN HOURS" /> : (
               <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '10px 0' }}>
@@ -1396,22 +1414,28 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         </div>
       </div>
 
-      {/* §A.8 INSIDE. — doors, per role. */}
+      {/* §A.8 INSIDE. — four doors per role (spec §A.8, lines 171-177). Door ALWAYS
+          renders; figures only when known. */}
       <div ref={insideRef} style={{ padding: `18px ${t.padX}px 0`, ...(sdReduced ? null : insideSeen ? { animation: 'bsSdFadeUp 420ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>INSIDE.</div>
         <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
-          {(isNutri
-            ? [
-                { label: 'PLANS', figure: null, onOpen: () => onWidgetOpen('plans') },
-                { label: 'CLIENT LOGS', figure: null, onOpen: () => onOpenReviews() },
-                { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
-              ]
-            : [
-                { label: 'PROGRAMS', figure: null, onOpen: () => onWidgetOpen('programs') },
-                { label: 'FORM CLIPS', figure: null, onOpen: () => onOpenReviews() },
-                { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
-              ]
-          ).map((door) => (
+          {(() => {
+            const activeCount = roster.filter((c) => c.active !== false).length;
+            const clientsFigure = `${activeCount} ACTIVE${flaggedTotal ? ` · ${flaggedTotal} FLAGGED` : ''}`;
+            return isNutri
+              ? [
+                  { label: 'CLIENTS', figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
+                  { label: 'PLANS', figure: null, onOpen: () => onWidgetOpen('plans') },
+                  { label: 'REVIEW QUEUE', figure: null, onOpen: () => onOpenReviews() },
+                  { label: 'GROCERY LISTS', figure: null, onOpen: () => onWidgetOpen('grocery') },
+                ]
+              : [
+                  { label: 'CLIENTS', figure: clientsFigure, onOpen: () => onWidgetOpen('clients') },
+                  { label: 'PROGRAMS', figure: null, onOpen: () => onWidgetOpen('programs') },
+                  { label: 'REVIEW QUEUE', figure: null, onOpen: () => onOpenReviews() },
+                  { label: 'PLAYLISTS', figure: null, onOpen: () => onWidgetOpen('playlists') },
+                ];
+          })().map((door) => (
             <button key={door.label} type="button" onClick={door.onOpen} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left' }}>
               <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{door.label}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
