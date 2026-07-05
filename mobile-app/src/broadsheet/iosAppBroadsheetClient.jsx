@@ -19083,6 +19083,17 @@ Object.assign(window, {
   bsMyPhoto,
   bsHydrateIdentity,
   bsMyActivity,
+  // Open Ledger kit — consumed by the pros bundle off window (coach-ledger wave, Task 1)
+  BSTStationHead,
+  BSTRedact,
+  BSTLedgerStat,
+  BSTerrainTabs,
+  BSSdBars,
+  BSSdCountUp,
+  useBSSdInView,
+  bsSdReduced,
+  bsInjectSessionDetailCss,
+  bsTierForPoints,
 });
 
 // ═══════════════════════════════════════════════════════════
