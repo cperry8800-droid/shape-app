@@ -3201,8 +3201,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // status scorer) and `summaryLine` (the 30-day read) are the verdict/
   // severity/evidence source; nothing here recomputes the engine.
   const _sig = bsRowSeverity(client, role);
-  const _SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
-  const _sevCol = _SEVCOL[_sig.sev] || heat;
   // No directive computable at all (no engine reachable, no data) — the honest
   // station renders just the redaction line. `_sig.directive` is always a
   // non-empty string in the current shape (bsRowFromTriage/bsRosterSeverity
@@ -3217,6 +3215,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const _dtext = String((_sig && _sig.directive) || '').toLowerCase();
   const _allClear = _sig.sev === 'green' || _sig.sev === 'past';
   const _dirKind = _allClear ? 'all-clear'
+    : _sig.sev === 'new' ? 'new-intake' // a fresh client → reach out with the intake; the directive's word "plan" must NOT route to program-stall/ADJUST (no program exists yet)
     : /check-?in/.test(_dtext) ? 'check-in-due'
     : /(missed|session|attendance|no-show|didn.?t (show|train)|skipped)/.test(_dtext) ? 'missed-sessions'
     : /(protein|macro|kcal|calorie|nutrition|ledger|food log|logs? quiet|no food)/.test(_dtext) ? 'nutrition-slip'
@@ -3235,12 +3234,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     : _allClear ? `Everything holding — next check-in ${_nextCheckinWeekday} ✓.`
     : _sig.directive;
   const moveActionLabel = _allClear ? '✦ DRAFT'
+    : _dirKind === 'new-intake' ? 'MESSAGE'
     : _dirKind === 'nutrition-slip' ? 'MESSAGE'
     : _dirKind === 'missed-sessions' ? 'SCHEDULE'
     : _dirKind === 'program-stall' ? 'ADJUST'
     : '✦ DRAFT';
   const moveActionFn = _allClear || _dirKind === 'check-in-due' ? () => setShowDraft(true)
-    : _dirKind === 'nutrition-slip' ? () => fireEvt('shape:proMessageClient')
+    : _dirKind === 'new-intake' || _dirKind === 'nutrition-slip' ? () => fireEvt('shape:proMessageClient')
     : _dirKind === 'missed-sessions' ? () => setShowSchedulePage(true)
     : _dirKind === 'program-stall' ? () => setShowAdjustPage(true)
     : () => setShowDraft(true);
@@ -3250,7 +3250,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // when nothing else is flagged. Built from data already on the page (cKit,
   // wkndSplit, cStats) — no new fetches.
   const evidenceRows = (() => {
-    if (_allClear || !hasDirective) return [];
+    if (_allClear || !hasDirective || _dirKind === 'new-intake') return [];
     const rows = [];
     if (wkndSplit && wkndSplit.status === 'ok' && wkndSplit.worstDimension) {
       const d = (wkndSplit.dimensions || {})[wkndSplit.worstDimension];
@@ -3339,7 +3339,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
                   <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{l.v} <span style={{ color: heat }}>▲{l.d}</span></span>
                 </div>
               ))}
-              <button type="button" onClick={() => {}} style={{ marginTop: 6, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>HISTORY →</button>
+              <span style={{ marginTop: 6, display: 'inline-block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>HISTORY</span>
             </>
           ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="LIFTS · NOT ON RECORD" /> : emptyNote('No lifts logged yet'))}
         </div>
@@ -3364,7 +3364,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
           {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label="WEIGHT" value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
           <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks</div>
-          <button type="button" onClick={() => {}} style={{ marginLeft: 'auto', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'HISTORY →' : 'LOG →'}</button>
+          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'HISTORY' : 'LOG'}</span>
         </div>
         <div ref={bodyRef} style={{ marginTop: 10 }}>
           {(() => {
