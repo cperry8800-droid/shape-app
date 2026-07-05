@@ -2793,10 +2793,14 @@ function BSProCheckinDraft({ clientUid, clientName, role, stats, accent, onClose
   return target ? createPortal(sheet, target) : sheet;
 }
 
+// The flagged-dimension float (spec §C step 2) — the weekend-adherence split,
+// serialized to a zero-box station: a station head, a semantic-rust wire spine
+// (the split IS a flag — always rust, never role heat), the per-dimension
+// weekday-vs-weekend figures, and the one concrete move. Data verbatim from
+// `get_roster_weekend_split` (ShapeRosterWeekend); plate chrome → zero-box.
 function ProWeekendPlate({ split }) {
   const t = useBS();
-  const BSPlate = typeof window !== 'undefined' && window.BSPlate;
-  if (!BSPlate || !split || split.status !== 'ok') return null;
+  if (!split || split.status !== 'ok') return null;
   const dims = split.dimensions || {};
   const present = ['nutrition', 'habits', 'training'].map((k) => [k, dims[k]]).filter(([, d]) => d);
   if (!present.length) return null;
@@ -2808,19 +2812,22 @@ function ProWeekendPlate({ split }) {
       : worst === 'habits'
         ? 'Add a weekend-specific habit reminder.'
         : 'Set one weekend anchor habit.';
+  const dimLabel = { nutrition: 'Nutrition', training: 'Training', habits: 'Habits' };
   return (
-    <BSPlate c={'#c0533b'} spine={3}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK70 }}>WEEKEND PATTERN</div>
-      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+    <div style={{ marginTop: 22 }}>
+      {window.BSTStationHead && <window.BSTStationHead heat={t.RUST} INK={t.INK} label="WEEKEND PATTERN" />}
+      <div style={{ borderLeft: `3px solid ${t.RUST}`, padding: '2px 0 2px 11px', display: 'grid', gap: 7 }}>
         {present.map(([k, d]) => (
-          <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, fontFamily: t.MONO, fontSize: 11, fontVariantNumeric: 'tabular-nums', color: t.INK }}>
-            <span>{k === 'nutrition' ? 'Nutrition' : k === 'training' ? 'Training' : 'Habits'}</span>
-            <span style={{ color: d.flagged ? t.RUST : t.INK70 }}>wk {Math.round(d.weekdayRate * 100)}% · we {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}</span>
+          <div key={k} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK }}>{dimLabel[k]}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', color: d.flagged ? t.RUST : t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+              WK {Math.round(d.weekdayRate * 100)}% · WE {Math.round(d.weekendRate * 100)}% · {d.gapPp >= 0 ? '−' : '+'}{Math.abs(Math.round(d.gapPp))}
+            </span>
           </div>
         ))}
+        {worst && <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{move}</div>}
       </div>
-      {worst && <div style={{ fontSize: 12, color: t.INK70, marginTop: 8 }}>{move}</div>}
-    </BSPlate>
+    </div>
   );
 }
 
@@ -3060,23 +3067,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       </svg>
     );
   };
-  const StatCard = ({ label, labelColor, big, small, sub }) => (
-    <BSPlate c={labelColor || accent} notch={9} spine={2.5} pad="13px 14px 13px 17px">
-      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', color: labelColor || accent }}>{label}</div>
-      <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{big}{small && <span style={{ fontSize: 14, color: t.INK50, fontFamily: t.MONO, marginLeft: 1 }}>{small}</span>}</div>
-      {sub && <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
-    </BSPlate>
-  );
-  const numberedList = (items) => items.map((it, i) => (
-    <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-      <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}>{String(i + 1).padStart(2, '0')}</span>
-      <div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{it.n}</div>
-        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{it.s}</div>
-      </div>
-      <span style={{ fontFamily: t.MONO, fontSize: 9, color: it.cta ? accent : t.INK50, fontWeight: it.cta ? 800 : 400, letterSpacing: '0.06em' }}>{it.d}</span>
-    </div>
-  ));
   // Empty-state row for a signed-in real client with no live data yet.
   const emptyNote = (txt) => (
     <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>
@@ -3144,39 +3134,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const bigCard = isNutri
     ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged · ${bwDelta} ${bwUnit}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
     : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attBig, small: '%', sub: `${sDoneShow}/${sPlanShow} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
-  const renderBigCard = () => (
-    <BSPlate c={accent} tick bracket pad="18px 18px 18px 24px">
-      <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', color: accent }}>{bigCard.eyebrow}</div>
-      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 64, fontWeight: 600, color: t.INK, lineHeight: 0.95, letterSpacing: '-0.02em' }}>{bigCard.big}<span style={{ fontSize: 26, color: t.INK50, fontFamily: t.MONO }}>{bigCard.small}</span></div>
-      <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.06em', color: accent }}>{bigCard.sub}</div>
-      <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.INK50 }}>{bigCard.barsLabel}</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', color: t.INK50 }}>{bigCard.barsRight}</span>
-      </div>
-      <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-end', height: 64 }}>
-        {bigCard.bars.map((hgt, i) => {
-          const hot = !bigCard.uniform && i === bigCard.bars.length - 1;
-          const bg = bigCard.uniform ? accent : (hot ? accent : `${accent}2e`);
-          return <div key={i} style={{ flex: 1, height: `${Math.max(0.18, hgt) * 100}%`, borderRadius: 7, background: bg }} />;
-        })}
-      </div>
-      {bigCard.barLetters && (
-        <div style={{ marginTop: 7, display: 'flex', gap: 8 }}>
-          {bigCard.barLetters.map((l, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{l}</div>)}
-        </div>
-      )}
-    </BSPlate>
-  );
-  // Two high-signal KPIs only (density pass) — the hero plate already carries
-  // attendance/adherence + sessions/days-logged, and streak rides in the header;
-  // these are the non-duplicative coaching signals.
-  const stats = isNutri ? [
-    { label: 'AVG INTAKE', labelColor: gold, big: kcalStr || (clientUid ? '—' : '2,040'), sub: 'TARGET 2,180' },
-    { label: 'PROTEIN HIT', labelColor: teal, big: clientUid ? '—' : '88', small: clientUid ? undefined : '%', sub: 'OF TARGET DAYS' },
-  ] : [
-    { label: 'AVG RPE', labelColor: rust, big: avgRpe != null ? avgRpe.toFixed(1) : (clientUid ? '—' : '8.0'), sub: 'EFFORT LOGGED' },
-    { label: 'PRS', labelColor: gold, big: prs != null ? String(prs) : (clientUid ? '—' : '3'), sub: 'THIS BLOCK' },
-  ];
   // Real clients with no strength rollup → empty (empty-state); demo rows keep
   // the example lifts.
   const lifts = liftRows || (clientUid ? [] : [
@@ -3226,121 +3183,295 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const summaryLine = isNutri
     ? 'Adherence high and weight tracking to goal — refeed timing is the next lever.'
     : 'Strong block — attendance up, lifts trending, weight on plan.';
-  const profileView = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
-      {renderBigCard()}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>{stats.map((s, i) => <StatCard key={i} {...s} />)}</div>
-      {!isNutri && (
-        <div>
-          <Section eyebrow="STRENGTH" title="Key lifts" trailing="HISTORY →" />
-          {lifts.length ? lifts.map((l, i) => <div key={i} style={i === 0 ? { } : null}>{trackRow(l.n, l.v, accent, l.d, l.p, accent)}</div>) : emptyNote('No lifts logged yet')}
-        </div>
-      )}
-      <div>
-        <Section eyebrow="BODY" title={isNutri ? 'Weight trend' : 'Bodyweight'} trailing={isNutri ? 'HISTORY →' : 'LOG →'} />
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{bwNow}<span style={{ fontSize: 15, color: t.INK50, fontFamily: t.MONO }}> {bwUnit}</span></span>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: accent, letterSpacing: '0.04em', textAlign: 'right' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks{isNutri ? ' · goal -4 kg' : ''}</span>
+
+  // ---- motion: one useBSSdInView pair per station (Open Ledger kit off
+  // window; a stable no-op fallback so hook count never changes across
+  // renders — same pattern as BSProToday / BSProRosterView). ----------------
+  const useSdInView = (typeof window !== 'undefined' && window.useBSSdInView) || bsUseSdInViewFallback;
+  const sdReduced = typeof window !== 'undefined' && window.bsSdReduced ? window.bsSdReduced() : false;
+  React.useInsertionEffect(() => { try { window.bsInjectSessionDetailCss && window.bsInjectSessionDetailCss(); } catch (e) {} }, []);
+  const [moveRef, moveSeen] = useSdInView();
+  const [statsRef, statsSeen] = useSdInView();
+  const [bodyRef, bodySeen] = useSdInView();
+  const bodyStatsSeen = bodySeen;
+
+  // ---- YOUR MOVE · FROM THE ENGINE (station #1, spec §C.1) ----------------
+  // Reuses the page's EXISTING directive-lead computation VERBATIM — `_sig`
+  // (bsRowSeverity → the engine's {sev,rank,label,directive} or the local
+  // status scorer) and `summaryLine` (the 30-day read) are the verdict/
+  // severity/evidence source; nothing here recomputes the engine.
+  const _sig = bsRowSeverity(client, role);
+  const _SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
+  const _sevCol = _SEVCOL[_sig.sev] || heat;
+  // No directive computable at all (no engine reachable, no data) — the honest
+  // station renders just the redaction line. `_sig.directive` is always a
+  // non-empty string in the current shape (bsRowFromTriage/bsRosterSeverity
+  // both guarantee one), so this only trips if the severity lookup itself
+  // failed to produce a signature.
+  const hasDirective = !!(_sig && _sig.directive);
+  // Directive-KIND classifier — presentation-only inference over the existing
+  // reason text (no new engine intelligence; the engine's own vocabulary is
+  // reused: "check-in"/"check in", "session"/"missed", "protein"/"macro"/
+  // "kcal"/"nutrition"/"log", "program"/"stall"/"plateau"). Maps to the ONE
+  // underlined action per the brief.
+  const _dtext = String((_sig && _sig.directive) || '').toLowerCase();
+  const _allClear = _sig.sev === 'green' || _sig.sev === 'past';
+  const _dirKind = _allClear ? 'all-clear'
+    : /check-?in/.test(_dtext) ? 'check-in-due'
+    : /(missed|session|attendance|no-show|didn.?t (show|train)|skipped)/.test(_dtext) ? 'missed-sessions'
+    : /(protein|macro|kcal|calorie|nutrition|ledger|food log|logs? quiet|no food)/.test(_dtext) ? 'nutrition-slip'
+    : /(program|plateau|stall|plan|phase|deload)/.test(_dtext) ? 'program-stall'
+    : 'nutrition-slip'; // engine "needs attention" default reads as a message, not a fabricated program call
+  // Next weekday label ("Thu") for the all-clear verdict — the client's next
+  // weekly check-in is due at the start of next week; honest generic label
+  // (no fabricated exact date without a real cadence source).
+  const _nextCheckinWeekday = (() => {
+    const d = new Date(); const day = d.getDay(); // 0=Sun..6=Sat
+    const untilMon = ((1 - day) + 7) % 7 || 7;
+    const nd = new Date(d); nd.setDate(d.getDate() + untilMon);
+    return _BS_DOW[(nd.getDay() + 6) % 7];
+  })();
+  const moveVerdict = !hasDirective ? null
+    : _allClear ? `Everything holding — next check-in ${_nextCheckinWeekday} ✓.`
+    : _sig.directive;
+  const moveActionLabel = _allClear ? '✦ DRAFT'
+    : _dirKind === 'nutrition-slip' ? 'MESSAGE'
+    : _dirKind === 'missed-sessions' ? 'SCHEDULE'
+    : _dirKind === 'program-stall' ? 'ADJUST'
+    : '✦ DRAFT';
+  const moveActionFn = _allClear || _dirKind === 'check-in-due' ? () => setShowDraft(true)
+    : _dirKind === 'nutrition-slip' ? () => fireEvt('shape:proMessageClient')
+    : _dirKind === 'missed-sessions' ? () => setShowSchedulePage(true)
+    : _dirKind === 'program-stall' ? () => setShowAdjustPage(true)
+    : () => setShowDraft(true);
+  // THE EVIDENCE — ≤3 dot-leader rows from the SAME fields the directive
+  // cites: the weekend split (when it fired), the check-in/log recency, and
+  // the attendance/adherence figure — closing with the honest all-clear line
+  // when nothing else is flagged. Built from data already on the page (cKit,
+  // wkndSplit, cStats) — no new fetches.
+  const evidenceRows = (() => {
+    if (_allClear || !hasDirective) return [];
+    const rows = [];
+    if (wkndSplit && wkndSplit.status === 'ok' && wkndSplit.worstDimension) {
+      const d = (wkndSplit.dimensions || {})[wkndSplit.worstDimension];
+      if (d && d.gapPp != null) rows.push(['WEEKEND ' + (wkndSplit.worstDimension === 'nutrition' ? 'NUTRITION' : wkndSplit.worstDimension === 'training' ? 'TRAINING' : 'HABITS'), `${d.gapPp >= 0 ? '−' : '+'}${Math.abs(Math.round(d.gapPp))} PTS`]);
+    }
+    if (_dirKind === 'nutrition-slip' && days7 != null && days7 < 7) rows.push(['LOGS', days7 === 0 ? 'QUIET 7 DAYS' : `QUIET ${7 - days7} DAYS`]);
+    if (_dirKind === 'missed-sessions' && sDone != null && sPlan != null) rows.push(['ATTENDANCE', `${sDone}/${sPlan} SESSIONS`]);
+    if (_dirKind === 'check-in-due' && cKit.checkins.length) rows.push(['LAST CHECK-IN', `WK OF ${String(cKit.checkins[0].week_of).slice(5)}`]);
+    if (avgKcal != null && _dirKind === 'nutrition-slip') rows.push(['AVG INTAKE', `${avgKcal.toLocaleString()} KCAL`]);
+    // ≤3 evidence lines. When there are fewer than 3 real cited rows (i.e. no
+    // other dimension is flagged), close with the honest all-clear line —
+    // never displace a real evidence row to make room for it.
+    const capped = rows.slice(0, 3);
+    if (rows.length < 3) capped.push(['EVERYTHING ELSE', 'HOLDING ✓']);
+    return capped;
+  })();
+  const dotLeaderRow = (label, value, i) => (
+    <div key={label + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '5px 0' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{label}</span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+      <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
+    </div>
+  );
+  const yourMoveStation = (
+    <div ref={moveRef} style={{ marginTop: 20 }}>
+      {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="YOUR MOVE · FROM THE ENGINE" />}
+      {!hasDirective ? (
+        window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO READ YET · DATA STILL THIN" /> : null
+      ) : (
+        <>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.3, color: t.INK }}>
+            {moveVerdict}<span style={{ color: heat }}>.</span>
           </div>
-          <div style={{ marginTop: 14 }}>{lineChart(bwSeries, accent, 64)}</div>
+          <button type="button" onClick={moveActionFn} style={{ marginTop: 10, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: t.INK }}>
+            <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{moveActionLabel} →</span>
+          </button>
+          {evidenceRows.length > 0 && (
+            <div style={{ marginTop: 8, borderTop: `1px solid ${t.HAIR}`, paddingTop: 6 }}>
+              {evidenceRows.map(([l, v], i) => dotLeaderRow(l, v, i))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  const profileView = (
+    <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+      {yourMoveStation}
+      {/* Flagged-dimension float (spec §C step 2) — when the weekend split
+          flags, its station renders directly under YOUR MOVE; otherwise the
+          station simply doesn't render here (ProWeekendPlate itself checks
+          `status==='ok'` and returns null when there's nothing to flag). */}
+      <ProWeekendPlate split={wkndSplit} />
+
+      {/* ATTENDANCE / ADHERENCE — register pair + BSSdBars(still) week bars. */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? 'ADHERENCE · THIS WEEK' : 'ATTENDANCE · THIS BLOCK'} />}
+        <div style={{ display: 'flex', gap: 22 }}>
+          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? 'ADHERENCE' : 'ATTENDANCE'} value={`${bigCard.big}%`} seen={statsSeen} figSize={26} />}
+          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label={isNutri ? 'DAYS LOGGED' : 'SESSIONS'} value={isNutri ? `${days7Show}/7` : `${sDoneShow}/${sPlanShow}`} seen={statsSeen} figSize={26} delay={60} />}
+        </div>
+        <div ref={statsRef} style={{ marginTop: 12 }}>
+          {window.BSSdBars && <window.BSSdBars
+            rows={(bigCard.barLetters || ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7']).map((l, i) => [l, '', ''])}
+            perf={bigCard.bars}
+            bestIdx={bigCard.uniform ? -1 : bigCard.bars.length - 1}
+            heat={heat}
+            t={t}
+            muted={t.INK50}
+            still
+          />}
         </div>
       </div>
-      {isNutri && (
-        <div>
-          <Section eyebrow="MACROS" title="Daily average vs target" />
-          {macros.map((m, i) => <div key={i}>{trackRow(m.n, m.cur != null ? `${m.cur} g` : '—', m.c, `${m.tgt} g`, m.cur != null ? m.cur / m.tgt : 0, m.c)}</div>)}
+
+      {/* KEY LIFTS (trainer) / MACROS VS TARGET (nutri). */}
+      {!isNutri ? (
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="KEY LIFTS" meta={lifts.length ? undefined : null} />}
+          {lifts.length ? (
+            <>
+              {lifts.map((l, i) => (
+                <div key={l.n + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>{l.n}</span>
+                  <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{l.v} <span style={{ color: heat }}>▲{l.d}</span></span>
+                </div>
+              ))}
+              <button type="button" onClick={() => {}} style={{ marginTop: 6, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>HISTORY →</button>
+            </>
+          ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="LIFTS · NOT ON RECORD" /> : emptyNote('No lifts logged yet'))}
+        </div>
+      ) : (
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="MACROS VS TARGET" />}
+          {window.BSSdBars ? <window.BSSdBars
+            rows={macros.map((m) => [m.n.toUpperCase(), m.cur != null ? `${m.cur}g · ${m.tgt}g tgt` : '—', ''])}
+            perf={macros.map((m) => (m.cur != null && m.tgt ? m.cur / m.tgt : 0))}
+            bestIdx={-1}
+            heat={heat}
+            t={t}
+            muted={t.INK50}
+            still
+          /> : macros.map((m, i) => <div key={i}>{trackRow(m.n, m.cur != null ? `${m.cur} g` : '—', m.c, `${m.tgt} g`, m.cur != null ? m.cur / m.tgt : 0, m.c)}</div>)}
         </div>
       )}
-      <div>
-        <Section eyebrow="ACTIVITY" title={isNutri ? 'Recent logs' : 'Recent sessions'} />
-        {recent.length ? numberedList(recent) : emptyNote(isNutri ? 'No logs yet' : 'No sessions yet')}
+
+      {/* BODY — registers + the self-drawing line-only weight trace + LOG →. */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BODY" />}
+        <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
+          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label="WEIGHT" value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
+          <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks</div>
+          <button type="button" onClick={() => {}} style={{ marginLeft: 'auto', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'HISTORY →' : 'LOG →'}</button>
+        </div>
+        <div ref={bodyRef} style={{ marginTop: 10 }}>
+          {(() => {
+            const vals = bwSeries.map(Number).filter(Number.isFinite);
+            if (vals.length < 2) return window.BSTRedact ? <window.BSTRedact INK={t.INK} label="WEIGHT · NOT ON RECORD" /> : null;
+            const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = 46;
+            const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);
+            const ln = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+            const lp = pts[pts.length - 1];
+            return (
+              <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+                <path d={ln} fill="none" stroke={heat} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+                  pathLength={1} strokeDasharray="1 1"
+                  style={{ '--sd-len': 1, ...(sdReduced ? { strokeDashoffset: 0 } : (bodySeen ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 200ms both' } : { strokeDashoffset: 1 })) }} />
+                <circle cx={lp[0]} cy={lp[1]} r="3.5" fill={heat} opacity={sdReduced || bodySeen ? 1 : 0} style={{ transition: 'opacity 300ms ease 900ms' }} />
+              </svg>
+            );
+          })()}
+        </div>
       </div>
-      {clientUid && cKit.checkins.length > 0 && (() => {
-        const ck = cKit.checkins[0];
-        const R = ck.ratings || {};
-        const items = [['trainingAdherence', 'Training'], ['nutritionAdherence', 'Nutrition'], ['sleep', 'Sleep'], ['energy', 'Energy'], ['stress', 'Stress'], ['hunger', 'Hunger']];
-        return (
-          <div>
-            <Section eyebrow="CHECK-IN" title={`Week of ${String(ck.week_of).slice(5)}`} />
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, background: t.PAPER2, padding: 14 }}>
+
+      {/* CHECK-IN — 3-col mini registers ×6 + the wins/struggles serif pull-quote + asked-you. */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={cKit.checkins.length ? `CHECK-IN · WK OF ${String(cKit.checkins[0].week_of).slice(5)}` : 'CHECK-IN'} />}
+        {clientUid && cKit.checkins.length > 0 ? (() => {
+          const ck = cKit.checkins[0];
+          const R = ck.ratings || {};
+          const items = [['trainingAdherence', 'Training'], ['nutritionAdherence', 'Nutrition'], ['sleep', 'Sleep'], ['energy', 'Energy'], ['stress', 'Stress'], ['hunger', 'Hunger']];
+          return (
+            <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 {items.map(([k, l]) => (
                   <div key={k}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: R[k] != null ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{R[k] != null ? `${R[k]}/10` : '—'}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: R[k] != null ? t.INK : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{R[k] != null ? `${R[k]}/10` : '—'}</div>
                   </div>
                 ))}
               </div>
               {(ck.wins || ck.struggles || ck.question) && (
                 <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gap: 9 }}>
-                  {[['Wins', ck.wins, teal], ['Struggles', ck.struggles, t.RUST], ['Asked you', ck.question, accent]].map(([l, v, c]) => v ? (
-                    <div key={l}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: c, fontWeight: 800 }}>{l}</div>
-                      <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
-                    </div>
-                  ) : null)}
+                  {ck.wins ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.45 }}>“{ck.wins}”</div> : null}
+                  {ck.struggles ? <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{ck.struggles}</div> : null}
+                  {ck.question ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: accent }}>ASKED YOU · {ck.question}</div> : null}
                 </div>
               )}
-            </div>
-          </div>
-        );
-      })()}
-      {sleepRec && (() => {
-        const s = sleepRec;
-        const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? accent : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
-        const cells = [
-          ['Last night', s.latest != null ? `${Number(s.latest)}h` : '—'],
-          ['7-day avg', s.avg7 != null ? `${Number(s.avg7)}h` : '—'],
-          ['Efficiency', s.efficiency != null ? `${s.efficiency}%` : '—'],
-          ['Resting HR', s.rhr != null ? `${s.rhr}` : '—'],
-          ['HRV', s.hrv != null ? `${s.hrv}` : '—'],
-          ['Rested', s.rested != null ? `${s.rested}/10` : '—'],
-          ['Latency', s.latency != null ? `${s.latency}m` : '—'],
-          ['Respiratory', s.respiratory != null ? `${s.respiratory}/min` : '—'],
-        ];
-        const stages = s.stages;
-        return (
-          <div>
-            <Section eyebrow="SLEEP" title="Sleep · recovery" />
-            <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${s.readiness != null ? rc : accent}`, background: t.PAPER2, padding: 14 }}>
+            </>
+          );
+        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="CHECK-IN · NOT SUBMITTED" /> : emptyNote('No check-in yet'))}
+      </div>
+
+      {/* SLEEP · RECOVERY — readiness + 7-day registers; redactions per field. */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SLEEP · RECOVERY" />}
+        {sleepRec ? (() => {
+          const s = sleepRec;
+          const rc = s.readiness == null ? t.INK50 : s.readiness >= 80 ? heat : s.readiness >= 60 ? (t.isLight ? '#3a6ea5' : '#5b9bd5') : s.readiness >= 40 ? '#e8b14a' : '#c0533b';
+          const cells = [
+            ['LAST NIGHT', s.latest != null ? `${Number(s.latest)}H` : null],
+            ['7-DAY AVG', s.avg7 != null ? `${Number(s.avg7)}H` : null],
+            ['EFFICIENCY', s.efficiency != null ? `${s.efficiency}%` : null],
+            ['RESTING HR', s.rhr != null ? `${s.rhr}` : null],
+            ['HRV', s.hrv != null ? `${s.hrv}` : null],
+            ['RESPIRATORY', s.respiratory != null ? `${s.respiratory}/MIN` : null],
+          ];
+          return (
+            <>
               {s.readiness != null && (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${t.RULE}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Readiness</span>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: rc, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.readiness}</span>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 12, color: t.INK50 }}>/100</span>
-                  {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>READINESS</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: rc, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.readiness}</span>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 11, color: t.INK50 }}>/100</span>
+                  {s.readinessLabel && <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: rc }}>{s.readinessLabel}</span>}
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                {cells.map(([l, v]) => (
+                {cells.map(([l, v]) => v != null ? (
                   <div key={l}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: v === '—' ? t.INK50 : t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
+                  </div>
+                ) : (
+                  <div key={l}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{l}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>— NOT SYNCED</div>
                   </div>
                 ))}
               </div>
-              {stages && (
-                <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK70 }}>
-                  Stages · {[stages.deep != null ? `Deep ${stages.deep}m` : null, stages.rem != null ? `REM ${stages.rem}m` : null, stages.light != null ? `Light ${stages.light}m` : null].filter(Boolean).join(' · ') || '—'}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-      <div>
-        <Section eyebrow="INBOX" title="Needs your eyes" />
-        {inbox.length ? numberedList(inbox) : emptyNote('Nothing waiting on you')}
+            </>
+          );
+        })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="SLEEP · RECOVERY · NOT SYNCED" /> : emptyNote('No recovery data yet'))}
       </div>
-      {note ? (
-        <div>
-          <Section eyebrow="PRIVATE" title={isNutri ? 'Clinical note' : 'Coach note'} />
-          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: `linear-gradient(150deg, ${accent}10, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
+
+      {/* ACTIVITY — recent sessions/logs as dot-leader rows. */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={isNutri ? 'ACTIVITY · RECENT LOGS' : 'ACTIVITY · RECENT SESSIONS'} />}
+        {recent.length ? recent.map((r, i) => dotLeaderRow(r.n, r.d, i)) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={isNutri ? 'LOGS · NOT ON RECORD' : 'SESSIONS · NOT ON RECORD'} /> : emptyNote(isNutri ? 'No logs yet' : 'No sessions yet'))}
+      </div>
+
+      {/* COACH NOTE — ink-spined quiet block (private, only-you). */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="COACH NOTE · ONLY YOU SEE THIS" />}
+        {note ? (
+          <div style={{ borderLeft: `3px solid ${t.INK}33`, padding: '2px 0 2px 11px' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
           </div>
-        </div>
-      ) : null}
+        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO NOTE ON FILE" /> : null)}
+      </div>
     </div>
   );
 
@@ -3511,7 +3642,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
         </div>
       )}
-      {wkndSplit && <div style={{ marginTop: 12 }}><ProWeekendPlate split={wkndSplit} /></div>}
       {clientUid && (
         <div>
           <Section eyebrow="SCREENING" title="Health profile" />
@@ -3573,31 +3703,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </div>
   );
 
-  // ---- directive lead — the page opens with ONE move for THIS client (the
-  // same severity + directive the roster row showed, so tapping a flagged client
-  // lands on "here's the read + here's your move"). Engine-consistent vocabulary.
-  const _sig = bsRowSeverity(client, role);
-  const _SEVCOL = { red: '#e0644b', amber: t.AMBER, new: teal, green: '#7bbf5a', past: t.INK50 };
-  const _sevCol = _SEVCOL[_sig.sev] || accent;
-  const _leadCta = (_sig.rank <= 2) ? `Message ${first} →` : (_sig.label === 'PR' ? 'Send props →' : null);
-  const directiveLead = (
-    <BSPlate c={_sevCol} tick={_sig.rank <= 1} bracket pad="15px 16px 16px 22px" style={{ marginTop: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: _sevCol }}>Your move</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', color: _sevCol, border: `1px solid ${_sevCol}`, borderRadius: 999, padding: '4px 9px' }}>{_sig.label}</span>
-      </div>
-      <div style={{ marginTop: 7, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.12 }}>{_sig.directive}</div>
-      <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{summaryLine}</div>
-      {_leadCta && (
-        <button onClick={() => fireEvt('shape:proMessageClient')} style={{ marginTop: 13, width: '100%', borderRadius: 9, border: `1px solid ${_sevCol}`, background: `${_sevCol}1f`, color: t.INK, padding: '11px 4px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{_leadCta}</button>
-      )}
-    </BSPlate>
-  );
   return (
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {headerBlock}
-        {directiveLead}
         {view === 'manage' ? manageView : profileView}
       </div>
       <BSFooter left={isNutri ? 'Client plan' : 'Full profile'} right={client.n} />
