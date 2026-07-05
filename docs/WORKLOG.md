@@ -239,7 +239,8 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
-### 2026-07-05 — Coach Ledger wave: Today "Assignment Rail" · roster "Client Index" · Case File (#1544 · #1545 · this PR)
+### 2026-07-05 — Coach Ledger wave: Today "Assignment Rail" · roster "Client Index" · Case File (#1544 · #1545 · #1546)
+
 - **The coach surfaces — the app's last pre-redesign pages — serialized into the
   Open Ledger / Wire Dispatch language**, closing out the July redesign (after
   Session Details #1523, Home #1527, Feed #1528, Terrain #1532, Progress #1535,
@@ -315,8 +316,8 @@ changelog whenever something ships.
   only two loops across all three surfaces, and Roster + Case File carry none.
   Motion is one-shot `useBSSdInView` + per-station seen state throughout, no
   new keyframes (the shipped `bsInjectSessionDetailCss` set covers it all).
-- Reference #1544 and #1545 by number above; this PR's number isn't assigned
-  yet. Verified per task: JSX parse · PowerShell mobile build exit 0 · full
+- Shipped as #1544 (Today) · #1545 (roster) · #1546 (Case File). Verified per
+  task: JSX parse · PowerShell mobile build exit 0 · full
   `npm test` (392/392) · LF normalized. **On-device pass recommended** (owner) —
   Black/Sage/Cream papers: rust + gold rails and the gold light-paper variant,
   the NOW/live loop rule, inline-wire density on a busy demo day, Case File tier

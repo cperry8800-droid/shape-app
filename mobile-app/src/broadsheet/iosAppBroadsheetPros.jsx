@@ -3007,11 +3007,15 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const liveW = (cGoals && cGoals.share !== false && cGoals.overall && Array.isArray(cGoals.overall.weighIns))
     ? cGoals.overall.weighIns.map(x => Number(x.kg)).filter(Number.isFinite) : [];
   const bwUnit = (cGoals && cGoals.overall && cGoals.overall.unit) || 'kg';
-  const bwSeries = liveW.length >= 2 ? liveW : (isNutri
+  // Real weigh-ins when the client shares ≥2; for a LINKED client with fewer,
+  // return [] so BODY redacts (WEIGHT · NOT ON RECORD) instead of fabricating.
+  // The demo 8-point series is the signed-out / no-clientUid preview ONLY.
+  const bwSeries = liveW.length >= 2 ? liveW : (clientUid ? [] : (isNutri
     ? [80.4, 80.1, 79.9, 79.7, 79.6, 79.4, 79.3, 79.2]
-    : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]);
-  const bwNow = bwSeries[bwSeries.length - 1];
-  const bwDelta = +(bwNow - bwSeries[0]).toFixed(1);
+    : [64.4, 64.6, 65.0, 64.6, 64.3, 64.1, 63.9, 63.8]));
+  const bwHasData = bwSeries.length >= 2;
+  const bwNow = bwHasData ? bwSeries[bwSeries.length - 1] : null;
+  const bwDelta = bwHasData ? +(bwNow - bwSeries[0]).toFixed(1) : null;
   const bwWeeks = bwSeries.length;
 
   // ---- live KPIs (get_client_stats; null fields → demo fallback) ----
@@ -3110,7 +3114,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const sDoneShow = sDone != null ? sDone : (clientUid ? 0 : 38);
   const sPlanShow = sPlan != null ? sPlan : (clientUid ? 0 : 41);
   const bigCard = isNutri
-    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged · ${bwDelta} ${bwUnit}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
+    ? { eyebrow: 'ADHERENCE · THIS WEEK', big: adhBig, small: '%', sub: `${days7Show}/7 days logged${bwHasData ? ` · ${bwDelta} ${bwUnit}` : ''}`, barsLabel: 'DAILY ADHERENCE', barsRight: 'MON — SUN', bars: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], barLetters: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], uniform: true }
     : { eyebrow: 'ATTENDANCE · THIS BLOCK', big: attBig, small: '%', sub: `${sDoneShow}/${sPlanShow} sessions · 6 wks left`, barsLabel: 'SESSIONS / WEEK', barsRight: 'LAST 7 WEEKS', bars: [0.55, 0.72, 0.5, 0.86, 0.46, 0.7, 1], barLetters: null, uniform: false };
   // Real clients with no strength rollup → empty (empty-state); demo rows keep
   // the example lifts.
@@ -3332,11 +3336,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
       {/* BODY — registers + the self-drawing line-only weight trace + LOG →. */}
       <div style={{ marginTop: 22 }}>
         {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BODY" />}
-        <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
-          {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label="WEIGHT" value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
-          <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks</div>
-          <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'HISTORY' : 'LOG'}</span>
-        </div>
+        {bwHasData && (
+          <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
+            {window.BSTLedgerStat && <window.BSTLedgerStat INK={t.INK} label="WEIGHT" value={`${bwNow}${bwUnit}`} seen={bodyStatsSeen} figSize={26} />}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, color: heat, letterSpacing: '0.04em' }}>{bwDelta > 0 ? '+' : ''}{bwDelta} {bwUnit} · {bwWeeks} weeks</div>
+            <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: t.INK50 }}>{isNutri ? 'HISTORY' : 'LOG'}</span>
+          </div>
+        )}
         <div ref={bodyRef} style={{ marginTop: 10 }}>
           {(() => {
             const vals = bwSeries.map(Number).filter(Number.isFinite);
