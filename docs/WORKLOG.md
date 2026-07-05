@@ -239,6 +239,90 @@ changelog whenever something ships.
 > data). War Room checklist refreshed — applied migrations + shipped features checked
 > off (255 done / 10 pending / 24 manual).
 
+### 2026-07-05 — Coach Ledger wave: Today "Assignment Rail" · roster "Client Index" · Case File (#1544 · #1545 · this PR)
+- **The coach surfaces — the app's last pre-redesign pages — serialized into the
+  Open Ledger / Wire Dispatch language**, closing out the July redesign (after
+  Session Details #1523, Home #1527, Feed #1528, Terrain #1532, Progress #1535,
+  Marketplace #1536, website profiles #1537). Spec
+  `docs/superpowers/specs/2026-07-04-coach-ledger-redesign-design.md`; three PRs,
+  each behind its own gate run + CodeRabbit pass.
+- **PR A #1544 — the proLedger module + the Open Ledger kit on `window`; Coach
+  Today → "Assignment Rail."** The trainer/nutritionist Today pages consolidate
+  into one engine-led `BSProToday` (role config, both editions): a dateline
+  replaces the "Coaches Edition" band, a serif THE LEAD verdict + register row
+  (SESSIONS/CONSULTS · NEED YOU · OPEN HRS) sits above a typographic week strip
+  and THE RAIL — the day's bookings threaded on a 2px heat rail with hour marks,
+  a NOW tick, open-gap rows, and inline flagged-client wires under the anchor
+  rule. THE WIRE below carries only the unbooked flag remainder, always closing
+  with a "SEE THE FULL ROSTER" leader. INSIDE. replaces the old widget grid with
+  a dot-leader door index. New pure `mobile-app/src/services/proLedger.mjs`
+  (`bsProAttentionBudget`, `bsProDayShape`, `bsProLeadVerdict`, time/label
+  helpers) implements the wave's **three owner-ratified rules**: **one loop**
+  (the LIVE bulletin dot else the NOW tick — nothing else breathes), **anchor**
+  (a flagged client with a session today threads inline; unbooked flags land in
+  THE WIRE; nobody is ever listed twice), and **attention budget** (one lead +
+  at most three wires total, with the true flagged count always shown on the
+  roster leader even when the page demotes the rest). Kills: both PAPER2 edition
+  bands, `BSProScheduleRows`, `BSProTriageFeed`, the demo Queue sections, the
+  LIVE `BSPlate` banner, the booking tag-color maps, and the already-dead
+  `BSReviewQueueCard`/`BSProHabits`.
+- **PR B #1545 — Clients roster → "The Client Index."** `BSProRosterView`
+  (shared trainer/nutritionist) turns the Classifieds grammar inward: a mast +
+  serif "Your clients." + `{N} ACTIVE` meta, an underline search, a typographic
+  filter index (phases + a rust `⚑ NEEDS YOU` item replacing the toggle), an
+  engine verdict line, a NEEDS YOU station (severity-spined rows, one-line
+  directives, severity always NAMED in mono meta) over a quiet ON TRACK list
+  (dot-leader "N more" expander), and a redaction-style PAST toggle. Kills: the
+  rounded client cards, `BSProStatusPill`, the filter pills, the boxed search
+  field, and the Active/Past button pair.
+- **This PR — the client Case File, engine-led throughout.** Header: mast +
+  `← BACK`, a phase/week-or-kcal eyebrow, status as mono text + a heat tick, the
+  4-cell **MESSAGE · ADJUST · SCHEDULE · ✦ DRAFT** action line (heat
+  underlines, kills the pill row), and a typographic **PROFILE / MANAGE** index
+  with a drawn heat underline — **heat = the client's member tier**
+  (`bsTierForPoints` → `bsTierColor`, role-heat fallback for demo/unresolved
+  rows), so every Case File reads as *that member's* ledger. **PROFILE**: a
+  **YOUR MOVE · FROM THE ENGINE** station leads — the page's existing
+  directive-lead computation (verbatim, no new intelligence) rendered as a
+  serif verdict + one underlined action + ≤3 dot-leader evidence lines, closing
+  honestly with "EVERYTHING ELSE HOLDING ✓" when nothing else is flagged; the
+  flagged dimension (e.g. a fired weekend split) floats to slot #2; then the
+  standing stations — ATTENDANCE/ADHERENCE (register pair + `BSSdBars still`
+  week bars), KEY LIFTS/MACROS, BODY (a self-drawing line-only weight trace),
+  CHECK-IN, SLEEP · RECOVERY, ACTIVITY, and a private COACH NOTE — each one
+  station-head + one register/visual, each with an honest `BSTRedact`
+  redaction when its source is absent. **MANAGE** (this task): BLOCK & PHASE
+  is now a typographic index (mono 9/800, active = ink + 2px heat underline,
+  same `ShapeProgramApi`-backed `setPhaseKey` handler); **ASSIGN** is an
+  amber-spined notice row (`ASSIGN FROM YOUR CATALOGUE… ›`) opening
+  `BSProAssignPage` unchanged; **shared goals** render as dot-leader rows (a
+  heat progress leader for the Overall body-comp goal, plain leaders for
+  Training/Nutrition headline goals) with `BSTRedact` for private/loading/none;
+  **DATA QUALITY** (reconcile sources) and **ACCOUNTABILITY** — recent penalty
+  rows (mono description · rust `−{n}` · dotted leader · a heat-underlined
+  `WAIVE` on the existing RPC) plus the weekly-commitment proposer — keep every
+  handler; **CARE TEAM** renders as Wire-Dispatch press-credit rows (the
+  counterpart's ROLE-colored spine, name, `CO-MANAGING`, a heat-underlined
+  `MESSAGE` on the existing `shape:proMessageCoach` payload); SCREENING/health
+  profile and BODY/measurements keep their data + gating, restyled to spine
+  blocks and dot-leaders; the private coach-notes block stays the quiet form
+  it always was (two-tier rule — forms don't go zero-box). Dead
+  `Section`/`lineChart` helpers (fully unreferenced after the rewrite) removed.
+- **Wave-wide**: teal reserved for live/action only (bulletins, radio, page
+  chrome); severity stays semantic (rust FLAG · amber WATCH · green NEW),
+  always named in mono text, never color-only; zero new infinite-loop
+  animations anywhere in the wave — Today's bulletin dot / NOW tick are the
+  only two loops across all three surfaces, and Roster + Case File carry none.
+  Motion is one-shot `useBSSdInView` + per-station seen state throughout, no
+  new keyframes (the shipped `bsInjectSessionDetailCss` set covers it all).
+- Reference #1544 and #1545 by number above; this PR's number isn't assigned
+  yet. Verified per task: JSX parse · PowerShell mobile build exit 0 · full
+  `npm test` (392/392) · LF normalized. **On-device pass recommended** (owner) —
+  Black/Sage/Cream papers: rust + gold rails and the gold light-paper variant,
+  the NOW/live loop rule, inline-wire density on a busy demo day, Case File tier
+  heat across sage/gold/teal/violet/rose-tier clients (+ the role-heat fallback
+  on a demo row), reduced-motion renders every surface finished.
+
 ### 2026-07-04 — Website living profiles → Open Ledger language (#1537, web↔app parity)
 - **The DESKTOP member (Terrain) + coach (Signal) profiles brought to the same
   zero-box ledger language as the mobile app** — the website was still on the

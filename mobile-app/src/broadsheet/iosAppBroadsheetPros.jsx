@@ -3043,30 +3043,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   })() : null;
 
   // ---- presentational helpers ----
-  const Section = ({ eyebrow, title, trailing, color }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
-      <div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', color: color || accent }}>{eyebrow}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
-      </div>
-      {trailing && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: accent, whiteSpace: 'nowrap', paddingBottom: 3 }}>{trailing}</div>}
-    </div>
-  );
-  const lineChart = (series, color, h = 64) => {
-    const vals = series.map(Number).filter(Number.isFinite);
-    if (vals.length < 2) return null;
-    const mn = Math.min(...vals), mx = Math.max(...vals), span = (mx - mn) || 1, n = vals.length, W = 320, H = h;
-    const pts = vals.map((v, i) => [(i / (n - 1)) * W, H - 6 - ((v - mn) / span) * (H - 16)]);
-    const ln = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-    const lp = pts[pts.length - 1];
-    return (
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
-        <path d={`${ln} L${W},${H} L0,${H} Z`} fill={`${color}1f`} />
-        <path d={ln} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-        <circle cx={lp[0]} cy={lp[1]} r="3.5" fill={color} />
-      </svg>
-    );
-  };
   // Empty-state row for a signed-in real client with no live data yet.
   const emptyNote = (txt) => (
     <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>
@@ -3475,26 +3451,27 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     </div>
   );
 
-  // ---- MANAGE tab (program phase + shared goals + coach notes) ----
+  // ---- MANAGE tab (Open Ledger grammar, spec §C-Manage) --------------------
+  // Shared goals → dot-leader rows (a tier-heat progress leader for the
+  // Overall body-comp goal, plain dot-leaders for Training/Nutrition headline
+  // goals); private/none/loading → BSTRedact. Same data + gating as before —
+  // restyle only (goalsContent no longer wraps its own rounded cards).
   const goalsContent = !clientUid ? (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Appears once linked to a live member</div>
+    window.BSTRedact ? <window.BSTRedact INK={t.INK} label="GOALS · APPEARS ONCE LINKED" /> : emptyNote('Appears once linked to a live member')
   ) : !cGoalsLoaded ? (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
   ) : (cGoals && cGoals.share === false) ? (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>{first} keeps their goals private.</div>
+    window.BSTRedact ? <window.BSTRedact INK={t.INK} label={`${first.toUpperCase()} KEEPS GOALS PRIVATE`} /> : emptyNote(`${first} keeps their goals private.`)
   ) : (() => {
     const ov = cGoals && cGoals.overall;
     const trM = (cGoals && cGoals.trainingMeta) || null;
     const nuM = (cGoals && cGoals.nutritionMeta) || null;
-    if (!ov && !(trM && trM.title) && !(nuM && nuM.title)) return <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.4 }}>No goals shared yet.</div>;
-    const subH = (txt) => <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
-    const metaRow = (title, subtitle, c) => (
-      <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '12px 13px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 5, height: 16, borderRadius: 3, background: c, flexShrink: 0 }} />
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</span>
-        </div>
-        {subtitle && <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 12.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.4 }}>{subtitle}</div>}
+    if (!ov && !(trM && trM.title) && !(nuM && nuM.title)) return (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO GOALS SHARED YET" /> : emptyNote('No goals shared yet.'));
+    const goalDotRow = (label, value, c, i) => (
+      <div key={label + i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap' }}>{label}</span>
+        <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: c || t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{value}</span>
       </div>
     );
     return (
@@ -3507,147 +3484,183 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
           const byD = ov.by ? new Date(ov.by) : null;
           const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: 'short', day: 'numeric' }).toUpperCase() : '';
           return (
-            <div style={{ borderRadius: 12, border: `1px solid ${teal}44`, background: `linear-gradient(150deg, ${teal}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 13 }}>
+            <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', color: teal }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ''}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{Math.round(pct * 100)}% there</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', color: heat }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ''}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50 }}>{Math.round(pct * 100)}% there</span>
               </div>
-              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
-              <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: teal, borderRadius: 999 }} /></div>
-              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
-              {lineChart((ov.weighIns || []).map(x => Number(x.kg)).filter(Number.isFinite), teal, 46)}
+              <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{ov.title}</div>
+              <div style={{ marginTop: 8, height: 2, borderRadius: 0, background: `${t.INK}22`, overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct * 100}%`, background: heat }} /></div>
+              <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em' }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
             </div>
           );
         })()}
-        {trM && trM.title && <>{subH('Training')}{metaRow(trM.title, trM.subtitle, t.RUST)}</>}
-        {nuM && nuM.title && <>{subH('Nutrition')}{metaRow(nuM.title, nuM.subtitle, '#a07a2e')}</>}
+        {trM && trM.title && (
+          <div style={{ marginTop: ov ? 12 : 0 }}>
+            {goalDotRow('Training', trM.title, t.RUST, 0)}
+            {trM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{trM.subtitle}</div>}
+          </div>
+        )}
+        {nuM && nuM.title && (
+          <div style={{ marginTop: 4 }}>
+            {goalDotRow('Nutrition', nuM.title, '#a07a2e', 1)}
+            {nuM.subtitle && <div style={{ marginTop: -2, marginBottom: 4, fontFamily: t.DISPLAY, fontSize: 11.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.35 }}>{nuM.subtitle}</div>}
+          </div>
+        )}
       </div>
     );
   })();
   const manageView = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 22, marginTop: 22 }}>
-      <div>
-        <Section eyebrow={isNutri ? 'MEAL PLAN' : 'PROGRAM'} title={isNutri ? 'Put them on a menu' : 'Put them on a program'} />
-        <BSPlate c={accent} notch={10} pad="15px 16px 15px 20px" role="button" ariaLabel="Assign from your catalogue" onClick={() => setShowAssignPage(true)}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Assign from your catalogue</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{isNutri ? `A saved meal plan → ${first}'s Eat tab` : `A saved program → ${first}'s Train tab`}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+      {/* PHASE — typographic index (mono 9/800, active = ink + 2px heat
+          underline), the same setPhaseKey handler (ShapeProgramApi-backed). */}
+      <div style={{ marginTop: 20 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BLOCK & PHASE" />}
+        {[['trainingPhase', 'TRAINING BLOCK', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base']], ['nutritionPhase', 'NUTRITION PHASE', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed']]].map(([key, label, opts], gi) => (
+          <div key={key} style={{ marginTop: gi ? 14 : 0 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8 }}>{label}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+              {opts.map(o => {
+                const on = phase[key] === o;
+                return (
+                  <button key={o} type="button" onClick={() => setPhaseKey(key, o)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: on ? t.INK : t.INK50 }}>
+                    <span style={{ borderBottom: on ? `2px solid ${heat}` : '2px solid transparent', paddingBottom: 2 }}>{o.toUpperCase()}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <span style={{ color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
+        ))}
+        {!clientUid && <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
+      </div>
+
+      {/* ASSIGN — amber-spined notice row → setShowAssignPage(true). */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={t.AMBER || '#d8a23a'} INK={t.INK} label={isNutri ? 'MEAL PLAN' : 'PROGRAM'} />}
+        <button type="button" onClick={() => setShowAssignPage(true)} style={{ display: 'block', width: '100%', minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', borderLeft: `3px solid ${t.AMBER || '#d8a23a'}`, padding: '9px 0 9px 11px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ flex: 1, minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>ASSIGN FROM YOUR CATALOGUE…</span>
+            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: t.AMBER || '#d8a23a' }}>›</span>
           </div>
-        </BSPlate>
+          <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.4 }}>{isNutri ? `A saved meal plan → ${first}'s Eat tab` : `A saved program → ${first}'s Train tab`}</div>
+        </button>
       </div>
-      <div>
-        <Section eyebrow="PROGRAM PHASE" title="Block & phase" />
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16 }}>
-          {phaseRow('trainingPhase', 'Training block', ['Build', 'Cut', 'Peak', 'Maintain', 'Deload', 'Base'])}
-          {phaseRow('nutritionPhase', 'Nutrition phase', ['Cut', 'Bulk', 'Maintain', 'Recomp', 'Refeed'])}
-          {!clientUid && <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · saves once linked to a live member</div>}
-        </div>
-      </div>
-      <div>
-        <Section eyebrow="CLIENT GOALS" title="Shared goals" />
+
+      {/* CLIENT GOALS — shared goals as dot-leader rows; private/none → redaction. */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SHARED GOALS" />}
         {goalsContent}
       </div>
-      <div>
-        <Section eyebrow="DATA QUALITY" title="Reconcile sources" />
+
+      {/* DATA QUALITY — reconcile sources (unchanged handler). */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="DATA QUALITY" />}
         {clientUid ? (
-          <BSPlate c={accent} notch={10} pad="15px 16px 15px 20px" role="button" ariaLabel="Reconcile sources" onClick={() => setShowReconcile(true)}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>Which source to trust</div>
-                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>When {first}'s devices disagree on a metric</div>
-              </div>
-              <span style={{ color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
-            </div>
-          </BSPlate>
-        ) : (
-          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Demo client · appears once linked to a live member</div>
-        )}
+          <button type="button" onClick={() => setShowReconcile(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK }}>Which source to trust</span>
+              <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>When {first}'s devices disagree on a metric</span>
+            </span>
+            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, fontWeight: 700, color: heat }}>›</span>
+          </button>
+        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="DEMO CLIENT · APPEARS ONCE LINKED" /> : emptyNote('Demo client · appears once linked to a live member'))}
       </div>
+
+      {/* CARE TEAM — press-credit rows (counterpart's ROLE-color spine · name ·
+          CO-MANAGING · MESSAGE heat-underline → existing shape:proMessageCoach). */}
       {clientUid && careLoaded && careTeam && careTeam.length > 0 && (
-        <div>
-          <Section eyebrow="CARE TEAM" title="Co-coaches" />
-          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {careTeam.map((c, i) => {
-              const cName = (c.name || 'Coach').trim();
-              const cInit = cName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
-              const cColor = c.role === 'nutritionist' ? '#a07a2e' : t.RUST;
-              const cRoleLabel = c.role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
-              return (
-                <div key={c.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 6px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-                  <BSFacetAvatar size={38} c={cColor} initial={cInit} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cName}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: cColor }}>{cRoleLabel} · same client</div>
-                  </div>
-                  <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proMessageCoach', { detail: { clientId: clientUid, counterpartUserId: c.userId, name: cName, role: cRoleLabel } })); } catch (e) {} }} style={{ borderRadius: 999, border: `1px solid ${cColor}`, background: `${cColor}1f`, color: t.INK, padding: '8px 14px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>MESSAGE</button>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Coordinate {first}'s plan with the rest of the care team</div>
-        </div>
-      )}
-      {clientUid && pens.length > 0 && (
-        <div>
-          <Section eyebrow="ACCOUNTABILITY" title="Recent penalties" />
-          <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {pens.map((p, i) => (
-              <div key={p.source_id || i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 6px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-                <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: t.RUST, flexShrink: 0 }} />
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="CARE TEAM" />}
+          {careTeam.map((c, i) => {
+            const cName = (c.name || 'Coach').trim();
+            const cInit = cName.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+            const cColor = c.role === 'nutritionist' ? '#a07a2e' : t.RUST;
+            const cRoleLabel = c.role === 'nutritionist' ? 'Nutritionist' : 'Trainer';
+            return (
+              <div key={c.userId || i} style={{ display: 'flex', alignItems: 'center', gap: 11, borderLeft: `3px solid ${cColor}`, padding: '9px 0 9px 11px', marginTop: i ? 8 : 0 }}>
+                <BSFacetAvatar size={36} c={cColor} initial={cInit} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em' }}>{p.note || 'Penalty'}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{p.delta} pts · {p.earned_at ? new Date(p.earned_at).toLocaleDateString() : ''}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cName}</div>
+                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cRoleLabel.toUpperCase()} · CO-MANAGING</div>
                 </div>
-                <button onClick={() => waivePen(p)} style={{ borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1f`, color: t.INK, padding: '8px 14px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>WAIVE</button>
+                <button type="button" onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:proMessageCoach', { detail: { clientId: clientUid, counterpartUserId: c.userId, name: cName, role: cRoleLabel } })); } catch (e) {} }} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>MESSAGE</span>
+                </button>
               </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Waiving adds the points back — use it when a miss wasn't on {first}</div>
+            );
+          })}
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Coordinate {first}'s plan with the rest of the care team</div>
         </div>
       )}
+
+      {/* ACCOUNTABILITY — penalty rows (mono description · rust −{n} · dotted
+          leader · WAIVE heat-underline action, existing RPC handler). */}
+      {clientUid && pens.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="ACCOUNTABILITY · RECENT PENALTIES" />}
+          {pens.map((p, i) => (
+            <div key={p.source_id || i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '7px 0' }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap' }}>{p.note || 'Penalty'}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: t.RUST, whiteSpace: 'nowrap' }}>−{Math.abs(Number(p.delta) || 0)}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, whiteSpace: 'nowrap' }}>{p.earned_at ? new Date(p.earned_at).toLocaleDateString() : ''}</span>
+              <button type="button" onClick={() => waivePen(p)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 2px', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>WAIVE</span>
+              </button>
+            </div>
+          ))}
+          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>Waiving adds the points back — use it when a miss wasn't on {first}</div>
+        </div>
+      )}
+
+      {/* ACCOUNTABILITY — set a weekly commitment (unchanged form/handlers). */}
       {clientUid && (
-        <div>
-          <Section eyebrow="ACCOUNTABILITY" title="Set a commitment" />
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="ACCOUNTABILITY · SET A COMMITMENT" />}
           {!commitForm ? (
-            <button onClick={() => setCommitForm(true)} style={{ width: '100%', padding: '12px', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>+ Propose a weekly commitment</button>
+            <button type="button" onClick={() => setCommitForm(true)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK }}>
+              <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>+ PROPOSE A WEEKLY COMMITMENT →</span>
+            </button>
           ) : (
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 14 }}>
+            <div style={{ borderLeft: `3px solid ${t.INK}33`, padding: '2px 0 2px 11px' }}>
               {[['Workouts', 'workouts', 0, 14], ['Habit check-offs', 'habits', 0, 21]].map(([label, key, lo, hi], idx) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: idx ? 12 : 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{label}</div>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>{label}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button onClick={() => setCf(s => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>−</button>
-                    <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK }}>{cf[key]}</span>
-                    <button onClick={() => setCf(s => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>+</button>
+                    <button type="button" onClick={() => setCf(s => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 0, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>−</button>
+                    <span style={{ minWidth: 20, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{cf[key]}</span>
+                    <button type="button" onClick={() => setCf(s => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 0, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontSize: 15, cursor: 'pointer' }}>+</button>
                   </div>
                 </div>
               ))}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>Weekly check-in</div>
-                <button onClick={() => setCf(s => ({ ...s, checkin: !s.checkin }))} style={{ padding: '7px 14px', borderRadius: 999, border: `1px solid ${cf.checkin ? teal : t.RULE}`, background: cf.checkin ? `${teal}1c` : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, cursor: 'pointer' }}>{cf.checkin ? 'Yes' : 'No'}</button>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK }}>Weekly check-in</div>
+                <button type="button" onClick={() => setCf(s => ({ ...s, checkin: !s.checkin }))} style={{ minHeight: 44, padding: '10px 2px', background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  <span style={{ borderBottom: cf.checkin ? `1px solid ${heat}` : `1px solid ${t.INK}4d`, paddingBottom: 2 }}>{cf.checkin ? 'YES' : 'NO'}</span>
+                </button>
               </div>
               <div style={{ marginTop: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontWeight: 700 }}><span>STAKE</span><span style={{ color: teal }}>{cf.stake} pts</span></div>
-                <input type="range" aria-label="Stake points" min={5} max={50} step={5} value={cf.stake} onChange={e => setCf(s => ({ ...s, stake: Number(e.target.value) }))} style={{ width: '100%', marginTop: 8, accentColor: teal }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}><span>STAKE</span><span style={{ color: heat }}>{cf.stake} pts</span></div>
+                <input type="range" aria-label="Stake points" min={5} max={50} step={5} value={cf.stake} onChange={e => setCf(s => ({ ...s, stake: Number(e.target.value) }))} style={{ width: '100%', marginTop: 8, accentColor: heat }} />
               </div>
-              <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-                <button disabled={cfBusy} onClick={proposeCommit} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', opacity: cfBusy ? 0.6 : 1 }}>{cfBusy ? 'Proposing…' : 'Propose'}</button>
-                <button onClick={() => setCommitForm(false)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Cancel</button>
+              <div style={{ marginTop: 14, display: 'flex', gap: 18 }}>
+                <button type="button" disabled={cfBusy} onClick={proposeCommit} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK, opacity: cfBusy ? 0.6 : 1 }}>
+                  <span style={{ borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>{cfBusy ? 'PROPOSING…' : 'PROPOSE →'}</span>
+                </button>
+                <button type="button" onClick={() => setCommitForm(false)} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>CANCEL</button>
               </div>
             </div>
           )}
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{first} accepts before any points are staked</div>
         </div>
       )}
+
+      {/* SCREENING — health profile (PAR-Q); redaction when absent. */}
       {clientUid && (
-        <div>
-          <Section eyebrow="SCREENING" title="Health profile" />
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="SCREENING · HEALTH PROFILE" meta={cKit.health ? (cKit.health.flagged ? 'FLAGGED' : 'ALL CLEAR') : undefined} />}
           {cKit.health ? (() => {
             const h = cKit.health;
-            const yesCount = Array.isArray(h.parq) ? h.parq.filter((a) => a === true).length : 0;
             const rxLine = h.rxMeds === 'yes' ? (h.medications || 'Yes — not listed') : h.rxMeds === 'no' ? 'None' : (h.medications || null);
             const condLine = [(Array.isArray(h.conditionTags) ? h.conditionTags.join(' · ') : ''), (h.conditions || '')].filter(Boolean).join(' — ') || null;
             const allergyLine = h.allergies === 'yes' ? (h.allergyDetails || 'Yes — not listed') : h.allergies === 'no' ? 'None reported' : null;
@@ -3661,41 +3674,38 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
               ['Emergency contact', h.emergency && (h.emergency.name || h.emergency.phone) ? `${h.emergency.name || ''} ${h.emergency.phone || ''}`.trim() : null],
             ];
             return (
-              <div style={{ borderRadius: 6, border: `1px solid ${h.flagged ? `${t.RUST}66` : t.RULE}`, borderLeft: `3px solid ${h.flagged ? t.RUST : teal}`, background: t.PAPER2, padding: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK }}>PAR-Q screening</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: h.flagged ? t.RUST : teal }}>{h.flagged ? `${yesCount || 'review'} flagged` : 'All clear'}</span>
-                </div>
+              <div style={{ borderLeft: `3px solid ${h.flagged ? t.RUST : heat}`, padding: '2px 0 2px 11px' }}>
                 {rows.map(([l, v]) => v ? (
                   <div key={l} style={{ marginTop: 10 }}>
                     <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 800 }}>{l}</div>
-                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
+                    <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, lineHeight: 1.45 }}>{v}</div>
                   </div>
                 ) : null)}
                 <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Shared with linked coaches for safety · completed {h.consentAt ? new Date(h.consentAt).toLocaleDateString() : ''}</div>
               </div>
             );
-          })() : (
-            <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>No health profile on file yet</div>
-          )}
+          })() : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label="NO HEALTH PROFILE ON FILE" /> : emptyNote('No health profile on file yet'))}
         </div>
       )}
+
+      {/* BODY — latest measurements (dot-leader rows). */}
       {clientUid && cKit.meas.length > 0 && (
-        <div>
-          <Section eyebrow="BODY" title="Latest measurements" />
-          <div style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}`, background: t.PAPER2, padding: '4px 14px' }}>
-            {cKit.meas.map((m, i) => (
-              <div key={m.site} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, color: t.INK, textTransform: 'capitalize' }}>{m.site}</span>
-                <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em' }}>{String(m.measured_on).slice(5)}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{Number(m.value)} {m.unit}</span>
-              </div>
-            ))}
-          </div>
+        <div style={{ marginTop: 22 }}>
+          {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="BODY · LATEST MEASUREMENTS" />}
+          {cKit.meas.map((m, i) => (
+            <div key={m.site} style={{ display: 'flex', alignItems: 'baseline', gap: 6, padding: '6px 0' }}>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{m.site}</span>
+              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.INK}4d` }} />
+              <span style={{ fontFamily: t.MONO, fontSize: 8, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{String(m.measured_on).slice(5)}</span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{Number(m.value)} {m.unit}</span>
+            </div>
+          ))}
         </div>
       )}
-      <div>
-        <Section eyebrow="PRIVATE" title="Coach notes" />
+
+      {/* PRIVATE — coach notes (quiet form, unchanged — two-tier rule). */}
+      <div style={{ marginTop: 22 }}>
+        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label="PRIVATE · COACH NOTES" />}
         <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>
           {isNutri ? 'Clinical notes' : 'Training notes'} for {client.n} — history, compliance, habits, and messaging context live here.
         </div>
