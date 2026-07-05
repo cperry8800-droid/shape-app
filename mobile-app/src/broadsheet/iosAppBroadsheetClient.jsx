@@ -22556,7 +22556,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 14, rowGap: 2, marginBottom: 4 }}>
             {BSPROG_TREND_TABS.map((x) => { const on = trend === x.k; return (
-              <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, position: 'relative', minHeight: 36, background: 'transparent', border: 0, padding: '0 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45) }}>
+              <button key={x.k} onClick={() => setTrend(x.k)} style={{ flexShrink: 0, position: 'relative', minHeight: 44, background: 'transparent', border: 0, padding: '4px 2px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: on ? t.INK : bsTHexA(t.INK, 0.45) }}>
                 {x.label}
                 {on && <span aria-hidden style={{ position: 'absolute', left: 2, right: 2, bottom: 9, height: 2, background: heat, transformOrigin: 'left', ...(reduced ? null : { animation: 'bsSdDrawX 300ms cubic-bezier(.4,0,.2,1) both' }) }} />}
               </button>

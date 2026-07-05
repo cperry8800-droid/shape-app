@@ -248,8 +248,8 @@ changelog whenever something ships.
     Volume · Protein · Hydration) sat on a horizontal `overflowX:auto` strip, so
     everything past HRV scrolled off the right edge. Now the strip **wraps**
     (`flexWrap`, no horizontal scroll) so every metric is on one screen — no tab
-    dropped — and the tab row height is tightened (`minHeight 44→36`) so the
-    wrapped rows stay compact.
+    dropped. Each tab keeps the 44pt tap-target height (per this file's
+    convention, per CodeRabbit); the wrap is the whole fix.
   - **Terrain profile identity head: Follow/Message moved below the counts.**
     `BSProfileIdentityHead` was passing a hidden dummy `title` into
     `BSFollowBlock`, which forced the "actions pinned right of the (empty) name
